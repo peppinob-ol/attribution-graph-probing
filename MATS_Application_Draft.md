@@ -1,4 +1,4 @@
-# Bridging Black-Box and White-Box Interpretability: An Anthropological Approach to Automated Circuit Analysis
+# Automating Circuit Analysis Through Feature Ethnography
 
 **MATS 9.0 Application - Research Draft**  
 *Giuseppe Birardi*  
