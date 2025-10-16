@@ -1,266 +1,380 @@
-# Circuit Tracing + Strategia Antropologica per Supernodi
+# Circuit Analysis Pipeline: Anthropological Feature Analysis
 
-Documentazione tecnica per analisi interpretabilità meccanicistica basata su Circuit Tracing (Anthropic) con estensione metodologica originale per supernodi antropologici.
+**Analisi antropologica delle feature di LLM attraverso Circuit Tracing e semantic clustering influence-first.**
 
-**Attribuzione:** Questo progetto utilizza il framework Circuit Tracing sviluppato da Anthropic come base per implementare metodologie originali di automated concept probing e strategia antropologica per supernodi. Tutti i contributi originali sono chiaramente identificati nelle sezioni appropriate.
+---
 
-## 1. Fondamenta Teoriche (Anthropic)
-
-### 1.1 Circuit Tracing - Lavoro Originale Anthropic
-
-**Sviluppato da:** Anthropic Research Team (2024-2025)
-
-**Riferimenti principali:**
-- Paper: "Circuit Tracing: Revealing Computational Graphs in Language Models" (Anthropic, 2025)
-- Repository: anthropics/circuit-tracer  
-- Companion paper: "On the Biology of a Large Language Model" (Claude 3.5 Haiku analysis)
-- Interface interattiva: neuronpedia.org
-
-**Innovazioni chiave sviluppate da Anthropic:**
-- Cross-Layer Transcoders (CLT) invece di SAE per-layer tradizionali
-- Attribution graphs per prompt specifici invece di analisi globali
-- Local replacement model con attention patterns e normalizzazioni frozen
-- Linearizzazione degli effetti feature-feature tramite stop-gradients
-- Metodologia di circuit tracing manuale con clicking interattivo
-
-### 1.2 Differenze da Approcci Precedenti
-
-**vs. Activation Patching classico:**
-- Circuit tracing usa feature interpretabili invece di neuroni MLP
-- Attribution graphs mostrano effetti diretti lineari quantificabili
-
-**vs. SAE standard:**
-- CLT bridgiano multiple layer MLP, riducendo path length nei grafi
-- Evita amplification chains di feature simili attraverso layer
-
-**vs. Mechanistic Interpretability tradizionale:**
-- Focus su prompt-specific mechanisms invece di task-general circuits
-- Attribution quantificata matematicamente invece di analisi qualitativa
-
-## 2. Contributo Originale: Automated Concept Probing
-
-### 2.1 Estensione del Circuit Tracing Anthropic
-
-**Problema identificato:** Il circuit tracing di Anthropic richiede analisi manuale esperta (~2 ore per prompt, come documentato nel podcast transcript).
-
-**Background metodologico:** Prompt Rover tool precedentemente sviluppato per black box concept extraction da testi LLM, con:
-- Automated concept extraction (LLM + spaCy)
-- Semantic embedding e graph analysis
-- Interactive visualization di relazioni concettuali
-
-**Soluzione proposta:** Integrazione dell'approccio black box (Prompt Rover) con white box analysis (Circuit Tracing Anthropic) per automatizzazione sistematica dell'interpretazione feature.
-
-### 2.2 Architettura del Sistema di Concept Probing
-
-**Step 1: Baseline Attribution Graph (utilizzo framework Anthropic)**
-- Input: "The capital of state containing Dallas is"
-- Modello: google/gemma-2-2b + Gemma Scope transcoders (Anthropic)
-- Attribution graph generation: circuit-tracer library (Anthropic)
-- Output: `output/example_graph.pt` (167MB, ~6362 active features)
-
-**Step 2: Automated Concept Extraction (basato su Prompt Rover tool)**
-- Metodologia derivata dal tool "Prompt Rover" per black box concept extraction
-- LLM prompt per extraction strutturata (eredita approccio `extract_concepts_with_llm`)
-- Alternative spaCy-based extraction come fallback (eredita `extract_concepts_alternative`)
-- Output format: JSON con label, category, description
-- Concetti estratti: entities, relationships, attributes dal prompt originale
-
-**Step 3: Feature Sensitivity Probing (contributo originale)**
-Per ogni feature nel grafo originale:
-- Test attivazione su label solo
-- Test attivazione su "label: description"
-- Calcolo metriche comparative per validazione automatica
-
-### 2.3 Metriche di Analisi (bridging black box + white box)
-
-**Approccio ibrido:** Le metriche combinano dati strutturali da Circuit Tracing Anthropic con metodologie di concept sensitivity derivate da Prompt Rover.
-
-**Metriche Statiche** (derivate da attribution graphs Anthropic):
-- `frac_external_raw`: 1 - self-weight sul residual stream
-- `logit_influence`: norma influenza diretta+indiretta sul logit
-
-**Metriche Dinamiche** (sviluppate per concept probing, metodologia Prompt Rover adattata):
-- `attivazione_vecchio_prompt`: valore baseline dal grafo Anthropic
-- `nuova_somma_sequenza`: somma attivazioni su nuova sequenza (concept span detection)
-- `nuova_somma_label_span`: somma solo su span del label (eredita `_find_subsequence` da Prompt Rover)
-- `picco_su_label`: boolean se picco cade su token del concept (adaptation concept-token mapping)
-- `cosine_similarity`: similarità con pattern originale (semantic consistency da Prompt Rover)
-- `z_score`: deviazione standard rispetto a baseline
-- `z_score_robust`: versione IQR-based più robusta
-- `density_attivazione`: percentuale token attivi sopra soglia
-- `ratio_max_vs_original`: rapporto picchi nuovo/originale
-- `twera_total_in`: Target-Weighted Expected Residual Attribution
-
-## 3. Implementazione Tecnica (framework Anthropic + estensioni)
-
-### 3.1 Configurazione Modello (basato su framework Anthropic)
-
-**Configurazione Attribution (parametri standard Anthropic):**
-- `max_n_logits = 10`: top logits da attribuire
-- `desired_logit_prob = 0.95`: soglia probabilità cumulativa
-- `batch_size = 256`: batch size per backward passes
-- `max_feature_nodes = 8192`: limite feature nodes nel grafo
-
-### 3.2 Funzioni Core (estensioni al framework Anthropic)
-
-**Feature Analysis Functions (sviluppate per questo progetto):**
-- `get_feature_activations_clean()`: estrazione attivazioni allineate al BOS
-- `analyze_concepts()`: analisi comparativa sistematica
-- `_find_subsequence()`: localizzazione span del label nella sequenza
-- `compute_static_metrics()`: calcolo metriche statiche del grafo
-
-## 4. Innovazioni Metodologiche (contributi originali)
-
-### 4.1 Concept-Feature Mapping
-- **Problema identificato**: Come validare sistematicamente le ipotesi sui ruoli delle feature derivate da circuit tracing Anthropic?
-- **Approccio black box precedente (Prompt Rover)**: Concept extraction automatica da output testuale senza accesso a stati interni
-- **Adattamento white box**: Applicazione delle tecniche di concept extraction per interpretare feature interne specifiche
-- **Soluzione sviluppata**: Automated probing che usa concetti estratti automaticamente (Prompt Rover) per validare feature interpretation (Circuit Tracing Anthropic)
-
-### 4.2 Multi-Level Sensitivity Analysis
-**Label vs Label+Description testing (metodologia originale):**
-- Distingue feature che rispondono al token vs al concetto semantico
-- Identifica feature polisemantiche vs monosemantiche
-- Quantifica robustezza della rappresentazione
-
-### 4.3 TWERA Integration
-**Target-Weighted Expected Residual Attribution (estensione metodologica):**
-- Rimuove "interference" dai virtual weights
-- Usa co-activation statistics per filtering
-- Formula: `V_ij^TWERA = (E[a_j * a_i] / E[a_j]) * V_ij`
-
-## 5. Contributo Principale: Strategia Antropologica per Supernodi
-
-**Nota:** Questa sezione descrive metodologia completamente originale, sviluppata indipendentemente dal lavoro Anthropic per automatizzare la creazione di supernodi interpretativi.
-
-### 5.1 Motivazione e Approccio
-
-**Problema del Circuit Tracing Manuale:** Come documentato nel podcast transcript Anthropic, il processo di raggruppamento feature ("lumping together nodes") richiede esperienza e tempo significativo.
-
-**Soluzione Antropologica Proposta:** Analisi sistematica delle "personalità" delle feature per automatizzare la creazione di supernodi coerenti.
-
-### 5.2 Metodologia Implementata
-
-La strategia antropologica introduce un approccio sistematico per la creazione di supernodi basato su analisi comportamentale delle feature. Il metodo si articola in tre fasi:
-
-**Fase 1: Analisi Biografica delle Feature**
-- Classificazione in archetipi comportamentali basata su metriche quantitative
-- Identificazione di semantic anchors (127 feature) con alta affinità per label e consistenza cross-prompt
-- Separazione di feature computazionali da quelle semantiche
-
-**Fase 2: Costruzione Supernodi Semantici ("Cicciotti")**
-- Selezione di 37 seed diversificati per layer e peak token
-- Crescita narrativa controllata con validation della coerenza interna
-- Controllo duplicati globale per evitare sovrapposizioni
-
-**Fase 3: Clustering Residui Computazionali**
-- Auto-detection di token strutturali vs semantici per generalizzabilità
-- Clustering deterministico basato su layer groups, token types e consistency tiers
-- Filtraggio qualitativo delle feature (esclusione garbage layer-0)
-
-### 5.3 File di Implementazione (codice originale)
-
-**Pipeline Strategia Antropologica:**
-- `anthropological_basic.py`: Analisi biografica delle 4,865 feature
-- `cicciotti_supernodes.py`: Costruzione 37 supernodi semantici
-- `final_optimized_clustering.py`: Clustering 17 supernodi computazionali
-- `anthropological_strategy_summary.md`: Documentazione metodologica dettagliata
-
-### 5.4 Risultati Quantitativi
-
-| Metrica | Valore | Note |
-|---------|--------|------|
-| **Supernodi Totali** | 54 | 37 semantici + 17 computazionali |
-| **Feature Coperte** | 891 | 18.3% del dataset, zero duplicati |
-| **Coverage Qualità** | 83.7% | Escludendo feature non-informative |
-| **Coerenza Semantica** | 0.842 | Media supernodi cicciotti |
-| **Diversità Computazionale** | 7 token types | Range layer 1-25 |
-| **Cross-Prompt Stability** | 100% | Tutti i membri attivi su tutti i prompt |
-
-### 5.5 Innovazioni Metodologiche (contributi originali)
-
-- **Classificazione automatica** delle feature in archetipi comportamentali
-- **Crescita controllata** dei supernodi con metriche di coerenza narrativa
-- **Auto-detection** dei pattern token per generalizzabilità cross-dominio
-- **Separazione intelligente** tra feature semantiche e computazionali
-- **Quality filtering** per eliminazione automatica di feature non-informative
-
-## 6. Dataset e Output
-
-### 6.1 File Input (basati su framework Anthropic)
-- `output/acts_compared.csv`: 19,460 record di attivazioni comparative
-- `output/graph_feature_static_metrics (1).csv`: 6,588 metriche strutturali  
-- `output/example_graph.pt`: Grafo attribution generato con circuit-tracer Anthropic
-
-### 6.2 File Output (risultati strategia antropologica)
-- `output/final_anthropological_optimized.json`: 54 supernodi finali
-- `output/feature_personalities_corrected.json`: Analisi biografica complete
-- `output/narrative_archetypes.json`: Classificazione archetipi
-- `output/cicciotti_supernodes.json`: 37 supernodi semantici
-- `output/cicciotti_validation.json`: Risultati validazione cross-prompt
-
-## 7. Utilizzo
-
-### 7.1 Requisiti
-- Framework circuit-tracer di Anthropic per generazione attribution graphs
-- Dataset di attivazioni comparative già processato
-
-### 7.2 Riproduzione Pipeline Antropologica
+## 📊 Quick Start
 
 ```bash
-# 1. Analisi biografica delle feature (da attribution graph Anthropic)
+# Apri il notebook unificato
+jupyter notebook circuit_analysis_pipeline.ipynb
+
+# Oppure esegui la pipeline da terminale
 python anthropological_basic.py
-
-# 2. Costruzione supernodi semantici con strategia cicciotti
+python compute_thresholds.py
 python cicciotti_supernodes.py
+python final_optimized_clustering.py
+python verify_logit_influence.py
+```
 
-# 3. Clustering computazionale residui
+---
+
+## 🎯 Overview
+
+Questo progetto implementa un'analisi antropologica delle feature estratte da attribution graph generati con [Circuit Tracer](https://github.com/safety-research/circuit-tracer) (Anthropic).
+
+### Risultati
+
+- ✅ **52.3% logit influence coverage**
+- ✅ **23 supernodi** (15 semantici + 8 computazionali)
+- ✅ **483 feature** coperte
+- ✅ **2.4% BOS leakage** (controllato)
+
+### Metodologia Chiave
+
+- **Influence-First Filtering**: Ammissione basata su causalità (`logit_influence >= τ_inf`)
+- **Dual View**: "Situational Core" (causalmente determinante) vs "Generalizable Scaffold" (stabile cross-prompt)
+- **Supernodi Semantici**: Clustering narrativo con crescita controllata da coherence
+- **Validazione Empirica**: Coverage logit influence + correlazioni metriche
+
+---
+
+## 🔄 Workflow
+
+```
+┌──────────────────────────────────────┐
+│  FASE COLAB                          │
+│  • Circuit Tracer + Gemma-2-2B       │
+│  • Prompt: "The capital of state...  │
+├──────────────────────────────────────┤
+│  OUTPUT:                             │
+│  1. example_graph.pt                 │
+│  2. graph_feature_static_metrics.csv │
+│  3. acts_compared.csv                │
+└──────────────────────────────────────┘
+              ↓
+┌──────────────────────────────────────┐
+│  FASE LOCALE                         │
+│                                      │
+│  Step 1: Anthropological Basic      │
+│    → feature_personalities.json      │
+│                                      │
+│  Step 2: Compute Thresholds         │
+│    → robust_thresholds.json          │
+│                                      │
+│  Step 3: Cicciotti Supernodes       │
+│    → cicciotti_supernodes.json       │
+│                                      │
+│  Step 4: Final Clustering           │
+│    → final_optimized.json            │
+│                                      │
+│  Step 5: Verify Logit Influence     │
+│    → logit_influence_validation.json │
+└──────────────────────────────────────┘
+```
+
+---
+
+## 📁 Struttura Progetto
+
+```
+circuit_tracer-prompt_rover/
+├── circuit_analysis_pipeline.ipynb  # 🆕 Notebook unificato (START HERE)
+│
+├── anthropological_basic.py         # Core: analisi personalities
+├── compute_thresholds.py            # Calcolo soglie robuste
+├── cicciotti_supernodes.py          # Supernodi semantici
+├── final_optimized_clustering.py    # Clustering computazionale
+├── verify_logit_influence.py        # Validazione coverage
+│
+├── scripts/
+│   ├── 01_anthropological_basic.py   # Pipeline ordinata
+│   ├── 02_compute_thresholds.py
+│   ├── 03_cicciotti_supernodes.py
+│   ├── 04_final_optimized_clustering.py
+│   ├── 05_verify_logit_influence.py
+│   │
+│   ├── visualization/
+│   │   ├── visualize_feature_space_3d.py
+│   │   └── neuronpedia_export.py
+│   │
+│   ├── analysis/
+│   │   └── analyze_remaining_excluded.py
+│   │
+│   └── legacy/                       # File vecchi/sperimentali
+│
+├── output/                           # File generati dalla pipeline
+├── docs/                             # Documentazione metodologica
+├── figures/                          # Visualizzazioni generate
+│
+└── README.md                         # Questo file
+```
+
+---
+
+## 🚀 Setup
+
+### Prerequisiti
+
+```bash
+# Python 3.8+
+pip install numpy scipy scikit-learn scikit-image matplotlib pandas
+```
+
+### File di Input (da Colab)
+
+Prima di eseguire la pipeline locale, scarica questi file da Colab nella cartella `output/`:
+
+1. **`example_graph.pt`** - Attribution graph (~167MB)
+2. **`graph_feature_static_metrics.csv`** - Metriche statiche per feature
+3. **`acts_compared.csv`** - Attivazioni su concetti semantici
+
+Vedi `circuit_analysis_pipeline.ipynb` per dettagli su come generare questi file.
+
+---
+
+## 📊 Pipeline Dettagliata
+
+### Step 1: Anthropological Basic
+
+**Calcola metriche antropologiche per ogni feature:**
+
+- `mean_consistency`: Generalizzabilità cross-prompt (media cosine similarity)
+- `max_affinity`: Specializzazione semantica (max cosine similarity)
+- `conditional_consistency`: Consistency solo quando feature è attiva
+- `activation_threshold`: Soglia adattiva (ibrido p75 + Otsu)
+
+**Output:**
+- `feature_personalities_corrected.json`
+- `feature_typology.json` (generalist/specialist/computational/hybrid)
+- `quality_scores.json`
+- `metric_correlations.json`
+
+```bash
+python anthropological_basic.py
+```
+
+### Step 2: Compute Robust Thresholds
+
+**Calcola soglie robuste per influence-first filtering:**
+
+```python
+# Criterio ammissione
+admitted = (logit_influence >= τ_inf) OR (max_affinity >= τ_aff)
+
+# Eccezione BOS: se peak_token == '<BOS>', richiedi logit_influence >= τ_inf_very_high
+```
+
+**Thresholds:**
+- **τ_inf**: max(p90, cutoff_80% cumulata) - ~0.0056
+- **τ_aff**: 0.60 (configurabile)
+- **τ_inf_very_high**: p95 - ~0.0235 (BOS filter)
+
+**Output:** `robust_thresholds.json`
+
+```bash
+python compute_thresholds.py
+```
+
+### Step 3: Cicciotti Supernodes (Semantic)
+
+**Costruisce supernodi semantici tramite:**
+
+1. **Seed selection influence-first**: Ordina per (logit_influence, max_affinity) decrescente
+2. **Narrative-guided growth**: Aggiungi feature con compatibilità narrativa > soglia
+3. **Coherence tracking**: Stop quando coherence < soglia minima
+
+**Compatibilità narrativa:**
+```python
+compatibility = (
+    0.4 * cosine_similarity(patterns) +
+    0.3 * jaccard_similarity(concept_peaks) +
+    0.2 * (1 - abs(consistency_diff)) +
+    0.1 * (1 - layer_distance)
+)
+```
+
+**Output:** `cicciotti_supernodes.json`
+
+```bash
+python cicciotti_supernodes.py
+```
+
+### Step 4: Final Optimized Clustering
+
+**Clusterizza feature residue (non nei supernodi semantici):**
+
+- Identifica quality residuals con τ_inf/τ_aff
+- Clustering per `dominant_token` e `layer_range`
+- Merge con supernodi semantici
+
+**Output:** `final_anthropological_optimized.json`
+
+```bash
 python final_optimized_clustering.py
 ```
 
-### 7.3 Output e Validazione
+### Step 5: Verify Logit Influence
 
-**Risultati finali**: `output/final_anthropological_optimized.json`
-- 37 supernodi semantici con crescita narrativa controllata
-- 17 supernodi computazionali con clustering deterministico
-- Metriche di qualità e validazione cross-prompt per ogni supernodo
+**Valida copertura logit influence dei supernodi:**
 
-**Controlli automatici integrati:**
-- Integrità (zero duplicati tra supernodi)
-- Coerenza semantica (soglia 0.6)
-- Stabilità cross-prompt (100% attivazione)
-- Quality filtering (esclusione feature non-informative)
+- Calcola % influence totale coperta
+- Breakdown per feature type
+- Rating: EXCELLENT (≥80%) / GOOD (60-79%) / MODERATE (40-59%) / WEAK (<40%)
 
-## 8. Attribuzioni e Riferimenti
+**Output:** `logit_influence_validation.json`
 
-### 8.1 Lavoro Anthropic (fondamenta)
-- **Circuit Tracing framework**: Anthropic Research Team
-- **Attribution graphs**: Metodo Anthropic
-- **Cross-Layer Transcoders**: Tecnologia Anthropic
-- **Neuronpedia interface**: Anthropic + comunità
+```bash
+python verify_logit_influence.py
+```
 
-### 8.2 Contributi Originali (questo progetto)
-- **Prompt Rover tool**: Framework black box per concept extraction automatica (base metodologica)
-- **Automated concept probing**: Integrazione black box + white box per validazione feature
-- **Strategia antropologica**: Metodologia completa per supernodi basata su analisi biografica
-- **Crescita cicciotti controllata**: Algoritmo per supernodi semantici con controllo duplicati
-- **Quality-first clustering**: Approccio deterministico per supernodi computazionali
+### Step 6: Export Neuronpedia (Opzionale)
 
-### 8.3 Documentazione Tecnica
-- `anthropological_strategy_summary.md`: Metodologia antropologica dettagliata
-- `docs/prompt_rover_README.md`: Documentazione tool Prompt Rover (base concept extraction)
-- `docs/podcast_transcript`: Trascrizione discussione ricercatori Anthropic
-- `docs/Anthropic_circuit_tracing.md.txt`: Paper Circuit Tracing originale Anthropic
-- `docs/github_circuit_tracer.txt`: Documentazione repository Anthropic
+**Genera Graph JSON con supernodi per Neuronpedia:**
 
-## 9. Conclusioni
+```powershell
+# Step 1: Fix e aggiungi supernodi (gestisce Cantor pairing)
+python scripts/visualization/fix_neuronpedia_export.py
 
-Questo progetto rappresenta un bridge metodologico tra approcci black box e white box per l'interpretabilità dei modelli linguistici:
+# Step 2: Carica su Neuronpedia via API
+pip install neuronpedia
+python scripts/visualization/upload_to_neuronpedia.py
+```
 
-- **Foundation black box**: Il tool Prompt Rover fornisce metodologie di concept extraction automatica per analisi comportamentale dei modelli senza accesso agli stati interni
+**Output:** `output/neuronpedia_graph_with_subgraph.json` (23.8 MB)
+- 112 supernodi (semantici + computazionali)
+- 409 feature pinnate
+- Conforme allo schema Neuronpedia Attribution Graph
 
-- **Foundation white box**: Il Circuit Tracing di Anthropic fornisce accesso dettagliato agli stati interni tramite attribution graphs e feature interpretation
+**Note:**
+- Il validator UI non funziona per file grandi (>20 MB)
+- Usa l'API Python per l'upload
+- I supernodi appaiono automaticamente nella sidebar del graph viewer
 
-- **Integrazione metodologica**: La strategia antropologica combina i due approcci, utilizzando tecniche di concept extraction (black box) per automatizzare l'interpretazione di componenti interne (white box)
+Vedi `docs/NEURONPEDIA_UPLOAD_COMPLETE.md` per la guida completa.
 
-Il risultato dimostra come metodologie sviluppate per analisi comportamentale esterna possano essere adattate per comprendere automaticamente la struttura interna dei modelli, aprendo possibilità per ibridazione tra interpretabilità black box e mechanistic interpretability.
+### Step 7: Visualizzazioni (Opzionale)
+
+```bash
+python scripts/visualization/visualize_feature_space_3d.py
+```
+
+---
+
+## 📈 Metriche Chiave
+
+### Feature-Level Metrics
+
+| Metrica | Range | Significato |
+|---------|-------|-------------|
+| `mean_consistency` | 0-1 | Generalizzabilità cross-prompt |
+| `max_affinity` | 0-1 | Specializzazione semantica |
+| `conditional_consistency` | 0-1 | Consistency quando attiva |
+| `logit_influence` | 0-∞ | Impatto causale sull'output |
+
+### Typology Classification
+
+- **Generalist**: Alta consistency + Alta affinity + Bassa influence (es. "of", "the")
+- **Specialist**: Bassa consistency + Alta affinity + Alta influence (es. "Capital", "Texas")
+- **Computational**: Alta consistency + Bassa affinity (es. position markers)
+- **Hybrid**: Combinazioni miste
+
+### Dual View (Influence-First)
+
+1. **Situational Core** (`logit_influence >= τ_inf`)
+   - Feature causalmente determinanti per questo prompt specifico
+   - Priorità massima per interpretabilità
+
+2. **Generalizable Scaffold** (`max_affinity >= τ_aff OR mean_consistency >= τ_cons`)
+   - Feature stabili e riutilizzabili cross-prompt
+   - Supporto strutturale del comportamento
+
+---
+
+## 🎯 Risultati
+
+### Coverage Metriche
+
+| Metrica | Target | Attuale | Status |
+|---------|--------|---------|--------|
+| Logit Influence Coverage | ≥50% | 52.3% | ✅ |
+| BOS Leakage | <30% | 2.4% | ✅ |
+| Feature Coperte | ≥400 | 483 | ✅ |
+| Supernodi | 15-30 | 23 | ✅ |
+
+### Breakdown Supernodi
+
+- **Semantic**: 15 supernodi (cluster narrativi coerenti)
+- **Computational**: 8 supernodi (residui quality con logit influence)
+
+---
+
+## 🔧 Troubleshooting
+
+### File mancanti
+
+**Errore:** `FileNotFoundError: output/acts_compared.csv`
+
+**Soluzione:** Scarica i file da Colab. Vedi sezione "Setup".
+
+### Coverage bassa
+
+**Se coverage < 40%:**
+
+1. Analizza feature escluse:
+   ```bash
+   python scripts/analysis/analyze_remaining_excluded.py
+   ```
+
+2. Rilassa thresholds in `compute_thresholds.py`:
+   ```python
+   tau_aff = 0.50  # invece di 0.60
+   ```
+
+3. Riesegui pipeline da step 2
+
+### UnicodeEncodeError (Windows)
+
+```powershell
+$env:PYTHONIOENCODING='utf-8'
+python script.py
+```
+
+---
+
+## 📚 Riferimenti
+
+### Papers
+
+- **Circuit Tracing** (Anthropic, 2025): [Attribution Graphs](https://transformer-circuits.pub/2025/attribution-graphs/)
+- **Scaling Monosemanticity** (Anthropic, 2024): [Cross-Layer SAEs](https://transformer-circuits.pub/2024/scaling-monosemanticity/)
+
+### Codice
+
+- **Circuit Tracer Library**: https://github.com/safety-research/circuit-tracer
+- **Neuronpedia**: https://www.neuronpedia.org
+
+### Documentazione Interna
+
+- `circuit_analysis_pipeline.ipynb`: Notebook unificato con tutti gli step
+- `docs/NEURONPEDIA_EXPORT_GUIDE.md`: Guida export Neuronpedia
+- `docs/influence_first_summary.md`: Metodologia influence-first
+- `QUICK_REFERENCE.md`: Cheat sheet comandi
+
+---
+
+## 🤝 Contributi
+
+Questo progetto è parte di una research application per MATS (AI Safety).
+
+Per domande o contributi:
+- Consulta la documentazione in `docs/`
+- Apri un issue su GitHub
+
+---
+
+**Version**: 2.0 (Influence-First)  
+**Model**: Gemma-2-2B  
+**Last Updated**: 2025-10-09  
+**License**: MIT
