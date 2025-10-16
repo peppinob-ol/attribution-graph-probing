@@ -7,7 +7,7 @@ Approccio: Seed semantici → Crescita narrativa → Clustering residui
 import json
 import csv
 from collections import defaultdict, Counter
-from typing import Dict, List, Tuple, Set
+from typing import Dict, List, Tuple, Set, Optional
 
 class CicciottiSupernodeBuilder:
     """
@@ -26,6 +26,9 @@ class CicciottiSupernodeBuilder:
         self.personalities = {}
         self.acts_data = []
         self.cicciotti_supernodes = {}
+        self.graph_data = None
+        self.causal_metrics = {}
+        self.feature_to_idx = {}
         
     def load_anthropological_results(self):
         """Carica risultati analisi antropologica"""
@@ -49,23 +52,112 @@ class CicciottiSupernodeBuilder:
             print(f"✅ Caricati {len(self.personalities)} personalità")
             print(f"✅ Caricati {len(self.acts_data)} record attivazioni")
             
+            # Carica grafo causale
+            try:
+                import sys
+                sys.path.insert(0, 'scripts')
+                from causal_utils import load_attribution_graph
+                
+                self.graph_data = load_attribution_graph("output/example_graph.pt")
+                
+                if self.graph_data is not None:
+                    # Crea feature_to_idx mapping
+                    for i, (layer, pos, feat_idx) in enumerate(self.graph_data['active_features']):
+                        feature_key = f"{layer.item()}_{feat_idx.item()}"
+                        self.feature_to_idx[feature_key] = i
+                    
+                    # Estrai causal_metrics dalle personalities
+                    for fkey, personality in self.personalities.items():
+                        if 'node_influence' in personality:
+                            self.causal_metrics[fkey] = {
+                                'node_influence': personality['node_influence'],
+                                'causal_in_degree': personality.get('causal_in_degree', 0),
+                                'causal_out_degree': personality.get('causal_out_degree', 0),
+                                'top_parents': personality.get('top_parents', []),
+                                'top_children': personality.get('top_children', []),
+                                'layer': personality['layer'],
+                                'position': personality.get('position', 0)
+                            }
+                    
+                    print(f"✅ Grafo causale caricato: {len(self.feature_to_idx)} feature mappate")
+                else:
+                    print(f"⚠️ Grafo causale non disponibile, uso solo metriche semantiche")
+            except Exception as e:
+                print(f"⚠️ Errore caricamento grafo causale: {e}")
+                self.graph_data = None
+            
             return True
             
         except Exception as e:
             print(f"❌ Errore caricamento: {e}")
             return False
     
+    def find_say_austin_seed(self) -> Optional[Dict]:
+        """
+        Trova il seed "Say Austin": feature alla posizione finale 
+        con edge più forte su logit "Austin"
+        """
+        if self.graph_data is None or not self.causal_metrics:
+            print(f"   ⚠️ Grafo causale non disponibile per find_say_austin_seed")
+            return None
+        
+        try:
+            from causal_utils import find_say_austin_seed as find_seed_util
+            
+            say_austin_info = find_seed_util(
+                self.graph_data,
+                self.causal_metrics,
+                target_logit_token="Austin",
+                tau_edge=0.01
+            )
+            
+            if say_austin_info:
+                # Arricchisci con personality
+                fkey = say_austin_info['feature_key']
+                if fkey in self.personalities:
+                    say_austin_info['personality'] = self.personalities[fkey]
+                
+                return say_austin_info
+            
+        except Exception as e:
+            print(f"   ⚠️ Errore find_say_austin_seed: {e}")
+        
+        return None
+    
     def select_semantic_seeds(self) -> List[Dict]:
         """
-        INFLUENCE-FIRST SEED SELECTION
+        BACKWARD FROM LOGIT SEED SELECTION
         
         Criteri: 
-        1. Massima logit_influence
-        2. In caso di pari merito, max_affinity più alta
-        3. Diversità per layer e peak_token
+        1. Prima: Say Austin (edge diretta a logit)
+        2. Poi: Massima node_influence (backward propagation)
+        3. Diversità per layer e position
         """
-        print(f"\n🌱 SEED SELECTION (INFLUENCE-FIRST)")
+        print(f"\n🌱 SEED SELECTION (BACKWARD FROM LOGIT)")
         print("=" * 50)
+        
+        # Step 1: Trova Say Austin come primo seed
+        selected_seeds = []
+        say_austin = self.find_say_austin_seed()
+        
+        if say_austin and 'personality' in say_austin:
+            # Usa say_austin come primo seed
+            seed_dict = {
+                'feature_key': say_austin['feature_key'],
+                'personality': say_austin['personality'],
+                'logit_influence': say_austin['personality'].get('output_impact', 0),
+                'node_influence': say_austin['causal_metrics'].get('node_influence', 0),
+                'max_affinity': say_austin['personality'].get('max_affinity', 0),
+                'layer': say_austin['layer'],
+                'peak_token': say_austin['personality'].get('most_common_peak', '?'),
+                'position': say_austin['position'],
+                'is_say_austin': True
+            }
+            selected_seeds.append(seed_dict)
+            print(f"🎯 Seed primario 'Say Austin': {say_austin['feature_key']} "
+                  f"(node_influence={seed_dict['node_influence']:.4f})")
+        else:
+            print(f"   ⚠️ Say Austin non trovato, procedo con seed generici")
         
         # Usa tutte le feature ammesse come candidati seed
         import json
@@ -101,31 +193,41 @@ class CicciottiSupernodeBuilder:
                 'feature_key': fkey,
                 'personality': personality,
                 'logit_influence': logit_inf,
+                'node_influence': personality.get('node_influence', 0),
                 'max_affinity': max_aff,
                 'layer': personality['layer'],
+                'position': personality.get('position', 0),
                 'peak_token': personality['most_common_peak']
             })
         
-        # Ordina per logit_influence DESC, poi max_affinity DESC
-        scored_seeds.sort(key=lambda x: (x['logit_influence'], x['max_affinity']), reverse=True)
+        # Ordina per node_influence DESC (priorità causale), poi max_affinity DESC
+        scored_seeds.sort(key=lambda x: (x.get('node_influence', 0), x['max_affinity']), reverse=True)
         
-        # Diversificazione: seleziona seed diversi per layer e peak_token
-        selected_seeds = []
-        used_layers = set()
-        used_tokens = set()
+        # Diversificazione: seleziona seed diversi per layer e position
+        used_layers = set([s['layer'] for s in selected_seeds])
+        used_positions = set([s.get('position', -1) for s in selected_seeds])
+        used_tokens = set([s['peak_token'] for s in selected_seeds])
         
         for seed in scored_seeds:
+            # Skip se già in selected_seeds
+            if seed['feature_key'] in [s['feature_key'] for s in selected_seeds]:
+                continue
+            
             layer = seed['layer']
             token = seed['peak_token']
+            position = seed.get('position', -1)
             
             # Criterio di diversificazione
             if len(selected_seeds) < 20:  # Primi 20 sempre
                 selected_seeds.append(seed)
                 used_layers.add(layer)
+                used_positions.add(position)
                 used_tokens.add(token)
-            elif layer not in used_layers or token not in used_tokens:
+            elif layer not in used_layers or position not in used_positions:
+                # Preferisci diversità su layer e position
                 selected_seeds.append(seed)
                 used_layers.add(layer)
+                used_positions.add(position)
                 used_tokens.add(token)
             
             # Max 50 seed per gestibilità
@@ -134,13 +236,16 @@ class CicciottiSupernodeBuilder:
         
         print(f"🎯 Seed selezionati: {len(selected_seeds)}")
         print(f"📊 Layer coperti: {sorted(used_layers)}")
+        print(f"📍 Positions coperte: {sorted(used_positions)}")
         print(f"🎪 Peak tokens: {sorted(used_tokens)[:10]}...")
         
-        # Mostra top 5 per influence
-        print(f"\n📈 Top 5 seed per logit_influence:")
+        # Mostra top 5 per node_influence
+        print(f"\n📈 Top 5 seed per node_influence:")
         for i, seed in enumerate(selected_seeds[:5]):
-            print(f"   {i+1}. {seed['feature_key']}: influence={seed['logit_influence']:.4f}, "
-                  f"affinity={seed['max_affinity']:.3f}, token='{seed['peak_token']}'")
+            node_inf = seed.get('node_influence', 0)
+            print(f"   {i+1}. {seed['feature_key']}: node_influence={node_inf:.4f}, "
+                  f"affinity={seed['max_affinity']:.3f}, token='{seed['peak_token']}', "
+                  f"pos={seed.get('position', '?')}'")
         
         return selected_seeds
     
@@ -259,64 +364,120 @@ class CicciottiSupernodeBuilder:
     
     def compute_narrative_compatibility(self, cicciotto: Dict, candidate: Dict) -> float:
         """
-        Calcola compatibilità narrativa tra supernodo esistente e candidato
+        Calcola compatibilità CAUSALE (60%) + SEMANTICA (40%) tra supernodo e candidato
         
-        Fattori:
-        - Peak token similarity
-        - Layer proximity  
-        - Consistency compatibility
-        - Thematic coherence
+        CAUSALE:
+        - Edge diretta (25%)
+        - Vicinato causale simile (20%)
+        - Position proximity (15%)
+        
+        SEMANTICA:
+        - Token similarity (20%)
+        - Layer proximity (10%)
+        - Consistency compatibility (10%)
         """
         
         seed_personality = self.personalities[cicciotto['seed']]
         candidate_personality = candidate['personality']
+        seed_key = cicciotto['seed']
+        cand_key = candidate['feature_key']
         
-        # Factor 1: Token thematic similarity
+        # ========== PARTE CAUSALE (60%) ==========
+        causal_score = 0.0
+        
+        if self.graph_data is not None and seed_key in self.feature_to_idx and cand_key in self.feature_to_idx:
+            seed_idx = self.feature_to_idx[seed_key]
+            cand_idx = self.feature_to_idx[cand_key]
+            adjacency_matrix = self.graph_data['adjacency_matrix']
+            
+            # 1. Edge diretta da candidate a seed (backward growth) - 25%
+            tau_edge_strong = 0.05
+            edge_weight = adjacency_matrix[seed_idx, cand_idx].item()
+            direct_edge_score = min(1.0, edge_weight / tau_edge_strong)
+            
+            # 2. Vicinato causale simile (Jaccard) - 20%
+            seed_neighbors = set()
+            if seed_key in self.causal_metrics:
+                seed_neighbors.update([p[0] for p in self.causal_metrics[seed_key].get('top_parents', [])])
+                seed_neighbors.update([c[0] for c in self.causal_metrics[seed_key].get('top_children', [])])
+            
+            cand_neighbors = set()
+            if cand_key in self.causal_metrics:
+                cand_neighbors.update([p[0] for p in self.causal_metrics[cand_key].get('top_parents', [])])
+                cand_neighbors.update([c[0] for c in self.causal_metrics[cand_key].get('top_children', [])])
+            
+            jaccard = 0.0
+            if len(seed_neighbors | cand_neighbors) > 0:
+                jaccard = len(seed_neighbors & cand_neighbors) / len(seed_neighbors | cand_neighbors)
+            
+            # 3. Position proximity - 15%
+            seed_pos = seed_personality.get('position', 0)
+            cand_pos = candidate_personality.get('position', 0)
+            pos_distance = abs(seed_pos - cand_pos)
+            position_compat = max(0, 1 - pos_distance / 5)
+            
+            causal_score = (
+                direct_edge_score * 0.42 +  # 25% di 60% = 0.25 → peso relativo 0.42
+                jaccard * 0.33 +             # 20% di 60% = 0.20 → peso relativo 0.33
+                position_compat * 0.25       # 15% di 60% = 0.15 → peso relativo 0.25
+            )
+        else:
+            # Fallback se grafo non disponibile: solo position
+            seed_pos = seed_personality.get('position', 0)
+            cand_pos = candidate_personality.get('position', 0)
+            pos_distance = abs(seed_pos - cand_pos)
+            causal_score = max(0, 1 - pos_distance / 5)
+        
+        # ========== PARTE SEMANTICA (40%) ==========
+        
+        # 1. Token similarity - 20%
         seed_token = seed_personality['most_common_peak']
-        candidate_token = candidate_personality['most_common_peak']
+        cand_token = candidate_personality['most_common_peak']
         
-        # Gruppi tematici (semplificato)
         geographic_tokens = {'Dallas', 'Texas', 'Austin', 'state', 'State', 'city'}
         relation_tokens = {'of', 'in', 'is', 'the', ':', '.'}
         
-        token_compatibility = 0
-        if seed_token in geographic_tokens and candidate_token in geographic_tokens:
-            token_compatibility = 0.8
-        elif seed_token in relation_tokens and candidate_token in relation_tokens:
-            token_compatibility = 0.7
-        elif seed_token == candidate_token:
-            token_compatibility = 1.0
+        if seed_token in geographic_tokens and cand_token in geographic_tokens:
+            token_compat = 0.8
+        elif seed_token in relation_tokens and cand_token in relation_tokens:
+            token_compat = 0.7
+        elif seed_token == cand_token:
+            token_compat = 1.0
         else:
-            token_compatibility = 0.3  # Diverso ma non incompatibile
+            token_compat = 0.3
         
-        # Factor 2: Layer proximity (preferisce layer vicini)
+        # 2. Layer proximity - 10%
         layer_distance = abs(seed_personality['layer'] - candidate_personality['layer'])
-        layer_compatibility = max(0, 1 - layer_distance / 10)  # Decade con distanza
+        layer_compat = max(0, 1 - layer_distance / 10)
         
-        # Factor 3: Consistency compatibility (usa conditional_consistency se disponibile)
-        consistency_diff = abs(
-            seed_personality.get('conditional_consistency', seed_personality.get('consistency_score', 0)) - 
-            candidate_personality.get('conditional_consistency', candidate_personality.get('consistency_score', 0))
-        )
-        consistency_compatibility = max(0, 1 - consistency_diff)
+        # 3. Consistency compatibility - 10%
+        seed_cons = seed_personality.get('conditional_consistency',
+                                        seed_personality.get('mean_consistency', 0))
+        cand_cons = candidate_personality.get('conditional_consistency',
+                                             candidate_personality.get('mean_consistency', 0))
+        consistency_diff = abs(seed_cons - cand_cons)
+        consistency_compat = max(0, 1 - consistency_diff)
         
-        # Combinazione pesata
-        total_compatibility = (
-            token_compatibility * 0.4 +
-            layer_compatibility * 0.3 + 
-            consistency_compatibility * 0.3
+        semantic_score = (
+            token_compat * 0.50 +      # 20% di 40% = 0.20 → peso relativo 0.50
+            layer_compat * 0.25 +      # 10% di 40% = 0.10 → peso relativo 0.25
+            consistency_compat * 0.25  # 10% di 40% = 0.10 → peso relativo 0.25
         )
+        
+        # ========== COMBINAZIONE FINALE: 60% causale + 40% semantica ==========
+        total_compatibility = causal_score * 0.60 + semantic_score * 0.40
         
         return total_compatibility
     
     def compute_supernode_coherence(self, cicciotto: Dict) -> float:
         """
-        Calcola coerenza narrativa del supernodo completo
+        Calcola coerenza narrativa + causale del supernodo completo
         
         Metrics:
-        - Consistency variance tra membri
-        - Peak token diversity
-        - Layer span
+        - Consistency variance tra membri (semantica)
+        - Peak token diversity (semantica)
+        - Layer span (semantica)
+        - Causal edge density (causale)
         """
         
         if len(cicciotto['members']) <= 1:
@@ -347,11 +508,27 @@ class CicciottiSupernodeBuilder:
         layer_span = max(layers) - min(layers) if layers else 0
         span_coherence = max(0, 1 - layer_span / 15)  # Decade con span
         
-        # Combinazione
+        # Coherence factor 4: Causal edge density (nuova metrica causale)
+        causal_density = 0.5  # Default se grafo non disponibile
+        if self.graph_data is not None and len(cicciotto['members']) > 1:
+            try:
+                from causal_utils import compute_edge_density
+                causal_density = compute_edge_density(
+                    cicciotto['members'],
+                    self.graph_data,
+                    self.feature_to_idx,
+                    tau_edge=0.01
+                )
+            except Exception as e:
+                # Fallback silenzioso
+                pass
+        
+        # Combinazione: pesi ribilanciati per includere causal_density
         total_coherence = (
-            consistency_coherence * 0.4 +
-            diversity_coherence * 0.3 +
-            span_coherence * 0.3
+            consistency_coherence * 0.30 +  # Semantica
+            diversity_coherence * 0.20 +    # Semantica
+            span_coherence * 0.20 +         # Semantica
+            causal_density * 0.30           # Causale
         )
         
         return total_coherence

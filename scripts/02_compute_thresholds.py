@@ -69,12 +69,27 @@ def compute_robust_thresholds():
     print(f"   Safe default: {tau_cons:.2f}")
     print(f"   Features passing: {n_features_cons}")
     
-    # 4. Calcola feature passanti con nuovo criterio + BOS filter
-    print(f"\n📈 Step 3: Applicazione nuovo criterio + BOS filter...")
+    # 4. Calcola tau_node_inf da node_influence (AG)
+    print(f"\n🔗 Step 3a: Calcolo tau_node_inf da Attribution Graph...")
+    node_influences = [p.get('node_influence', 0) for p in personalities.values() 
+                      if 'node_influence' in p]
+    
+    if node_influences:
+        tau_node_inf = np.percentile(node_influences, 90)
+        tau_node_very_high = np.percentile(node_influences, 95)
+        print(f"   τ_node_inf (node influence p90): {tau_node_inf:.6f}")
+        print(f"   τ_node_very_high (for <BOS> p95): {tau_node_very_high:.6f}")
+    else:
+        print(f"   ⚠️ Node influence non disponibile, uso solo logit_influence")
+        tau_node_inf = 0
+        tau_node_very_high = 0
+    
+    # 5. Calcola feature passanti con criterio esteso + BOS filter
+    print(f"\n📈 Step 3b: Applicazione criterio esteso + BOS filter...")
     
     # Soglia "influence altissima" per <BOS>: p95
     tau_inf_very_high = np.percentile(metrics_df['logit_influence'], 95)
-    print(f"   τ_inf_very_high (for <BOS>): {tau_inf_very_high:.6f} (p95)")
+    print(f"   τ_inf_very_high (logit influence for <BOS>): {tau_inf_very_high:.6f} (p95)")
     
     # Merge dati
     features_pass_influence = set()
@@ -87,14 +102,16 @@ def compute_robust_thresholds():
         # Check BOS: se è <BOS>, richiedi influence altissima
         is_bos = fkey in personalities and personalities[fkey]['most_common_peak'] == '<BOS>'
         
-        # Check influence (con filtro BOS)
+        # Check influence (con filtro BOS + node_influence)
         if is_bos:
-            # <BOS> ammesso solo se influence altissima
-            if row['logit_influence'] >= tau_inf_very_high:
+            # <BOS> ammesso solo se influence altissima (logit OR node)
+            node_inf = personalities.get(fkey, {}).get('node_influence', 0)
+            if row['logit_influence'] >= tau_inf_very_high or node_inf >= tau_node_very_high:
                 features_pass_influence.add(fkey)
         else:
-            # Non-BOS: criterio standard
-            if row['logit_influence'] >= tau_inf:
+            # Non-BOS: criterio esteso (logit_influence OR node_influence)
+            node_inf = personalities.get(fkey, {}).get('node_influence', 0)
+            if row['logit_influence'] >= tau_inf or node_inf >= tau_node_inf:
                 features_pass_influence.add(fkey)
         
         # Check affinity (se esiste in personalities)
@@ -167,6 +184,8 @@ def compute_robust_thresholds():
             'tau_inf_80_cutoff': float(tau_inf_80),
             'tau_inf_p90': float(tau_inf_p90),
             'tau_inf_very_high': float(tau_inf_very_high),
+            'tau_node_inf': float(tau_node_inf) if node_influences else 0.0,
+            'tau_node_very_high': float(tau_node_very_high) if node_influences else 0.0,
             'tau_aff': float(tau_aff),
             'tau_cons': float(tau_cons)
         },

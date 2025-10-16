@@ -520,6 +520,41 @@ def main():
         for metric, corr in correlations.items():
             print(f"      {metric}: {corr:.3f}")
         
+        # Step 8: Causal Metrics Enrichment
+        print("\n🔗 Step 8: Arricchimento con metriche causali...")
+        try:
+            import sys
+            sys.path.insert(0, 'scripts')
+            from causal_utils import load_attribution_graph, compute_causal_metrics
+            
+            graph_data = load_attribution_graph("output/example_graph.pt")
+            
+            if graph_data is not None:
+                causal_metrics = compute_causal_metrics(graph_data, tau_edge=0.01, top_k=5)
+                
+                # Merge metriche causali nelle personalities
+                enriched_count = 0
+                for feature_key, personality in personalities_json.items():
+                    if feature_key in causal_metrics:
+                        personality.update(causal_metrics[feature_key])
+                        enriched_count += 1
+                
+                print(f"   ✅ {enriched_count}/{len(personalities_json)} personalities arricchite con metriche causali")
+                
+                # Stats node_influence
+                node_influences = [p.get('node_influence', 0) for p in personalities_json.values() 
+                                  if 'node_influence' in p]
+                if node_influences:
+                    avg_ni = sum(node_influences) / len(node_influences)
+                    max_ni = max(node_influences)
+                    print(f"   📊 Node influence: avg={avg_ni:.4f}, max={max_ni:.4f}")
+            else:
+                print(f"   ⚠️ Attribution Graph non disponibile, skip metriche causali")
+        except Exception as e:
+            print(f"   ⚠️ Errore caricamento metriche causali: {e}")
+            import traceback
+            traceback.print_exc()
+        
         # Salvataggio risultati
         print("\n💾 Salvataggio risultati...")
         

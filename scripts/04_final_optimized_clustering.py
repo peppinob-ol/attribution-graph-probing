@@ -167,7 +167,20 @@ class OptimizedFinalClustering:
             else:
                 consistency_tier = 'LOW'
             
-            cluster_key = f"{layer_group}_{cluster_token}_{consistency_tier}"
+            # Causal tier basato su node_influence
+            node_inf = personality.get('node_influence', 0)
+            # Soglie empiriche (configurabili)
+            tau_node_high = 0.1  # Top causale
+            tau_node_med = 0.01  # Medio causale
+            
+            if node_inf > tau_node_high:
+                causal_tier = 'HIGH'
+            elif node_inf > tau_node_med:
+                causal_tier = 'MED'
+            else:
+                causal_tier = 'LOW'
+            
+            cluster_key = f"{layer_group}_{cluster_token}_{causal_tier}"
             clusters[cluster_key].append(feature_key)
         
         # Filtra cluster troppo piccoli e raggruppa i simili
@@ -176,6 +189,29 @@ class OptimizedFinalClustering:
         
         for cluster_key, members in clusters.items():
             if len(members) >= 3:  # Minimo 3 membri per cluster valido
+                # Calcola causal_connectivity se disponibile
+                causal_connectivity = 0.0
+                try:
+                    import sys
+                    sys.path.insert(0, 'scripts')
+                    from causal_utils import load_attribution_graph, compute_edge_density
+                    
+                    graph_data = load_attribution_graph("output/example_graph.pt")
+                    if graph_data is not None:
+                        feature_to_idx = {}
+                        for i, (layer, pos, feat_idx) in enumerate(graph_data['active_features']):
+                            fkey = f"{layer.item()}_{feat_idx.item()}"
+                            feature_to_idx[fkey] = i
+                        
+                        causal_connectivity = compute_edge_density(
+                            members,
+                            graph_data,
+                            feature_to_idx,
+                            tau_edge=0.01
+                        )
+                except:
+                    pass
+                
                 valid_clusters[f"COMP_{cluster_id}"] = {
                     'type': 'computational',
                     'members': members,
@@ -183,7 +219,9 @@ class OptimizedFinalClustering:
                     'cluster_signature': cluster_key,
                     'avg_layer': sum(self.personalities[m]['layer'] for m in members if m in self.personalities) / len(members),
                     'dominant_token': Counter([self.personalities[m]['most_common_peak'] for m in members if m in self.personalities]).most_common(1)[0][0],
-                    'avg_consistency': sum(self.personalities[m].get('conditional_consistency', self.personalities[m].get('mean_consistency', 0)) for m in members if m in self.personalities) / len(members)
+                    'avg_consistency': sum(self.personalities[m].get('conditional_consistency', self.personalities[m].get('mean_consistency', 0)) for m in members if m in self.personalities) / len(members),
+                    'causal_connectivity': causal_connectivity,
+                    'avg_node_influence': sum(self.personalities[m].get('node_influence', 0) for m in members if m in self.personalities) / len(members)
                 }
                 cluster_id += 1
         
@@ -197,7 +235,9 @@ class OptimizedFinalClustering:
             print(f"   {cluster_name}: {cluster_info['n_members']} membri, "
                   f"layer~{cluster_info['avg_layer']:.1f}, "
                   f"token='{cluster_info['dominant_token']}', "
-                  f"consistency={cluster_info['avg_consistency']:.3f}")
+                  f"consistency={cluster_info['avg_consistency']:.3f}, "
+                  f"node_inf={cluster_info.get('avg_node_influence', 0):.4f}, "
+                  f"causal_conn={cluster_info.get('causal_connectivity', 0):.3f}")
         
         return valid_clusters
     

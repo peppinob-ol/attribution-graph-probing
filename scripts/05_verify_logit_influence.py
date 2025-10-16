@@ -143,7 +143,95 @@ def verify_logit_influence_coverage():
         print("   ⚠️ File feature_typology.json non trovato - analisi per tipo saltata")
         type_breakdown = {}
     
-    # 8. Risultato finale
+    # 8. Attribution Graph Quality Metrics
+    print("\n" + "=" * 60)
+    print("🔬 STEP 8: ATTRIBUTION GRAPH QUALITY METRICS")
+    print("=" * 60)
+    
+    try:
+        import sys
+        sys.path.insert(0, 'scripts')
+        from causal_utils import load_attribution_graph, compute_edge_density
+        
+        graph_data = load_attribution_graph("output/example_graph.pt")
+        
+        if graph_data is not None:
+            # Crea feature_to_idx mapping
+            feature_to_idx = {}
+            for i, (layer, pos, feat_idx) in enumerate(graph_data['active_features']):
+                fkey = f"{layer.item()}_{feat_idx.item()}"
+                feature_to_idx[fkey] = i
+            
+            # 8a. Media node_influence per supernodo
+            node_influences = [personalities.get(fkey, {}).get('node_influence', 0) 
+                              for fkey in supernode_features 
+                              if fkey in personalities and 'node_influence' in personalities[fkey]]
+            
+            if node_influences:
+                avg_node_influence = sum(node_influences) / len(node_influences)
+                max_node_influence = max(node_influences)
+                print(f"\n   📊 Node Influence (supernodi):")
+                print(f"      Media: {avg_node_influence:.4f}")
+                print(f"      Massima: {max_node_influence:.4f}")
+                
+                # 8b. Node influence coverage
+                all_node_influences = [p.get('node_influence', 0) for p in personalities.values() 
+                                      if 'node_influence' in p]
+                if all_node_influences:
+                    total_node_inf = sum(all_node_influences)
+                    supernode_node_inf = sum(node_influences)
+                    node_inf_coverage = (supernode_node_inf / total_node_inf * 100) if total_node_inf > 0 else 0
+                    print(f"      Coverage: {node_inf_coverage:.1f}% del node_influence totale")
+            else:
+                print(f"\n   ⚠️ Node influence non disponibile")
+                avg_node_influence = 0
+                node_inf_coverage = 0
+            
+            # 8c. Edge density interna ai supernodi
+            print(f"\n   🔗 Causal Edge Density:")
+            edge_density = compute_edge_density(
+                list(supernode_features),
+                graph_data,
+                feature_to_idx,
+                tau_edge=0.01
+            )
+            print(f"      Internal edge density: {edge_density:.3f}")
+            print(f"      Interpretazione: {'ALTA' if edge_density > 0.3 else 'MEDIA' if edge_density > 0.1 else 'BASSA'} "
+                  f"connettività causale")
+            
+            # 8d. Top-20 coverage per node_influence
+            if all_node_influences:
+                sorted_features = sorted(
+                    [(fkey, personalities[fkey].get('node_influence', 0)) 
+                     for fkey in personalities if 'node_influence' in personalities[fkey]],
+                    key=lambda x: x[1],
+                    reverse=True
+                )
+                top20_features = set([f[0] for f in sorted_features[:20]])
+                top20_in_supernodes = len(top20_features & supernode_features)
+                top20_coverage = (top20_in_supernodes / 20 * 100) if len(top20_features) > 0 else 0
+                
+                print(f"\n   🎯 Top-20 Node Influence Coverage:")
+                print(f"      {top20_in_supernodes}/20 feature top causali catturate ({top20_coverage:.0f}%)")
+            
+            # Salva metriche AG
+            ag_metrics = {
+                'avg_node_influence': float(avg_node_influence) if node_influences else 0.0,
+                'node_influence_coverage_percent': float(node_inf_coverage) if node_influences else 0.0,
+                'internal_edge_density': float(edge_density),
+                'top20_coverage_percent': float(top20_coverage) if all_node_influences else 0.0
+            }
+        else:
+            print(f"\n   ⚠️ Attribution Graph non disponibile")
+            ag_metrics = {}
+    
+    except Exception as e:
+        print(f"\n   ⚠️ Errore calcolo metriche AG: {e}")
+        import traceback
+        traceback.print_exc()
+        ag_metrics = {}
+    
+    # 9. Risultato finale
     print("\n" + "=" * 60)
     print("🏆 RISULTATO VALIDAZIONE:")
     print("=" * 60)
@@ -175,6 +263,7 @@ def verify_logit_influence_coverage():
             'bos_influence_percent': float(bos_influence/total_logit_influence*100)
         },
         'type_breakdown': type_breakdown,
+        'ag_metrics': ag_metrics,
         'interpretation': 'STRONG' if supernode_coverage >= 80 else ('MODERATE' if supernode_coverage >= 60 else 'WEAK')
     }
     
