@@ -96,6 +96,7 @@ class CicciottiSupernodeBuilder:
         """
         Trova il seed "Say Austin": feature alla posizione finale 
         con edge più forte su logit "Austin"
+        TODO: rendere indipendente da "Austin" e accettare target_logit_token come argomento
         """
         if self.graph_data is None or not self.causal_metrics:
             print(f"   ⚠️ Grafo causale non disponibile per find_say_austin_seed")
@@ -278,28 +279,10 @@ class CicciottiSupernodeBuilder:
         if global_used_features is not None:
             global_used_features.add(seed_key)
         
-        # Pool di candidati per crescita
-        candidates = []
-        
-        # Aggiungi stable_contributors
-        for contributor in self.archetypes.get('stable_contributors', []):
-            candidates.append({
-                'feature_key': contributor['feature_key'],
-                'personality': contributor['personality'],
-                'type': 'stable'
-            })
-        
-        # Aggiungi contextual_specialists  
-        for specialist in self.archetypes.get('contextual_specialists', []):
-            candidates.append({
-                'feature_key': specialist['feature_key'],
-                'personality': specialist['personality'],
-                'type': 'contextual'
-            })
-        
-        # Crescita iterativa
+        # Crescita iterativa (soglie più permissive per avviare la crescita)
         max_iterations = 20
-        min_coherence = 0.6
+        min_coherence = 0.50  # Abbassato da 0.6 per favorire crescita iniziale
+        bootstrap_iterations = 3  # Prime 3 iterazioni: solo causale con 2-hop
         
         # Inizializza set used features se non fornito
         if global_used_features is None:
@@ -309,23 +292,102 @@ class CicciottiSupernodeBuilder:
             best_candidate = None
             best_compatibility = 0
             
+            # Modalità bootstrap causale (prime 3 iterazioni con 2-hop)
+            is_bootstrap = iteration < bootstrap_iterations and self.graph_data is not None
+            
+            # COSTRUISCI POOL CANDIDATI DINAMICO ad ogni iterazione
+            candidates = []
+            
+            if self.graph_data and self.causal_metrics:
+                # BACKWARD: raccogli genitori causali dei membri attuali
+                parent_scores = {}
+                for member_key in cicciotto['members']:
+                    if member_key in self.causal_metrics:
+                        for parent_key, weight in self.causal_metrics[member_key].get('top_parents', []):
+                            if parent_key in self.personalities:
+                                parent_scores[parent_key] = max(parent_scores.get(parent_key, 0.0), float(weight))
+                
+                # Durante BOOTSTRAP aggiungi anche genitori dei genitori (2-hop)
+                if is_bootstrap and len(parent_scores) > 0:
+                    second_hop_scores = {}
+                    for pkey in list(parent_scores.keys()):
+                        if pkey in self.causal_metrics:
+                            for pp_key, w2 in self.causal_metrics[pkey].get('top_parents', []):
+                                if pp_key in self.personalities:
+                                    # Peso ridotto per 2-hop (moltiplica per 0.5)
+                                    second_hop_scores[pp_key] = max(second_hop_scores.get(pp_key, 0.0), float(w2) * 0.5)
+                    # Unisci mantenendo il max (1-hop ha priorità)
+                    for k, v in second_hop_scores.items():
+                        parent_scores[k] = max(parent_scores.get(k, 0.0), v)
+                
+                # Ordina per peso edge e aggiungi come candidati
+                for parent_key, weight in sorted(parent_scores.items(), key=lambda x: x[1], reverse=True):
+                    if global_used_features and parent_key in global_used_features:
+                        continue
+                    candidates.append({
+                        'feature_key': parent_key,
+                        'personality': self.personalities[parent_key],
+                        'type': 'causal_parent',
+                        'edge_weight': weight
+                    })
+            else:
+                # Fallback semantico se grafo non disponibile
+                for contributor in self.archetypes.get('stable_contributors', []):
+                    candidates.append({
+                        'feature_key': contributor['feature_key'],
+                        'personality': contributor['personality'],
+                        'type': 'stable'
+                    })
+                for specialist in self.archetypes.get('contextual_specialists', []):
+                    candidates.append({
+                        'feature_key': specialist['feature_key'],
+                        'personality': specialist['personality'],
+                        'type': 'contextual'
+                    })
+            
+            # Seleziona miglior candidato
             for candidate in candidates:
                 # CONTROLLO DUPLICATI: Skip se già nel supernodo corrente O già utilizzato globalmente
                 if (candidate['feature_key'] in cicciotto['members'] or 
                     candidate['feature_key'] in global_used_features):
                     continue
                 
-                # Calcola compatibilità narrativa
-                compatibility = self.compute_narrative_compatibility(
-                    cicciotto, candidate
-                )
+                # Bootstrap causale: usa solo edge diretta
+                if is_bootstrap:
+                    # Accetta solo se ha edge diretta forte verso seed o membri esistenti
+                    seed_key = cicciotto['seed']
+                    cand_key = candidate['feature_key']
+                    
+                    if seed_key in self.feature_to_idx and cand_key in self.feature_to_idx:
+                        seed_idx = self.feature_to_idx[seed_key]
+                        cand_idx = self.feature_to_idx[cand_key]
+                        adjacency_matrix = self.graph_data['adjacency_matrix']
+                        
+                        # Edge da candidate a seed (backward)
+                        edge_weight = adjacency_matrix[seed_idx, cand_idx].item()
+                        
+                        # Soglia bootstrap più elastica
+                        if edge_weight > 0.03:  # Edge moderatamente forti
+                            compatibility = edge_weight * 10  # Normalizza per confronto
+                        else:
+                            continue
+                    else:
+                        continue
+                else:
+                    # Modalità normale: calcola compatibilità causale+semantica
+                    compatibility = self.compute_narrative_compatibility(
+                        cicciotto, candidate
+                    )
                 
-                if compatibility > best_compatibility and compatibility > 0.5:
+                # Soglia più permissiva per avviare crescita
+                threshold = 0.3 if is_bootstrap else 0.45
+                if compatibility > best_compatibility and compatibility > threshold:
                     best_compatibility = compatibility
                     best_candidate = candidate
             
-            # Aggiungi miglior candidato se sufficientemente compatibile
-            if best_candidate and best_compatibility > 0.5:
+            # Aggiungi miglior candidato se sufficientemente compatibile (soglia abbassata)
+            threshold_final = 0.3 if is_bootstrap else 0.45
+            if best_candidate and best_compatibility > threshold_final:
                 cicciotto['members'].append(best_candidate['feature_key'])
                 
                 # AGGIUNGI SUBITO AL SET GLOBALE per evitare riutilizzo
@@ -344,8 +406,8 @@ class CicciottiSupernodeBuilder:
                 new_coherence = self.compute_supernode_coherence(cicciotto)
                 cicciotto['coherence_history'].append(new_coherence)
                 
-                # Stop se coerenza scende troppo
-                if new_coherence < min_coherence:
+                # Stop se coerenza scende troppo (non durante bootstrap)
+                if (not is_bootstrap) and new_coherence < min_coherence:
                     print(f"   🛑 Stop per {seed_key}: coerenza scesa a {new_coherence:.3f}")
                     # Rimuovi ultimo membro sia dal supernodo che dal set globale
                     removed_member = cicciotto['members'].pop()
@@ -394,6 +456,10 @@ class CicciottiSupernodeBuilder:
             tau_edge_strong = 0.05
             edge_weight = adjacency_matrix[seed_idx, cand_idx].item()
             direct_edge_score = min(1.0, edge_weight / tau_edge_strong)
+            
+            # Anchor boost: se edge è molto forte (>0.1), aumenta il peso
+            if edge_weight > 0.1:
+                direct_edge_score = min(1.0, direct_edge_score * 1.5)  # Boost 50%
             
             # 2. Vicinato causale simile (Jaccard) - 20%
             seed_neighbors = set()

@@ -247,6 +247,46 @@ class OptimizedFinalClustering:
         print(f"\n📋 RISULTATI FINALI COMPRENSIVI")
         print("=" * 50)
         
+        # Post-filtro qualità sui supernodi semantici (cicciotti)
+        filtered_cicciotti = {}
+        for sn_id, sn in self.cicciotti.items():
+            n = len(sn.get('members', []))
+            coh = sn.get('final_coherence', 0)
+            if n >= 3 and coh >= 0.45:
+                filtered_cicciotti[sn_id] = sn
+        
+        print(f"🧹 Post-filtro cicciotti: {len(self.cicciotti)} → {len(filtered_cicciotti)} (n≥3, coh≥0.45)")
+        self.cicciotti = filtered_cicciotti
+        
+        # Merge cluster computazionali simili (Jaccard > 0.7)
+        def jaccard(a, b):
+            sa, sb = set(a), set(b)
+            u = len(sa | sb)
+            return (len(sa & sb) / u) if u else 0.0
+        
+        comp_items = list(computational_clusters.items())
+        merged = {}
+        used = set()
+        for i in range(len(comp_items)):
+            if comp_items[i][0] in used:
+                continue
+            base_id, base = comp_items[i]
+            group_members = set(base['members'])
+            for j in range(i+1, len(comp_items)):
+                cid, c = comp_items[j]
+                if cid in used:
+                    continue
+                if jaccard(base['members'], c['members']) >= 0.7:
+                    group_members |= set(c['members'])
+                    used.add(cid)
+            merged_id = base_id
+            merged[merged_id] = dict(base)
+            merged[merged_id]['members'] = list(group_members)
+            merged[merged_id]['n_members'] = len(group_members)
+        
+        print(f"🔗 Merge cluster computazionali: {len(computational_clusters)} → {len(merged)} (Jaccard≥0.7)")
+        computational_clusters = merged
+        
         # Calcola coverage totale
         semantic_members = sum(len(c['members']) for c in self.cicciotti.values())
         computational_members = sum(c['n_members'] for c in computational_clusters.values())

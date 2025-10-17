@@ -9,6 +9,39 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from collections import defaultdict
+from functools import lru_cache
+
+
+def _norm_token_str(s: str) -> str:
+    """Normalizza token string: rimuove Ġ (GPT-2 byte-level), spazi, lowercase"""
+    return s.replace("Ġ", "").replace(" ", "").strip().lower()
+
+
+@lru_cache(maxsize=4)
+def _load_tokenizer_by_name(model_name: str):
+    """Carica tokenizer dal nome del modello (cached)"""
+    try:
+        from transformers import AutoTokenizer
+        return AutoTokenizer.from_pretrained(model_name, use_fast=True)
+    except Exception:
+        return None
+
+
+def _get_tokenizer(cfg):
+    """Estrae tokenizer dal config (non cached per evitare unhashable)"""
+    model_name = getattr(cfg, "tokenizer_name", None) or getattr(cfg, "model_name", None) or "gpt2"
+    return _load_tokenizer_by_name(model_name)
+
+
+def _decode_token_id(token_id, tokenizer):
+    """Decodifica un token ID in stringa"""
+    try:
+        tid = int(token_id.item() if hasattr(token_id, "item") else token_id)
+        if tokenizer is not None:
+            return tokenizer.decode([tid], clean_up_tokenization_spaces=False)
+        return str(tid)
+    except Exception:
+        return str(token_id)
 
 
 def load_attribution_graph(graph_path: str = "output/example_graph.pt") -> Optional[Dict]:
@@ -20,31 +53,33 @@ def load_attribution_graph(graph_path: str = "output/example_graph.pt") -> Optio
         None se file non trovato
     """
     if not Path(graph_path).exists():
-        print(f"⚠️ Grafo non trovato: {graph_path}")
+        print(f"WARN: Grafo non trovato: {graph_path}")
         return None
     
-    print(f"📥 Caricamento Attribution Graph da {graph_path}")
+    print(f"Caricamento Attribution Graph da {graph_path}")
     
     try:
-        graph_data = torch.load(graph_path, map_location='cpu')
+        # Fix per PyTorch 2.6: weights_only=False per caricare oggetti custom
+        # Il file è generato dal nostro codice, quindi è sicuro
+        graph_data = torch.load(graph_path, map_location='cpu', weights_only=False)
         
         # Verifica componenti essenziali
         required_keys = ['adjacency_matrix', 'active_features', 'input_tokens', 'logit_tokens', 'cfg']
         for key in required_keys:
             if key not in graph_data:
-                print(f"⚠️ Chiave mancante nel grafo: {key}")
+                print(f"WARN: Chiave mancante nel grafo: {key}")
                 return None
         
-        print(f"✅ Grafo caricato:")
+        print(f"OK: Grafo caricato:")
         print(f"   - Active features: {len(graph_data['active_features'])}")
         print(f"   - Input tokens: {len(graph_data['input_tokens'])}")
         print(f"   - Adjacency matrix shape: {graph_data['adjacency_matrix'].shape}")
         print(f"   - Logit tokens: {len(graph_data['logit_tokens'])}")
         
         return graph_data
-        
+    
     except Exception as e:
-        print(f"❌ Errore caricamento grafo: {e}")
+        print(f"ERROR: Errore caricamento grafo: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -130,7 +165,7 @@ def compute_causal_metrics(
             - layer: int
             - position: int
     """
-    print("\n🔬 Calcolo metriche causali...")
+    print("\nCalcolo metriche causali...")
     
     adjacency_matrix = graph_data['adjacency_matrix']
     active_features = graph_data['active_features']
@@ -202,7 +237,7 @@ def compute_causal_metrics(
             'position': int(pos.item())
         }
     
-    print(f"✅ Metriche causali calcolate per {len(causal_metrics)} feature")
+    print(f"OK: Metriche causali calcolate per {len(causal_metrics)} feature")
     
     # Stats
     avg_influence = np.mean([m['node_influence'] for m in causal_metrics.values()])
@@ -230,7 +265,7 @@ def find_say_austin_seed(
     Returns:
         Dict con seed info, o None se non trovato
     """
-    print(f"\n🎯 Ricerca seed 'Say {target_logit_token}'...")
+    print(f"\nRicerca seed 'Say {target_logit_token}'...")
     
     adjacency_matrix = graph_data['adjacency_matrix']
     active_features = graph_data['active_features']
@@ -238,28 +273,28 @@ def find_say_austin_seed(
     n_features = len(active_features)
     n_pos = len(graph_data['input_tokens'])
     
+    # Carica tokenizer e decodifica logit tokens
+    tokenizer = _get_tokenizer(graph_data['cfg'])
+    decoded_tokens = []
+    for tok in logit_tokens:
+        decoded_tokens.append(_decode_token_id(tok, tokenizer))
+    
+    # Normalizza per matching
+    decoded_norm = [_norm_token_str(s) for s in decoded_tokens]
+    target_norm = _norm_token_str(target_logit_token)
+    
     # Trova indice del logit target
     logit_idx = None
-    for i, token_id in enumerate(logit_tokens):
-        # Decodifica token (può essere str o int)
-        if isinstance(token_id, str):
-            token_str = token_id
-        else:
-            # Se è tensor o int, prova a decodificare
-            try:
-                from transformers import AutoTokenizer
-                # Usa tokenizer standard (fallback)
-                token_str = str(token_id.item() if hasattr(token_id, 'item') else token_id)
-            except:
-                token_str = str(token_id)
-        
-        if target_logit_token.lower() in token_str.lower():
+    for i, (token_str, token_norm) in enumerate(zip(decoded_tokens, decoded_norm)):
+        if token_norm == target_norm:
             logit_idx = i
-            print(f"   ✅ Logit '{target_logit_token}' trovato all'indice {i}")
+            print(f"   OK: Logit '{target_logit_token}' trovato all'indice {i} (decodificato: '{token_str}')")
             break
     
     if logit_idx is None:
-        print(f"   ⚠️ Logit '{target_logit_token}' non trovato nei logit_tokens")
+        print(f"   WARN: Logit '{target_logit_token}' non trovato nei top-{len(logit_tokens)} logit del grafo")
+        if decoded_tokens:
+            print(f"   ℹ️  Logit disponibili: {decoded_tokens[:10]}{' ...' if len(decoded_tokens)>10 else ''}")
         return None
     
     # Logit nodes sono alla fine della adjacency matrix
@@ -282,7 +317,7 @@ def find_say_austin_seed(
     
     # Top feature
     if edges_to_logit_final.sum() == 0:
-        print(f"   ⚠️ Nessuna edge forte da posizione finale a logit '{target_logit_token}'")
+        print(f"   WARN: Nessuna edge forte da posizione finale a logit '{target_logit_token}'")
         # Fallback: prendi la migliore in assoluto
         edges_to_logit_final = edges_to_logit
     
@@ -290,7 +325,7 @@ def find_say_austin_seed(
     best_weight = edges_to_logit_final[best_idx].item()
     
     if best_weight < tau_edge:
-        print(f"   ⚠️ Edge migliore troppo debole: {best_weight:.6f} < {tau_edge}")
+        print(f"   WARN: Edge migliore troppo debole: {best_weight:.6f} < {tau_edge}")
         return None
     
     layer, pos, feat_idx = active_features[best_idx]
@@ -305,7 +340,7 @@ def find_say_austin_seed(
         'causal_metrics': causal_metrics.get(feature_key, {})
     }
     
-    print(f"   🎯 Seed 'Say {target_logit_token}' trovato: {feature_key}")
+    print(f"   Seed 'Say {target_logit_token}' trovato: {feature_key}")
     print(f"      Layer {seed_info['layer']}, Pos {seed_info['position']}, Edge weight: {best_weight:.4f}")
     
     return seed_info
@@ -441,13 +476,14 @@ def compute_edge_density(
     tau_edge: float = 0.01
 ) -> float:
     """
-    Calcola densità delle edge forti tra un gruppo di feature
+    Calcola densità delle edge forti tra un gruppo di feature.
+    Usa il valore assoluto dei pesi e NON conta la diagonale.
     
     Args:
         feature_keys: lista di feature_key
         graph_data: Attribution Graph
         feature_to_idx: mapping feature_key -> indice
-        tau_edge: soglia per edge "forte"
+        tau_edge: soglia per edge "forte" (applicata a |w|)
         
     Returns:
         Densità [0, 1]: (# edge forti) / (# edge possibili)
@@ -466,12 +502,21 @@ def compute_edge_density(
     
     adjacency_matrix = graph_data['adjacency_matrix']
     
-    # Estrai submatrix
-    submatrix = adjacency_matrix[indices, :][:, indices]
+    # Estrai submatrix in valore assoluto
+    submatrix = adjacency_matrix[indices, :][:, indices].abs()
     
-    # Conta edge forti (escludi diagonale)
+    # Escludi diagonale (no self-loops)
     n = len(indices)
-    strong_edges = ((submatrix > tau_edge).sum().item() - n)  # Sottrai diagonale
+    try:
+        submatrix.fill_diagonal_(0)
+    except Exception:
+        # Fallback: azzera con maschera
+        import torch
+        diag_mask = torch.eye(n, dtype=torch.bool, device=submatrix.device)
+        submatrix = submatrix.masked_fill(diag_mask, 0.0)
+    
+    # Conta edge forti su |w| > tau_edge
+    strong_edges = (submatrix > tau_edge).sum().item()
     max_edges = n * (n - 1)  # Grafo diretto, no self-loops
     
     density = strong_edges / max_edges if max_edges > 0 else 0.0

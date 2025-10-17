@@ -1,3 +1,12 @@
+
+"""
+Versione Base di graph_visualization.py
+guarda graph_visualization_fixed.py per la versione corretta
+Layout:
+- Asse X: Token positions (da Feature.pos)
+- Asse Y: Layers (da Feature.layer) - bottom-up
+- Edge: Frecce causali con direzione (forward = layer aumenta)
+"""
 #%%
 from collections import namedtuple
 from typing import List, Optional, Tuple, Dict

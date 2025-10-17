@@ -5,6 +5,7 @@ Fix per export Neuronpedia: gestisce Cantor pairing e formati alternativi
 
 import json
 import os
+import uuid
 
 
 def cantor_unpair(z):
@@ -27,11 +28,35 @@ def fix_export(
     output_json='output/neuronpedia_graph_with_subgraph.json'
 ):
     """
-    Fix per export: gestisce node_id nel formato layer_cantorFeature_ctx
+    Prepara export Neuronpedia con supernodi dalla pipeline antropologica.
+    
+    Input:
+        - Graph JSON base (da circuit-tracer create_graph_files)
+        - Supernodi dalla pipeline (01→02→03→04)
+    
+    Output:
+        - neuronpedia_graph_with_subgraph.json con qParams.supernodes
     """
     print("=" * 70)
-    print("FIX NEURONPEDIA EXPORT - Gestione Cantor Pairing")
+    print("NEURONPEDIA EXPORT - Pipeline Antropologica")
     print("=" * 70)
+    
+    # Verifica che il grafo base esista
+    if not os.path.exists(input_json):
+        print(f"\n⚠️  ERRORE: Graph JSON base non trovato: {input_json}")
+        print(f"\n📝 SOLUZIONE:")
+        print(f"   1. Genera il Graph JSON base usando circuit-tracer:")
+        print(f"      from circuit_tracer.utils.create_graph_files import create_graph_files")
+        print(f"      create_graph_files(")
+        print(f"          graph_or_path='output/example_graph.pt',")
+        print(f"          slug='anthropological-circuit',")
+        print(f"          output_path='output/graph_data',")
+        print(f"          scan='gemma-2-2b',")
+        print(f"          node_threshold=0.8,")
+        print(f"          edge_threshold=0.98")
+        print(f"      )")
+        print(f"\n   2. Oppure genera su Colab e copia il file qui")
+        return None
     
     # Carica il grafo
     print(f"\n[1/3] Caricamento grafo da {input_json}...")
@@ -42,7 +67,14 @@ def fix_export(
     metadata = graph.get('metadata', {})
     qparams = graph.get('qParams', {}) or {}
     
+    # Aggiungi UUID allo slug per renderlo unico
+    unique_id = str(uuid.uuid4())[:8]  # Primi 8 caratteri del UUID
+    original_slug = metadata.get('slug', 'graph')
+    new_slug = f"{original_slug}-{unique_id}"
+    metadata['slug'] = new_slug
+    
     print(f"[OK] Nodi: {len(nodes)}, Links: {len(graph.get('links', []))}")
+    print(f"[i] Slug unico generato: {new_slug}")
     
     # Carica supernodi
     print(f"\n[2/3] Caricamento supernodi da {supernodes_file}...")
@@ -263,18 +295,30 @@ def fix_export(
 
 
 if __name__ == "__main__":
+    print("\n📌 PREREQUISITI:")
+    print("   1. Esegui la pipeline antropologica:")
+    print("      python scripts/01_anthropological_basic.py")
+    print("      python scripts/02_compute_thresholds.py")
+    print("      python scripts/03_cicciotti_supernodes.py")
+    print("      python scripts/04_final_optimized_clustering.py")
+    print("   2. Genera il Graph JSON base (vedi README)")
+    print("\n" + "="*70 + "\n")
+    
     result = fix_export()
     if result:
-        print(f"[OK] Fix completato: {result}")
+        print(f"\n[✅ OK] Export completato: {result}")
         
         # Suggerimenti per upload
-        print("\n[UPLOAD SU NEURONPEDIA]")
-        print("Il file è troppo grande (20MB) per il validator UI.")
-        print("\nUSA L'API PYTHON:")
-        print("\npip install neuronpedia")
-        print("\nfrom neuronpedia.np_graph_metadata import NPGraphMetadata")
-        print(f"graph = NPGraphMetadata.upload_file('{result}')")
-        print("print(graph.url)")
+        print("\n" + "="*70)
+        print("PROSSIMO PASSO: UPLOAD SU NEURONPEDIA")
+        print("="*70)
+        print("\nIl file è troppo grande per il validator UI.")
+        print("\n✅ USA L'API PYTHON:")
+        print("\n   python scripts/visualization/upload_to_neuronpedia.py")
+        print("\nOppure manualmente:")
+        print("\n   from neuronpedia.np_graph_metadata import NPGraphMetadata")
+        print(f"   graph = NPGraphMetadata.upload_file('{result}')")
+        print("   print(graph.url)")
     else:
-        print(f"[ERRORE] Fix fallito")
+        print(f"\n[❌ ERRORE] Export fallito - vedi messaggi sopra")
 

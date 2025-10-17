@@ -6,7 +6,7 @@ Ho creato un sistema completo per esportare il tuo lavoro su Neuronpedia con i s
 
 ## File Creati
 
-### 1. `scripts/visualization/neuronpedia_export_clean.py`
+### 1. `scripts/visualization/%neuronpedia_export_clean.py`
 Script principale che:
 - Parte da `output/example_graph.pt`
 - Genera (o riusa) un Graph JSON base

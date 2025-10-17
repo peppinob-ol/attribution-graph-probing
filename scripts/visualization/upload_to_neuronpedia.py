@@ -1,9 +1,30 @@
 #!/usr/bin/env python3
 """
 Upload grafo con supernodi su Neuronpedia via API
+
+Uso:
+    python scripts/visualization/upload_to_neuronpedia.py
+    python scripts/visualization/upload_to_neuronpedia.py output/subgraph_no_bos_pinned.json
 """
 
 import sys
+import os
+import argparse
+from pathlib import Path
+
+# Carica variabili d'ambiente dal file .env
+try:
+    from dotenv import load_dotenv
+    # Cerca il file .env nella root del progetto
+    env_path = Path(__file__).parent.parent.parent / '.env'
+    print(f"[DEBUG] Cerco .env in: {env_path.absolute()}")
+    print(f"[DEBUG] File esiste: {env_path.exists()}")
+    load_dotenv(dotenv_path=env_path)
+    print(f"[DEBUG] .env caricato. NEURONPEDIA_API_KEY presente: {os.getenv('NEURONPEDIA_API_KEY') is not None}")
+except ImportError:
+    print("[!] Installa python-dotenv:")
+    print("    pip install python-dotenv")
+    sys.exit(1)
 
 try:
     from neuronpedia.np_graph_metadata import NPGraphMetadata
@@ -16,8 +37,26 @@ except ImportError:
 def upload_graph(json_path='output/neuronpedia_graph_with_subgraph.json'):
     """Upload del grafo su Neuronpedia"""
     print("=" * 70)
-    print("UPLOAD NEURONPEDIA")
+    print("UPLOAD NEURONPEDIA - Pipeline Antropologica")
     print("=" * 70)
+    
+    # Verifica che il file esista
+    if not os.path.exists(json_path):
+        print(f"\n[❌ ERRORE] File non trovato: {json_path}")
+        print(f"\n📝 SOLUZIONE:")
+        print(f"   Esegui prima:")
+        print(f"   python scripts/visualization/fix_neuronpedia_export.py")
+        return None
+    
+    # Verifica che la chiave API sia disponibile
+    api_key = os.getenv('NEURONPEDIA_API_KEY')
+    if not api_key:
+        print("\n[ERRORE] NEURONPEDIA_API_KEY non trovata!")
+        print("\nAssicurati di avere un file .env nella root del progetto con:")
+        print("NEURONPEDIA_API_KEY=tua_chiave_api")
+        return None
+    
+    print(f"\n[✓] Chiave API caricata")
     print(f"\n[1/2] Upload del file {json_path}...")
     print("[i] Questo può richiedere alcuni minuti per file grandi...")
     
@@ -28,9 +67,10 @@ def upload_graph(json_path='output/neuronpedia_graph_with_subgraph.json'):
         print(f"\n{'=' * 70}")
         print("RISULTATO")
         print("=" * 70)
-        print(f"\nURL del grafo:")
+        print(f"\nURL del grafo (generato con UUID unico):")
         print(f"  {graph.url}")
-        print(f"\n[i] Apri l'URL nel browser per visualizzare il grafo con i supernodi")
+        print(f"\n[i] Ogni esecuzione genera un nuovo URL univoco")
+        print(f"[i] Apri l'URL nel browser per visualizzare il grafo con i supernodi")
         print("=" * 70)
         
         return graph.url
@@ -45,7 +85,31 @@ def upload_graph(json_path='output/neuronpedia_graph_with_subgraph.json'):
 
 
 if __name__ == "__main__":
-    url = upload_graph()
+    parser = argparse.ArgumentParser(
+        description='Upload grafo con supernodi su Neuronpedia',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Esempi:
+  # Upload del grafo di default
+  python scripts/visualization/upload_to_neuronpedia.py
+  
+  # Upload del subgraph no-BOS
+  python scripts/visualization/upload_to_neuronpedia.py output/subgraph_no_bos_pinned.json
+  
+  # Upload di un altro file
+  python scripts/visualization/upload_to_neuronpedia.py output/mio_grafo.json
+        """
+    )
+    parser.add_argument(
+        'json_path',
+        nargs='?',
+        default='output/neuronpedia_graph_with_subgraph.json',
+        help='Path al file JSON da uploadare (default: output/neuronpedia_graph_with_subgraph.json)'
+    )
+    
+    args = parser.parse_args()
+    
+    url = upload_graph(args.json_path)
     if not url:
         sys.exit(1)
 

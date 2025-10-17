@@ -151,7 +151,7 @@ def verify_logit_influence_coverage():
     try:
         import sys
         sys.path.insert(0, 'scripts')
-        from causal_utils import load_attribution_graph, compute_edge_density
+        from causal_utils import load_attribution_graph, compute_edge_density, _get_tokenizer
         
         graph_data = load_attribution_graph("output/example_graph.pt")
         
@@ -174,35 +174,51 @@ def verify_logit_influence_coverage():
                 print(f"      Media: {avg_node_influence:.4f}")
                 print(f"      Massima: {max_node_influence:.4f}")
                 
-                # 8b. Node influence coverage
-                all_node_influences = [p.get('node_influence', 0) for p in personalities.values() 
-                                      if 'node_influence' in p]
+                # 8b. Node influence coverage (assoluta)
+                all_node_influences = [abs(p.get('node_influence', 0)) for p in personalities.values() if 'node_influence' in p]
                 if all_node_influences:
                     total_node_inf = sum(all_node_influences)
-                    supernode_node_inf = sum(node_influences)
+                    supernode_node_inf = sum(
+                        abs(personalities[fkey].get('node_influence', 0))
+                        for fkey in supernode_features
+                        if fkey in personalities and 'node_influence' in personalities[fkey]
+                    )
                     node_inf_coverage = (supernode_node_inf / total_node_inf * 100) if total_node_inf > 0 else 0
-                    print(f"      Coverage: {node_inf_coverage:.1f}% del node_influence totale")
+                    print(f"      Coverage (abs): {node_inf_coverage:.1f}% del node_influence totale")
+                else:
+                    node_inf_coverage = 0
+                    print("      Coverage (abs): n/a (no node_influence)")
             else:
                 print(f"\n   ⚠️ Node influence non disponibile")
                 avg_node_influence = 0
                 node_inf_coverage = 0
             
-            # 8c. Edge density interna ai supernodi
+            # 8c. Causal Edge Density per supernodo (media/mediana)
             print(f"\n   🔗 Causal Edge Density:")
-            edge_density = compute_edge_density(
-                list(supernode_features),
-                graph_data,
-                feature_to_idx,
-                tau_edge=0.01
-            )
-            print(f"      Internal edge density: {edge_density:.3f}")
-            print(f"      Interpretazione: {'ALTA' if edge_density > 0.3 else 'MEDIA' if edge_density > 0.1 else 'BASSA'} "
-                  f"connettività causale")
+            densities = []
+            for sn_id, sn in results['semantic_supernodes'].items():
+                members = sn.get('members', [])
+                d = compute_edge_density(members, graph_data, feature_to_idx, tau_edge=0.01)
+                densities.append(d)
+            for sn_id, sn in results['computational_supernodes'].items():
+                members = sn.get('members', [])
+                d = compute_edge_density(members, graph_data, feature_to_idx, tau_edge=0.01)
+                densities.append(d)
             
-            # 8d. Top-20 coverage per node_influence
+            if densities:
+                avg_density = sum(densities) / len(densities)
+                med_density = sorted(densities)[len(densities)//2]
+                edge_density = avg_density
+                print(f"      Avg density: {avg_density:.3f} | Med density: {med_density:.3f}")
+                print(f"      Interpretazione: {'ALTA' if avg_density>0.3 else 'MEDIA' if avg_density>0.1 else 'BASSA'} connettività causale")
+            else:
+                edge_density = 0.0
+                print("      Nessun supernodo per calcolare density")
+            
+            # 8d. Top-20 Node Influence Coverage (assoluta)
             if all_node_influences:
                 sorted_features = sorted(
-                    [(fkey, personalities[fkey].get('node_influence', 0)) 
+                    [(fkey, abs(personalities[fkey].get('node_influence', 0)))
                      for fkey in personalities if 'node_influence' in personalities[fkey]],
                     key=lambda x: x[1],
                     reverse=True
@@ -214,12 +230,108 @@ def verify_logit_influence_coverage():
                 print(f"\n   🎯 Top-20 Node Influence Coverage:")
                 print(f"      {top20_in_supernodes}/20 feature top causali catturate ({top20_coverage:.0f}%)")
             
+            # 8e. Replacement/Completeness Scores con pin logit+emb e variante no-BOS
+            print(f"\n   🎯 Replacement/Completeness Scores:")
+            try:
+                from circuit_tracer.metrics import compute_graph_scores
+                
+                TARGET_LOGIT = "Austin"
+                PIN_EMB_TOKENS = ["Dallas", "capital", "state"]
+                
+                def norm_token(s):
+                    return (s or "").replace("Ġ", " ").replace(" ", "").strip().lower()
+                
+                tokenizer = _get_tokenizer(graph_data['cfg'])
+                def safe_decode(tok_id):
+                    try:
+                        return tokenizer.decode([tok_id]) if tokenizer else str(tok_id)
+                    except Exception:
+                        return str(tok_id)
+                
+                # Logit index
+                logit_idx = None
+                for i, tok in enumerate(graph_data['logit_tokens']):
+                    if norm_token(safe_decode(tok)) == norm_token(TARGET_LOGIT):
+                        logit_idx = i
+                        break
+                if logit_idx is None:
+                    logit_idx = 0  # fallback: più probabile
+                
+                # Embedding positions
+                pin_emb = []
+                want_set = set(map(norm_token, PIN_EMB_TOKENS))
+                for pos, tok in enumerate(graph_data['input_tokens']):
+                    if norm_token(safe_decode(tok)) in want_set:
+                        pin_emb.append(pos)
+                
+                # (A) Scores con tutti i supernodi
+                scores_all = compute_graph_scores(
+                    graph_data,
+                    pinned_features=list(supernode_features),
+                    pinned_logits=[logit_idx],
+                    pinned_embeddings=pin_emb
+                )
+                
+                # (B) Variante no-BOS
+                nobos_features = {f for f in supernode_features if personalities.get(f, {}).get('most_common_peak') != '<BOS>'}
+                scores_nobos = compute_graph_scores(
+                    graph_data,
+                    pinned_features=list(nobos_features),
+                    pinned_logits=[logit_idx],
+                    pinned_embeddings=pin_emb
+                )
+                
+                def pfx(sc):
+                    return sc.get('graph',{}).get('replacement',0), sc.get('graph',{}).get('completeness',0), sc.get('subgraph',{}).get('replacement',0), sc.get('subgraph',{}).get('completeness',0)
+                
+                gr_r, gr_c, sb_r, sb_c = pfx(scores_all)
+                print(f"      ALL  -> Graph R={gr_r:.4f}, C={gr_c:.4f} | Subgraph R={sb_r:.4f}, C={sb_c:.4f}")
+                gr_r, gr_c, sb_r, sb_c = pfx(scores_nobos)
+                print(f"      NOBOS-> Graph R={gr_r:.4f}, C={gr_c:.4f} | Subgraph R={sb_r:.4f}, C={sb_c:.4f}")
+                
+                circuit_scores = {
+                    'all': scores_all,
+                    'nobos': scores_nobos,
+                }
+            except ImportError:
+                print("      ⚠️ circuit-tracer non installato (pip install circuit-tracer)")
+                circuit_scores = {}
+            except Exception as e:
+                print(f"      ⚠️ Errore calcolo scores: {e}")
+                circuit_scores = {}
+            
+            # 8f. Edge Density breakdown (content vs BOS) su |w|
+            print("\n   🔗 Edge Density breakdown (content vs BOS):")
+            content = [f for f in supernode_features if personalities.get(f, {}).get('most_common_peak') != '<BOS>']
+            bos = [f for f in supernode_features if personalities.get(f, {}).get('most_common_peak') == '<BOS>']
+            
+            import torch
+            adj = graph_data['adjacency_matrix'].abs()
+            idx = feature_to_idx
+            
+            def density_between(A, B, tau=0.01):
+                Ai = [idx[a] for a in A if a in idx]
+                Bi = [idx[b] for b in B if b in idx]
+                if not Ai or not Bi: return 0.0
+                sub = adj[Bi, :][:, Ai]  # A -> B
+                strong = (sub > tau).sum().item()
+                return strong / (len(Ai)*len(Bi))
+            
+            cc = compute_edge_density(content, graph_data, idx, tau_edge=0.01) if content else 0.0
+            bb = compute_edge_density(bos, graph_data, idx, tau_edge=0.01) if bos else 0.0
+            cb = density_between(content, bos, 0.01)
+            bc = density_between(bos, content, 0.01)
+            
+            print(f"      content↔content: {cc:.3f} | bos↔bos: {bb:.3f}")
+            print(f"      content→bos: {cb:.3f} | bos→content: {bc:.3f}")
+            
             # Salva metriche AG
             ag_metrics = {
                 'avg_node_influence': float(avg_node_influence) if node_influences else 0.0,
                 'node_influence_coverage_percent': float(node_inf_coverage) if node_influences else 0.0,
                 'internal_edge_density': float(edge_density),
-                'top20_coverage_percent': float(top20_coverage) if all_node_influences else 0.0
+                'top20_coverage_percent': float(top20_coverage) if all_node_influences else 0.0,
+                'circuit_scores': circuit_scores
             }
         else:
             print(f"\n   ⚠️ Attribution Graph non disponibile")
