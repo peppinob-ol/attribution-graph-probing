@@ -22,20 +22,33 @@ def render_feature_detail(feature_key: str, personalities: Dict,
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Layer", p.get('layer', '?'))
-        st.metric("Position", p.get('position', '?'))
+        st.metric("Layer", p.get('layer', '?'), 
+                 help="Transformer layer (0-25 for Gemma-2B)")
+        st.metric("Position", p.get('position', '?'),
+                 help="Token position in sequence where feature activates")
     
     with col2:
-        st.metric("Mean Consistency", f"{p.get('mean_consistency', 0):.3f}")
-        st.metric("Max Affinity", f"{p.get('max_affinity', 0):.3f}")
+        st.metric("Mean Consistency", f"{p.get('mean_consistency', 0):.3f}",
+                 help="Average cosine similarity between feature activation and label embedding across prompts. "
+                      "Range [0,1]. Higher = more consistent semantic alignment.")
+        st.metric("Max Affinity", f"{p.get('max_affinity', 0):.3f}",
+                 help="Peak cosine similarity with label embedding. "
+                      "Range [0,1]. Measures strongest semantic alignment observed.")
     
     with col3:
-        st.metric("Conditional Cons.", f"{p.get('conditional_consistency', 0):.3f}")
-        st.metric("Node Influence", f"{p.get('node_influence', 0):.4f}")
+        st.metric("Conditional Cons.", f"{p.get('conditional_consistency', 0):.3f}",
+                 help="Consistency computed only when feature is active (above adaptive threshold). "
+                      "More robust than mean_consistency for sparse features.")
+        st.metric("Node Influence", f"{p.get('node_influence', 0):.4f}",
+                 help="Causal influence on target logits via backward propagation through attribution graph. "
+                      "Can be negative. Higher absolute value = stronger causal impact.")
     
     with col4:
-        st.metric("Output Impact", f"{p.get('output_impact', 0):.4f}")
-        st.metric("Peak Token", p.get('most_common_peak', '?'))
+        st.metric("Output Impact", f"{p.get('output_impact', 0):.4f}",
+                 help="Direct influence on output logits (logit_influence). "
+                      "Computed from attribution graph edges to final logits. Range typically [0, 0.1].")
+        st.metric("Peak Token", p.get('most_common_peak', '?'),
+                 help="Token where this feature activates most frequently across all prompts")
     
     # Tabs per diverse viste
     tab1, tab2, tab3, tab4 = st.tabs(["Personalità", "Vicinato Causale", "Attivazioni", "Metadati"])

@@ -1,4 +1,12 @@
 """Fase 3 - Residui Computazionali"""
+import sys
+from pathlib import Path
+
+# Aggiungi parent directory al path
+parent_dir = Path(__file__).parent.parent.parent
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
+
 import streamlit as st
 import pandas as pd
 import json
@@ -23,57 +31,103 @@ if personalities is None or thresholds_data is None or cicciotti is None:
     st.stop()
 
 # Sidebar: parametri Fase 3
-st.sidebar.header("⚙️ Parametri Fase 3")
+st.sidebar.header("⚙️ Phase 3 Parameters")
 
 # Thresholds
-st.sidebar.subheader("Soglie ammissione")
+st.sidebar.subheader("Admission Thresholds")
+st.sidebar.caption("Features must pass at least one threshold to be admitted as quality residuals")
+
 tau_inf = st.sidebar.number_input(
     "tau_inf (logit influence)",
     value=float(thresholds_data.get('thresholds', {}).get('tau_inf', 0.000194)),
     format="%.6f",
-    step=0.000001
+    step=0.000001,
+    help="Minimum output_impact (logit influence) for a feature to be admitted. "
+         "Computed via backward propagation from target logits through attribution graph. "
+         "Lower = more features admitted. Default: 0.000194 (robust threshold from data)"
 )
 
 tau_aff = st.sidebar.number_input(
     "tau_aff (max affinity)",
     value=float(thresholds_data.get('thresholds', {}).get('tau_aff', 0.65)),
     format="%.2f",
-    step=0.05
+    step=0.05,
+    help="Minimum max_affinity (peak cosine similarity) for admission. "
+         "max_affinity = highest cosine similarity between feature activation and label embedding. "
+         "Higher = only features with strong semantic alignment. Default: 0.65"
 )
 
 tau_inf_very_high = st.sidebar.number_input(
     "tau_inf_very_high (<BOS>)",
     value=float(thresholds_data.get('thresholds', {}).get('tau_inf_very_high', 0.025)),
     format="%.3f",
-    step=0.001
+    step=0.001,
+    help="Special filter for <BOS> token features. "
+         "<BOS> features must have output_impact > tau_inf_very_high to be admitted. "
+         "Prevents low-influence structural tokens from cluttering residuals. Default: 0.025"
 )
 
 # Clustering params
-st.sidebar.subheader("Clustering")
+st.sidebar.subheader("Clustering Parameters")
+st.sidebar.caption("Multi-dimensional clustering: layer_group × token_class × causal_tier")
+
 min_cluster_size = st.sidebar.slider(
-    "Min cluster size", 2, 10, PHASE3_DEFAULTS['min_cluster_size']
+    "Min cluster size", 
+    2, 10, 
+    PHASE3_DEFAULTS['min_cluster_size'],
+    help="Minimum number of members for a cluster to be considered valid. "
+         "Smaller clusters are discarded. Higher = fewer, larger clusters. Default: 3"
 )
 
 layer_group_span = st.sidebar.slider(
-    "Layer group span", 2, 5, PHASE3_DEFAULTS['layer_group_span']
+    "Layer group span", 
+    2, 5, 
+    PHASE3_DEFAULTS['layer_group_span'],
+    help="Number of consecutive layers grouped together for clustering. "
+         "E.g., span=3 creates groups L0-2, L3-5, L6-8, etc. "
+         "Larger span = fewer, coarser layer groups. Default: 3"
 )
 
 node_inf_high = st.sidebar.slider(
-    "Node influence HIGH", 0.05, 0.20, PHASE3_DEFAULTS['node_inf_high'], 0.01
+    "Node influence HIGH", 
+    0.05, 0.20, 
+    PHASE3_DEFAULTS['node_inf_high'], 
+    0.01,
+    help="Threshold for HIGH causal tier. Features with node_influence > this are tier HIGH. "
+         "node_influence = backward propagation score from logits. Default: 0.10"
 )
 
 node_inf_med = st.sidebar.slider(
-    "Node influence MED", 0.005, 0.05, PHASE3_DEFAULTS['node_inf_med'], 0.005
+    "Node influence MED", 
+    0.005, 0.05, 
+    PHASE3_DEFAULTS['node_inf_med'], 
+    0.005,
+    help="Threshold for MED causal tier. Features with node_influence > this (but < HIGH) are tier MED. "
+         "Features below this are tier LOW. Default: 0.01"
 )
 
 min_frequency_ratio = st.sidebar.slider(
-    "Min frequency ratio (token)", 0.01, 0.05, PHASE3_DEFAULTS['min_frequency_ratio'], 0.005
+    "Min frequency ratio (token)", 
+    0.01, 0.05, 
+    PHASE3_DEFAULTS['min_frequency_ratio'], 
+    0.005,
+    help="Minimum frequency (as ratio of total residuals) for a token to be classified as 'semantic'. "
+         "Tokens below this frequency are classified as 'RARE'. "
+         "Also enforces min_frequency_absolute=3. Default: 0.02 (2%)"
 )
 
 # Merge params
-st.sidebar.subheader("Merge")
+st.sidebar.subheader("Merge Parameters")
+
 jaccard_threshold = st.sidebar.slider(
-    "Jaccard merge threshold", 0.5, 0.9, PHASE3_DEFAULTS['jaccard_merge_threshold'], 0.05
+    "Jaccard merge threshold", 
+    0.5, 0.9, 
+    PHASE3_DEFAULTS['jaccard_merge_threshold'], 
+    0.05,
+    help="Minimum Jaccard similarity to merge two clusters. "
+         "Jaccard(A,B) = |A ∩ B| / |A ∪ B|. "
+         "Higher = more conservative merging, more distinct clusters. "
+         "Lower = aggressive merging, fewer total clusters. Default: 0.70"
 )
 
 # Calcola con parametri correnti
@@ -120,18 +174,25 @@ with st.spinner("Ricalcolo residui..."):
 tab1, tab2, tab3 = st.tabs(["Residui", "Clusters", "Coverage"])
 
 with tab1:
-    st.header("Residui di Qualità")
+    st.header("Quality Residuals")
+    
+    st.info("**Quality residuals** are features that pass admission thresholds (tau_inf OR tau_aff) "
+           "but are not included in semantic supernodes (cicciotti). These are candidates for "
+           "computational clustering.")
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric("Total admitted", residuals_stats['total_admitted'])
+        st.metric("Total admitted", residuals_stats['total_admitted'],
+                 help="Features passing tau_inf OR tau_aff threshold")
     
     with col2:
-        st.metric("Used in cicciotti", residuals_stats['used_in_cicciotti'])
+        st.metric("Used in cicciotti", residuals_stats['used_in_cicciotti'],
+                 help="Features already assigned to semantic supernodes")
     
     with col3:
-        st.metric("Quality residuals", residuals_stats['quality_residuals'])
+        st.metric("Quality residuals", residuals_stats['quality_residuals'],
+                 help="Admitted features not in cicciotti = candidates for clustering")
     
     st.write("---")
     

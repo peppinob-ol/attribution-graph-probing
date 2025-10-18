@@ -1,4 +1,12 @@
 """Fase 1 - Feature Explorer"""
+import sys
+from pathlib import Path
+
+# Aggiungi parent directory al path
+parent_dir = Path(__file__).parent.parent.parent
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -28,19 +36,23 @@ pers_df['feature_key'] = pers_df.index
 st.write(f"**Features totali:** {len(pers_df)}")
 
 # Sidebar: filtri
-st.sidebar.header("Filtri")
+st.sidebar.header("Filters")
 
 layer_range = st.sidebar.slider(
     "Layer range",
     int(pers_df['layer'].min()),
     int(pers_df['layer'].max()),
-    (int(pers_df['layer'].min()), int(pers_df['layer'].max()))
+    (int(pers_df['layer'].min()), int(pers_df['layer'].max())),
+    help="Filter features by layer. Layers represent depth in the transformer model. "
+         "Lower layers capture syntax/structure, higher layers capture semantics."
 )
 
 token_filter = st.sidebar.multiselect(
     "Token filter",
     options=sorted(pers_df['most_common_peak'].unique()),
-    default=[]
+    default=[],
+    help="Filter by most_common_peak token. This is the token where the feature "
+         "activates most frequently across prompts. Useful to focus on specific concepts."
 )
 
 # Applica filtri
@@ -142,16 +154,23 @@ with tab2:
     )
 
 with tab3:
-    st.header("Archetipi Narrativi")
+    st.header("Narrative Archetypes")
+    
+    st.info("**Archetypes** classify features by their behavioral patterns:\n"
+           "• **Semantic Anchors**: High consistency, strong semantic alignment\n"
+           "• **Stable Contributors**: Consistent but moderate influence\n"
+           "• **Contextual Specialists**: High max_affinity but variable consistency\n"
+           "• **Computational Helpers**: High causal influence, lower semantic consistency\n"
+           "• **Outliers**: Low on most metrics")
     
     if archetypes:
         # Conteggi
         archetype_counts = {k: len(v) for k, v in archetypes.items()}
         
-        st.write("**Distribuzione archetipi:**")
+        st.write("**Archetype distribution:**")
         arch_df = pd.DataFrame(list(archetype_counts.items()), 
-                               columns=['Archetipo', 'Count'])
-        st.bar_chart(arch_df.set_index('Archetipo'))
+                               columns=['Archetype', 'Count'])
+        st.bar_chart(arch_df.set_index('Archetype'))
         
         # Dettagli per archetipo
         selected_arch = st.selectbox("Seleziona archetipo", list(archetypes.keys()))

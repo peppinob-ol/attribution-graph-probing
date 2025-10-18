@@ -73,8 +73,32 @@ def fix_export(
     new_slug = f"{original_slug}-{unique_id}"
     metadata['slug'] = new_slug
     
+    # Aggiungi/verifica info.source_urls (formato compatibile con API Neuronpedia)
+    if 'info' not in metadata:
+        metadata['info'] = {}
+    
+    info = metadata['info']
+    if 'source_urls' not in info or not info['source_urls']:
+        info['source_urls'] = [
+            "https://neuronpedia.org/gemma-2-2b/gemmascope-transcoder-16k",
+            "https://huggingface.co/google/gemma-scope-2b-pt-transcoders"
+        ]
+        print(f"[+] Aggiunti source_urls in metadata.info")
+    
+    if 'transcoder_set' not in info:
+        info['transcoder_set'] = 'gemma'
+        print(f"[+] Aggiunto transcoder_set in metadata.info")
+    
+    # Aggiungi anche sourceSetSlug/Name per compatibilità (alcuni validator li usano)
+    if 'sourceSetSlug' not in metadata:
+        metadata['sourceSetSlug'] = 'gemmascope-transcoder-16k'
+    if 'sourceSetName' not in metadata:
+        metadata['sourceSetName'] = 'GEMMASCOPE - TRANSCODER -16K'
+    
     print(f"[OK] Nodi: {len(nodes)}, Links: {len(graph.get('links', []))}")
     print(f"[i] Slug unico generato: {new_slug}")
+    print(f"[i] Source Set: {metadata.get('sourceSetName', 'N/A')}")
+    print(f"[i] Source URLs: {len(info.get('source_urls', []))} URL")
     
     # Carica supernodi
     print(f"\n[2/3] Caricamento supernodi da {supernodes_file}...")
@@ -156,6 +180,36 @@ def fix_export(
     # Costruisci supernodes
     supernodes_out = []
     pinned_ids = []
+    
+    # ===== PINNA TUTTI GLI EMBEDDINGS (NON in supernodi) =====
+    print(f"\n[EMBEDDINGS] Identificazione e pinning embeddings...")
+    embedding_nodes = []
+    for node in nodes:
+        layer = node.get('layer')
+        # Gli embeddings hanno layer='E' oppure node_id che inizia con 'E_'
+        node_id = node.get('node_id') or node.get('nodeId') or node.get('jsNodeId')
+        if layer == 'E' or (isinstance(node_id, str) and node_id.startswith('E_')):
+            if node_id:
+                embedding_nodes.append(node_id)
+                pinned_ids.append(node_id)
+    
+    print(f"[OK] Pinnati {len(embedding_nodes)} embeddings (NON in supernodi)")
+    
+    # ===== PINNA OUTPUT LOGIT =====
+    print(f"\n[OUTPUT] Identificazione e pinning output logit...")
+    logit_nodes = []
+    for node in nodes:
+        # I logit hanno is_target_logit=True o isTargetLogit=True
+        if node.get('is_target_logit') or node.get('isTargetLogit'):
+            node_id = node.get('node_id') or node.get('nodeId') or node.get('jsNodeId')
+            if node_id:
+                logit_nodes.append(node_id)
+                pinned_ids.append(node_id)
+    
+    print(f"[OK] Pinnati {len(logit_nodes)} nodi logit")
+    
+    # ===== SUPERNODI DA FEATURES =====
+    print(f"\n[SUPERNODI] Costruzione supernodi da features...")
     
     # Semantici
     semantic = supernodes_data.get('semantic_supernodes', {})
@@ -280,10 +334,14 @@ def fix_export(
     print(f"\n{'=' * 70}")
     print("RISULTATO")
     print("=" * 70)
-    print(f"  Supernodi: {len(supernodes_out)}")
-    print(f"  Feature pinnate: {len(pinned_ids)}")
     print(f"  File: {output_json}")
     print(f"  Dimensione: {os.path.getsize(output_json) / 1024 / 1024:.1f} MB")
+    print(f"\n  Nodi pinnati totali: {len(pinned_ids)}")
+    print(f"    - Embeddings: {len(embedding_nodes)} (NON in supernodi)")
+    print(f"    - Features in supernodi: {len([n for n in pinned_ids if n not in embedding_nodes and n not in logit_nodes])}")
+    print(f"    - Output logit: {len(logit_nodes)}")
+    print(f"\n  Supernodi creati: {len(supernodes_out)}")
+    print(f"  Source Set: {metadata.get('sourceSetName', 'N/A')}")
     
     if not supernodes_out:
         print(f"\n[!] ATTENZIONE: Nessun supernodo aggiunto!")

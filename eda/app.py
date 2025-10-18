@@ -1,6 +1,14 @@
 """
 App Streamlit principale per EDA pipeline supernodi
 """
+import sys
+from pathlib import Path
+
+# Aggiungi parent directory al path per import
+parent_dir = Path(__file__).parent.parent
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
+
 import streamlit as st
 from eda.utils.data_loader import check_data_availability
 
@@ -69,36 +77,37 @@ if not data_status.get('graph', False):
 # Quick links
 st.header("Quick Links")
 
-col1, col2, col3, col4, col5 = st.columns(5)
+col1, col2, col3 = st.columns(3)
 
 with col1:
     st.page_link("pages/01_Overview.py", label="📊 Overview", icon="📊")
-
-with col2:
     st.page_link("pages/02_Phase1_Features.py", label="🎭 Features", icon="🎭")
 
-with col3:
+with col2:
     st.page_link("pages/03_Phase2_Supernodes.py", label="🌱 Supernodi", icon="🌱")
-
-with col4:
     st.page_link("pages/04_CrossPrompt.py", label="🧪 Cross-Prompt", icon="🧪")
 
-with col5:
+with col3:
     st.page_link("pages/05_Phase3_Residuals.py", label="🏭 Residui", icon="🏭")
+    st.page_link("pages/06_Causal_Validation.py", label="🔬 Causal Valid.", icon="🔬")
 
 # Info progetto
 st.sidebar.header("ℹ️ Info")
 st.sidebar.write("""
-**Progetto:** circuit_tracer-prompt_rover
+**Project:** circuit_tracer-prompt_rover
 
 **Pipeline:**
-1. Analisi antropologica features
-2. Costruzione supernodi semantici (cicciotti)
-3. Clustering residui computazionali
+1. Anthropological feature analysis
+2. Semantic supernode construction (cicciotti)
+3. Computational residual clustering
 
-**Documentazione:** `docs/supernode_labelling/`
+**Documentation:** 
+- Full docs: `docs/supernode_labelling/`
+- Metrics glossary: `eda/METRICS_GLOSSARY.md`
+- Quick guide: `eda/GUIDA_RAPIDA.md`
 """)
 
 st.sidebar.write("---")
-st.sidebar.caption("Versione: 1.0.0 | Streamlit EDA")
+st.sidebar.caption("Version: 1.0.0 | Streamlit EDA")
+st.sidebar.caption("💡 Hover over metrics and parameters for explanations")
 

@@ -1,8 +1,15 @@
 """Dashboard Overview con KPI globali"""
+import sys
+from pathlib import Path
+
+# Aggiungi parent directory al path
+parent_dir = Path(__file__).parent.parent.parent
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
+
 import streamlit as st
 import json
 import pandas as pd
-from pathlib import Path
 from eda.utils.data_loader import load_final, load_cicciotti
 from eda.utils.plots import plot_coverage_comparison
 from eda.config.defaults import EXPORT_DIR
@@ -23,29 +30,44 @@ stats = final_data.get('comprehensive_statistics', {})
 quality = final_data.get('quality_metrics', {})
 
 # KPI principali
-st.header("KPI Globali")
+st.header("Global KPIs")
 
 col1, col2, col3, col4, col5 = st.columns(5)
 
 with col1:
-    st.metric("Supernodi totali", stats.get('total_supernodes', 0))
-    st.metric("Semantici", stats.get('semantic_supernodes', 0))
+    st.metric("Total supernodes", stats.get('total_supernodes', 0),
+             help="Total number of supernodes (semantic + computational)")
+    st.metric("Semantic", stats.get('semantic_supernodes', 0),
+             help="Cicciotti supernodes: semantically coherent and causally connected clusters")
 
 with col2:
-    st.metric("Computazionali", stats.get('computational_supernodes', 0))
-    st.metric("Features coperte", stats.get('total_features_covered', 0))
+    st.metric("Computational", stats.get('computational_supernodes', 0),
+             help="Computational clusters: multi-dimensional grouping of quality residuals")
+    st.metric("Features covered", stats.get('total_features_covered', 0),
+             help="Total features assigned to any supernode (semantic or computational)")
 
 with col3:
-    st.metric("Coverage totale", f"{stats.get('coverage_percentage', 0):.1f}%")
-    st.metric("Coverage qualità", f"{stats.get('quality_coverage_percentage', 0):.1f}%")
+    st.metric("Total coverage", f"{stats.get('coverage_percentage', 0):.1f}%",
+             help="Percentage of all features covered by supernodes. "
+                  "Formula: (total_features_covered / original_features) × 100")
+    st.metric("Quality coverage", f"{stats.get('quality_coverage_percentage', 0):.1f}%",
+             help="Coverage of quality features only (admitted by tau_inf or tau_aff thresholds). "
+                  "Excludes garbage features.")
 
 with col4:
-    st.metric("Garbage identificato", stats.get('garbage_features_identified', 0))
-    st.metric("Processabili", stats.get('processable_features', 0))
+    st.metric("Garbage identified", stats.get('garbage_features_identified', 0),
+             help="Features below quality thresholds (tau_inf AND tau_aff). "
+                  "Not processable, excluded from coverage calculation.")
+    st.metric("Processable", stats.get('processable_features', 0),
+             help="Quality features not yet in supernodes. Candidates for further clustering.")
 
 with col5:
-    st.metric("Coerenza semantica", f"{quality.get('semantic_avg_coherence', 0):.3f}")
-    st.metric("Diversità comp.", quality.get('computational_diversity', 0))
+    st.metric("Semantic avg coherence", f"{quality.get('semantic_avg_coherence', 0):.3f}",
+             help="Average final_coherence across all semantic supernodes. "
+                  "Range [0,1]. Higher = more internally consistent supernodes.")
+    st.metric("Computational diversity", quality.get('computational_diversity', 0),
+             help="Number of distinct cluster signatures (layer_group × token × causal_tier) "
+                  "in computational supernodes.")
 
 # Grafici
 st.header("Visualizzazioni")

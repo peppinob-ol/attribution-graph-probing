@@ -1,4 +1,12 @@
 """Fase 2 - Supernodi Cicciotti"""
+import sys
+from pathlib import Path
+
+# Aggiungi parent directory al path
+parent_dir = Path(__file__).parent.parent.parent
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
+
 import streamlit as st
 import pandas as pd
 from eda.utils.data_loader import load_cicciotti, load_personalities, load_graph
@@ -26,30 +34,70 @@ if personalities is None:
 st.write(f"**Supernodi totali:** {len(cicciotti)}")
 
 # Sidebar: parametri Fase 2
-st.sidebar.header("⚙️ Parametri Fase 2")
-st.sidebar.write("*Per dry-run e analisi parametrica*")
+st.sidebar.header("⚙️ Phase 2 Parameters")
+st.sidebar.write("*For dry-run and parametric analysis*")
 
-enable_dryrun = st.sidebar.checkbox("Abilita dry-run", value=False)
+enable_dryrun = st.sidebar.checkbox(
+    "Enable dry-run", 
+    value=False,
+    help="Enable interactive parameter tuning to see how compatibility scores change"
+)
 
 dryrun_params = {}
 if enable_dryrun:
-    st.sidebar.subheader("Compatibilità")
+    st.sidebar.subheader("Compatibility Weights")
+    
     dryrun_params['causal_weight'] = st.sidebar.slider(
-        "Peso causale", 0.4, 0.8, PHASE2_DEFAULTS['causal_weight'], 0.05
-    )
-    dryrun_params['tau_edge_strong'] = st.sidebar.slider(
-        "tau_edge_strong", 0.02, 0.10, PHASE2_DEFAULTS['tau_edge_strong'], 0.01
+        "Causal weight", 
+        0.4, 0.8, 
+        PHASE2_DEFAULTS['causal_weight'], 
+        0.05,
+        help="Weight for causal compatibility (0-1). Semantic weight = 1 - causal_weight. "
+             "Higher values prioritize causal graph connections over semantic similarity. "
+             "Default: 0.60 (60% causal, 40% semantic)"
     )
     
-    st.sidebar.subheader("Crescita")
+    dryrun_params['tau_edge_strong'] = st.sidebar.slider(
+        "tau_edge_strong", 
+        0.02, 0.10, 
+        PHASE2_DEFAULTS['tau_edge_strong'], 
+        0.01,
+        help="Threshold for considering an edge 'strong' in the attribution graph. "
+             "Edges with weight > tau_edge_strong receive a 1.5x boost in compatibility. "
+             "Default: 0.05"
+    )
+    
+    st.sidebar.subheader("Growth Thresholds")
+    
     dryrun_params['threshold_bootstrap'] = st.sidebar.slider(
-        "Threshold bootstrap", 0.1, 0.5, PHASE2_DEFAULTS['threshold_bootstrap'], 0.05
+        "Bootstrap threshold", 
+        0.1, 0.5, 
+        PHASE2_DEFAULTS['threshold_bootstrap'], 
+        0.05,
+        help="Minimum compatibility score to accept a candidate during bootstrap phase. "
+             "Bootstrap phase uses 2-hop backward causal connections only. "
+             "Lower = more permissive growth. Default: 0.30"
     )
+    
     dryrun_params['threshold_normal'] = st.sidebar.slider(
-        "Threshold normale", 0.3, 0.7, PHASE2_DEFAULTS['threshold_normal'], 0.05
+        "Normal threshold", 
+        0.3, 0.7, 
+        PHASE2_DEFAULTS['threshold_normal'], 
+        0.05,
+        help="Minimum compatibility score to accept a candidate during normal growth phase. "
+             "Normal phase combines causal (60%) and semantic (40%) compatibility. "
+             "Higher = more selective, smaller supernodes. Default: 0.45"
     )
+    
     dryrun_params['min_coherence'] = st.sidebar.slider(
-        "Min coherence", 0.3, 0.8, PHASE2_DEFAULTS['min_coherence'], 0.05
+        "Min coherence", 
+        0.3, 0.8, 
+        PHASE2_DEFAULTS['min_coherence'], 
+        0.05,
+        help="Minimum supernode coherence to continue growth. "
+             "Coherence = weighted combination of consistency homogeneity (30%), "
+             "token diversity (20%), layer span (20%), and causal edge density (30%). "
+             "Growth stops if coherence drops below this threshold. Default: 0.50"
     )
 
 # Converti in DataFrame per analisi
@@ -71,7 +119,10 @@ sn_df = pd.DataFrame(sn_data)
 tab1, tab2, tab3 = st.tabs(["Lista", "Analisi", "Dettaglio"])
 
 with tab1:
-    st.header("Lista Supernodi")
+    st.header("Supernode List")
+    
+    st.caption("**Cicciotti supernodes** are semantically coherent clusters grown from high-influence seeds "
+              "using causal-guided expansion with compatibility scoring.")
     
     # Filtri
     col1, col2, col3 = st.columns(3)
@@ -80,14 +131,17 @@ with tab1:
         theme_filter = st.multiselect(
             "Theme filter",
             options=sorted(sn_df['theme'].unique()),
-            default=[]
+            default=[],
+            help="Filter by narrative theme (inferred from dominant tokens)"
         )
     
     with col2:
-        min_members = st.slider("Min membri", 0, int(sn_df['n_members'].max()), 0)
+        min_members = st.slider("Min members", 0, int(sn_df['n_members'].max()), 0,
+                               help="Minimum number of features in supernode")
     
     with col3:
-        min_coherence = st.slider("Min coherence", 0.0, 1.0, 0.0, 0.05)
+        min_coherence = st.slider("Min coherence", 0.0, 1.0, 0.0, 0.05,
+                                 help="Minimum final_coherence score (0-1)")
     
     # Applica filtri
     filtered_sn = sn_df.copy()

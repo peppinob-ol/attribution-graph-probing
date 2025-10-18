@@ -70,6 +70,13 @@ L'app si aprirà automaticamente nel browser su `http://localhost:8501`
    - Merge Jaccard interattivo
    - Coverage comparison baseline vs corrente
 
+6. **🔬 Causal Validation** (`06_Causal_Validation.py`)
+   - Validazione cross-prompt: attivazione predice importanza causale?
+   - ROC/AUC analysis: activation as predictor
+   - Stacked bar chart: importanza vs attivazione per prompt
+   - Feature ranking overlap analysis
+   - Token analysis (peak on label, peak token distribution)
+
 ### Componenti Riusabili
 
 - `components/feature_panel.py`: Pannello dettaglio feature
@@ -226,11 +233,23 @@ Se i dati sembrano obsoleti, pulisci la cache:
 
 Oppure nella sidebar: Settings > Clear cache
 
-## 📚 Riferimenti
+## 📚 References
 
-- Documentazione completa: `docs/supernode_labelling/`
-- Piano implementazione: `stream.plan.md`
-- Scripts pipeline: `scripts/01_anthropological_basic.py`, `scripts/03_cicciotti_supernodes.py`, `scripts/04_final_optimized_clustering.py`
+- **Full documentation**: `docs/supernode_labelling/`
+- **Metrics glossary**: `eda/METRICS_GLOSSARY.md` - Complete reference for all metrics
+- **Interpretation guide**: `eda/INTERPRETATION_GUIDE.md` - Practical interpretation examples
+- **Causal validation guide**: `eda/CAUSAL_VALIDATION_GUIDE.md` - Cross-prompt activation analysis
+- **Quick guide (Italian)**: `eda/GUIDA_RAPIDA.md`
+- **Implementation plan**: `stream.plan.md`
+- **Pipeline scripts**: `scripts/01_anthropological_basic.py`, `scripts/03_cicciotti_supernodes.py`, `scripts/04_final_optimized_clustering.py`
+
+## 💡 Using Tooltips
+
+The app includes extensive tooltips and help text:
+- **Hover over metrics** (st.metric) to see definitions and ranges
+- **Hover over parameters** (sliders, inputs) to see calculation formulas and effects
+- **Read info boxes** for context-specific explanations
+- **Check captions** below charts for interpretation guidance
 
 ## 🔧 Sviluppo
 

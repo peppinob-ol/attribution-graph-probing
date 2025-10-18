@@ -28,19 +28,30 @@ def render_supernode_detail(
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("N membri", len(sn.get('members', [])))
-        st.metric("Seed layer", sn.get('seed_layer', '?'))
+        st.metric("N membri", len(sn.get('members', [])),
+                 help="Number of features in this supernode")
+        st.metric("Seed layer", sn.get('seed_layer', '?'),
+                 help="Layer of the seed feature that initiated supernode growth")
     
     with col2:
-        st.metric("Final coherence", f"{sn.get('final_coherence', 0):.3f}")
-        st.metric("Growth iterations", sn.get('growth_iterations', 0))
+        st.metric("Final coherence", f"{sn.get('final_coherence', 0):.3f}",
+                 help="Final coherence score after growth completed. "
+                      "Coherence = 0.30×consistency_homogeneity + 0.20×token_diversity + "
+                      "0.20×layer_span + 0.30×causal_edge_density. Range [0,1].")
+        st.metric("Growth iterations", sn.get('growth_iterations', 0),
+                 help="Number of iterations (members added) during growth phase")
     
     with col3:
-        st.metric("Narrative theme", sn.get('narrative_theme', '?'))
-        st.metric("Seed logit inf.", f"{sn.get('seed_logit_influence', 0):.4f}")
+        st.metric("Narrative theme", sn.get('narrative_theme', '?'),
+                 help="Semantic theme inferred from dominant tokens and context")
+        st.metric("Seed logit inf.", f"{sn.get('seed_logit_influence', 0):.4f}",
+                 help="Logit influence (output_impact) of the seed feature. "
+                      "Higher = seed has stronger direct impact on target logits.")
     
     with col4:
-        st.metric("Total influence", f"{sn.get('total_influence_score', 0):.2f}")
+        st.metric("Total influence", f"{sn.get('total_influence_score', 0):.2f}",
+                 help="Sum of node_influence scores across all members. "
+                      "Measures aggregate causal impact of the supernode.")
         # Stima edge density se grafo disponibile
         if graph_data:
             try:
@@ -51,11 +62,14 @@ def render_supernode_detail(
                     graph_data.get('feature_to_idx', {}),
                     tau_edge=0.01
                 )
-                st.metric("Edge density", f"{edge_dens:.3f}")
+                st.metric("Edge density", f"{edge_dens:.3f}",
+                         help="Density of causal edges within supernode. "
+                              "Ratio of actual edges (weight > 0.01) to possible edges. Range [0,1].")
             except:
                 st.metric("Edge density", "N/A")
         else:
-            st.metric("Edge density", "N/A")
+            st.metric("Edge density", "N/A",
+                     help="Causal graph not available. Cannot compute edge density.")
     
     # Tabs
     tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Membri", "Crescita", "Dry-run"])

@@ -1,4 +1,12 @@
 """Validazione Cross-Prompt"""
+import sys
+from pathlib import Path
+
+# Aggiungi parent directory al path
+parent_dir = Path(__file__).parent.parent.parent
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -34,15 +42,22 @@ st.write(f"**Prompts unici:** {len(all_prompts)}")
 tab1, tab2, tab3 = st.tabs(["Heatmap", "Statistiche", "Dettaglio Supernodo"])
 
 with tab1:
-    st.header("Heatmap Attivazione")
+    st.header("Activation Heatmap")
     
     metric_choice = st.selectbox(
-        "Metrica",
-        ['n_active_members', 'avg_consistency', 'consistency_std']
+        "Metric",
+        ['n_active_members', 'avg_consistency', 'consistency_std'],
+        help="Choose metric to display in heatmap:\n"
+             "• n_active_members: Number of supernode members active on each prompt\n"
+             "• avg_consistency: Average consistency score of active members\n"
+             "• consistency_std: Standard deviation of consistency (higher = more variable)"
     )
     
     fig_heat = plot_heatmap_prompt_activation(validation, metric=metric_choice)
     st.plotly_chart(fig_heat, use_container_width=True)
+    
+    st.caption("**How to read:** Each cell shows the metric value for (supernode × prompt). "
+              "Darker colors = higher values. White/empty = supernode not active on that prompt.")
 
 with tab2:
     st.header("Statistiche Robustezza")
