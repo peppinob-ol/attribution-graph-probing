@@ -567,6 +567,64 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
             help="Nome del file CSV da salvare in output/"
         )
     
+    # === CHECKPOINT & RECOVERY ===
+    st.subheader("💾 Checkpoint & Recovery")
+    
+    col1_ckpt, col2_ckpt, col3_ckpt = st.columns(3)
+    
+    with col1_ckpt:
+        checkpoint_every = st.number_input(
+            "Salva checkpoint ogni N features",
+            min_value=5,
+            max_value=100,
+            value=10,
+            help="Salva i dati parziali ogni N features processate"
+        )
+    
+    with col2_ckpt:
+        resume_from_checkpoint = st.checkbox(
+            "Riprendi da checkpoint",
+            value=True,
+            help="Se presente, riprende l'analisi da dove era stata interrotta"
+        )
+    
+    with col3_ckpt:
+        # Cerca checkpoint esistenti
+        checkpoint_dir = parent_dir / "output" / "checkpoints"
+        checkpoint_files = []
+        if checkpoint_dir.exists():
+            checkpoint_files = sorted(checkpoint_dir.glob("probe_prompts_*.json"), reverse=True)
+        
+        if checkpoint_files and resume_from_checkpoint:
+            selected_checkpoint = st.selectbox(
+                "Checkpoint da riprendere",
+                options=["Nuovo"] + [f.name for f in checkpoint_files[:5]],
+                help="Seleziona un checkpoint esistente o inizia nuovo"
+            )
+        else:
+            selected_checkpoint = "Nuovo"
+    
+    # Mostra info su checkpoint selezionato
+    if selected_checkpoint != "Nuovo" and resume_from_checkpoint:
+        checkpoint_path = checkpoint_dir / selected_checkpoint
+        if checkpoint_path.exists():
+            try:
+                with open(checkpoint_path, 'r', encoding='utf-8') as f:
+                    ckpt_data = json.load(f)
+                num_records = ckpt_data.get('num_records', 0)
+                timestamp = ckpt_data.get('timestamp', 'unknown')
+                metadata = ckpt_data.get('metadata', {})
+                
+                st.info(f"""
+                **Checkpoint trovato:**
+                - Records: {num_records}
+                - Data: {timestamp}
+                - Status: {metadata.get('status', 'in progress')}
+                - Concepts: {metadata.get('current_concept', '?')}/{metadata.get('total_concepts', '?')}
+                """)
+            except Exception as e:
+                st.warning(f"Errore lettura checkpoint: {e}")
+    
     # Stima chiamate API
     if 'filtered_features' in st.session_state:
         num_features = len(st.session_state['filtered_features'])
@@ -626,8 +684,18 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
             output_dir = parent_dir / "output"
             output_csv_path = output_dir / output_filename
             
-            # Log iniziale
-            status_text.info("🚀 Avvio analisi...")
+            # Setup checkpoint path
+            checkpoint_path_to_use = None
+            if resume_from_checkpoint and selected_checkpoint != "Nuovo":
+                checkpoint_path_to_use = str(checkpoint_dir / selected_checkpoint)
+                status_text.info(f"📂 Riprendendo da checkpoint: {selected_checkpoint}")
+            else:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                checkpoint_path_to_use = str(parent_dir / "output" / "checkpoints" / f"probe_prompts_{timestamp}.json")
+                status_text.info("🆕 Iniziando nuova analisi...")
+            
+            log_messages.append(f"💾 Checkpoint: {Path(checkpoint_path_to_use).name}")
+            log_messages.append(f"🔄 Resume: {resume_from_checkpoint}")
             log_messages.append("🚀 Inizializzazione...")
             
             df_results = analyze_concepts_from_graph_json(
@@ -637,22 +705,52 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                 activation_threshold_quantile=activation_threshold,
                 use_baseline=use_baseline,
                 cumulative_contribution=st.session_state.get('cumulative_contribution', 0.95),
-                verbose=True,  # ✅ ABILITATO per vedere output
+                verbose=True,
                 output_csv=str(output_csv_path),
-                progress_callback=progress_callback
+                progress_callback=progress_callback,
+                checkpoint_every=checkpoint_every,
+                checkpoint_path=checkpoint_path_to_use,
+                resume_from_checkpoint=resume_from_checkpoint
             )
             
             st.session_state['analysis_results'] = df_results
             st.session_state['output_csv_path'] = output_csv_path
+            st.session_state['last_checkpoint_path'] = checkpoint_path_to_use
             
             progress_bar.progress(1.0)
             status_text.success("✅ Completato!")
             
-            st.success(f"✅ Analisi completata! Risultati salvati in: {output_csv_path.relative_to(parent_dir)}")
+            st.success(f"""
+            ✅ **Analisi completata!**
+            - Risultati: {output_csv_path.relative_to(parent_dir)}
+            - Checkpoint: {Path(checkpoint_path_to_use).name}
+            - Records: {len(df_results)}
+            """)
+            
+        except KeyboardInterrupt:
+            st.warning("⚠️ Analisi interrotta dall'utente")
+            st.info(f"""
+            💾 **Checkpoint salvato automaticamente**
+            
+            Per riprendere l'analisi:
+            1. Seleziona il checkpoint nella sezione "Checkpoint & Recovery"
+            2. Abilita "Riprendi da checkpoint"
+            3. Clicca "Esegui Analisi"
+            
+            Checkpoint: `{Path(checkpoint_path_to_use).name}`
+            """)
             
         except Exception as e:
             st.error(f"❌ Errore durante l'analisi: {e}")
             st.exception(e)
+            
+            if 'checkpoint_path_to_use' in locals():
+                st.info(f"""
+                💾 **Checkpoint salvato prima dell'errore**
+                
+                Puoi riprendere l'analisi selezionando il checkpoint:
+                `{Path(checkpoint_path_to_use).name}`
+                """)
     
     # ===== STEP 6: VISUALIZZA RISULTATI =====
     

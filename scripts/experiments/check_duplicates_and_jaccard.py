@@ -24,9 +24,7 @@ def main():
     results = json.load(open(FINAL,'r',encoding='utf-8'))
     personalities = json.load(open(PERSON,'r',encoding='utf-8'))
     
-    print("📥 Caricamento Attribution Graph...")
     g = load_attribution_graph(GRAPH)
-    print("📊 Calcolo metriche causali...")
     cm = compute_causal_metrics(g, tau_edge=0.01, top_k=10)
 
     def sn_sig(sn):

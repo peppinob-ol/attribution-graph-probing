@@ -24,7 +24,7 @@ def cantor_pair(x, y):
 
 def fix_export(
     input_json='output/graph_data/anthropological-circuit.json',
-    supernodes_file='output/final_anthropological_optimized.json',
+    supernodes_file='output/final_semantic_focused.json',
     output_json='output/neuronpedia_graph_with_subgraph.json'
 ):
     """

@@ -18,7 +18,6 @@ def main():
     results = json.load(open(FINAL,'r',encoding='utf-8'))
     pers = json.load(open(PERSON,'r',encoding='utf-8'))
     
-    print("📥 Caricamento Attribution Graph...")
     g = load_attribution_graph(GRAPH)
     
     # feature_to_idx

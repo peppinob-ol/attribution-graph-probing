@@ -153,3 +153,6 @@ Le modifiche hanno **migliorato significativamente** la capacità dello script d
 La logica "2 su 3 criteri" è più robusta del precedente AND booleano, catturando feature semantiche che non necessariamente si attivano sul token label ma hanno comunque alta coerenza semantica cross-prompt.
 
 
+
+
+

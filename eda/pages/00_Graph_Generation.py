@@ -1,4 +1,4 @@
-"""Pagina 0 - Graph Generation: Genera Attribution Graphs su Neuronpedia"""
+﻿"""Pagina 0 - Graph Generation: Genera Attribution Graphs su Neuronpedia"""
 import sys
 from pathlib import Path
 
@@ -21,7 +21,7 @@ try:
         extract_static_metrics_from_json
     )
 except ImportError:
-    # Fallback se il modulo non è importabile
+    # Fallback se il modulo non Ã¨ importabile
     import importlib.util
     script_path = parent_dir / "scripts" / "00_neuronpedia_graph_generation.py"
     spec = importlib.util.spec_from_file_location("neuronpedia_graph_generation", script_path)
@@ -43,17 +43,17 @@ Il grafo mostra le features (SAE latents) che contribuiscono maggiormente alla p
 
 # ===== SIDEBAR: CONFIGURAZIONE =====
 
-st.sidebar.header("⚙️ Configurazione")
+st.sidebar.header("âš™ï¸ Configurazione")
 
 # Carica API key
 api_key = load_api_key()
 
 if not api_key:
-    st.sidebar.error("❌ API Key non trovata!")
+    st.sidebar.error("âŒ API Key non trovata!")
     st.error("""
     **API Key Neuronpedia richiesta!**
     
-    Per utilizzare questa funzionalità, devi configurare la tua API key:
+    Per utilizzare questa funzionalitÃ , devi configurare la tua API key:
     
     1. Ottieni una API key da [Neuronpedia](https://www.neuronpedia.org/)
     2. Aggiungi al file `.env` nella root del progetto:
@@ -67,26 +67,26 @@ if not api_key:
     """)
     st.stop()
 
-st.sidebar.success(f"✅ API Key caricata ({len(api_key)} caratteri)")
+st.sidebar.success(f"âœ… API Key caricata ({len(api_key)} caratteri)")
 
 # ===== SEZIONE: GENERA NUOVO GRAFO =====
 
 st.header("🌐 Genera Nuovo Attribution Graph")
 
 # INPUT PROMPT
-st.subheader("📝 Prompt Configuration")
+st.subheader(" Prompt Configuration")
 
 prompt = st.text_area(
     "Prompt da analizzare",
     value="The capital of state containing Dallas is",
     height=100,
-    help="Inserisci il prompt da analizzare. Il modello cercherà di predire il prossimo token."
+    help="Inserisci il prompt da analizzare. Il modello cercherÃ  di predire il prossimo token."
 )
 
 # PARAMETRI GRAFO
-st.subheader("🔧 Graph Parameters")
+st.subheader("Graph Parameters")
 
-with st.expander("📊 Configurazione avanzata", expanded=False):
+with st.expander("Configurazione avanzata", expanded=False):
     col1, col2 = st.columns(2)
     
     with col1:
@@ -149,44 +149,48 @@ with st.expander("📊 Configurazione avanzata", expanded=False):
             max_value=0.99,
             value=0.95,
             step=0.01,
-            help="Probabilità cumulativa desiderata per i logit"
+            help="ProbabilitÃ  cumulativa desiderata per i logit"
         )
 
 slug = st.text_input(
     "Slug personalizzato (opzionale)",
     value="",
-    help="Se vuoto, verrà generato automaticamente"
+    help="Se vuoto, verrÃ  generato automaticamente"
 )
 
 # GENERAZIONE
-st.subheader("🚀 Generazione")
+st.subheader(" Generazione")
 
 col1, col2 = st.columns([1, 2])
 
 with col1:
     generate_button = st.button("🌐 Genera Graph", type="primary", use_container_width=True)
 with col2:
-    save_locally = st.checkbox("💾 Salva localmente", value=True)
+    save_locally = st.checkbox("Salva localmente", value=True)
 
 # Stato
 if 'generation_result' not in st.session_state:
     st.session_state.generation_result = None
 if 'static_metrics_df' not in st.session_state:
     st.session_state.static_metrics_df = None
+if 'extracted_graph_data' not in st.session_state:
+    st.session_state.extracted_graph_data = None
+if 'extracted_csv_df' not in st.session_state:
+    st.session_state.extracted_csv_df = None
 
 if generate_button:
     if not prompt.strip():
-        st.error("❌ Inserisci un prompt valido!")
+        st.error("âŒ Inserisci un prompt valido!")
         st.stop()
     
     progress_bar = st.progress(0)
     status_text = st.empty()
     
     try:
-        status_text.text("📋 Preparazione...")
+        status_text.text(" Preparazione...")
         progress_bar.progress(10)
         
-        status_text.text("🔄 Invio richiesta a Neuronpedia...")
+        status_text.text("Invio richiesta a Neuronpedia...")
         progress_bar.progress(30)
         
         result = generate_attribution_graph(
@@ -211,25 +215,25 @@ if generate_button:
         st.session_state.generation_result = result
         
         if result['success']:
-            st.success("✅ Graph generato con successo!")
+            st.success("Graph generato con successo!")
         else:
-            st.error(f"❌ Errore: {result.get('error', 'Sconosciuto')}")
+            st.error(f"Errore: {result.get('error', 'Sconosciuto')}")
     
     except Exception as e:
         progress_bar.empty()
         status_text.empty()
-        st.error(f"❌ Errore inaspettato: {str(e)}")
-        with st.expander("🐛 Dettagli"):
+        st.error(f"Errore inaspettato: {str(e)}")
+        with st.expander("Dettagli"):
             import traceback
             st.code(traceback.format_exc())
 
 st.markdown("---")
 
-# ===== SEZIONE: ESTRAI CSV DA JSON ESISTENTE =====
+# ===== SEZIONE: ANALIZZA JSON ESISTENTE -> CSV =====
 
-with st.expander("📂 **Estrai CSV da JSON Esistente**", expanded=False):
+with st.expander("**Analizza JSON Esistente -> CSV**", expanded=False):
     st.write("""
-    Se hai già un file JSON del grafo, puoi estrarre le metriche statiche (`logit_influence`, `frac_external_raw`)
+    Se hai giÃ  un file JSON del grafo, puoi estrarre le metriche statiche (`logit_influence`, `frac_external_raw`)
     senza rigenerare il grafo.
     """)
     
@@ -244,7 +248,7 @@ with st.expander("📂 **Estrai CSV da JSON Esistente**", expanded=False):
             selected_json = st.selectbox(
                 "Seleziona file JSON",
                 options=json_options,
-                help="File JSON ordinati per data (più recenti prima)"
+                help="File JSON ordinati per data (piÃ¹ recenti prima)"
             )
             
             # Mostra info file
@@ -262,7 +266,7 @@ with st.expander("📂 **Estrai CSV da JSON Esistente**", expanded=False):
                     st.metric("Nome", file_path.name[:20] + "...")
             
             # Bottone estrazione
-            if st.button("📋 Estrai CSV", key="extract_existing"):
+            if st.button("Estrai CSV", key="extract_existing"):
                 try:
                     with st.spinner("Estrazione metriche in corso..."):
                         json_full_path = str(parent_dir / selected_json)
@@ -275,29 +279,60 @@ with st.expander("📂 **Estrai CSV da JSON Esistente**", expanded=False):
                             output_path=csv_output_path,
                             verbose=False
                         )
+                        
+                        # Salva in session_state per mantenere tra i re-run
+                        st.session_state.extracted_graph_data = graph_data
+                        st.session_state.extracted_csv_df = df
                     
-                    st.success(f"✅ CSV generato: `{csv_output_path}`")
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Features", len(df))
-                    with col2:
-                        st.metric("Σ Influence", f"{df['logit_influence'].sum():.2f}")
-                    with col3:
-                        st.metric("μ Influence", f"{df['logit_influence'].mean():.4f}")
-                    with col4:
-                        st.metric("μ Frac Ext", f"{df['frac_external_raw'].mean():.3f}")
-                    
-                    with st.expander("Preview CSV"):
-                        st.dataframe(df.head(10), use_container_width=True)
+                    st.success(f"âœ… CSV generato: `{csv_output_path}`")
+                    st.info("Scorri in basso per vedere le visualizzazioni interattive")
                     
                 except Exception as e:
-                    st.error(f"❌ Errore: {str(e)}")
+                    st.error(f"âŒ Errore: {str(e)}")
         else:
             st.warning("Nessun file JSON trovato in `output/graph_data/`")
     else:
         st.warning("Directory `output/graph_data/` non trovata")
 
+# ===== VISUALIZZAZIONE DATI ESTRATTI (persiste tra re-run) =====
+
+if st.session_state.extracted_graph_data is not None and st.session_state.extracted_csv_df is not None:
+    graph_data = st.session_state.extracted_graph_data
+    df = st.session_state.extracted_csv_df
+    
+    st.markdown("---")
+    st.header("Analisi Dati Estratti")
+    
+    # Metriche CSV
+    col1, col2, col3, col4, col5 = st.columns(5)
+    with col1:
+        st.metric("Features", len(df))
+    with col2:
+        st.metric("Token Unici", df['ctx_idx'].nunique())
+    with col3:
+        st.metric("μ Activation", f"{df['activation'].mean():.3f}")
+    with col4:
+        st.metric("Σ Influence", f"{df['logit_influence'].sum():.2f}")
+    with col5:
+        st.metric("μ Frac Ext", f"{df['frac_external_raw'].mean():.3f}")
+    
+    with st.expander("Visualizza Dataframe Completo", expanded=False):
+        st.dataframe(df, use_container_width=True, height=600)
+    
+    # Scatter plot: Layer vs Context Position con Influence
+    st.subheader("Distribuzione Features per Layer e Posizione")
+    
+    # Prepara i dati dal JSON per lo scatter plot
+    if 'nodes' in graph_data:
+        import pandas as pd
+        import plotly.express as px
+        
+        # Estrai prompt_tokens dalla metadata per mappare ctx_idx -> token
+        prompt_tokens = graph_data.get('metadata', {}).get('prompt_tokens', [])
+        
+        # Usa la funzione di visualizzazione
+        from eda.utils.graph_visualization import create_scatter_plot_with_filter
+        create_scatter_plot_with_filter(graph_data)
 st.markdown("---")
 
 # ===== VISUALIZZAZIONE RISULTATI =====
@@ -306,7 +341,7 @@ if st.session_state.generation_result is not None:
     result = st.session_state.generation_result
     
     if result['success']:
-        st.header("📊 Risultati")
+        st.header("Risultati")
         
         # Metriche
         col1, col2, col3, col4 = st.columns(4)
@@ -326,7 +361,7 @@ if st.session_state.generation_result is not None:
         st.markdown(f"[**Apri Graph**]({neuronpedia_url})")
         
         # Statistiche
-        st.subheader("📈 Statistiche Grafo")
+        st.subheader("Statistiche Grafo")
         stats = get_graph_stats(result['graph_data'])
         
         col1, col2 = st.columns(2)
@@ -344,14 +379,14 @@ if st.session_state.generation_result is not None:
                 st.caption(f"... e altri {len(stats['layers']) - 8} layer")
         
         # ESTRAI CSV DAL GRAFO APPENA GENERATO
-        st.subheader("📊 Metriche Statiche")
+        st.subheader("Metriche Statiche")
         
         st.info("""
         **Richiesto per la pipeline:** Genera il CSV con `logit_influence` e `frac_external_raw` 
         per usare questo grafo negli step successivi (compute thresholds, supernodes, etc.)
         """)
         
-        if st.button("📋 Genera CSV Metriche", key="extract_new"):
+        if st.button("Genera CSV Metriche", key="extract_new"):
             try:
                 with st.spinner("Estrazione..."):
                     csv_output_path = str(parent_dir / "output" / "graph_feature_static_metrics.csv")
@@ -362,9 +397,9 @@ if st.session_state.generation_result is not None:
                     )
                     st.session_state.static_metrics_df = df
                 
-                st.success(f"✅ CSV generato: `{csv_output_path}`")
+                st.success(f"âœ… CSV generato: `{csv_output_path}`")
             except Exception as e:
-                st.error(f"❌ Errore: {str(e)}")
+                st.error(f"âŒ Errore: {str(e)}")
         
         # Mostra CSV se disponibile
         if st.session_state.static_metrics_df is not None:
@@ -383,7 +418,7 @@ if st.session_state.generation_result is not None:
             with st.expander("Preview CSV"):
                 st.dataframe(df.head(20), use_container_width=True)
             
-            with st.expander("📈 Distribuzione"):
+            with st.expander("Distribuzione"):
                 try:
                     import plotly.express as px
                     
@@ -401,7 +436,7 @@ if st.session_state.generation_result is not None:
             
             csv_str = df.to_csv(index=False)
             st.download_button(
-                "📥 Download CSV",
+                "Download CSV",
                 csv_str,
                 "graph_feature_static_metrics.csv",
                 "text/csv"
@@ -411,14 +446,14 @@ if st.session_state.generation_result is not None:
         
         # Download JSON
         if result.get('local_path'):
-            st.subheader("💾 File Salvato")
+            st.subheader("File Salvato")
             st.code(result['local_path'])
             file_size = os.path.getsize(result['local_path']) / 1024 / 1024
             st.caption(f"Dimensione: {file_size:.2f} MB")
         
         json_str = json.dumps(result['graph_data'], ensure_ascii=False, indent=2)
         st.download_button(
-            "📥 Download JSON",
+            "Download JSON",
             json_str,
             f"{result['slug']}.json",
             "application/json"
@@ -427,7 +462,7 @@ if st.session_state.generation_result is not None:
 # ===== FOOTER =====
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("📚 Info")
+st.sidebar.subheader("Info")
 st.sidebar.markdown("""
 **Attribution Graph**: visualizza come le SAE features contribuiscono alla predizione.
 

@@ -30,6 +30,26 @@ import requests
 import time
 import json
 from functools import wraps
+from datetime import datetime
+import logging
+
+# Carica variabili d'ambiente da .env
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv non installato, continua senza
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('probe_prompts.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Assicurati che il path sia corretto per gli import
 parent_dir = Path(__file__).parent.parent
@@ -74,21 +94,25 @@ class NeuronpediaAPI:
         # Cache per attivazioni baseline
         self._baseline_cache = {}
     
-    @rate_limited(max_per_second=5)
+    @rate_limited(max_per_second=2)  # Ridotto da 5 a 2 per evitare rate limiting
     def get_activations(self, model_id: str, source: str, index: str, 
-                       custom_text: str) -> dict:
+                       custom_text: str, max_retries: int = 3) -> dict:
         """
-        Ottiene attivazioni per una feature su un testo custom
+        Ottiene attivazioni per una feature su un testo custom con retry logic
         
+        Args:
+            model_id: ID del modello
+            source: Source della feature
+            index: Indice della feature
+            custom_text: Testo da analizzare
+            max_retries: Numero massimo di tentativi
+            
         Returns:
             {
                 "tokens": [...],
-                "activations": {
-                    "values": [...],
-                    "maxValue": float,
-                    "maxValueIndex": int,
-                    ...
-                }
+                "values": [...],
+                "maxValue": float,
+                ...
             }
         """
         endpoint = f"{self.BASE_URL}/activation/new"
@@ -101,26 +125,53 @@ class NeuronpediaAPI:
             "customText": custom_text
         }
         
-        try:
-            response = self.session.post(endpoint, json=payload, timeout=30)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.HTTPError as e:
-            if response.status_code == 500:
-                print(f"❌ Server error for {source}/{index}")
-                print(f"   Possibile causa: source format errato o feature non esistente")
-                print(f"   Payload: modelId={model_id}, source={source}, index={index}")
-            elif response.status_code == 404:
-                print(f"⚠️  Feature non trovata: {source}/{index}")
-            else:
-                print(f"❌ HTTP {response.status_code} per {source}/{index}: {e}")
-            return None
-        except requests.exceptions.Timeout:
-            print(f"⏱️  Timeout per {source}/{index}")
-            return None
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Error fetching activations for {source}/{index}: {e}")
-            return None
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                response = self.session.post(endpoint, json=payload, timeout=30)
+                response.raise_for_status()
+                return response.json()
+                
+            except requests.exceptions.HTTPError as e:
+                last_error = e
+                if response.status_code == 429:  # Too Many Requests
+                    wait_time = min(2 ** attempt * 2, 60)  # Backoff esponenziale (max 60s)
+                    logger.warning(f"Rate limit hit for {source}/{index}, waiting {wait_time}s (attempt {attempt+1}/{max_retries})")
+                    time.sleep(wait_time)
+                    continue
+                elif response.status_code == 500:
+                    logger.error(f"Server error 500 for {source}/{index}")
+                    return {"error": "500_server_error", "source": source, "index": index}
+                elif response.status_code == 404:
+                    logger.warning(f"Feature non trovata (404): {source}/{index}")
+                    return {"error": "404_not_found", "source": source, "index": index}
+                else:
+                    logger.error(f"HTTP {response.status_code} per {source}/{index}: {e}")
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)
+                        continue
+                    return None
+                    
+            except requests.exceptions.Timeout:
+                last_error = Exception("Timeout")
+                wait_time = min(2 ** attempt, 30)
+                logger.warning(f"Timeout per {source}/{index}, retry {attempt+1}/{max_retries} dopo {wait_time}s")
+                if attempt >= max_retries - 1:
+                    return {"error": "timeout", "source": source, "index": index}
+                time.sleep(wait_time)
+                continue
+                
+            except requests.exceptions.RequestException as e:
+                last_error = e
+                logger.error(f"Request error for {source}/{index}: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+                    continue
+                return {"error": "other_error", "source": source, "index": index, "message": str(e)}
+        
+        # Tutti i tentativi falliti
+        logger.error(f"Failed after {max_retries} attempts for {source}/{index}: {last_error}")
+        return {"error": "other_error", "source": source, "index": index, "message": str(last_error)}
     
     def get_baseline_activations(self, model_id: str, source: str, 
                                  index: str, original_prompt: str) -> dict:
@@ -155,6 +206,76 @@ def tokenize_simple(text: str) -> List[str]:
     Usa i token ritornati dall'API come ground truth.
     """
     return text.strip().split()
+
+
+def save_checkpoint(records: List[Dict], checkpoint_path: str, metadata: Dict = None):
+    """
+    Salva checkpoint dei risultati parziali
+    
+    Args:
+        records: Lista di record processati finora
+        checkpoint_path: Path dove salvare il checkpoint
+        metadata: Metadata aggiuntivi (es: progress info)
+    """
+    checkpoint_data = {
+        "records": records,
+        "metadata": metadata or {},
+        "timestamp": datetime.now().isoformat(),
+        "num_records": len(records)
+    }
+    
+    checkpoint_file = Path(checkpoint_path)
+    checkpoint_file.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Salva con nome temporaneo poi rinomina (atomic write)
+    temp_file = checkpoint_file.with_suffix('.tmp')
+    with open(temp_file, 'w', encoding='utf-8') as f:
+        json.dump(checkpoint_data, f, indent=2)
+    
+    temp_file.replace(checkpoint_file)
+    logger.info(f"Checkpoint salvato: {len(records)} records in {checkpoint_path}")
+
+
+def load_checkpoint(checkpoint_path: str) -> Tuple[List[Dict], Dict]:
+    """
+    Carica checkpoint da file
+    
+    Returns:
+        Tuple di (records, metadata)
+    """
+    checkpoint_file = Path(checkpoint_path)
+    
+    if not checkpoint_file.exists():
+        logger.info(f"Nessun checkpoint trovato in {checkpoint_path}")
+        return [], {}
+    
+    try:
+        with open(checkpoint_file, 'r', encoding='utf-8') as f:
+            checkpoint_data = json.load(f)
+        
+        records = checkpoint_data.get("records", [])
+        metadata = checkpoint_data.get("metadata", {})
+        timestamp = checkpoint_data.get("timestamp", "unknown")
+        
+        logger.info(f"Checkpoint caricato: {len(records)} records da {timestamp}")
+        return records, metadata
+        
+    except Exception as e:
+        logger.error(f"Errore nel caricamento checkpoint: {e}")
+        return [], {}
+
+
+def get_processed_keys(records: List[Dict]) -> set:
+    """
+    Estrae le chiavi (label, layer, feature) già processate dai records
+    
+    Returns:
+        Set di tuple (label, layer, feature)
+    """
+    return {
+        (r["label"], r["layer"], r["feature"]) 
+        for r in records
+    }
 
 
 def filter_features_by_influence(
@@ -214,7 +335,10 @@ def analyze_concepts_from_graph_json(
     cumulative_contribution: float = 0.95,
     verbose: bool = True,
     output_csv: Optional[str] = None,
-    progress_callback: Optional[callable] = None
+    progress_callback: Optional[callable] = None,
+    checkpoint_every: int = 10,
+    checkpoint_path: Optional[str] = None,
+    resume_from_checkpoint: bool = True
 ) -> pd.DataFrame:
     """
     Analizza concetti usando un attribution graph JSON di Neuronpedia.
@@ -234,6 +358,9 @@ def analyze_concepts_from_graph_json(
         verbose: Print progress
         output_csv: Path opzionale per salvare il DataFrame in CSV
         progress_callback: Funzione opzionale da chiamare per aggiornamenti progresso
+        checkpoint_every: Salva checkpoint ogni N features processate
+        checkpoint_path: Path per salvare checkpoint (default: auto-generato)
+        resume_from_checkpoint: Se True, riprende da checkpoint esistente
         
     Returns:
         DataFrame con colonne:
@@ -260,18 +387,42 @@ def analyze_concepts_from_graph_json(
         >>> df.to_csv("output/acts_compared.csv", index=False)
     """
     
+    # Se api_key non fornita, prova a caricarla da .env
+    if api_key is None:
+        api_key = os.getenv("NEURONPEDIA_API_KEY")
+        if api_key and verbose:
+            print(f"[INFO] Using API key from .env: {api_key[:10]}...")
+    
     api = NeuronpediaAPI(api_key)
+    
+    # Setup checkpoint path
+    if checkpoint_path is None:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        checkpoint_path = f"output/checkpoints/probe_prompts_{timestamp}.json"
+    
+    # Carica checkpoint se richiesto
+    existing_records = []
+    processed_keys = set()
+    
+    if resume_from_checkpoint:
+        existing_records, checkpoint_metadata = load_checkpoint(checkpoint_path)
+        if existing_records:
+            processed_keys = get_processed_keys(existing_records)
+            logger.info(f"Riprendendo da checkpoint: {len(existing_records)} records, {len(processed_keys)} combinazioni già processate")
+            if verbose:
+                print(f"[RESUME] Caricati {len(existing_records)} records da checkpoint")
+                print(f"[RESUME] Skip {len(processed_keys)} combinazioni già processate")
     
     # ───────────── Estrazione metadata dal JSON ─────────────
     if verbose:
-        print("📊 Parsing graph JSON...")
+        print("[INFO] Parsing graph JSON...")
     
     metadata = graph_json.get("metadata", {})
     model_id = metadata.get("scan")
     original_prompt = metadata.get("prompt", "")
     
     if not model_id:
-        raise ValueError("❌ JSON manca 'metadata.scan' (model_id)")
+        raise ValueError("[ERROR] JSON manca 'metadata.scan' (model_id)")
     
     # Estrai source set (es: "gemmascope-res-16k")
     info = metadata.get("info", {})
@@ -311,7 +462,7 @@ def analyze_concepts_from_graph_json(
     source_template = f"{transcoder_set}-{source_type}"
     
     if verbose:
-        print(f"📝 Source template base: {source_template}")
+        print(f"[INFO] Source template base: {source_template}")
     
     # ───────────── Estrazione features dal graph ─────────────
     nodes = graph_json.get("nodes", [])
@@ -368,13 +519,13 @@ def analyze_concepts_from_graph_json(
     if inferred_source_template:
         source_template = inferred_source_template
         if verbose:
-            print(f"📝 Source template inferito: {source_template}")
+            print(f"[INFO] Source template inferito: {source_template}")
     
     if verbose:
-        print(f"✅ Found {len(features_in_graph)} features in graph")
-        print(f"📝 Model: {model_id}")
-        print(f"📝 Source template: {source_template}")
-        print(f"📝 Original prompt: '{original_prompt[:50]}...'")
+        print(f"[OK] Found {len(features_in_graph)} features in graph")
+        print(f"[INFO] Model: {model_id}")
+        print(f"[INFO] Source template: {source_template}")
+        print(f"[INFO] Original prompt: '{original_prompt[:50]}...'")
     
     # ───────────── Filtraggio per influence ─────────────
     (filtered_features, 
@@ -383,7 +534,7 @@ def analyze_concepts_from_graph_json(
      num_total) = filter_features_by_influence(features_in_graph, cumulative_contribution)
     
     if verbose:
-        print(f"\n🎯 Filtraggio per influence (cumulative {cumulative_contribution*100:.1f}%):")
+        print(f"\n[FILTER] Filtraggio per influence (cumulative {cumulative_contribution*100:.1f}%):")
         print(f"   Selected: {num_selected}/{num_total} features")
         print(f"   Threshold influence: {threshold_influence:.6f}")
     
@@ -392,7 +543,7 @@ def analyze_concepts_from_graph_json(
     
     if use_baseline and original_prompt:
         if verbose:
-            print(f"\n🔄 Computing baseline activations for {len(filtered_features)} features...")
+            print(f"\n[BASELINE] Computing baseline activations for {len(filtered_features)} features...")
         
         for i, feat in enumerate(filtered_features):
             # Callback per ogni feature
@@ -420,57 +571,130 @@ def analyze_concepts_from_graph_json(
                 }
     
     if verbose and baseline_stats:
-        print(f"✅ Baseline computed for {len(baseline_stats)} features\n")
+        print(f"[OK] Baseline computed for {len(baseline_stats)} features\n")
     
     # ───────────── Loop sui concetti ─────────────
-    records = []
+    records = existing_records.copy()  # Inizia con records da checkpoint
     total_calls = len(concepts) * len(filtered_features)
-    current_call = 0
+    current_call = len(existing_records)  # Riprendi dal count esistente
+    skipped_count = 0
+    last_checkpoint_time = time.time()
+    checkpoint_interval = 300  # Salva anche ogni 5 minuti
     
-    for concept_idx, concept in enumerate(concepts):
-        label = concept.get("label", "").strip()
-        category = concept.get("category", "").strip()
-        description = concept.get("description", "").strip()
-        
-        prompt = f"{label}: {description}"
-        
-        if verbose:
-            print(f"\n🔍 Concept {concept_idx+1}/{len(concepts)}: '{label}' ({category})")
-        
-        # Tokenizza il label (approssimativo)
-        label_tokens_approx = tokenize_simple(label)
-        
-        for feat_idx, feat in enumerate(filtered_features):
-            current_call += 1
+    # Contatori errori per tipo
+    error_counts = {
+        "500_server_error": 0,
+        "404_not_found": 0,
+        "429_rate_limit": 0,
+        "timeout": 0,
+        "other_error": 0,
+        "no_data": 0,
+        "no_values": 0
+    }
+    error_details = []  # Lista dettagliata errori per debugging
+    
+    try:
+        for concept_idx, concept in enumerate(concepts):
+            label = concept.get("label", "").strip()
+            category = concept.get("category", "").strip()
+            description = concept.get("description", "").strip()
             
-            # Callback più frequente (ogni feature)
-            if progress_callback:
-                progress_callback(current_call, total_calls, f"concept '{label}' ({concept_idx+1}/{len(concepts)})")
+            prompt = f"{label}: {description}"
             
-            # Log verboso ogni 10 features
-            if verbose and feat_idx % 10 == 0:
-                print(f"  [{label}] Features: {feat_idx}/{len(filtered_features)} "
-                      f"(chiamate totali: {current_call}/{total_calls})")
-                import sys
-                sys.stdout.flush()  # Forza flush per Streamlit
+            if verbose:
+                print(f"\n[CONCEPT] {concept_idx+1}/{len(concepts)}: '{label}' ({category})")
             
-            layer = feat["layer"]
-            feature = feat["feature"]
-            source = f"{layer}-{source_template}"
+            # Tokenizza il label (approssimativo)
+            label_tokens_approx = tokenize_simple(label)
+            
+            for feat_idx, feat in enumerate(filtered_features):
+                layer = feat["layer"]
+                feature = feat["feature"]
+                
+                # Skip se già processato
+                if (label, layer, feature) in processed_keys:
+                    skipped_count += 1
+                    continue
+                
+                current_call += 1
+                
+                # Callback più frequente (ogni feature)
+                if progress_callback:
+                    progress_callback(current_call, total_calls, f"concept '{label}' ({concept_idx+1}/{len(concepts)})")
+                
+                # Log verboso ogni 10 features
+                if verbose and feat_idx % 10 == 0:
+                    print(f"  [{label}] Features: {feat_idx}/{len(filtered_features)} "
+                          f"(chiamate totali: {current_call}/{total_calls}, skipped: {skipped_count})")
+                    import sys
+                    sys.stdout.flush()  # Forza flush per Streamlit
+                
+                source = f"{layer}-{source_template}"
             
             # ════════ API Call ════════
             result = api.get_activations(model_id, source, str(feature), prompt)
             
-            if not result or "activations" not in result:
-                print(f"⚠️  Skipping {source}/{feature} - no data")
-                import sys
-                sys.stdout.flush()
+            # Gestione errori strutturati
+            if not result:
+                error_counts["no_data"] += 1
+                error_details.append({
+                    "concept": label,
+                    "source": source,
+                    "feature": feature,
+                    "error_type": "no_data",
+                    "message": "API returned None"
+                })
+                if verbose and error_counts["no_data"] % 50 == 1:
+                    print(f"[WARNING] Skipping {source}/{feature} - no data (totale errori no_data: {error_counts['no_data']})")
+                    import sys
+                    sys.stdout.flush()
+                continue
+            
+            # Check se result contiene un errore
+            if isinstance(result, dict) and "error" in result:
+                error_type = result["error"]
+                error_counts[error_type] = error_counts.get(error_type, 0) + 1
+                error_details.append({
+                    "concept": label,
+                    "source": source,
+                    "feature": feature,
+                    "error_type": error_type,
+                    "message": result.get("message", "")
+                })
+                total_errors = sum(error_counts.values())
+                if verbose and total_errors % 50 == 1:
+                    print(f"[WARNING] {error_type} per {source}/{feature} (totale errori: {total_errors})")
+                    import sys
+                    sys.stdout.flush()
                 continue
             
             # ════════ Parsing Response ════════
+            # L'API può restituire due formati diversi:
+            # Formato 1 (vecchio): {"tokens": [...], "activations": {"values": [...], ...}}
+            # Formato 2 (nuovo): {"tokens": [...], "values": [...], "maxValue": ...}
             tokens = result.get("tokens", [])
-            act_data = result["activations"]
-            act_values = torch.tensor(act_data["values"])
+            
+            if "activations" in result:
+                # Formato vecchio
+                act_data = result["activations"]
+                act_values = torch.tensor(act_data["values"], dtype=torch.float32)
+            elif "values" in result:
+                # Formato nuovo
+                act_values = torch.tensor(result["values"], dtype=torch.float32)
+            else:
+                error_counts["no_values"] += 1
+                error_details.append({
+                    "concept": label,
+                    "source": source,
+                    "feature": feature,
+                    "error_type": "no_values",
+                    "message": f"Response missing values field. Keys: {list(result.keys())}"
+                })
+                if verbose and error_counts["no_values"] % 50 == 1:
+                    print(f"[WARNING] Skipping {source}/{feature} - no values in response (totale: {error_counts['no_values']})")
+                    import sys
+                    sys.stdout.flush()
+                continue
             
             seq_len = len(act_values)
             max_val = float(act_values.max())
@@ -596,26 +820,115 @@ def analyze_concepts_from_graph_json(
                 # Metadata
                 "prompt": prompt,
             })
+            
+            # ════════ Checkpoint ════════
+            # Salva checkpoint ogni N features O ogni M minuti
+            should_checkpoint = (
+                (len(records) % checkpoint_every == 0 and len(records) > len(existing_records)) or
+                (time.time() - last_checkpoint_time > checkpoint_interval)
+            )
+            
+            if should_checkpoint:
+                checkpoint_metadata = {
+                    "current_concept": concept_idx + 1,
+                    "total_concepts": len(concepts),
+                    "current_feature": feat_idx + 1,
+                    "total_features": len(filtered_features),
+                    "total_calls": current_call,
+                    "skipped": skipped_count,
+                    "error_counts": error_counts,
+                    "total_errors": sum(error_counts.values())
+                }
+                save_checkpoint(records, checkpoint_path, checkpoint_metadata)
+                last_checkpoint_time = time.time()
+        
+        # Salva checkpoint finale per questo concept
+        checkpoint_metadata = {
+            "current_concept": concept_idx + 1,
+            "total_concepts": len(concepts),
+            "total_calls": current_call,
+            "skipped": skipped_count,
+            "error_counts": error_counts,
+            "total_errors": sum(error_counts.values()),
+            "status": "completed_concept"
+        }
+        save_checkpoint(records, checkpoint_path, checkpoint_metadata)
+    
+    except KeyboardInterrupt:
+        logger.warning("Interruzione rilevata (Ctrl+C). Salvataggio checkpoint finale...")
+        if verbose:
+            print("\n[INTERRUPT] Salvataggio checkpoint prima di uscire...")
+        
+        checkpoint_metadata = {
+            "status": "interrupted",
+            "total_calls": current_call,
+            "skipped": skipped_count,
+            "error_counts": error_counts,
+            "total_errors": sum(error_counts.values())
+        }
+        save_checkpoint(records, checkpoint_path, checkpoint_metadata)
+        
+        if verbose:
+            print(f"[SAVED] Checkpoint salvato con {len(records)} records")
+            print(f"[INFO] Per riprendere, riesegui con lo stesso checkpoint_path: {checkpoint_path}")
+        
+        raise  # Re-raise per permettere gestione upstream
+    
+    except Exception as e:
+        logger.error(f"Errore durante l'analisi: {e}")
+        # Salva checkpoint anche in caso di errore
+        checkpoint_metadata = {
+            "status": "error",
+            "error": str(e),
+            "total_calls": current_call,
+            "error_counts": error_counts,
+            "total_errors": sum(error_counts.values())
+        }
+        save_checkpoint(records, checkpoint_path, checkpoint_metadata)
+        raise
     
     # ═══════════ DataFrame Construction ═══════════
     if not records:
         if verbose:
-            print("⚠️  No records generated!")
+            print("[WARNING] No records generated!")
         return pd.DataFrame()
     
     df = pd.DataFrame.from_records(records)
     df = df.set_index(["label", "category", "layer", "feature"]).sort_index()
     
     if verbose:
-        print(f"\n✅ Analysis complete! Generated {len(df)} records")
+        print(f"\n[DONE] Analysis complete! Generated {len(df)} records")
         print(f"   Unique concepts: {df.index.get_level_values('label').nunique()}")
         print(f"   Unique features: {df.index.get_level_values('feature').nunique()}")
+        
+        # Summary errori
+        total_errors = sum(error_counts.values())
+        print(f"\n[ERRORS] Statistiche errori:")
+        print(f"   Totale errori: {total_errors}")
+        print(f"   Successi: {len(records)}")
+        print(f"   Tasso successo: {len(records)/(len(records)+total_errors)*100:.1f}%")
+        print(f"\n   Dettaglio per tipo:")
+        for error_type, count in sorted(error_counts.items(), key=lambda x: x[1], reverse=True):
+            if count > 0:
+                print(f"      - {error_type}: {count} ({count/total_errors*100:.1f}%)")
+        
+        # Salva log dettagliato errori se ci sono molti errori
+        if total_errors > 0 and output_csv:
+            error_log_path = Path(output_csv).with_name(Path(output_csv).stem + "_errors.json")
+            with open(error_log_path, 'w', encoding='utf-8') as f:
+                json.dump({
+                    "error_counts": error_counts,
+                    "total_errors": total_errors,
+                    "success_count": len(records),
+                    "error_details": error_details[:1000]  # Primi 1000 errori per non esplodere il file
+                }, f, indent=2)
+            print(f"\n   Log errori salvato in: {error_log_path}")
     
     if output_csv and not df.empty:
         # Salva con reset_index per avere tutte le colonne come colonne normali
         df.reset_index().to_csv(output_csv, index=False, encoding='utf-8')
         if verbose:
-            print(f"💾 Results saved to: {output_csv}")
+            print(f"[SAVED] Results saved to: {output_csv}")
     
     return df
 

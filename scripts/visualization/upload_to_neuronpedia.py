@@ -10,6 +10,8 @@ Uso:
 import sys
 import os
 import argparse
+import json
+from datetime import datetime
 from pathlib import Path
 
 # Carica variabili d'ambiente dal file .env
@@ -36,9 +38,13 @@ except ImportError:
 
 def upload_graph(json_path='output/neuronpedia_graph_with_subgraph.json'):
     """Upload del grafo su Neuronpedia"""
+    # Genera timestamp per identificazione
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    
     print("=" * 70)
     print("UPLOAD NEURONPEDIA - Pipeline Antropologica")
     print("=" * 70)
+    print(f"\n[i] Timestamp upload: {timestamp}")
     
     # Verifica che il file esista
     if not os.path.exists(json_path):
@@ -67,10 +73,38 @@ def upload_graph(json_path='output/neuronpedia_graph_with_subgraph.json'):
         print(f"\n{'=' * 70}")
         print("RISULTATO")
         print("=" * 70)
-        print(f"\nURL del grafo (generato con UUID unico):")
+        print(f"\nTimestamp: {timestamp}")
+        print(f"URL del grafo:")
         print(f"  {graph.url}")
-        print(f"\n[i] Ogni esecuzione genera un nuovo URL univoco")
+        print(f"\n[i] L'URL contiene un UUID generato automaticamente da Neuronpedia")
+        print(f"[i] Usa il timestamp sopra per identificare questo upload")
         print(f"[i] Apri l'URL nel browser per visualizzare il grafo con i supernodi")
+        
+        # Salva log con timestamp e URL
+        log_file = Path('output/neuronpedia_uploads.log')
+        log_entry = {
+            'timestamp': timestamp,
+            'datetime': datetime.now().isoformat(),
+            'url': graph.url,
+            'file': json_path
+        }
+        
+        # Leggi log esistente o crea nuovo
+        logs = []
+        if log_file.exists():
+            try:
+                with open(log_file, 'r', encoding='utf-8') as f:
+                    logs = json.load(f)
+            except:
+                logs = []
+        
+        logs.append(log_entry)
+        
+        # Salva log aggiornato
+        with open(log_file, 'w', encoding='utf-8') as f:
+            json.dump(logs, f, indent=2, ensure_ascii=False)
+        
+        print(f"\n[i] Log salvato in: {log_file}")
         print("=" * 70)
         
         return graph.url

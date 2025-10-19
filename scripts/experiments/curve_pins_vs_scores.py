@@ -38,7 +38,6 @@ def main():
     results = json.load(open(FINAL,'r',encoding='utf-8'))
     pers = json.load(open(PERSON,'r',encoding='utf-8'))
     
-    print("📥 Caricamento Attribution Graph...")
     g = load_attribution_graph(GRAPH)
     tok = _get_tokenizer(g['cfg'])
 

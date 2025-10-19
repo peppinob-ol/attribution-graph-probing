@@ -352,7 +352,10 @@ def extract_static_metrics_from_json(
         verbose: Se True, stampa informazioni
         
     Returns:
-        DataFrame con colonne: layer, feature, frac_external_raw, logit_influence
+        DataFrame con colonne: layer, feature, id, ctx_idx, token, activation, frac_external_raw, logit_influence
+        (layer=-1 rappresenta gli embedding)
+        (id è estratto da node_id usando regex, es. "0_41_1" -> 41, "E_651_1" -> 651)
+        (ctx_idx è l'indice del token nel prompt, token è il token corrispondente)
     """
     try:
         import pandas as pd
@@ -363,27 +366,36 @@ def extract_static_metrics_from_json(
     nodes = graph_data.get('nodes', [])
     links = graph_data.get('links', [])
     
+    # Estrai prompt_tokens dai metadata per mappare ctx_idx
+    metadata = graph_data.get('metadata', {})
+    prompt_tokens = metadata.get('prompt_tokens', [])
+    
     if verbose:
         print(f"\n{'='*70}")
         print("ESTRAZIONE METRICHE STATICHE DA JSON")
         print(f"{'='*70}")
         print(f"Nodi totali: {len(nodes)}")
         print(f"Links totali: {len(links)}")
+        print(f"Prompt tokens: {len(prompt_tokens)}")
     
-    # Step 1: Filtra solo feature nodes (escludi embeddings e logit nodes)
+    # Step 1: Filtra solo feature nodes (escludi solo logit nodes, includi embeddings)
     feature_nodes = []
     for node in nodes:
         layer = node.get('layer')
         is_logit = node.get('is_target_logit') or node.get('isTargetLogit')
         
-        # Escludi embeddings (layer='E') e logit nodes
-        if layer != 'E' and not is_logit:
+        # Escludi solo logit nodes (includi embeddings che hanno layer='E')
+        if not is_logit:
             feature_nodes.append(node)
     
     if verbose:
-        print(f"Feature nodes: {len(feature_nodes)}")
+        embedding_nodes = [n for n in feature_nodes if n.get('layer') == 'E']
+        print(f"Feature nodes (totale): {len(feature_nodes)}")
+        print(f"   - Embeddings (layer=E): {len(embedding_nodes)}")
+        print(f"   - SAE features: {len(feature_nodes) - len(embedding_nodes)}")
     
     # Step 2: Estrai logit_influence (già presente come 'influence' nel JSON)
+    import re
     metrics_list = []
     node_id_to_data = {}
     
@@ -392,17 +404,38 @@ def extract_static_metrics_from_json(
         layer = node.get('layer')
         feature = node.get('feature')
         influence = node.get('influence', 0.0)
+        ctx_idx = node.get('ctx_idx')
+        activation = node.get('activation')
         
-        # Converti layer a int se possibile
+        # Converti layer a int, mappa 'E' (embeddings) a -1
         try:
-            layer_int = int(layer)
+            if layer == 'E':
+                layer_int = -1
+            else:
+                layer_int = int(layer)
         except (ValueError, TypeError):
             continue
         
+        # Estrai id da node_id usando regex (es. "0_41_1" -> 41, "E_651_1" -> 651)
+        id_value = None
+        if node_id:
+            match = re.match(r'^[E\d]+_(\d+)_\d+$', str(node_id))
+            if match:
+                id_value = int(match.group(1))
+        
+        # Mappa ctx_idx al token corrispondente
+        token = None
+        if ctx_idx is not None and 0 <= ctx_idx < len(prompt_tokens):
+            token = prompt_tokens[ctx_idx]
+        
         data = {
             'node_id': node_id,
+            'id': id_value,
             'layer': layer_int,
             'feature': feature,
+            'ctx_idx': ctx_idx,
+            'token': token,
+            'activation': activation,
             'logit_influence': influence
         }
         
@@ -450,12 +483,25 @@ def extract_static_metrics_from_json(
     
     # Step 4: Crea DataFrame
     df = pd.DataFrame(metrics_list)
-    df = df[['layer', 'feature', 'frac_external_raw', 'logit_influence']]
+    df = df[['layer', 'feature', 'id', 'ctx_idx', 'token', 'activation', 'frac_external_raw', 'logit_influence']]
     df = df.sort_values(['layer', 'feature']).reset_index(drop=True)
     
     if verbose:
+        embeddings = df[df['layer'] == -1]
+        sae_features = df[df['layer'] >= 0]
+        
         print(f"\nStatistiche metriche:")
         print(f"   Feature processate: {len(df)}")
+        print(f"      - Embeddings (layer=-1): {len(embeddings)}")
+        print(f"      - SAE features (layer>=0): {len(sae_features)}")
+        print(f"   Token unici (ctx_idx): {df['ctx_idx'].nunique()}")
+        
+        # Statistiche activation (solo per SAE features, embeddings hanno None)
+        if len(sae_features) > 0:
+            print(f"   activation (SAE): min={sae_features['activation'].min():.3f}, "
+                  f"max={sae_features['activation'].max():.3f}, "
+                  f"mean={sae_features['activation'].mean():.3f}")
+        
         print(f"   frac_external_raw: min={df['frac_external_raw'].min():.3f}, "
               f"max={df['frac_external_raw'].max():.3f}, "
               f"mean={df['frac_external_raw'].mean():.3f}")
