@@ -23,7 +23,7 @@ Il nostro sistema di labelling **non etichetta singoli abitanti**, ma identifica
 ```
 Input: acts_compared.csv + graph_feature_static_metrics.csv
 Output: feature_personalities_corrected.json + narrative_archetypes.json
-Script: 01_anthropological_basic.py
+Script: 02_anthropological_basic.py
 ```
 
 **Obiettivo**: Calcolare una "biografia" per ogni feature basata su:
@@ -77,7 +77,7 @@ Basandosi sulla personalità, ogni feature viene classificata in un archetipo:
 ```
 Input: narrative_archetypes.json + feature_personalities_corrected.json + example_graph.pt
 Output: cicciotti_supernodes.json + cicciotti_validation.json
-Script: 03_cicciotti_supernodes.py
+Script: 04_cicciotti_supernodes.py
 ```
 
 **Obiettivo**: Creare supernodi **semanticamente coerenti** e **causalmente connessi**.
@@ -305,7 +305,7 @@ for seed in seeds:
 ```
 Input: cicciotti_supernodes.json + feature_personalities_corrected.json + robust_thresholds.json
 Output: final_anthropological_optimized.json
-Script: 04_final_optimized_clustering.py
+Script: 05_final_optimized_clustering.py
 ```
 
 **Obiettivo**: Raggruppare le feature di qualità **non incluse nei cicciotti** in cluster computazionali.

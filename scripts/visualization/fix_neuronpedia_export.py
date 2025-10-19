@@ -355,10 +355,10 @@ def fix_export(
 if __name__ == "__main__":
     print("\n📌 PREREQUISITI:")
     print("   1. Esegui la pipeline antropologica:")
-    print("      python scripts/01_anthropological_basic.py")
-    print("      python scripts/02_compute_thresholds.py")
-    print("      python scripts/03_cicciotti_supernodes.py")
-    print("      python scripts/04_final_optimized_clustering.py")
+    print("      python scripts/02_anthropological_basic.py")
+    print("      python scripts/03_compute_thresholds.py")
+    print("      python scripts/04_cicciotti_supernodes.py")
+    print("      python scripts/05_final_optimized_clustering.py")
     print("   2. Genera il Graph JSON base (vedi README)")
     print("\n" + "="*70 + "\n")
     

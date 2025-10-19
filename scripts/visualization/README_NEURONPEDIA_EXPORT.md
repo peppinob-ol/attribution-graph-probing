@@ -10,16 +10,16 @@ Prima di tutto, esegui la pipeline completa per generare i supernodi:
 
 ```powershell
 # 1. Analisi antropologica base (con metriche causali)
-python scripts/01_anthropological_basic.py
+python scripts/02_anthropological_basic.py
 
 # 2. Calcolo soglie robuste
-python scripts/02_compute_thresholds.py
+python scripts/03_compute_thresholds.py
 
 # 3. Costruzione supernodi Cicciotti (backward from logit)
-python scripts/03_cicciotti_supernodes.py
+python scripts/04_cicciotti_supernodes.py
 
 # 4. Clustering finale ottimizzato
-python scripts/04_final_optimized_clustering.py
+python scripts/05_final_optimized_clustering.py
 ```
 
 **Output**: `output/final_anthropological_optimized.json` con supernodi semantici e computazionali.

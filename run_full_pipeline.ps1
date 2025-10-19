@@ -34,7 +34,7 @@ Write-Host "`nTutti i prerequisiti presenti. Avvio pipeline...`n" -ForegroundCol
 
 # Step 1: Anthropological Basic
 Write-Host "Step 1: Anthropological Basic Analysis..." -ForegroundColor Cyan
-python scripts\01_anthropological_basic.py
+python scripts\02_anthropological_basic.py
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Errore in Step 1" -ForegroundColor Red
     exit 1
@@ -42,7 +42,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # Step 2: Compute Thresholds
 Write-Host "`nStep 2: Compute Robust Thresholds..." -ForegroundColor Cyan
-python scripts\02_compute_thresholds.py
+python scripts\03_compute_thresholds.py
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Errore in Step 2" -ForegroundColor Red
     exit 1
@@ -50,7 +50,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # Step 3: Cicciotti Supernodes
 Write-Host "`nStep 3: Cicciotti Supernodes (Semantic)..." -ForegroundColor Cyan
-python scripts\03_cicciotti_supernodes.py
+python scripts\04_cicciotti_supernodes.py
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Errore in Step 3" -ForegroundColor Red
     exit 1
@@ -58,7 +58,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # Step 4: Final Clustering
 Write-Host "`nStep 4: Final Optimized Clustering..." -ForegroundColor Cyan
-python scripts\04_final_optimized_clustering.py
+python scripts\05_final_optimized_clustering.py
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Errore in Step 4" -ForegroundColor Red
     exit 1
@@ -66,7 +66,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # Step 5: Verify Logit Influence
 Write-Host "`nStep 5: Verify Logit Influence..." -ForegroundColor Cyan
-python scripts\05_verify_logit_influence.py
+python scripts\06_verify_logit_influence.py
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Errore in Step 5" -ForegroundColor Red
     exit 1

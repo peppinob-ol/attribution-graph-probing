@@ -47,11 +47,14 @@ L'app si aprirà automaticamente nel browser su `http://localhost:8501`
    - Coverage analysis
    - Export dashboard.json e kpi.csv
 
-2. **🎭 Fase 1 - Features** (`02_Phase1_Features.py`)
-   - Explorer features con filtri
-   - Grafici (violin, correlazioni, scatter)
-   - Archetipi narrativi
+2. **🎭 Fase 1 - Features** (`02_Phase1_Features.py`) ⭐ **RIVISTA**
+   - **Focus**: Identificare feature influenti mal interpretate (non perdere semantiche!)
+   - Dashboard Influenza vs Interpretabilità con flag "needs_review"
+   - Preset filtri intelligenti: Top Influenza, Alto Impatto + Bassa Semantica, ecc.
+   - Scatter plot Causal Impact vs Semantic Score
+   - Archetipi narrativi con statistiche per influenza
    - Dettaglio singola feature con vicinato causale
+   - **📖 Guida**: Vedi `eda/FEATURE_REVIEW_GUIDE.md`
 
 3. **🌱 Fase 2 - Supernodi** (`03_Phase2_Supernodes.py`)
    - Lista e analisi supernodi cicciotti
@@ -132,6 +135,63 @@ L'app consente di esportare:
 - Parametri correnti JSON (tutte le fasi)
 
 File salvati in `eda/exports/` (quando implementato)
+
+## 🎯 Workflow: Revisione Feature Influenti
+
+**Problema chiave**: Non perdere feature semantiche tra quelle più influenti causalmente.
+
+### Quick Start
+
+1. **Apri pagina "🎭 Fase 1 - Features"**
+
+2. **Seleziona preset "⚠️ Alto Impatto + Bassa Semantica (REVIEW!)"**
+   - Mostra feature con alta `causal_impact` ma bassa `semantic_score`
+   - Queste richiedono revisione manuale
+
+3. **Guarda Dashboard Influenza**
+   - Scatter plot mostra quadranti:
+     - **Alto-Destra**: ✅ Influenti + Interpretabili (ideale)
+     - **Alto-Sinistra**: ⚠️ Influenti ma poco interpretabili (DA RIVEDERE!)
+     - **Basso-Destra**: Interpretabili ma poco influenti
+     - **Basso-Sinistra**: Né influenti né interpretabili
+
+4. **Ispeziona Top 20 Feature per Influenza**
+   - Righe evidenziate = `needs_review` flag
+   - Verifica `most_common_peak`: è semantico?
+   - Se `mean_consistency=0` ma token semantico → label Neuronpedia errato
+
+5. **Usa tab "🔍 Ispeziona Feature"**
+   - Modalità "Random da 'needs_review'" per sampling sistematico
+   - Controlla attivazioni e vicinato causale
+
+### Metriche Chiave
+
+```python
+# Causal Impact (quanto influenza la predizione)
+causal_impact = abs(node_influence) * 0.6 + output_impact * 0.4
+
+# Semantic Score (quanto è interpretabile)
+semantic_score = mean_consistency * 0.5 + max_affinity * 0.3 + label_affinity * 0.2
+
+# Flag revisione
+needs_review = (causal_impact > p75) AND (semantic_score < 0.3)
+```
+
+### Casi Tipici
+
+**Caso 1**: `mean_consistency=0` ma `peak_token` semantico (es. "Texas")
+- **Diagnosi**: Label Neuronpedia errato/assente
+- **Azione**: Feature è semantica, necessita rilabeling
+
+**Caso 2**: Alta `node_influence` ma archetipo="outliers"
+- **Diagnosi**: Feature importante ma non classificata
+- **Azione**: Verifica specializzazione o comportamento edge
+
+**Caso 3**: Top influenza + `semantic_score` alto
+- **Diagnosi**: Feature ideale
+- **Azione**: Nessuna (sistema funziona correttamente)
+
+📖 **Guida completa**: `eda/FEATURE_REVIEW_GUIDE.md`
 
 ## 🔍 Funzionalità Chiave
 
@@ -217,9 +277,9 @@ streamlit run eda/app.py
 Se l'app segnala dati mancanti, esegui prima la pipeline:
 
 ```bash
-python scripts/01_anthropological_basic.py
-python scripts/03_cicciotti_supernodes.py
-python scripts/04_final_optimized_clustering.py
+python scripts/02_anthropological_basic.py
+python scripts/04_cicciotti_supernodes.py
+python scripts/05_final_optimized_clustering.py
 ```
 
 ### Cache Problemi
@@ -241,7 +301,7 @@ Oppure nella sidebar: Settings > Clear cache
 - **Causal validation guide**: `eda/CAUSAL_VALIDATION_GUIDE.md` - Cross-prompt activation analysis
 - **Quick guide (Italian)**: `eda/GUIDA_RAPIDA.md`
 - **Implementation plan**: `stream.plan.md`
-- **Pipeline scripts**: `scripts/01_anthropological_basic.py`, `scripts/03_cicciotti_supernodes.py`, `scripts/04_final_optimized_clustering.py`
+- **Pipeline scripts**: `scripts/02_anthropological_basic.py`, `scripts/04_cicciotti_supernodes.py`, `scripts/05_final_optimized_clustering.py`
 
 ## 💡 Using Tooltips
 

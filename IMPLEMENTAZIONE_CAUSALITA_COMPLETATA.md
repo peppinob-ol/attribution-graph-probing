@@ -25,7 +25,7 @@ Funzioni implementate:
 
 ---
 
-### 2. **scripts/01_anthropological_basic.py** (MODIFICATO)
+### 2. **scripts/02_anthropological_basic.py** (MODIFICATO)
 **Arricchimento personalities con metriche causali**
 
 Aggiunto **Step 8** (dopo Step 7 correlazioni):
@@ -38,7 +38,7 @@ Output: personalities contengono ora `node_influence`, `top_parents`, `top_child
 
 ---
 
-### 3. **scripts/02_compute_thresholds.py** (MODIFICATO)
+### 3. **scripts/03_compute_thresholds.py** (MODIFICATO)
 **Soglie robuste con node_influence**
 
 Modifiche:
@@ -50,7 +50,7 @@ Modifiche:
 
 ---
 
-### 4. **scripts/03_cicciotti_supernodes.py** (MODIFICATO - CORE)
+### 4. **scripts/04_cicciotti_supernodes.py** (MODIFICATO - CORE)
 **Crescita backward causale+semantica 60/40**
 
 Modifiche principali:
@@ -91,7 +91,7 @@ Modifiche principali:
 
 ---
 
-### 5. **scripts/04_final_optimized_clustering.py** (MODIFICATO)
+### 5. **scripts/05_final_optimized_clustering.py** (MODIFICATO)
 **Clustering residui con causal_tier**
 
 Modifiche:
@@ -103,7 +103,7 @@ Modifiche:
 
 ---
 
-### 6. **scripts/05_verify_logit_influence.py** (MODIFICATO)
+### 6. **scripts/06_verify_logit_influence.py** (MODIFICATO)
 **Validazione con metriche AG**
 
 Aggiunto **Step 8** (prima del risultato finale):
@@ -175,24 +175,24 @@ Output:
    ↓
 2. example_graph.pt (Attribution Graph con adjacency_matrix)
    ↓
-3. 01_anthropological_basic.py
+3. 02_anthropological_basic.py
    - Analisi semantica + CAUSALITÀ
    - Output: feature_personalities_corrected.json (arricchito)
    ↓
-4. 02_compute_thresholds.py
+4. 03_compute_thresholds.py
    - Soglie con tau_node_inf
    - Output: robust_thresholds.json
    ↓
-5. 03_cicciotti_supernodes.py
+5. 04_cicciotti_supernodes.py
    - Seed: Say Austin (backward da logit)
    - Crescita: 60% causale + 40% semantica
    - Output: cicciotti_supernodes.json
    ↓
-6. 04_final_optimized_clustering.py
+6. 05_final_optimized_clustering.py
    - Clustering residui con causal_tier
    - Output: final_anthropological_optimized.json
    ↓
-7. 05_verify_logit_influence.py
+7. 06_verify_logit_influence.py
    - Validazione + AG metrics
    - Output: logit_influence_validation.json
    ↓
@@ -252,11 +252,11 @@ Dopo esecuzione, verificare in `logit_influence_validation.json`:
 ### Pipeline completa:
 ```bash
 # Windows PowerShell
-python scripts/01_anthropological_basic.py
-python scripts/02_compute_thresholds.py
-python scripts/03_cicciotti_supernodes.py
-python scripts/04_final_optimized_clustering.py
-python scripts/05_verify_logit_influence.py
+python scripts/02_anthropological_basic.py
+python scripts/03_compute_thresholds.py
+python scripts/04_cicciotti_supernodes.py
+python scripts/05_final_optimized_clustering.py
+python scripts/06_verify_logit_influence.py
 
 # Visualizzazioni
 python scripts/visualization/visualize_attribution_graph.py
@@ -280,7 +280,7 @@ python scripts/visualization/export_neuronpedia_enhanced.py
 - `tau_node_very_high`: p95 (node_influence per <BOS>)
 - Jaccard similarity: 0.7 (per macro-gruppi)
 
-### Pesi compatibilità (03_cicciotti_supernodes.py)
+### Pesi compatibilità (04_cicciotti_supernodes.py)
 ```python
 CAUSALE (60%):
   - Direct edge: 25% (0.42 relativo)

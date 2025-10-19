@@ -33,11 +33,11 @@ verify_logit_influence.py
 #### Nuova Struttura `scripts/`
 ```
 scripts/
-├── 01_anthropological_basic.py          # Pipeline numerata
-├── 02_compute_thresholds.py
-├── 03_cicciotti_supernodes.py
-├── 04_final_optimized_clustering.py
-├── 05_verify_logit_influence.py
+├── 02_anthropological_basic.py          # Pipeline numerata
+├── 03_compute_thresholds.py
+├── 04_cicciotti_supernodes.py
+├── 05_final_optimized_clustering.py
+├── 06_verify_logit_influence.py
 │
 ├── visualization/
 │   ├── visualize_feature_space_3d.py

@@ -5,7 +5,7 @@
 
 ## Modifiche Applicate
 
-### 1. scripts/05_verify_logit_influence.py
+### 1. scripts/06_verify_logit_influence.py
 **Correzioni metriche AG**:
 - ✅ Import `_get_tokenizer` da `causal_utils`
 - ✅ Coverage node_influence su valori assoluti (|node_influence|)
@@ -22,7 +22,7 @@
 
 ---
 
-### 2. scripts/03_cicciotti_supernodes.py
+### 2. scripts/04_cicciotti_supernodes.py
 **Bootstrap causale a 2-hop**:
 - ✅ Pool candidati dinamico ricostruito ad ogni iterazione
 - ✅ Durante bootstrap (prime 3 iterazioni): include genitori dei genitori (2-hop) con peso ridotto (×0.5)
@@ -38,7 +38,7 @@
 
 ---
 
-### 3. scripts/04_final_optimized_clustering.py
+### 3. scripts/05_final_optimized_clustering.py
 **Post-filtro e merge**:
 - ✅ Post-filtro cicciotti: mantiene solo `n_members ≥ 3` e `final_coherence ≥ 0.45`
 - ✅ Merge cluster computazionali simili (Jaccard ≥ 0.7 sui membri)
@@ -107,9 +107,9 @@
 
 1. **Eseguire pipeline completa**:
    ```bash
-   python scripts/03_cicciotti_supernodes.py
-   python scripts/04_final_optimized_clustering.py
-   python scripts/05_verify_logit_influence.py
+   python scripts/04_cicciotti_supernodes.py
+   python scripts/05_final_optimized_clustering.py
+   python scripts/06_verify_logit_influence.py
    ```
 
 2. **Eseguire esperimenti**:
@@ -168,16 +168,16 @@ pip install circuit-tracer
 
 ### Metriche AG non calcolate
 - Verifica che `output/example_graph.pt` esista
-- Verifica che `01_anthropological_basic.py` abbia arricchito con metriche causali
+- Verifica che `02_anthropological_basic.py` abbia arricchito con metriche causali
 
 ---
 
 ## File Coinvolti
 
 **Modificati**:
-- `scripts/05_verify_logit_influence.py`
-- `scripts/03_cicciotti_supernodes.py`
-- `scripts/04_final_optimized_clustering.py`
+- `scripts/06_verify_logit_influence.py`
+- `scripts/04_cicciotti_supernodes.py`
+- `scripts/05_final_optimized_clustering.py`
 - `scripts/causal_utils.py`
 
 **Creati**:

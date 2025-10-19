@@ -44,9 +44,13 @@ def _decode_token_id(token_id, tokenizer):
         return str(token_id)
 
 
-def load_attribution_graph(graph_path: str = "output/example_graph.pt") -> Optional[Dict]:
+def load_attribution_graph(graph_path: str = "output/example_graph.pt", verbose: bool = False) -> Optional[Dict]:
     """
     Carica Attribution Graph da file .pt
+    
+    Args:
+        graph_path: percorso del file .pt
+        verbose: se True, stampa informazioni dettagliate sul caricamento
     
     Returns:
         Dict con: adjacency_matrix, active_features, input_tokens, logit_tokens, cfg
@@ -56,7 +60,7 @@ def load_attribution_graph(graph_path: str = "output/example_graph.pt") -> Optio
         print(f"WARN: Grafo non trovato: {graph_path}")
         return None
     
-    print(f"Caricamento Attribution Graph da {graph_path}")
+
     
     try:
         # Fix per PyTorch 2.6: weights_only=False per caricare oggetti custom
@@ -70,12 +74,7 @@ def load_attribution_graph(graph_path: str = "output/example_graph.pt") -> Optio
                 print(f"WARN: Chiave mancante nel grafo: {key}")
                 return None
         
-        print(f"OK: Grafo caricato:")
-        print(f"   - Active features: {len(graph_data['active_features'])}")
-        print(f"   - Input tokens: {len(graph_data['input_tokens'])}")
-        print(f"   - Adjacency matrix shape: {graph_data['adjacency_matrix'].shape}")
-        print(f"   - Logit tokens: {len(graph_data['logit_tokens'])}")
-        
+
         return graph_data
     
     except Exception as e:
@@ -144,7 +143,8 @@ def compute_node_influence(
 def compute_causal_metrics(
     graph_data: Dict,
     tau_edge: float = 0.01,
-    top_k: int = 5
+    top_k: int = 5,
+    verbose: bool = False
 ) -> Dict[str, Dict]:
     """
     Calcola metriche causali per ogni feature nel grafo
@@ -153,6 +153,7 @@ def compute_causal_metrics(
         graph_data: dict con adjacency_matrix, active_features, etc.
         tau_edge: soglia per considerare edge "forte"
         top_k: numero di top parents/children da estrarre
+        verbose: se True, stampa informazioni dettagliate
         
     Returns:
         Dict[feature_key, metrics] con:
@@ -165,7 +166,8 @@ def compute_causal_metrics(
             - layer: int
             - position: int
     """
-    print("\nCalcolo metriche causali...")
+    if verbose:
+        print("\nCalcolo metriche causali...")
     
     adjacency_matrix = graph_data['adjacency_matrix']
     active_features = graph_data['active_features']
@@ -526,7 +528,7 @@ def compute_edge_density(
 
 if __name__ == "__main__":
     # Test loading
-    graph_data = load_attribution_graph("output/example_graph.pt")
+    graph_data = load_attribution_graph("output/example_graph.pt", verbose=True)
     
     if graph_data is not None:
         causal_metrics = compute_causal_metrics(graph_data, tau_edge=0.01, top_k=5)

@@ -393,7 +393,7 @@ Final coherence: 0.30×0.85 + 0.20×0.60 + 0.20×0.70 + 0.30×0.40
 
 - **Metrics definitions**: `eda/METRICS_GLOSSARY.md`
 - **Full methodology**: `docs/supernode_labelling/SISTEMA_LABELLING_SUPERNODI.md`
-- **Code implementation**: `scripts/03_cicciotti_supernodes.py`, `scripts/04_final_optimized_clustering.py`
+- **Code implementation**: `scripts/04_cicciotti_supernodes.py`, `scripts/05_final_optimized_clustering.py`
 
 ---
 

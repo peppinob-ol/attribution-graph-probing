@@ -166,4 +166,4 @@ python scripts/experiments/add_sourceset_to_exports.py
 ## Note
 
 - Gli script usano i file generati dalla pipeline principale (`01`→`05`).
-- Esegui dopo aver completato almeno `03_cicciotti_supernodes.py` e `04_final_optimized_clustering.py`.
+- Esegui dopo aver completato almeno `04_cicciotti_supernodes.py` e `05_final_optimized_clustering.py`.

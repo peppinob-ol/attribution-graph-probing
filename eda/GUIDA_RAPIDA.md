@@ -235,9 +235,9 @@ Ogni pagina offre export specifici:
 **Causa**: Pipeline non eseguita  
 **Soluzione**: 
 ```bash
-python scripts/01_anthropological_basic.py
-python scripts/03_cicciotti_supernodes.py
-python scripts/04_final_optimized_clustering.py
+python scripts/02_anthropological_basic.py
+python scripts/04_cicciotti_supernodes.py
+python scripts/05_final_optimized_clustering.py
 ```
 
 ### "Grafo causale non disponibile"

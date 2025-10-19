@@ -38,10 +38,10 @@ def plot_token_distribution(df: pd.DataFrame, layer_col: str = 'layer',
 
 
 def plot_scatter_2d(df: pd.DataFrame, x: str, y: str, color: str = None, 
-                    title: str = None, hover_data: List[str] = None):
-    """Scatter plot 2D con colore opzionale"""
+                    title: str = None, hover_data: List[str] = None, labels: dict = None):
+    """Scatter plot 2D con colore opzionale e labels personalizzate"""
     fig = px.scatter(df, x=x, y=y, color=color, hover_data=hover_data,
-                     title=title or f'{y} vs {x}')
+                     title=title or f'{y} vs {x}', labels=labels)
     fig.update_layout(height=500)
     return fig
 

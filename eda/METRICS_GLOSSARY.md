@@ -391,10 +391,10 @@ where possible_edges = n × (n-1) for directed graph
 
 ## References
 
-- **Anthropological Analysis**: `scripts/01_anthropological_basic.py`
+- **Anthropological Analysis**: `scripts/02_anthropological_basic.py`
 - **Causal Metrics**: `scripts/causal_utils.py`
-- **Supernode Growth**: `scripts/03_cicciotti_supernodes.py`
-- **Residual Clustering**: `scripts/04_final_optimized_clustering.py`
+- **Supernode Growth**: `scripts/04_cicciotti_supernodes.py`
+- **Residual Clustering**: `scripts/05_final_optimized_clustering.py`
 - **Full Documentation**: `docs/supernode_labelling/`
 
 ---

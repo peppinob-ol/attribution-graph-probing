@@ -253,9 +253,9 @@ Vedi [OUTPUT_EXAMPLES.md](./OUTPUT_EXAMPLES.md) sezione "Come Leggere gli Output
 ### File Correlati nel Progetto
 ```
 scripts/
-  01_anthropological_basic.py        # Fase 1: Analisi antropologica
-  03_cicciotti_supernodes.py         # Fase 2: Costruzione cicciotti
-  04_final_optimized_clustering.py   # Fase 3: Clustering residui
+  02_anthropological_basic.py        # Fase 1: Analisi antropologica
+  04_cicciotti_supernodes.py         # Fase 2: Costruzione cicciotti
+  05_final_optimized_clustering.py   # Fase 3: Clustering residui
   causal_utils.py                    # Utilities metriche causali
 
 docs/

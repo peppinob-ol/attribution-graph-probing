@@ -10,6 +10,7 @@ if str(parent_dir) not in sys.path:
 import streamlit as st
 import pandas as pd
 import numpy as np
+import json
 import plotly.express as px
 import plotly.graph_objects as go
 from scipy import stats
@@ -744,7 +745,7 @@ export_data = {
 
 st.download_button(
     label="📥 Download analysis summary JSON",
-    data=pd.io.json.dumps(export_data, indent=2),
+    data=json.dumps(export_data, indent=2),
     file_name='causal_validation_summary.json',
     mime='application/json'
 )

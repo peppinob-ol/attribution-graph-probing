@@ -26,11 +26,17 @@ st.write("**Analisi esplorativa della pipeline antropologica per supernodi**")
 
 st.markdown("""
 Questa applicazione consente di:
+- 🌐 **Graph Generation**: Genera attribution graphs su Neuronpedia
+- 🔍 **Probe Prompts**: Analizza attivazioni su concepts specifici
+- 🔬 **Causal Validation**: Analisi della validazione causale
+
+<!-- Temporaneamente disabilitati:
 - 📊 **Overview**: Dashboard KPI globali
 - 🎭 **Fase 1**: Esplorare feature e personalità
 - 🌱 **Fase 2**: Analizzare supernodi cicciotti con dry-run parametrico
 - 🧪 **Cross-Prompt**: Validare robustezza cross-prompt
 - 🏭 **Fase 3**: Clustering residui con parametri configurabili
+-->
 
 Usa la **sidebar** per navigare tra le pagine e configurare parametri.
 """)
@@ -80,16 +86,27 @@ st.header("Quick Links")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.page_link("pages/01_Overview.py", label="📊 Overview", icon="📊")
-    st.page_link("pages/02_Phase1_Features.py", label="🎭 Features", icon="🎭")
+    st.page_link("pages/00_Graph_Generation.py", label="🌐 Graph Generation", icon="🌐")
 
 with col2:
-    st.page_link("pages/03_Phase2_Supernodes.py", label="🌱 Supernodi", icon="🌱")
-    st.page_link("pages/04_CrossPrompt.py", label="🧪 Cross-Prompt", icon="🧪")
+    st.page_link("pages/01_Probe_Prompts.py", label="🔍 Probe Prompts", icon="🔍")
 
 with col3:
-    st.page_link("pages/05_Phase3_Residuals.py", label="🏭 Residui", icon="🏭")
-    st.page_link("pages/06_Causal_Validation.py", label="🔬 Causal Valid.", icon="🔬")
+    st.page_link("pages/06_Causal_Validation.py", label="🔬 Causal Validation", icon="🔬")
+
+# col1, col2, col3 = st.columns(3)
+# 
+# with col1:
+#     st.page_link("pages/01_Overview.py", label="📊 Overview", icon="📊")
+#     st.page_link("pages/02_Phase1_Features.py", label="🎭 Features", icon="🎭")
+# 
+# with col2:
+#     st.page_link("pages/03_Phase2_Supernodes.py", label="🌱 Supernodi", icon="🌱")
+#     st.page_link("pages/04_CrossPrompt.py", label="🧪 Cross-Prompt", icon="🧪")
+# 
+# with col3:
+#     st.page_link("pages/05_Phase3_Residuals.py", label="🏭 Residui", icon="🏭")
+#     st.page_link("pages/06_Causal_Validation.py", label="🔬 Causal Valid.", icon="🔬")
 
 # Info progetto
 st.sidebar.header("ℹ️ Info")

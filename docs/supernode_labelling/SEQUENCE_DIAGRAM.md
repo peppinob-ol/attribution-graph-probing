@@ -6,9 +6,9 @@
 sequenceDiagram
     participant User
     participant Pipeline as run_full_pipeline
-    participant Anthro as 01_anthropological_basic.py
-    participant Cicciotti as 03_cicciotti_supernodes.py
-    participant Final as 04_final_optimized_clustering.py
+    participant Anthro as 02_anthropological_basic.py
+    participant Cicciotti as 04_cicciotti_supernodes.py
+    participant Final as 05_final_optimized_clustering.py
     participant Data as Data Files
     
     User->>Pipeline: python run_full_pipeline.ps1
