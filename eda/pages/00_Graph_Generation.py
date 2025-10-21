@@ -43,13 +43,13 @@ Il grafo mostra le features (SAE latents) che contribuiscono maggiormente alla p
 
 # ===== SIDEBAR: CONFIGURAZIONE =====
 
-st.sidebar.header("âš™ï¸ Configurazione")
+st.sidebar.header("Configurazione")
 
 # Carica API key
 api_key = load_api_key()
 
 if not api_key:
-    st.sidebar.error("âŒ API Key non trovata!")
+    st.sidebar.error("API Key non trovata!")
     st.error("""
     **API Key Neuronpedia richiesta!**
     
@@ -67,7 +67,7 @@ if not api_key:
     """)
     st.stop()
 
-st.sidebar.success(f"âœ… API Key caricata ({len(api_key)} caratteri)")
+st.sidebar.success(f"API Key caricata ({len(api_key)} caratteri)")
 
 # ===== SEZIONE: GENERA NUOVO GRAFO =====
 
@@ -180,7 +180,7 @@ if 'extracted_csv_df' not in st.session_state:
 
 if generate_button:
     if not prompt.strip():
-        st.error("âŒ Inserisci un prompt valido!")
+        st.error("Inserisci un prompt valido!")
         st.stop()
     
     progress_bar = st.progress(0)
@@ -233,7 +233,7 @@ st.markdown("---")
 
 with st.expander("**Analizza JSON Esistente -> CSV**", expanded=False):
     st.write("""
-    Se hai giÃ  un file JSON del grafo, puoi estrarre le metriche statiche (`logit_influence`, `frac_external_raw`)
+    Se hai già un file JSON del grafo, puoi estrarre le metriche statiche (`node_influence`, `cumulative_influence`, `frac_external_raw`)
     senza rigenerare il grafo.
     """)
     
@@ -284,11 +284,11 @@ with st.expander("**Analizza JSON Esistente -> CSV**", expanded=False):
                         st.session_state.extracted_graph_data = graph_data
                         st.session_state.extracted_csv_df = df
                     
-                    st.success(f"âœ… CSV generato: `{csv_output_path}`")
+                    st.success(f"CSV generato: `{csv_output_path}`")
                     st.info("Scorri in basso per vedere le visualizzazioni interattive")
                     
                 except Exception as e:
-                    st.error(f"âŒ Errore: {str(e)}")
+                    st.error(f"Errore: {str(e)}")
         else:
             st.warning("Nessun file JSON trovato in `output/graph_data/`")
     else:
@@ -312,7 +312,8 @@ if st.session_state.extracted_graph_data is not None and st.session_state.extrac
     with col3:
         st.metric("μ Activation", f"{df['activation'].mean():.3f}")
     with col4:
-        st.metric("Σ Influence", f"{df['logit_influence'].sum():.2f}")
+        # Usa node_influence (influenza marginale) per somma totale
+        st.metric("Σ Node Infl", f"{df['node_influence'].sum():.2f}")
     with col5:
         st.metric("μ Frac Ext", f"{df['frac_external_raw'].mean():.3f}")
     
@@ -330,9 +331,48 @@ if st.session_state.extracted_graph_data is not None and st.session_state.extrac
         # Estrai prompt_tokens dalla metadata per mappare ctx_idx -> token
         prompt_tokens = graph_data.get('metadata', {}).get('prompt_tokens', [])
         
-        # Usa la funzione di visualizzazione
+        # Visualizzazione scatter plot con filtro
         from eda.utils.graph_visualization import create_scatter_plot_with_filter
-        create_scatter_plot_with_filter(graph_data)
+        filtered_features = create_scatter_plot_with_filter(graph_data)
+        
+        # Export feature selezionate
+        if filtered_features is not None and len(filtered_features) > 0:
+            st.markdown("---")
+            st.subheader("📥 Esporta Feature Selezionate")
+            
+            # Converti dataframe in formato [{"layer": X, "index": Y}, ...]
+            # Rimuovi duplicati usando set di tuple (layer, feature)
+            unique_features = {
+                (int(row['layer']), int(row['feature']))
+                for _, row in filtered_features.iterrows()
+            }
+            
+            # Converti in lista ordinata di dict
+            features_export = [
+                {"layer": layer, "index": feature}
+                for layer, feature in sorted(unique_features)
+            ]
+            
+            # Statistiche
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Features Uniche", len(features_export))
+            with col2:
+                st.metric("Layer Unici", len({f['layer'] for f in features_export}))
+            
+            # Download JSON
+            st.download_button(
+                label="⬇️ Download Features JSON",
+                data=json.dumps(features_export, indent=2, ensure_ascii=False),
+                file_name="selected_features.json",
+                mime="application/json",
+                help="Formato compatibile con batch_get_activations.py"
+            )
+            
+            # Preview
+            with st.expander("🔍 Preview (prime 10)", expanded=False):
+                st.json(features_export[:10])
+        
 st.markdown("---")
 
 # ===== VISUALIZZAZIONE RISULTATI =====
@@ -382,7 +422,7 @@ if st.session_state.generation_result is not None:
         st.subheader("Metriche Statiche")
         
         st.info("""
-        **Richiesto per la pipeline:** Genera il CSV con `logit_influence` e `frac_external_raw` 
+        **Richiesto per la pipeline:** Genera il CSV con `node_influence`, `cumulative_influence` e `frac_external_raw` 
         per usare questo grafo negli step successivi (compute thresholds, supernodes, etc.)
         """)
         
@@ -397,9 +437,9 @@ if st.session_state.generation_result is not None:
                     )
                     st.session_state.static_metrics_df = df
                 
-                st.success(f"âœ… CSV generato: `{csv_output_path}`")
+                st.success(f"CSV generato: `{csv_output_path}`")
             except Exception as e:
-                st.error(f"âŒ Errore: {str(e)}")
+                st.error(f"Errore: {str(e)}")
         
         # Mostra CSV se disponibile
         if st.session_state.static_metrics_df is not None:
@@ -409,9 +449,9 @@ if st.session_state.generation_result is not None:
             with col1:
                 st.metric("Features", len(df))
             with col2:
-                st.metric("Σ Influence", f"{df['logit_influence'].sum():.2f}")
+                st.metric("Σ Node Infl", f"{df['node_influence'].sum():.2f}")
             with col3:
-                st.metric("μ Influence", f"{df['logit_influence'].mean():.4f}")
+                st.metric("Max Cumul", f"{df['cumulative_influence'].max():.4f}")
             with col4:
                 st.metric("μ Frac Ext", f"{df['frac_external_raw'].mean():.3f}")
             
@@ -424,12 +464,12 @@ if st.session_state.generation_result is not None:
                     
                     col1, col2 = st.columns(2)
                     with col1:
-                        fig = px.histogram(df, x='logit_influence', nbins=50, 
-                                         title='logit_influence')
+                        fig = px.histogram(df, x='node_influence', nbins=50, 
+                                         title='node_influence (marginal)')
                         st.plotly_chart(fig, use_container_width=True)
                     with col2:
-                        fig = px.histogram(df, x='frac_external_raw', nbins=50,
-                                         title='frac_external_raw')
+                        fig = px.histogram(df, x='cumulative_influence', nbins=50,
+                                         title='cumulative_influence')
                         st.plotly_chart(fig, use_container_width=True)
                 except:
                     pass

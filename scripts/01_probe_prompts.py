@@ -278,48 +278,114 @@ def get_processed_keys(records: List[Dict]) -> set:
     }
 
 
+def export_concepts_to_prompts(
+    concepts: List[Dict[str, str]],
+    output_path: str,
+    verbose: bool = True
+) -> None:
+    """
+    Esporta concepts come lista di prompts nel formato per batch_get_activations.py
+    
+    Il testo del prompt è: "categoria: descrizione is label"
+    Esempio: "entity: a US state is Texas"
+    
+    Args:
+        concepts: Lista di dict con 'label', 'category', 'description'
+        output_path: Path dove salvare il JSON
+        verbose: Se True, stampa informazioni
+        
+    Example:
+        >>> concepts = [
+        ...     {"label": "Texas", "category": "entity", "description": "a US state"},
+        ...     {"label": "Paris", "category": "entity", "description": "capital of France"}
+        ... ]
+        >>> export_concepts_to_prompts(concepts, "output/prompts_for_analysis.json")
+        
+        Output:
+        [
+            {"id": "probe_0_Texas", "text": "entity: a US state is Texas"},
+            {"id": "probe_1_Paris", "text": "entity: capital of France is Paris"}
+        ]
+    """
+    if not concepts:
+        if verbose:
+            print("[WARNING] Nessun concept da esportare")
+        return
+    
+    # Converti formato
+    output_list = []
+    for i, concept in enumerate(concepts):
+        label = concept.get("label", "").strip()
+        category = concept.get("category", "").strip()
+        description = concept.get("description", "").strip()
+        
+        if not label or not category or not description:
+            if verbose:
+                print(f"[WARNING] Concept #{i} incompleto, saltato: {concept}")
+            continue
+        
+        # Formato: "categoria: descrizione is label"
+        prompt_text = f"{category}: {description} is {label}"
+        
+        # ID univoco
+        probe_id = f"probe_{i}_{label.replace(' ', '_')}"
+        
+        output_list.append({
+            "id": probe_id,
+            "text": prompt_text
+        })
+    
+    # Salva JSON
+    output_file = Path(output_path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(output_list, f, indent=2, ensure_ascii=False)
+    
+    if verbose:
+        file_size = os.path.getsize(output_file) / 1024
+        print(f"[OK] Prompts esportati: {output_path}")
+        print(f"     Prompts: {len(output_list)}")
+        print(f"     Dimensione: {file_size:.1f} KB")
+        print(f"\nEsempi:")
+        for prompt in output_list[:3]:
+            print(f"  - {prompt['id']}: \"{prompt['text']}\"")
+
+
 def filter_features_by_influence(
     features: List[Dict],
     cumulative_contribution: float = 0.95
 ) -> Tuple[List[Dict], float, int, int]:
     """
-    Filtra features per cumulative influence contribution.
+    Filtra features usando il campo 'influence' già normalizzato dal JSON.
+    
+    Il campo 'influence' è la cumulative coverage (0-1) calcolata dal pruning del circuit tracer:
+    quando i nodi sono ordinati per influenza decrescente, un nodo con influence=0.65 significa 
+    che fino a quel nodo viene coperto il 65% dell'influenza totale.
     
     Args:
-        features: Lista di dict con chiave "influence"
-        cumulative_contribution: Soglia di contributo cumulativo (0-1)
+        features: Lista di dict con chiave "influence" (cumulative coverage 0-1)
+        cumulative_contribution: Soglia di cumulative coverage (0-1)
         
     Returns:
         Tuple di:
-        - Lista features filtrate (ordinate per influence desc)
-        - Soglia di influence usata
+        - Lista features filtrate (ordinate per influence crescente = più influenti prima)
+        - Soglia di influence usata (max influence tra le selezionate)
         - Numero features selezionate
         - Numero features totali
     """
     if not features:
         return [], 0.0, 0, 0
     
-    # Ordina per influence decrescente (valore assoluto)
-    sorted_features = sorted(features, key=lambda f: abs(f.get("influence", 0)), reverse=True)
+    # Filtra features con influence <= threshold
+    # (nodi con influence più basso sono più influenti, raggiunti prima nell'ordinamento)
+    selected_features = [f for f in features if f.get("influence", 0) <= cumulative_contribution]
     
-    # Calcola influence cumulativa
-    total_influence = sum(abs(f.get("influence", 0)) for f in sorted_features)
+    # Ordina per influence crescente (i più influenti hanno influence più basso)
+    selected_features = sorted(selected_features, key=lambda f: f.get("influence", 0))
     
-    if total_influence == 0:
-        return sorted_features, 0.0, len(sorted_features), len(features)
-    
-    cumulative = 0.0
-    selected_features = []
-    threshold_influence = 0.0
-    
-    for feat in sorted_features:
-        abs_influence = abs(feat.get("influence", 0))
-        cumulative += abs_influence / total_influence
-        selected_features.append(feat)
-        threshold_influence = abs_influence
-        
-        if cumulative >= cumulative_contribution:
-            break
+    # Soglia usata = max influence tra le selezionate
+    threshold_influence = max((f.get("influence", 0) for f in selected_features), default=0.0)
     
     return selected_features, threshold_influence, len(selected_features), len(features)
 

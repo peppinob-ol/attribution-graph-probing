@@ -83,7 +83,7 @@ def load_static_metrics() -> Optional[pd.DataFrame]:
     """Carica metriche statiche feature"""
     try:
         df = pd.read_csv(OUTPUT_PATHS['static_metrics'])
-        df['feature_key'] = df['layer'].astype(str) + '_' + df['feature'].astype(str)
+        df['feature_key'] = df['layer'].astype(str) + '_' + df['id'].astype(str)
         return df
     except FileNotFoundError:
         st.warning(f"File {OUTPUT_PATHS['static_metrics']} non trovato")

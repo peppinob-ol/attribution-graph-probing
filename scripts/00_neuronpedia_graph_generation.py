@@ -23,7 +23,7 @@ import json
 import os
 import sys
 import time
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
 try:
@@ -344,7 +344,7 @@ def extract_static_metrics_from_json(
     verbose: bool = True
 ) -> Optional[Dict]:
     """
-    Estrae metriche statiche (logit_influence, frac_external_raw) dal JSON del grafo.
+    Estrae metriche statiche dal JSON del grafo.
     
     Args:
         graph_data: Dict con nodes e links dal JSON Neuronpedia
@@ -352,10 +352,16 @@ def extract_static_metrics_from_json(
         verbose: Se True, stampa informazioni
         
     Returns:
-        DataFrame con colonne: layer, feature, id, ctx_idx, token, activation, frac_external_raw, logit_influence
-        (layer=-1 rappresenta gli embedding)
-        (id è estratto da node_id usando regex, es. "0_41_1" -> 41, "E_651_1" -> 651)
-        (ctx_idx è l'indice del token nel prompt, token è il token corrispondente)
+        DataFrame con colonne: 
+        - layer, feature, id, ctx_idx, token, activation
+        - frac_external_raw: frazione di influenza da nodi esterni (1 - self_loop_normalized)
+        - node_influence: influenza marginale del singolo nodo (differenza tra cumulative consecutive)
+        - cumulative_influence: copertura cumulativa (0-1) dal pruning del circuit tracer
+        
+        Note:
+        - layer=-1 rappresenta gli embedding
+        - id è estratto da node_id usando regex, es. "0_41_1" -> 41, "E_651_1" -> 651
+        - ctx_idx è l'indice del token nel prompt, token è il token corrispondente
     """
     try:
         import pandas as pd
@@ -483,7 +489,28 @@ def extract_static_metrics_from_json(
     
     # Step 4: Crea DataFrame
     df = pd.DataFrame(metrics_list)
-    df = df[['layer', 'feature', 'id', 'ctx_idx', 'token', 'activation', 'frac_external_raw', 'logit_influence']]
+    
+    # Rinomina logit_influence -> cumulative_influence per chiarezza
+    df = df.rename(columns={'logit_influence': 'cumulative_influence'})
+    
+    # Step 4.5: Calcola marginal influence (node-level influence)
+    # Ordina per cumulative_influence per calcolare le differenze
+    df_sorted = df.sort_values('cumulative_influence').reset_index(drop=True)
+    
+    # Calcola marginal influence come differenza tra cumulative consecutive
+    df_sorted['node_influence'] = df_sorted['cumulative_influence'].diff()
+    
+    # Il primo nodo (più influente) ha marginal = suo valore cumulativo
+    df_sorted.loc[0, 'node_influence'] = df_sorted.loc[0, 'cumulative_influence']
+    
+    # Remap al dataframe originale tramite node_id
+    # (creiamo un mapping node_id -> node_influence)
+    node_id_to_marginal = dict(zip(df_sorted['node_id'], df_sorted['node_influence']))
+    df['node_influence'] = df['node_id'].map(node_id_to_marginal)
+    
+    # Seleziona colonne finali (includi node_influence e cumulative_influence)
+    df = df[['layer', 'feature', 'id', 'ctx_idx', 'token', 'activation', 
+             'frac_external_raw', 'node_influence', 'cumulative_influence']]
     df = df.sort_values(['layer', 'feature']).reset_index(drop=True)
     
     if verbose:
@@ -505,9 +532,12 @@ def extract_static_metrics_from_json(
         print(f"   frac_external_raw: min={df['frac_external_raw'].min():.3f}, "
               f"max={df['frac_external_raw'].max():.3f}, "
               f"mean={df['frac_external_raw'].mean():.3f}")
-        print(f"   logit_influence: min={df['logit_influence'].min():.4f}, "
-              f"max={df['logit_influence'].max():.4f}, "
-              f"sum={df['logit_influence'].sum():.4f}")
+        print(f"   node_influence: min={df['node_influence'].min():.4f}, "
+              f"max={df['node_influence'].max():.4f}, "
+              f"mean={df['node_influence'].mean():.4f}")
+        print(f"   cumulative_influence: min={df['cumulative_influence'].min():.4f}, "
+              f"max={df['cumulative_influence'].max():.4f}, "
+              f"max (dovrebbe essere ~node_threshold)={df['cumulative_influence'].max():.4f}")
     
     # Step 5: Salva CSV (opzionale)
     if output_path:
@@ -566,6 +596,64 @@ def generate_static_metrics_csv(
             import traceback
             traceback.print_exc()
         return None
+
+
+def export_features_list(
+    features: List[Dict],
+    output_path: str,
+    format_type: str = "layer_index",
+    verbose: bool = True
+) -> None:
+    """
+    Esporta lista di features nel formato JSON per batch_get_activations.py
+    
+    Args:
+        features: Lista di dict con chiavi 'layer' e 'feature'
+        output_path: Path dove salvare il JSON
+        format_type: Formato output
+            - "layer_index": [{"layer": int, "index": int}, ...]
+            - "source_index": [{"source": "L-set", "index": int}, ...] (richiede source_set)
+        verbose: Se True, stampa informazioni
+    
+    Example:
+        >>> features = [{"layer": 10, "feature": 1234}, {"layer": 15, "feature": 5678}]
+        >>> export_features_list(features, "output/features_subset.json")
+    """
+    if not features:
+        if verbose:
+            print("[WARNING] Nessuna feature da esportare")
+        return
+    
+    # Converti formato
+    output_list = []
+    for feat in features:
+        layer = feat.get("layer")
+        feature = feat.get("feature")
+        
+        if layer is None or feature is None:
+            continue
+        
+        if format_type == "layer_index":
+            output_list.append({
+                "layer": int(layer),
+                "index": int(feature)
+            })
+        elif format_type == "source_index":
+            # Richiede source_set parameter (non implementato qui)
+            raise NotImplementedError("source_index format requires source_set parameter")
+    
+    # Salva JSON
+    output_file = Path(output_path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(output_list, f, indent=2, ensure_ascii=False)
+    
+    if verbose:
+        file_size = os.path.getsize(output_file) / 1024
+        print(f"[OK] Features list esportata: {output_path}")
+        print(f"     Features: {len(output_list)}")
+        print(f"     Dimensione: {file_size:.1f} KB")
 
 
 def get_graph_stats(graph_data: Dict) -> Dict:
