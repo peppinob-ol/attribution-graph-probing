@@ -85,7 +85,14 @@ CHUNK_BY_LAYER = True  # ← True per clt-hp (consigliato), False per res-jb/gem
 INCLUDE_ZERO_ACTIVATIONS = True  # ← True per vedere tutte le 55 feature, False solo quelle attive
 
 # Eventuale token HF per modelli gated (es. Gemma)
-os.environ["HF_TOKEN"] = "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"
+# IMPORTANTE: Non inserire mai token direttamente nel codice!
+# Opzioni per fornire il token:
+#   1. Variabile d'ambiente: export HF_TOKEN="your_token_here" (prima di eseguire lo script)
+#   2. Colab Secrets: from google.colab import userdata; os.environ["HF_TOKEN"] = userdata.get('HF_TOKEN')
+#   3. File .env locale (NON committare il file!)
+# Se non è già impostato, lo script proseguirà senza token (funziona per modelli pubblici)
+if "HF_TOKEN" not in os.environ:
+    print("⚠️ HF_TOKEN non trovato. Se usi modelli gated (es. Gemma), imposta la variabile d'ambiente HF_TOKEN")
 
 # ---------------------------------------------------------------------------------------------------------
 
