@@ -499,6 +499,165 @@ if st.session_state.generation_result is not None:
             "application/json"
         )
 
+st.markdown("---")
+
+# ===== GRAFICI RIASSUNTIVI: COVERAGE E STRENGTH =====
+
+st.header("📊 Grafici Riassuntivi: Coverage e Strength")
+
+# Sorgente dati: preferisci dati estratti, altrimenti ultimo grafo generato
+graph_data_for_plots = None
+if st.session_state.get('extracted_graph_data') is not None:
+    graph_data_for_plots = st.session_state.extracted_graph_data
+elif st.session_state.get('generation_result') is not None and st.session_state.generation_result.get('success'):
+    graph_data_for_plots = st.session_state.generation_result.get('graph_data')
+
+if graph_data_for_plots is None or 'nodes' not in graph_data_for_plots:
+    st.info("Nessun dato grafico disponibile: estrai o genera un grafo per vedere i riassunti.")
+else:
+    import pandas as pd
+    import plotly.express as px
+    import numpy as np
+
+    nodes_df = pd.DataFrame(graph_data_for_plots['nodes'])
+    is_feature = nodes_df['node_id'].astype(str).str[0].str.isdigit() & nodes_df['node_id'].astype(str).str.contains('_')
+    feat_nodes = nodes_df.loc[is_feature].copy()
+    
+    if len(feat_nodes) == 0:
+        st.warning("Nessuna feature trovata nei dati correnti.")
+    else:
+        # Aggiungi slider per filtrare (riusa la stessa logica di create_scatter_plot_with_filter)
+        max_influence = feat_nodes['influence'].max()
+        
+        st.markdown("### 🎚️ Filtra Features per Cumulative Influence")
+        st.info(f"""
+        **Usa lo slider per filtrare i grafici sottostanti** in base alla copertura cumulativa di influence (0-{max_influence:.2f}).
+        I grafici riassuntivi mostreranno solo le feature con `influence ≤ threshold`.
+        """)
+        
+        # Controlla se esiste già lo slider principale (da create_scatter_plot_with_filter)
+        # Se esiste, usa quello, altrimenti crea uno nuovo
+        slider_key = "cumulative_slider_summary"
+        if "cumulative_slider_main" in st.session_state:
+            # Riusa il valore dello slider principale
+            cumulative_threshold_summary = st.session_state.cumulative_slider_main
+            st.info(f"📌 Sincronizzato con lo slider principale: threshold = {cumulative_threshold_summary:.4f}")
+        else:
+            # Crea slider separato
+            cumulative_threshold_summary = st.slider(
+                "Cumulative Influence Threshold (grafici riassuntivi)",
+                min_value=0.0,
+                max_value=float(max_influence),
+                value=float(max_influence),
+                step=0.01,
+                key=slider_key,
+                help=f"Mantieni solo feature con influence ≤ threshold. Range: 0.0 - {max_influence:.2f}"
+            )
+        
+        # Applica filtro
+        feat_nodes_filtered = feat_nodes[feat_nodes['influence'] <= cumulative_threshold_summary].copy()
+        
+        if len(feat_nodes_filtered) == 0:
+            st.warning("⚠️ Nessuna feature soddisfa il filtro corrente. Aumenta la soglia.")
+        else:
+            # Mostra statistiche filtro
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Feature Totali", len(feat_nodes))
+            with col2:
+                st.metric("Feature Filtrate", len(feat_nodes_filtered))
+            with col3:
+                pct = (len(feat_nodes_filtered) / len(feat_nodes) * 100) if len(feat_nodes) > 0 else 0
+                st.metric("% Mantenute", f"{pct:.1f}%")
+            
+            st.markdown("---")
+            
+            # Calcola n_ctx e statistiche per feature
+            feat_nodes_filtered['feature_key'] = feat_nodes_filtered['node_id'].str.rsplit('_', n=1).str[0]
+            cov = (
+                feat_nodes_filtered.groupby('feature_key')['ctx_idx'].nunique()
+                .rename('n_ctx').reset_index()
+            )
+            per_feat = (
+                feat_nodes_filtered.groupby('feature_key')
+                .agg(mean_influence=('influence','mean'),
+                     mean_activation=('activation','mean'))
+                .reset_index()
+            )
+            per_feat_cov = per_feat.merge(cov, on='feature_key', how='left')
+            nodes_with_cov = feat_nodes_filtered.merge(cov, on='feature_key', how='left')
+
+            # Grafico 1: Copertura (Istogramma + ECDF)
+            st.subheader("🔢 Copertura delle feature (n_ctx)")
+            c1, c2 = st.columns(2)
+            with c1:
+                fig_hist = px.histogram(cov, x='n_ctx', color_discrete_sequence=['#4C78A8'])
+                fig_hist.update_layout(title='Distribuzione n_ctx per feature',
+                                       xaxis_title='Numero di ctx_idx unici',
+                                       yaxis_title='Numero di feature')
+                st.plotly_chart(fig_hist, use_container_width=True)
+            with c2:
+                fig_ecdf = px.ecdf(cov, x='n_ctx', color_discrete_sequence=['#F58518'])
+                fig_ecdf.update_layout(title='ECDF di n_ctx',
+                                       xaxis_title='Numero di ctx_idx unici',
+                                       yaxis_title='Frazione cumulativa')
+                st.plotly_chart(fig_ecdf, use_container_width=True)
+
+            # Grafico 2: Strength vs Coverage (Activation vs n_ctx e Scatter mean)
+            st.subheader("⚡ Strength vs Coverage")
+            c3, c4 = st.columns(2)
+            with c3:
+                fig_violin = px.violin(nodes_with_cov, x='n_ctx', y='activation', box=True, points=False)
+                fig_violin.update_layout(title='Activation per n_ctx',
+                                         xaxis_title='n_ctx (feature)',
+                                         yaxis_title='Activation (nodo)')
+                st.plotly_chart(fig_violin, use_container_width=True)
+            with c4:
+                fig_scatter = px.scatter(per_feat_cov, x='mean_activation', y='mean_influence',
+                                         color='n_ctx', size='n_ctx', hover_data=['feature_key'],
+                                         color_continuous_scale='Viridis')
+                # Correlazioni per il sottotitolo
+                if len(per_feat_cov) >= 2:
+                    pearson = float(per_feat_cov['mean_activation'].corr(per_feat_cov['mean_influence'], method='pearson'))
+                    spearman = float(per_feat_cov['mean_activation'].corr(per_feat_cov['mean_influence'], method='spearman'))
+                    fig_scatter.update_layout(title=f'Mean activation vs mean influence<br>(r={pearson:.2f}, ρ={spearman:.2f})')
+                else:
+                    fig_scatter.update_layout(title='Mean activation vs mean influence')
+                fig_scatter.update_layout(xaxis_title='Mean activation (per feature)',
+                                          yaxis_title='Mean influence (per feature)')
+                st.plotly_chart(fig_scatter, use_container_width=True)
+            
+            # Insight rapidi
+            with st.expander("💡 Insight dai grafici", expanded=False):
+                # Calcola statistiche chiave
+                top_n_ctx = cov['n_ctx'].max()
+                n_top = len(cov[cov['n_ctx'] == top_n_ctx])
+                top_features = cov[cov['n_ctx'] == top_n_ctx]['feature_key'].tolist()
+                
+                st.markdown(f"""
+                **Copertura (n_ctx)**:
+                - {len(cov)} feature uniche nel dataset filtrato
+                - {n_top} feature presenti in tutti i {top_n_ctx} contesti
+                - Feature multi-contesto ({top_n_ctx}): {', '.join([f'`{f}`' for f in top_features[:5]])}
+                
+                **Strength vs Coverage**:
+                - Correlazione activation-influence: **r={pearson:.2f}** (Pearson), **ρ={spearman:.2f}** (Spearman)
+                - {"Correlazione negativa: feature con activation alta tendono ad avere influence bassa" if pearson < -0.2 else "Correlazione debole o positiva tra activation e influence"}
+                """)
+                
+                # Statistiche gruppi
+                if len(nodes_with_cov) > 0:
+                    g1 = nodes_with_cov[nodes_with_cov['n_ctx'] == 1]
+                    g_multi = nodes_with_cov[nodes_with_cov['n_ctx'] >= 5]
+                    
+                    if len(g1) > 0 and len(g_multi) > 0:
+                        st.markdown(f"""
+                        **Confronto gruppi**:
+                        - n_ctx=1: {len(g1)} nodi, mean_activation={g1['activation'].mean():.2f}, mean_influence={g1['influence'].mean():.3f}
+                        - n_ctx≥5: {len(g_multi)} nodi, mean_activation={g_multi['activation'].mean():.2f}, mean_influence={g_multi['influence'].mean():.3f}
+                        """)
+
+
 # ===== FOOTER =====
 
 st.sidebar.markdown("---")

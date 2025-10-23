@@ -1244,12 +1244,19 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                     st.caption("""
                                     **Dati grezzi usati per il grafico**: ogni riga = combinazione feature + prompt.
                                     
-                                    **Note importanti**:
-                                    - `activation_max` è calcolata **ESCLUDENDO** il token BOS (primo elemento di values)
-                                    - `peak_token_idx` è la posizione del picco (1+ per esclusione BOS)
-                                    - `node_influence` è il **valore massimo** dal CSV per quella feature_key 
+                                    **Metriche di attivazione** (tutte escludono BOS):
+                                    - `activation_max` → Picco massimo di attivazione
+                                    - `activation_sum` → Somma totale delle attivazioni
+                                    - `activation_mean` → Media delle attivazioni (normalizzata per lunghezza)
+                                    - `sparsity_ratio` → (max - mean) / max. Misura quanto è concentrata l'attivazione:
+                                      - **~0**: attivazione uniforme/distribuita su tutti i token
+                                      - **~1**: attivazione molto sparsa (solo pochi picchi forti)
+                                    
+                                    **Altre colonne**:
+                                    - `peak_token_idx` → Posizione del picco (1+ per esclusione BOS)
+                                    - `node_influence` → Valore massimo dal CSV per quella feature_key 
                                       (una feature può apparire più volte nel CSV con diversi ctx_idx)
-                                    - `csv_ctx_idx` indica il contesto del token dove node_influence è massima
+                                    - `csv_ctx_idx` → Contesto del token dove node_influence è massima
                                     """)
                                     
                                     # Prepara dati dal JSON con più dettagli
@@ -1281,11 +1288,18 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                                 max_value = max(values_no_bos) if values_no_bos else None
                                                 # Indice relativo a values_no_bos, aggiungi 1 per l'offset
                                                 max_idx = values_no_bos.index(max_value) + 1 if max_value is not None else None
+                                                # Calcola somma e media escludendo BOS
+                                                sum_values = sum(values_no_bos) if values_no_bos else 0
+                                                mean_value = sum_values / len(values_no_bos) if values_no_bos else 0
+                                                # Calcola sparsity ratio: quanto è concentrata l'attivazione
+                                                # 0 = uniforme (tutte simili), 1 = molto sparsa (solo picchi)
+                                                sparsity = (max_value - mean_value) / max_value if max_value and max_value > 0 else 0
                                             else:
                                                 max_value = None
                                                 max_idx = None
-                                            
-                                            sum_values = a.get('sum_values', None)
+                                                sum_values = 0
+                                                mean_value = 0
+                                                sparsity = 0
                                             peak_token = tokens[max_idx] if isinstance(max_idx, int) and 0 <= max_idx < T else None
                                             
                                             # Applica filtro BOS se attivo
@@ -1300,6 +1314,8 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                                 'prompt': prompt[:50] + '...' if len(prompt) > 50 else prompt,
                                                 'activation_max': max_value,
                                                 'activation_sum': sum_values,
+                                                'activation_mean': mean_value,
+                                                'sparsity_ratio': sparsity,
                                                 'peak_token': peak_token,
                                                 'peak_token_idx': max_idx
                                             })
@@ -1325,7 +1341,8 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                     
                                     # Riordina colonne
                                     cols_order = ['feature_key', 'layer', 'index', 'source', 'prompt', 
-                                                  'activation_max', 'activation_sum', 'peak_token', 'peak_token_idx',
+                                                  'activation_max', 'activation_sum', 'activation_mean', 'sparsity_ratio',
+                                                  'peak_token', 'peak_token_idx',
                                                   'node_influence', 'csv_ctx_idx']
                                     verify_full = verify_full[cols_order]
                                     
@@ -1359,6 +1376,33 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                         use_container_width=True,
                                         height=400
                                     )
+                                    
+                                    # Statistiche metriche di attivazione
+                                    with st.expander("📊 Statistiche Metriche di Attivazione"):
+                                        stats_cols = st.columns(4)
+                                        
+                                        with stats_cols[0]:
+                                            st.metric("Max (media)", f"{verify_full['activation_max'].mean():.2f}")
+                                            st.caption(f"Range: {verify_full['activation_max'].min():.2f} - {verify_full['activation_max'].max():.2f}")
+                                        
+                                        with stats_cols[1]:
+                                            st.metric("Sum (media)", f"{verify_full['activation_sum'].mean():.2f}")
+                                            st.caption(f"Range: {verify_full['activation_sum'].min():.2f} - {verify_full['activation_sum'].max():.2f}")
+                                        
+                                        with stats_cols[2]:
+                                            st.metric("Mean (media)", f"{verify_full['activation_mean'].mean():.2f}")
+                                            st.caption(f"Range: {verify_full['activation_mean'].min():.2f} - {verify_full['activation_mean'].max():.2f}")
+                                        
+                                        with stats_cols[3]:
+                                            avg_sparsity = verify_full['sparsity_ratio'].mean()
+                                            st.metric("Sparsity (media)", f"{avg_sparsity:.3f}")
+                                            st.caption(f"Range: {verify_full['sparsity_ratio'].min():.3f} - {verify_full['sparsity_ratio'].max():.3f}")
+                                            if avg_sparsity > 0.7:
+                                                st.caption("🎯 Features molto sparse")
+                                            elif avg_sparsity > 0.4:
+                                                st.caption("⚖️ Sparsity moderata")
+                                            else:
+                                                st.caption("📊 Features distribuite")
                                     
                                     # Download CSV
                                     csv_export = verify_full.to_csv(index=False).encode('utf-8')
@@ -1647,23 +1691,19 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                     # ===== BARRE DI COPERTURA =====
                                     st.markdown("---")
                                     
-                                    # Usa verify_full per calcolare coverage (più accurato)
-                                    # Carica CSV completo per totale
-                                    csv_full = pd.read_csv(csv_path, encoding='utf-8')
-                                    csv_full['feature_key'] = csv_full['layer'].astype(int).astype(str) + '_' + csv_full['id'].astype(int).astype(str)
-                                    
                                     # Feature attive = features con activation_max > 0 in verify_full
                                     features_with_signal = verify_full[verify_full['activation_max'] > 0]['feature_key'].unique()
                                     n_features_active = len(features_with_signal)
                                     
-                                    # Feature totali = feature_key uniche nel CSV
-                                    n_features_total = csv_full['feature_key'].nunique()
+                                    # Feature totali = feature_key uniche nel JSON caricato (verify_full)
+                                    # NON dal CSV (che contiene tutte le features del grafo)
+                                    n_features_total = verify_full['feature_key'].nunique()
                                     
                                     # Calcola node_influence per feature attive vs totale
-                                    # Usa max(node_influence) per feature_key
-                                    csv_max_ni = csv_full.groupby('feature_key', as_index=False)['node_influence'].max()
-                                    active_features_influence = csv_max_ni[csv_max_ni['feature_key'].isin(features_with_signal)]['node_influence'].sum()
-                                    total_influence = csv_max_ni['node_influence'].sum()
+                                    # Usa max(node_influence) per feature_key, MA SOLO per le features nel JSON
+                                    csv_max_ni_json = verify_full.groupby('feature_key', as_index=False)['node_influence'].max()
+                                    active_features_influence = csv_max_ni_json[csv_max_ni_json['feature_key'].isin(features_with_signal)]['node_influence'].sum()
+                                    total_influence = csv_max_ni_json['node_influence'].sum()
                                     
                                     # Percentuali
                                     pct_features = (n_features_active / n_features_total * 100) if n_features_total > 0 else 0
@@ -1682,8 +1722,10 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                     
                                     st.caption("""
                                     💡 **Interpretazione**: 
-                                    - Features Coverage = % di features (dal CSV) che si attivano (>0) su almeno uno dei probe prompts
-                                    - Importance Coverage = % dell'importanza causale totale coperta dalle features attive
+                                    - Features Coverage = % di features (nel JSON caricato) che si attivano (>0) su almeno uno dei probe prompts
+                                    - Importance Coverage = % dell'importanza causale (delle features nel JSON) coperta dalle features attive
+                                    
+                                    📌 I valori di riferimento sono le features presenti nel JSON caricato, non l'intero grafo.
                                     """)
                                     
                                     # Dettagli features visualizzate
