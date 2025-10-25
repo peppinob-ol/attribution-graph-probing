@@ -949,13 +949,40 @@ if 'df_named' in st.session_state:
     # Raggruppa per supernode_name
     st.subheader("🔍 Analisi per Supernode Name")
     
+    # Calcola node_influence per feature (prendi 1 valore per feature, non tutte le righe)
+    if 'node_influence' in df_named.columns:
+        # Prendi node_influence per ogni feature_key (usa il primo valore, sono tutti uguali per la stessa feature)
+        feature_influence = df_named.groupby('feature_key')['node_influence'].first().reset_index()
+        
+        # Aggiungi supernode_name per ogni feature
+        feature_to_name = df_named.groupby('feature_key')['supernode_name'].first().reset_index()
+        feature_influence = feature_influence.merge(feature_to_name, on='feature_key')
+        
+        # Somma node_influence per supernode_name
+        name_influence = feature_influence.groupby('supernode_name')['node_influence'].sum().reset_index()
+        name_influence.columns = ['supernode_name', 'total_influence']
+    else:
+        name_influence = None
+    
+    # Aggregazioni base
     name_groups = df_named.groupby('supernode_name').agg({
         'feature_key': 'nunique',
         'pred_label': lambda x: x.mode()[0] if len(x) > 0 else '',
         'layer': lambda x: f"{x.min()}-{x.max()}" if x.min() != x.max() else str(x.min())
     }).reset_index()
     name_groups.columns = ['Supernode Name', 'N Features', 'Classe', 'Layer Range']
-    name_groups = name_groups.sort_values('N Features', ascending=False)
+    
+    # Aggiungi total_influence se disponibile
+    if name_influence is not None:
+        name_groups = name_groups.merge(
+            name_influence.rename(columns={'supernode_name': 'Supernode Name', 'total_influence': 'Total Influence'}),
+            on='Supernode Name',
+            how='left'
+        )
+        # Ordina per Total Influence (decrescente)
+        name_groups = name_groups.sort_values('Total Influence', ascending=False)
+    else:
+        name_groups = name_groups.sort_values('N Features', ascending=False)
     
     st.dataframe(name_groups, use_container_width=True)
     
@@ -978,7 +1005,7 @@ if 'df_named' in st.session_state:
         summary = {
             'timestamp': datetime.now().isoformat(),
             'n_features': int(df_named['feature_key'].nunique()),
-            'n_unique_names': int(n_unique_names),
+            'n_unique_names': int(df_named.groupby('feature_key')['supernode_name'].first().nunique()),
             'class_distribution': df_named.groupby('feature_key')['pred_label'].first().value_counts().to_dict(),
             'thresholds_used': custom_thresholds,
             'top_supernodes': name_groups.head(10).to_dict('records')
@@ -991,6 +1018,95 @@ if 'df_named' in st.session_state:
             file_name=f"node_grouping_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
             mime="application/json"
         )
+    
+    # Upload su Neuronpedia
+    st.divider()
+    st.subheader("🌐 Upload su Neuronpedia")
+    
+    st.info("Carica il subgrafo con i supernodes su Neuronpedia per visualizzazione interattiva.")
+    
+    # API Key input
+    api_key = st.text_input(
+        "API Key Neuronpedia",
+        type="password",
+        help="Inserisci la tua API key di Neuronpedia (richiesta per l'upload)"
+    )
+    
+    # Display name
+    display_name = st.text_input(
+        "Display Name",
+        value=f"Node Grouping - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        help="Nome visualizzato per il subgrafo su Neuronpedia"
+    )
+    
+    # Overwrite ID (opzionale)
+    overwrite_id = st.text_input(
+        "Overwrite ID (opzionale)",
+        value="",
+        help="Se fornito, sovrascrive un subgrafo esistente invece di crearne uno nuovo"
+    )
+    
+    # Verifica che abbiamo Graph JSON
+    graph_json_available = st.session_state.get('graph_json_uploaded') is not None
+    
+    if not graph_json_available:
+        st.warning("⚠️ Graph JSON non caricato. Carica il Graph JSON in Step 3 per abilitare l'upload.")
+    
+    # Bottone upload
+    if st.button("🚀 Upload su Neuronpedia", disabled=not (api_key and graph_json_available)):
+        if not api_key:
+            st.error("❌ Inserisci la tua API Key!")
+        elif not graph_json_available:
+            st.error("❌ Carica il Graph JSON prima di procedere!")
+        else:
+            try:
+                # Salva Graph JSON temporaneamente
+                graph_to_use = st.session_state.get('graph_json_uploaded')
+                
+                if isinstance(graph_to_use, Path):
+                    graph_path = str(graph_to_use)
+                else:
+                    # Se è un file caricato, salva temporaneamente
+                    graph_path = "temp_graph_upload.json"
+                    graph_json_content = json.loads(graph_to_use.read().decode('utf-8'))
+                    with open(graph_path, 'w', encoding='utf-8') as f:
+                        json.dump(graph_json_content, f)
+                
+                # Import funzione upload
+                import sys
+                import importlib.util
+                spec = importlib.util.spec_from_file_location("node_grouping", "scripts/02_node_grouping.py")
+                node_grouping = importlib.util.module_from_spec(spec)
+                sys.modules["node_grouping"] = node_grouping
+                spec.loader.exec_module(node_grouping)
+                upload_subgraph_to_neuronpedia = node_grouping.upload_subgraph_to_neuronpedia
+                
+                # Upload
+                with st.spinner("Uploading su Neuronpedia..."):
+                    result = upload_subgraph_to_neuronpedia(
+                        df_grouped=df_named,
+                        graph_json_path=graph_path,
+                        api_key=api_key,
+                        display_name=display_name if display_name else None,
+                        overwrite_id=overwrite_id if overwrite_id else None,
+                        verbose=False
+                    )
+                
+                # Rimuovi file temporaneo
+                if Path(graph_path).name == "temp_graph_upload.json" and Path(graph_path).exists():
+                    Path(graph_path).unlink()
+                
+                st.success("✅ Upload completato!")
+                st.json(result)
+                
+                # Link al subgrafo (se disponibile nella response)
+                if 'url' in result:
+                    st.markdown(f"🔗 [Visualizza su Neuronpedia]({result['url']})")
+                
+            except Exception as e:
+                st.error(f"❌ Errore upload: {e}")
+                import traceback
+                st.code(traceback.format_exc())
 
 # ===== FOOTER =====
 

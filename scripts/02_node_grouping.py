@@ -19,6 +19,7 @@ from string import punctuation
 from typing import List, Dict, Tuple, Optional, Any
 import pandas as pd
 import numpy as np
+import requests
 
 
 # ============================================================================
@@ -745,48 +746,121 @@ def normalize_token_for_naming(token: str, all_occurrences: List[str]) -> str:
     return token.lower()
 
 
+def get_top_activations_original(
+    activations_by_prompt: Optional[Dict],
+    feature_key: str,
+    semantic_tokens_list: Optional[List[str]]
+) -> List[Dict[str, Any]]:
+    """
+    Estrae le top attivazioni sui token semantici ammessi.
+    
+    Args:
+        activations_by_prompt: Dict con attivazioni per ogni probe prompt
+        feature_key: Chiave della feature (es. "1_12928")
+        semantic_tokens_list: Lista di token semantici ammessi (già lowercase)
+        
+    Returns:
+        Lista di dict con {"tk": token, "act": activation}, ordinata per activation desc
+    """
+    if not (activations_by_prompt and feature_key and semantic_tokens_list):
+        return []
+    
+    # semantic_tokens_list è già una lista di token lowercase
+    semantic_tokens_original = semantic_tokens_list
+    
+    # Raccogli tutte le attivazioni sui token semantici originali
+    token_activations = {}  # {token_lower: max_activation}
+    token_display = {}      # {token_lower: token_originale_con_case}
+    
+    for prompt_text, prompt_data in activations_by_prompt.items():
+        probe_tokens = prompt_data.get('tokens', [])
+        activations_dict = prompt_data.get('activations', {})
+        
+        # Prendi i values per questa feature
+        values = activations_dict.get(feature_key, [])
+        if not values:
+            continue
+        
+        for idx, probe_token in enumerate(probe_tokens):
+            if idx >= len(values):
+                continue
+            
+            probe_token_lower = probe_token.strip().lower()
+            
+            # Verifica se questo token è tra i semantici originali
+            if probe_token_lower in semantic_tokens_original:
+                activation = values[idx]
+                
+                # Mantieni il max per ogni token
+                if probe_token_lower not in token_activations or activation > token_activations[probe_token_lower]:
+                    token_activations[probe_token_lower] = activation
+                    token_display[probe_token_lower] = probe_token.strip()
+    
+    # Converti in lista ordinata per activation desc
+    result = []
+    for token_lower in sorted(token_activations.keys(), key=lambda t: token_activations[t], reverse=True):
+        result.append({
+            "tk": token_display[token_lower],
+            "act": float(token_activations[token_lower])
+        })
+    
+    return result
+
+
 def name_relationship_node(
     feature_key: str,
     feature_records: pd.DataFrame,
-    activations_data: Optional[Dict] = None
+    activations_by_prompt: Optional[Dict] = None,
+    semantic_tokens_list: Optional[List[str]] = None
 ) -> str:
     """
     Naming per nodi Relationship: "(X) related"
-    dove X è il primo token semantico con max attivazione dal prompt originale.
+    dove X è il token semantico ammesso con max attivazione su TUTTI i probe prompts.
     
     Args:
         feature_key: chiave della feature (es. "1_12928")
         feature_records: DataFrame con tutti i record per questa feature
-        activations_data: Dict con 'tokens' e 'counts' dal JSON attivazioni
+        activations_by_prompt: Dict con attivazioni per ogni probe prompt
+        semantic_tokens_list: Lista di token semantici ammessi (prompt originale + Semantic labels)
         
     Returns:
         supernode_name: str (es. "(capital) related")
     """
-    # Trova record con activation_max massima
+    # Trova record con activation_max massima (per fallback)
     max_record = feature_records.loc[feature_records['activation_max'].idxmax()]
     
-    # Estrai primo token semantico con max attivazione dal prompt originale
-    if activations_data and 'tokens' in activations_data and 'counts' in activations_data:
-        tokens = activations_data['tokens']
-        counts = activations_data['counts']  # array [n_tokens] per questa feature
+    # Se abbiamo tutto il necessario
+    if (activations_by_prompt and feature_key and semantic_tokens_list):
         
-        # Prompt originale: tutti i token tranne l'ultimo
-        original_tokens = tokens[:-1]
+        # semantic_tokens_list è già una lista di token lowercase
+        semantic_tokens_original = semantic_tokens_list
         
-        # Trova token semantico con max attivazione
+        # Cerca questi token in TUTTI i probe prompts e trova quello con max activation
         max_activation = -1
         best_token = None
         
-        for idx, token in enumerate(original_tokens):
-            # Escludi <bos> e altri token speciali
-            if token.strip() in ['<bos>', '<eos>', '<pad>', '<unk>']:
+        for prompt_text, prompt_data in activations_by_prompt.items():
+            probe_tokens = prompt_data.get('tokens', [])
+            activations_dict = prompt_data.get('activations', {})
+            
+            # Prendi i values per questa feature
+            values = activations_dict.get(feature_key, [])
+            if not values:
                 continue
             
-            if classify_peak_token(token) == "semantic":
-                activation = counts[idx]  # attivazione su questo token
-                if activation > max_activation:
-                    max_activation = activation
-                    best_token = token
+            # Cerca token semantici originali in questo probe prompt
+            for idx, probe_token in enumerate(probe_tokens):
+                if idx >= len(values):
+                    continue
+                
+                probe_token_lower = probe_token.strip().lower()
+                
+                # Verifica se questo token del probe è tra i semantici originali
+                if probe_token_lower in semantic_tokens_original:
+                    activation = values[idx]
+                    if activation > max_activation:
+                        max_activation = activation
+                        best_token = probe_token
         
         if best_token:
             # Normalizza (mantieni maiuscola se presente)
@@ -794,7 +868,66 @@ def name_relationship_node(
             x = normalize_token_for_naming(best_token, all_occurrences)
             return f"({x}) related"
     
-    # Fallback: usa peak_token del record con max activation
+    # Fallback 1: Se abbiamo attivazioni ma non tokens originali,
+    # usa token semantico qualsiasi con max activation su tutti i probe prompts
+    if activations_by_prompt and feature_key:
+        max_activation = -1
+        best_token = None
+        
+        for prompt_text, prompt_data in activations_by_prompt.items():
+            probe_tokens = prompt_data.get('tokens', [])
+            activations_dict = prompt_data.get('activations', {})
+            
+            values = activations_dict.get(feature_key, [])
+            if not values:
+                continue
+            
+            for idx, token in enumerate(probe_tokens):
+                if idx >= len(values):
+                    continue
+                
+                if token.strip() in ['<bos>', '<eos>', '<pad>', '<unk>']:
+                    continue
+                
+                if classify_peak_token(token) == "semantic":
+                    activation = values[idx]
+                    if activation > max_activation:
+                        max_activation = activation
+                        best_token = token
+        
+        if best_token:
+            all_occurrences = [best_token]
+            x = normalize_token_for_naming(best_token, all_occurrences)
+            return f"({x}) related"
+        
+        # Fallback 2: Token qualsiasi con max activation
+        max_activation = -1
+        best_token = None
+        
+        for prompt_text, prompt_data in activations_by_prompt.items():
+            probe_tokens = prompt_data.get('tokens', [])
+            activations_dict = prompt_data.get('activations', {})
+            
+            values = activations_dict.get(feature_key, [])
+            if not values:
+                continue
+            
+            for idx, token in enumerate(probe_tokens):
+                if idx >= len(values):
+                    continue
+                
+                if token.strip() not in ['<bos>', '<eos>', '<pad>', '<unk>']:
+                    activation = values[idx]
+                    if activation > max_activation:
+                        max_activation = activation
+                        best_token = token
+        
+        if best_token:
+            all_occurrences = [best_token]
+            x = normalize_token_for_naming(best_token, all_occurrences)
+            return f"({x}) related"
+    
+    # Fallback finale: usa peak_token del record con max activation
     peak_token = str(max_record['peak_token']).strip()
     all_occurrences = feature_records['peak_token'].astype(str).tolist()
     x = normalize_token_for_naming(peak_token, all_occurrences)
@@ -824,48 +957,37 @@ def name_semantic_node(
         (feature_records['activation_max'] > 0)
     ]
     
-    # Se non ci sono peak semantici attivi, prova solo semantici (anche con activation 0)
+    # Se non ci sono peak semantici attivi, usa csv_ctx_idx dal Graph JSON
     if len(semantic_records) == 0:
-        semantic_records = feature_records[feature_records['peak_token_type'] == 'semantic']
-    
-    # Se ancora nessuno, fallback su tutti i record attivi
-    if len(semantic_records) == 0:
+        if 'csv_ctx_idx' in feature_records.columns and graph_json_path:
+            csv_ctx_idx = feature_records.iloc[0].get('csv_ctx_idx')
+            
+            if pd.notna(csv_ctx_idx) and graph_json_path:
+                try:
+                    with open(graph_json_path, 'r', encoding='utf-8') as f:
+                        graph_json = json.load(f)
+                    
+                    prompt_tokens = graph_json.get('metadata', {}).get('prompt_tokens', [])
+                    csv_ctx_idx_int = int(csv_ctx_idx)
+                    
+                    if 0 <= csv_ctx_idx_int < len(prompt_tokens):
+                        token_from_graph = prompt_tokens[csv_ctx_idx_int]
+                        
+                        # Normalizza
+                        all_occurrences = [token_from_graph]
+                        return normalize_token_for_naming(token_from_graph, all_occurrences)
+                except Exception as e:
+                    # Se fallisce, continua con la logica normale
+                    pass
+        
+        # Se csv_ctx_idx fallisce, usa tutti i record attivi (semantici E funzionali)
         semantic_records = feature_records[feature_records['activation_max'] > 0]
         
-        # Controlla se TUTTI i record attivi sono funzionali
-        if len(semantic_records) > 0:
-            all_functional = all(
-                semantic_records['peak_token_type'] == 'functional'
-            )
-            
-            # Se tutti funzionali E abbiamo csv_ctx_idx E graph_json_path
-            if all_functional and 'csv_ctx_idx' in feature_records.columns and graph_json_path:
-                # Usa il token dal Graph JSON alla posizione csv_ctx_idx
-                csv_ctx_idx = feature_records.iloc[0].get('csv_ctx_idx')
-                
-                if pd.notna(csv_ctx_idx) and graph_json_path:
-                    try:
-                        with open(graph_json_path, 'r', encoding='utf-8') as f:
-                            graph_json = json.load(f)
-                        
-                        prompt_tokens = graph_json.get('metadata', {}).get('prompt_tokens', [])
-                        csv_ctx_idx_int = int(csv_ctx_idx)
-                        
-                        if 0 <= csv_ctx_idx_int < len(prompt_tokens):
-                            token_from_graph = prompt_tokens[csv_ctx_idx_int]
-                            
-                            # Normalizza
-                            all_occurrences = [token_from_graph]
-                            return normalize_token_for_naming(token_from_graph, all_occurrences)
-                    except Exception as e:
-                        # Se fallisce, continua con la logica normale
-                        pass
+        # Se ancora nessuno (tutti inattivi), usa tutti i record
+        if len(semantic_records) == 0:
+            semantic_records = feature_records
     
-    # Ultimo fallback: tutti i record
-    if len(semantic_records) == 0:
-        semantic_records = feature_records
-    
-    # Trova record con activation_max massima tra i semantici
+    # Trova record con activation_max massima
     max_record = semantic_records.loc[semantic_records['activation_max'].idxmax()]
     peak_token = str(max_record['peak_token']).strip()
     
@@ -989,84 +1111,125 @@ def name_nodes(
     """
     df = df.copy()
     df['supernode_name'] = ''
+    df['top_activations_probe_original'] = ''
     
     if verbose:
         print(f"\n=== Step 3: Naming Supernodi ===")
     
     # Carica JSON attivazioni se disponibile
     activations_by_prompt = {}
-    feature_indices = {}  # Mapping feature_key -> indice in counts
     
     if activations_json_path:
         try:
             with open(activations_json_path, 'r', encoding='utf-8') as f:
                 activations_json = json.load(f)
             
-            # Indicizza per prompt text (non probe_id, perché il CSV non ha probe_id)
+            # Indicizza per prompt text
+            # Usa 'activations' invece di 'counts' per avere i valori corretti
             for result in activations_json.get('results', []):
                 prompt_text = result.get('prompt', '')
+                tokens = result.get('tokens', [])
+                activations_list = result.get('activations', [])
+                
+                # Crea dict {feature_key: values} per questo prompt
+                activations_dict = {}
+                for act in activations_list:
+                    source = act.get('source', '')
+                    index = act.get('index', 0)
+                    feature_key = f"{source.split('-')[0]}_{index}"  # es. "1-clt-hp" -> "1_12928"
+                    activations_dict[feature_key] = act.get('values', [])
+                
                 activations_by_prompt[prompt_text] = {
-                    'tokens': result.get('tokens', []),
-                    'counts': result.get('counts', [])  # [n_features x n_tokens]
+                    'tokens': tokens,
+                    'activations': activations_dict  # {feature_key: [values]}
                 }
-            
-            # Crea mapping feature_key -> indice in counts
-            # Assumiamo che l'ordine delle feature nel CSV corrisponda all'ordine in counts
-            # (questo è vero se il CSV è stato generato dallo stesso JSON)
-            unique_features = df['feature_key'].unique()
-            for idx, fk in enumerate(unique_features):
-                feature_indices[fk] = idx
             
             if verbose:
                 print(f"  JSON attivazioni caricato: {len(activations_by_prompt)} prompt")
-                print(f"  Feature indices mappate: {len(feature_indices)}")
         except Exception as e:
             if verbose:
                 print(f"  WARNING: Impossibile caricare JSON attivazioni: {e}")
             activations_by_prompt = {}
-            feature_indices = {}
+    
+    # Carica Graph JSON per tokens originali (per Relationship naming)
+    graph_tokens_original = None
+    if graph_json_path:
+        try:
+            with open(graph_json_path, 'r', encoding='utf-8') as f:
+                graph_json = json.load(f)
+            
+            graph_tokens_original = graph_json.get('metadata', {}).get('prompt_tokens', [])
+            
+            if verbose:
+                print(f"  Graph JSON caricato: {len(graph_tokens_original)} tokens originali")
+        except Exception as e:
+            if verbose:
+                print(f"  WARNING: Impossibile caricare Graph JSON: {e}")
+            graph_tokens_original = None
     
     # Aggrega per feature_key
+    # FASE 1: Naming per Semantic e Say X
     for feature_key, group in df.groupby('feature_key'):
         pred_label = group['pred_label'].iloc[0]
         
-        # Naming basato sulla classe
-        if pred_label == "Relationship":
-            # Per Relationship, serve il JSON delle attivazioni
-            # Prendi il record con MAX ACTIVATION per trovare il prompt corretto
-            max_record = group.loc[group['activation_max'].idxmax()]
-            prompt_text = max_record.get('prompt', '')
-            
-            # Estrai dati attivazioni per questo prompt
-            activations_data = None
-            if prompt_text in activations_by_prompt and feature_key in feature_indices:
-                # Trova l'indice della feature nel counts
-                feature_idx = feature_indices[feature_key]
-                
-                # Estrai la riga corrispondente a questa feature
-                full_counts = activations_by_prompt[prompt_text]['counts']
-                tokens = activations_by_prompt[prompt_text]['tokens']
-                
-                # counts[feature_idx] è l'array di attivazioni per questa feature
-                activations_data = {
-                    'tokens': tokens,
-                    'counts': full_counts[feature_idx]
-                }
-            
-            name = name_relationship_node(feature_key, group, activations_data)
-        
-        elif pred_label == "Semantic":
+        if pred_label == "Semantic":
             name = name_semantic_node(feature_key, group, graph_json_path)
+            df.loc[df['feature_key'] == feature_key, 'supernode_name'] = name
         
         elif pred_label == 'Say "X"':
             name = name_sayx_node(feature_key, group)
+            df.loc[df['feature_key'] == feature_key, 'supernode_name'] = name
+    
+    # FASE 2: Raccogli token semantici dai nomi Semantic per Relationship
+    semantic_labels = set()
+    for feature_key, group in df.groupby('feature_key'):
+        pred_label = group['pred_label'].iloc[0]
+        if pred_label == "Semantic":
+            supernode_name = group['supernode_name'].iloc[0]
+            if supernode_name and supernode_name not in ['Semantic (unknown)', 'punctuation']:
+                # Normalizza: lowercase e strip
+                semantic_labels.add(supernode_name.strip().lower())
+    
+    # Combina con token originali (evita duplicati)
+    if graph_tokens_original:
+        for token in graph_tokens_original:
+            if token.strip() not in ['<bos>', '<eos>', '<pad>', '<unk>']:
+                if classify_peak_token(token) == "semantic":
+                    semantic_labels.add(token.strip().lower())
+    
+    # Converti in lista per passare alle funzioni
+    extended_semantic_tokens = list(semantic_labels) if semantic_labels else None
+    
+    if verbose and extended_semantic_tokens:
+        print(f"  Token semantici estesi (originali + Semantic labels): {len(extended_semantic_tokens)}")
+    
+    # FASE 3: Naming per Relationship (usa token estesi)
+    for feature_key, group in df.groupby('feature_key'):
+        pred_label = group['pred_label'].iloc[0]
         
-        else:
-            # Fallback: usa pred_label
-            name = pred_label
+        if pred_label == "Relationship":
+            # Per Relationship, usa token semantici estesi
+            name = name_relationship_node(
+                feature_key, 
+                group, 
+                activations_by_prompt, 
+                extended_semantic_tokens  # ← Token estesi invece di graph_tokens_original
+            )
+            df.loc[df['feature_key'] == feature_key, 'supernode_name'] = name
         
-        # Assegna nome
-        df.loc[df['feature_key'] == feature_key, 'supernode_name'] = name
+        elif pred_label not in ["Semantic", 'Say "X"']:
+            # Fallback per altre classi (se esistono)
+            df.loc[df['feature_key'] == feature_key, 'supernode_name'] = pred_label
+    
+    # FASE 4: Calcola top_activations_probe_original (dopo aver calcolato tutti i nomi)
+    for feature_key, group in df.groupby('feature_key'):
+        top_activations = get_top_activations_original(
+            activations_by_prompt,
+            feature_key,
+            extended_semantic_tokens  # ← Usa token estesi
+        )
+        top_activations_json = json.dumps(top_activations) if top_activations else "[]"
+        df.loc[df['feature_key'] == feature_key, 'top_activations_probe_original'] = top_activations_json
     
     if verbose:
         # Statistiche
@@ -1097,6 +1260,168 @@ def name_nodes(
                     print(f"    - {name}")
     
     return df
+
+
+# ============================================================================
+# STEP 4: UPLOAD SUBGRAFO SU NEURONPEDIA
+# ============================================================================
+
+def upload_subgraph_to_neuronpedia(
+    df_grouped: pd.DataFrame,
+    graph_json_path: str,
+    api_key: str,
+    display_name: Optional[str] = None,
+    overwrite_id: Optional[str] = None,
+    verbose: bool = True
+) -> Dict[str, Any]:
+    """
+    Carica il subgrafo con supernodes su Neuronpedia.
+    
+    Args:
+        df_grouped: DataFrame con supernode_name (output di name_nodes)
+        graph_json_path: Path al Graph JSON originale
+        api_key: API key di Neuronpedia
+        display_name: Nome display per il subgrafo (opzionale)
+        overwrite_id: ID del subgrafo da sovrascrivere (opzionale)
+        verbose: Stampa info
+        
+    Returns:
+        Response JSON da Neuronpedia API
+    """
+    if verbose:
+        print(f"\n=== Upload Subgrafo su Neuronpedia ===")
+    
+    # Carica Graph JSON per metadata
+    try:
+        with open(graph_json_path, 'r', encoding='utf-8') as f:
+            graph_json = json.load(f)
+    except Exception as e:
+        raise ValueError(f"Impossibile caricare Graph JSON: {e}")
+    
+    # Estrai metadata
+    metadata = graph_json.get('metadata', {})
+    slug = metadata.get('slug', 'unknown')
+    model_id = metadata.get('scan', 'gemma-2-2b')
+    
+    # Estrai nodes e qParams
+    nodes = graph_json.get('nodes', [])
+    q_params = graph_json.get('qParams', {})
+    
+    # Crea mapping node_id → feature_key
+    # node_id formato: "layer_feature_ctx_idx" (es. "0_12284_1")
+    node_id_to_feature = {}
+    for node in nodes:
+        node_id = node.get('node_id', '')
+        # Estrai layer e feature da node_id
+        parts = node_id.split('_')
+        if len(parts) >= 2:
+            layer = parts[0]
+            feature = parts[1]
+            feature_key = f"{layer}_{feature}"
+            node_id_to_feature[node_id] = feature_key
+    
+    if verbose:
+        print(f"  Graph JSON: {len(nodes)} nodi, {len(node_id_to_feature)} feature uniche")
+    
+    # Crea mapping feature_key → supernode_name
+    feature_to_supernode = df_grouped.groupby('feature_key')['supernode_name'].first().to_dict()
+    
+    # Crea supernodes: raggruppa node_id per supernode_name
+    supernode_groups = {}  # {supernode_name: [node_ids]}
+    
+    for node_id, feature_key in node_id_to_feature.items():
+        supernode_name = feature_to_supernode.get(feature_key)
+        if supernode_name:
+            if supernode_name not in supernode_groups:
+                supernode_groups[supernode_name] = []
+            supernode_groups[supernode_name].append(node_id)
+    
+    # Converti in formato Neuronpedia: [["supernode_name", "node_id1", "node_id2", ...], ...]
+    supernodes = []
+    for supernode_name, node_ids in supernode_groups.items():
+        if len(node_ids) > 0:  # Solo supernodes con almeno 1 nodo
+            supernodes.append([supernode_name] + node_ids)
+    
+    if verbose:
+        print(f"  Supernodes: {len(supernodes)} gruppi")
+        print(f"    - Totale nodi raggruppati: {sum(len(s)-1 for s in supernodes)}")
+        print(f"    - Esempi:")
+        for sn in supernodes[:3]:
+            print(f"      - {sn[0]}: {len(sn)-1} nodi")
+    
+    # Estrai pinnedIds da qParams (se presenti)
+    pinned_ids = q_params.get('pinnedIds', [])
+    
+    # Se non ci sono pinnedIds, usa tutti i node_id
+    if not pinned_ids:
+        pinned_ids = list(node_id_to_feature.keys())
+        if verbose:
+            print(f"  Nessun pinnedId trovato, uso tutti i {len(pinned_ids)} nodi")
+    
+    # Estrai pruning/density thresholds
+    pruning_settings = metadata.get('pruning_settings', {})
+    pruning_threshold = pruning_settings.get('node_threshold', 0.8)
+    density_threshold = 0.99  # Default
+    
+    # Display name
+    if not display_name:
+        display_name = f"{slug} (grouped)"
+    
+    # Prepara payload
+    payload = {
+        "modelId": model_id,
+        "slug": slug,
+        "displayName": display_name,
+        "pinnedIds": pinned_ids,
+        "supernodes": supernodes,
+        "clerps": [],  # Non gestiamo clerps per ora
+        "pruningThreshold": pruning_threshold,
+        "densityThreshold": density_threshold,
+        "overwriteId": overwrite_id or ""
+    }
+    
+    if verbose:
+        print(f"\n  Payload:")
+        print(f"    - modelId: {model_id}")
+        print(f"    - slug: {slug}")
+        print(f"    - displayName: {display_name}")
+        print(f"    - pinnedIds: {len(pinned_ids)}")
+        print(f"    - supernodes: {len(supernodes)}")
+        print(f"    - pruningThreshold: {pruning_threshold}")
+        print(f"    - densityThreshold: {density_threshold}")
+        print(f"    - overwriteId: {overwrite_id or '(nuovo)'}")
+    
+    # Upload
+    try:
+        if verbose:
+            print(f"\n  Uploading su Neuronpedia...")
+        
+        response = requests.post(
+            "https://www.neuronpedia.org/api/graph/subgraph/save",
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": api_key
+            },
+            json=payload,
+            timeout=30
+        )
+        
+        response.raise_for_status()
+        result = response.json()
+        
+        if verbose:
+            print(f"  ✅ Upload completato!")
+            print(f"  Response: {json.dumps(result, indent=2)}")
+        
+        return result
+        
+    except requests.exceptions.RequestException as e:
+        if verbose:
+            print(f"  ❌ Errore upload: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"  Response status: {e.response.status_code}")
+                print(f"  Response body: {e.response.text}")
+        raise
 
 
 # ============================================================================
