@@ -1,4 +1,4 @@
-# Environment Setup - Circuit Tracer + Probe Rover
+# Environment Setup - Attribution Graph Probing
 
 **Pipeline v2.0.0-clean**
 
@@ -105,7 +105,7 @@ streamlit run app.py
 ## Project Structure
 
 ```
-circuit_tracer-prompt_rover/
+attribution-graph-probing/
 ├── eda/                              # Streamlit application
 │   ├── app.py                        # Main app (homepage)
 │   ├── pages/

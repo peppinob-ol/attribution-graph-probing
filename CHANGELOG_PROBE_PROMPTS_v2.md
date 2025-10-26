@@ -1,4 +1,4 @@
-# Changelog - Probe Prompts v2.0
+# Changelog - Attribution Graph Probing v2.0
 
 ## [2.0.0] - 2025-10-19
 

@@ -1,4 +1,4 @@
-# Circuit Tracer + Probe Rover - Applicazione Streamlit
+# Attribution Graph Probing - Applicazione Streamlit
 
 **Versione:** 2.0.0-clean | Pipeline v2  
 **Data:** Ottobre 2025
@@ -617,6 +617,6 @@ Per domande o problemi:
 
 **Autore**: Sistema automatizzato  
 **Licenza**: Vedi LICENSE  
-**Repository**: circuit_tracer-prompt_rover
+**Repository**: attribution-graph-probing
 
-**Buon lavoro con Circuit Tracer + Probe Rover!** 🔬🌐🔍
+**Buon lavoro con Attribution Graph Probing!** 🔬🌐🔍

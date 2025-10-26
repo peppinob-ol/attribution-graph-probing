@@ -1,4 +1,4 @@
-# Circuit Tracer + Probe Rover
+# Attribution Graph Probing
 
 **Automated Attribution Graph Analysis through Probe Prompting**
 
@@ -63,7 +63,7 @@ The app will open at `http://localhost:8501`
 ## Project Structure
 
 ```
-circuit_tracer-prompt_rover/
+attribution-graph-probing/
 ├── eda/                                    # Streamlit application
 │   ├── app.py                              # Main app
 │   ├── pages/

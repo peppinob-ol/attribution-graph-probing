@@ -1,6 +1,6 @@
 # Quick Start - Streamlit App
 
-**Circuit Tracer + Probe Rover - Pipeline v2.0.0-clean**
+**Attribution Graph Probing - Pipeline v2.0.0-clean**
 
 ---
 
