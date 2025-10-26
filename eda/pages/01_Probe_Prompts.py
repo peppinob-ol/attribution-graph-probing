@@ -12,6 +12,7 @@ import json
 import os
 from datetime import datetime
 import pandas as pd
+import re
 
 # Import probe functions
 import importlib.util
@@ -116,6 +117,78 @@ model_choice = st.sidebar.selectbox(
 )
 
 st.sidebar.markdown("---")
+
+# ===== HELPERS: concepts/prompt JSON normalization =====
+
+def _is_concepts_list(obj):
+    return (
+        isinstance(obj, list)
+        and all(
+            isinstance(x, dict)
+            and ("label" in x and "category" in x and "description" in x)
+            for x in obj
+        )
+    )
+
+
+def _is_prompts_list(obj):
+    return (
+        isinstance(obj, list)
+        and all(isinstance(x, dict) and ("text" in x) for x in obj)
+    )
+
+
+def _parse_prompt_text_to_concept(text: str) -> dict:
+    t = (text or "").strip()
+    # Default fallbacks
+    category = ""
+    description = ""
+    label = ""
+
+    # Split category from the rest: "category: description is label"
+    if ":" in t:
+        left, _sep, rest = t.partition(":")
+        category = left.strip()
+    else:
+        rest = t
+
+    # Split description and label on last occurrence of " is "
+    if " is " in rest:
+        desc_part, _sep, label_part = rest.rpartition(" is ")
+        description = desc_part.strip()
+        label = label_part.strip()
+    else:
+        # If no " is ", try a simpler split: last token as label
+        parts = rest.strip().split()
+        if len(parts) >= 2:
+            label = parts[-1]
+            description = rest.strip()[: -len(label)].strip().rstrip(":")
+        else:
+            # Give up; put everything as description
+            description = rest.strip()
+
+    return {
+        "label": label,
+        "category": category or "",
+        "description": description,
+    }
+
+
+def normalize_concepts_json(obj) -> list:
+    """Accept either concepts JSON ([{label,category,description}, ...])
+    or prompts JSON ([{id?, text}, ...]) and return a concepts list.
+    """
+    if _is_concepts_list(obj):
+        return obj
+    if _is_prompts_list(obj):
+        concepts = []
+        for item in obj:
+            concepts.append(_parse_prompt_text_to_concept(item.get("text", "")))
+        return concepts
+    # Unsupported shape: try best-effort if it's a list of strings
+    if isinstance(obj, list) and all(isinstance(x, str) for x in obj):
+        return [_parse_prompt_text_to_concept(x) for x in obj]
+    return []
 
 # ===== STEP 1: CARICAMENTO GRAPH JSON =====
 
@@ -633,10 +706,15 @@ TEXT:
         
         if uploaded_file is not None:
             try:
-                concepts_uploaded = json.load(uploaded_file)
-                st.session_state['concepts'] = concepts_uploaded
-                st.success(f"✅ Caricati {len(concepts_uploaded)} concepts da file!")
-                st.rerun()
+                raw = json.load(uploaded_file)
+                concepts_uploaded = normalize_concepts_json(raw)
+                if not concepts_uploaded:
+                    st.error("❌ Formato JSON non riconosciuto. Attesi: concepts [{label,category,description}] oppure prompts [{id?, text}].")
+                else:
+                    st.session_state['concepts'] = concepts_uploaded
+                    if _is_prompts_list(raw):
+                        st.info("🔄 Riconosciuto formato 'prompts'. Convertito automaticamente in 'concepts'.")
+                    st.success(f"✅ Caricati {len(concepts_uploaded)} concepts da file!")
             except Exception as e:
                 st.error(f"❌ Errore nel caricamento: {e}")
 
@@ -1080,13 +1158,27 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
         uploaded_file = st.file_uploader(
             "Seleziona file JSON",
             type=['json'],
-            help="File JSON con attivazioni pre-calcolate da batch_get_activations.py"
+            help="File JSON con attivazioni pre-calcolate da batch_get_activations.py",
+            key="activations_uploader"
         )
         
+        # Persist upload in session_state to avoid losing it on reruns
         if uploaded_file is not None:
             try:
-                # Carica il JSON
-                activations_data = json.load(uploaded_file)
+                raw_bytes = uploaded_file.getvalue()
+                text = raw_bytes.decode('utf-8')
+                activations_data = json.loads(text)
+                st.session_state['activations_uploaded_data'] = activations_data
+                st.session_state['activations_uploaded_name'] = uploaded_file.name
+            except json.JSONDecodeError as e:
+                st.error(f"❌ Errore nel parsing del JSON: {e}")
+            except Exception as e:
+                st.error(f"❌ Errore nel caricamento del file: {e}")
+                st.exception(e)
+        
+        if 'activations_uploaded_data' in st.session_state:
+            try:
+                activations_data = st.session_state['activations_uploaded_data']
                 
                 # Mostra info sul file caricato
                 st.success("✅ File caricato con successo!")
@@ -1311,7 +1403,7 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                                 'layer': layer,
                                                 'index': idx,
                                                 'source': src,
-                                                'prompt': prompt[:50] + '...' if len(prompt) > 50 else prompt,
+                                                'prompt': prompt,
                                                 'activation_max': max_value,
                                                 'activation_sum': sum_values,
                                                 'activation_mean': mean_value,

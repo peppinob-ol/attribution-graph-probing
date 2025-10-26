@@ -98,7 +98,7 @@ with st.expander("Advanced configuration", expanded=False):
         
         source_set_name = st.text_input(
             "Source Set Name",
-            value="clt-hp"#"gemmascope-transcoder-16k",
+            value="clt-hp", #"gemmascope-transcoder-16k",
             help="Name of the SAE source set to use"
         )
         

@@ -108,6 +108,29 @@ window_size = st.sidebar.slider(
     help="Numero massimo di token da esplorare per trovare target semantici"
 )
 
+# Token blacklist
+st.sidebar.markdown("**🚫 Token Blacklist**")
+blacklist_input = st.sidebar.text_area(
+    "Token da escludere (uno per riga)",
+    value=st.session_state.get('blacklist_input', ''),
+    height=100,
+    help="Token che non dovrebbero essere usati come label. Se il primo token con max activation e' in blacklist, il sistema fa fallback al successivo. Inserisci un token per riga (case-insensitive).",
+    key='blacklist_input'
+)
+
+# Parse blacklist (split by newline, strip, lowercase)
+blacklist_tokens = set()
+if blacklist_input.strip():
+    for line in blacklist_input.strip().split('\n'):
+        token = line.strip().lower()
+        if token:
+            blacklist_tokens.add(token)
+
+if blacklist_tokens:
+    st.sidebar.info(f"🚫 {len(blacklist_tokens)} token in blacklist")
+else:
+    st.sidebar.caption("Nessun token in blacklist")
+
 # Soglie classificazione
 st.sidebar.subheader("📊 Soglie Classificazione")
 
@@ -152,6 +175,7 @@ with col_load:
 # Carica soglie da file se fornito
 if uploaded_thresholds is not None:
     try:
+        uploaded_thresholds.seek(0)  # Reset file pointer to beginning
         loaded_thresholds = json.load(uploaded_thresholds)
         
         # Valida che contenga tutte le chiavi necessarie
@@ -368,6 +392,7 @@ if json_to_use:
             json_name = json_to_use.name
         else:
             # File uploadato
+            json_to_use.seek(0)  # Reset file pointer to beginning
             tokens_json = json.load(json_to_use)
             json_name = json_to_use.name if hasattr(json_to_use, 'name') else 'uploaded file'
         
@@ -380,6 +405,7 @@ if json_to_use:
 selected_nodes_data = None
 if nodes_json_to_use:
     try:
+        nodes_json_to_use.seek(0)  # Reset file pointer to beginning
         selected_nodes_data = json.load(nodes_json_to_use)
         # Salva in session state per upload
         st.session_state['selected_nodes_data'] = selected_nodes_data
@@ -857,6 +883,12 @@ with st.expander("ℹ️ Cosa fa questo step?", expanded=False):
       - Tie-break: distance minore, poi backward > forward
       - Fallback: "Say (?)" se nessun target trovato
     
+    **Token Blacklist** (NEW):
+    - Se un token è nella blacklist, viene automaticamente skippato
+    - Il sistema fa fallback al token con la seconda (o successiva) max activation
+    - Utile per escludere token generici o non informativi (es. "the", "a", "is")
+    - Configurabile nella sidebar "Token Blacklist"
+    
     **Normalizzazione**:
     - Strip whitespace
     - Rimuove punteggiatura trailing (es. "entity:" → "entity")
@@ -884,6 +916,7 @@ else:
                     else:
                         # Se è un file caricato, salva temporaneamente
                         graph_path = Path("temp_graph.json")
+                        graph_to_use.seek(0)  # Reset file pointer to beginning
                         graph_json_content = json.loads(graph_to_use.read().decode('utf-8'))
                         with open(graph_path, 'w', encoding='utf-8') as f:
                             json.dump(graph_json_content, f)
@@ -895,6 +928,7 @@ else:
                     st.session_state['df_classified'],
                     activations_json_path=str(json_path) if json_path else None,
                     graph_json_path=graph_path,
+                    blacklist_tokens=blacklist_tokens if blacklist_tokens else None,
                     verbose=False
                 )
                 
@@ -1103,6 +1137,7 @@ if 'df_named' in st.session_state:
                 else:
                     # Se è un file caricato, salva temporaneamente
                     graph_path = "temp_graph_upload.json"
+                    graph_to_use.seek(0)  # Reset file pointer to beginning
                     graph_json_content = json.loads(graph_to_use.read().decode('utf-8'))
                     with open(graph_path, 'w', encoding='utf-8') as f:
                         json.dump(graph_json_content, f)
@@ -1146,6 +1181,16 @@ if 'df_named' in st.session_state:
                 st.error(f"❌ Errore upload: {e}")
                 import traceback
                 st.code(traceback.format_exc())
+                
+                # Display debug payload if it exists
+                debug_payload_path = Path("output") / "debug_neuronpedia_payload.json"
+                if debug_payload_path.exists():
+                    st.info("Debug: payload salvato in output/debug_neuronpedia_payload.json")
+                    with open(debug_payload_path, 'r', encoding='utf-8') as f:
+                        payload_data = json.load(f)
+                    
+                    with st.expander("Visualizza payload inviato"):
+                        st.json(payload_data)
 
 # ===== FOOTER =====
 

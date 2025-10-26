@@ -26,6 +26,13 @@ import requests
 # STEP 1: CONFIGURAZIONE E CLASSIFICAZIONE TOKEN
 # ============================================================================
 
+# Token blacklist: tokens che non dovrebbero essere usati come label
+# Fallback al secondo (o successivo) token con max activation se il primo è in blacklist
+TOKEN_BLACKLIST = {
+    # Aggiungi token da escludere qui (lowercase)
+    # Esempio: 'the', 'a', 'is', '<bos>', '<eos>'
+}
+
 # Dizionario token funzionali con direzione di ricerca per target_token
 # forward: cerca il primo token semantico DOPO il peak_token
 # backward: cerca il primo token semantico PRIMA del peak_token
@@ -811,7 +818,8 @@ def name_relationship_node(
     feature_key: str,
     feature_records: pd.DataFrame,
     activations_by_prompt: Optional[Dict] = None,
-    semantic_tokens_list: Optional[List[str]] = None
+    semantic_tokens_list: Optional[List[str]] = None,
+    blacklist_tokens: Optional[set] = None
 ) -> str:
     """
     Naming per nodi Relationship: "(X) related"
@@ -822,10 +830,13 @@ def name_relationship_node(
         feature_records: DataFrame con tutti i record per questa feature
         activations_by_prompt: Dict con attivazioni per ogni probe prompt
         semantic_tokens_list: Lista di token semantici ammessi (prompt originale + Semantic labels)
+        blacklist_tokens: Set di token da escludere (lowercase), fallback a successivo token
         
     Returns:
         supernode_name: str (es. "(capital) related")
     """
+    if blacklist_tokens is None:
+        blacklist_tokens = TOKEN_BLACKLIST
     # Trova record con activation_max massima (per fallback)
     max_record = feature_records.loc[feature_records['activation_max'].idxmax()]
     
@@ -836,8 +847,8 @@ def name_relationship_node(
         semantic_tokens_original = semantic_tokens_list
         
         # Cerca questi token in TUTTI i probe prompts e trova quello con max activation
-        max_activation = -1
-        best_token = None
+        # Ordina per activation decrescente per permettere fallback
+        token_activations = []  # Lista di (activation, token)
         
         for prompt_text, prompt_data in activations_by_prompt.items():
             probe_tokens = prompt_data.get('tokens', [])
@@ -858,9 +869,17 @@ def name_relationship_node(
                 # Verifica se questo token del probe è tra i semantici originali
                 if probe_token_lower in semantic_tokens_original:
                     activation = values[idx]
-                    if activation > max_activation:
-                        max_activation = activation
-                        best_token = probe_token
+                    token_activations.append((activation, probe_token))
+        
+        # Ordina per activation decrescente e trova primo non in blacklist
+        token_activations.sort(reverse=True, key=lambda x: x[0])
+        best_token = None
+        
+        for activation, token in token_activations:
+            token_lower = token.strip().lower()
+            if token_lower not in blacklist_tokens:
+                best_token = token
+                break
         
         if best_token:
             # Normalizza (mantieni maiuscola se presente)
@@ -871,8 +890,7 @@ def name_relationship_node(
     # Fallback 1: Se abbiamo attivazioni ma non tokens originali,
     # usa token semantico qualsiasi con max activation su tutti i probe prompts
     if activations_by_prompt and feature_key:
-        max_activation = -1
-        best_token = None
+        token_activations = []  # Lista di (activation, token)
         
         for prompt_text, prompt_data in activations_by_prompt.items():
             probe_tokens = prompt_data.get('tokens', [])
@@ -891,9 +909,17 @@ def name_relationship_node(
                 
                 if classify_peak_token(token) == "semantic":
                     activation = values[idx]
-                    if activation > max_activation:
-                        max_activation = activation
-                        best_token = token
+                    token_activations.append((activation, token))
+        
+        # Ordina per activation decrescente e trova primo non in blacklist
+        token_activations.sort(reverse=True, key=lambda x: x[0])
+        best_token = None
+        
+        for activation, token in token_activations:
+            token_lower = token.strip().lower()
+            if token_lower not in blacklist_tokens:
+                best_token = token
+                break
         
         if best_token:
             all_occurrences = [best_token]
@@ -901,8 +927,7 @@ def name_relationship_node(
             return f"({x}) related"
         
         # Fallback 2: Token qualsiasi con max activation
-        max_activation = -1
-        best_token = None
+        token_activations = []
         
         for prompt_text, prompt_data in activations_by_prompt.items():
             probe_tokens = prompt_data.get('tokens', [])
@@ -918,9 +943,17 @@ def name_relationship_node(
                 
                 if token.strip() not in ['<bos>', '<eos>', '<pad>', '<unk>']:
                     activation = values[idx]
-                    if activation > max_activation:
-                        max_activation = activation
-                        best_token = token
+                    token_activations.append((activation, token))
+        
+        # Ordina per activation decrescente e trova primo non in blacklist
+        token_activations.sort(reverse=True, key=lambda x: x[0])
+        best_token = None
+        
+        for activation, token in token_activations:
+            token_lower = token.strip().lower()
+            if token_lower not in blacklist_tokens:
+                best_token = token
+                break
         
         if best_token:
             all_occurrences = [best_token]
@@ -937,7 +970,8 @@ def name_relationship_node(
 def name_semantic_node(
     feature_key: str,
     feature_records: pd.DataFrame,
-    graph_json_path: Optional[str] = None
+    graph_json_path: Optional[str] = None,
+    blacklist_tokens: Optional[set] = None
 ) -> str:
     """
     Naming per nodi Semantic: peak_token SEMANTICO con max activation.
@@ -947,10 +981,14 @@ def name_semantic_node(
         feature_key: chiave della feature
         feature_records: DataFrame con tutti i record per questa feature
         graph_json_path: Path opzionale al Graph JSON (per csv_ctx_idx fallback)
+        blacklist_tokens: Set di token da escludere (lowercase), fallback a successivo token
         
     Returns:
         supernode_name: str (es. "Texas", "city", "punctuation")
     """
+    if blacklist_tokens is None:
+        blacklist_tokens = TOKEN_BLACKLIST
+    
     # Filtra solo peak_token semantici E activation_max > 0 (prompt attivi)
     semantic_records = feature_records[
         (feature_records['peak_token_type'] == 'semantic') & 
@@ -987,12 +1025,28 @@ def name_semantic_node(
         if len(semantic_records) == 0:
             semantic_records = feature_records
     
-    # Trova record con activation_max massima
-    max_record = semantic_records.loc[semantic_records['activation_max'].idxmax()]
-    peak_token = str(max_record['peak_token']).strip()
+    # Ordina per activation_max decrescente per permettere fallback
+    semantic_records_sorted = semantic_records.sort_values('activation_max', ascending=False)
     
-    # Casi edge
-    if not peak_token or peak_token == 'nan':
+    # Trova primo token non in blacklist
+    peak_token = None
+    max_record = None
+    
+    for idx, record in semantic_records_sorted.iterrows():
+        candidate_token = str(record['peak_token']).strip()
+        candidate_lower = candidate_token.lower()
+        
+        # Skip se in blacklist
+        if candidate_lower in blacklist_tokens:
+            continue
+        
+        # Primo token valido trovato
+        peak_token = candidate_token
+        max_record = record
+        break
+    
+    # Casi edge: nessun token valido trovato (tutti in blacklist o vuoti)
+    if not peak_token or peak_token == 'nan' or max_record is None:
         return "Semantic (unknown)"
     if is_punctuation(peak_token):
         return "punctuation"
@@ -1013,7 +1067,8 @@ def name_semantic_node(
 
 def name_sayx_node(
     feature_key: str,
-    feature_records: pd.DataFrame
+    feature_records: pd.DataFrame,
+    blacklist_tokens: Optional[set] = None
 ) -> str:
     """
     Naming per nodi Say "X": "Say (X)" dove X è il target_token con max activation.
@@ -1021,80 +1076,104 @@ def name_sayx_node(
     Args:
         feature_key: chiave della feature
         feature_records: DataFrame con tutti i record per questa feature
+        blacklist_tokens: Set di token da escludere (lowercase), fallback a successivo token
         
     Returns:
         supernode_name: str (es. "Say (Austin)", "Say (?)")
     """
-    # Trova record con activation_max massima
-    max_record = feature_records.loc[feature_records['activation_max'].idxmax()]
+    if blacklist_tokens is None:
+        blacklist_tokens = TOKEN_BLACKLIST
     
-    # Estrai target_tokens
-    target_tokens_json = max_record.get('target_tokens', '[]')
-    try:
-        target_tokens = json.loads(target_tokens_json)
-    except:
-        target_tokens = []
+    # Ordina per activation_max decrescente per permettere fallback
+    feature_records_sorted = feature_records.sort_values('activation_max', ascending=False)
     
-    # Nessun target
-    if not target_tokens:
-        return "Say (?)"
-    
-    # Un solo target
-    if len(target_tokens) == 1:
-        x_raw = str(target_tokens[0].get('token', '?'))
-        # Raccogli solo le occorrenze di QUESTO specifico token (case-insensitive)
-        x_raw_lower = x_raw.strip().lower()
-        all_x_occurrences = []
-        for _, row in feature_records.iterrows():
-            try:
-                row_targets = json.loads(row.get('target_tokens', '[]'))
-                for t in row_targets:
-                    token_str = str(t.get('token', ''))
-                    if token_str.strip().lower() == x_raw_lower:
-                        all_x_occurrences.append(token_str)
-            except:
-                pass
-        # Se nessuna occorrenza trovata, usa il token stesso
-        if not all_x_occurrences:
-            all_x_occurrences = [x_raw]
-        x = normalize_token_for_naming(x_raw, all_x_occurrences)
-        return f"Say ({x})"
-    
-    # Multipli target: tie-break per distance, poi preferisci BACKWARD (contesto)
-    def sort_key(t):
-        distance = t.get('distance', 999)
-        direction = t.get('direction', '')
-        # Backward ha priorità (0), forward (1)
-        dir_priority = 0 if direction == 'backward' else 1
-        return (distance, dir_priority)
-    
-    sorted_targets = sorted(target_tokens, key=sort_key)
-    x_raw = str(sorted_targets[0].get('token', '?'))
-    
-    # Raccogli solo le occorrenze di QUESTO specifico token (case-insensitive)
-    x_raw_lower = x_raw.strip().lower()
-    all_x_occurrences = []
-    for _, row in feature_records.iterrows():
+    # Prova ogni record (ordinato per activation desc) finché non trovi target valido non in blacklist
+    for _, max_record in feature_records_sorted.iterrows():
+        # Estrai target_tokens
+        target_tokens_json = max_record.get('target_tokens', '[]')
         try:
-            row_targets = json.loads(row.get('target_tokens', '[]'))
-            for t in row_targets:
-                token_str = str(t.get('token', ''))
-                if token_str.strip().lower() == x_raw_lower:
-                    all_x_occurrences.append(token_str)
+            target_tokens = json.loads(target_tokens_json)
         except:
-            pass
-    # Se nessuna occorrenza trovata, usa il token stesso
-    if not all_x_occurrences:
-        all_x_occurrences = [x_raw]
+            target_tokens = []
+        
+        # Nessun target, prova prossimo record
+        if not target_tokens:
+            continue
+        
+        # Un solo target
+        if len(target_tokens) == 1:
+            x_raw = str(target_tokens[0].get('token', '?'))
+            x_raw_lower = x_raw.strip().lower()
+            
+            # Skip se in blacklist
+            if x_raw_lower in blacklist_tokens:
+                continue
+            
+            # Token valido trovato
+            # Raccogli solo le occorrenze di QUESTO specifico token (case-insensitive)
+            all_x_occurrences = []
+            for _, row in feature_records.iterrows():
+                try:
+                    row_targets = json.loads(row.get('target_tokens', '[]'))
+                    for t in row_targets:
+                        token_str = str(t.get('token', ''))
+                        if token_str.strip().lower() == x_raw_lower:
+                            all_x_occurrences.append(token_str)
+                except:
+                    pass
+            # Se nessuna occorrenza trovata, usa il token stesso
+            if not all_x_occurrences:
+                all_x_occurrences = [x_raw]
+            x = normalize_token_for_naming(x_raw, all_x_occurrences)
+            return f"Say ({x})"
+        
+        # Multipli target: tie-break per distance, poi preferisci BACKWARD (contesto)
+        def sort_key(t):
+            distance = t.get('distance', 999)
+            direction = t.get('direction', '')
+            # Backward ha priorità (0), forward (1)
+            dir_priority = 0 if direction == 'backward' else 1
+            return (distance, dir_priority)
+        
+        sorted_targets = sorted(target_tokens, key=sort_key)
+        
+        # Prova i target ordinati finché non trovi uno non in blacklist
+        for target in sorted_targets:
+            x_raw = str(target.get('token', '?'))
+            x_raw_lower = x_raw.strip().lower()
+            
+            # Skip se in blacklist
+            if x_raw_lower in blacklist_tokens:
+                continue
+            
+            # Token valido trovato
+            # Raccogli solo le occorrenze di QUESTO specifico token (case-insensitive)
+            all_x_occurrences = []
+            for _, row in feature_records.iterrows():
+                try:
+                    row_targets = json.loads(row.get('target_tokens', '[]'))
+                    for t in row_targets:
+                        token_str = str(t.get('token', ''))
+                        if token_str.strip().lower() == x_raw_lower:
+                            all_x_occurrences.append(token_str)
+                except:
+                    pass
+            # Se nessuna occorrenza trovata, usa il token stesso
+            if not all_x_occurrences:
+                all_x_occurrences = [x_raw]
+            
+            x = normalize_token_for_naming(x_raw, all_x_occurrences)
+            return f"Say ({x})"
     
-    x = normalize_token_for_naming(x_raw, all_x_occurrences)
-    return f"Say ({x})"
+    # Nessun target valido trovato (tutti in blacklist o vuoti)
+    return "Say (?)"
 
 
 def name_nodes(
     df: pd.DataFrame,
     activations_json_path: Optional[str] = None,
     graph_json_path: Optional[str] = None,
+    blacklist_tokens: Optional[set] = None,
     verbose: bool = True
 ) -> pd.DataFrame:
     """
@@ -1104,11 +1183,14 @@ def name_nodes(
         df: DataFrame classificato (con pred_label, subtype)
         activations_json_path: Path al JSON delle attivazioni (per Relationship)
         graph_json_path: Path al Graph JSON (per Semantic con csv_ctx_idx fallback)
+        blacklist_tokens: Set di token da escludere (lowercase), fallback a successivo token
         verbose: stampa info
         
     Returns:
         DataFrame con colonna supernode_name
     """
+    if blacklist_tokens is None:
+        blacklist_tokens = TOKEN_BLACKLIST
     df = df.copy()
     df['supernode_name'] = ''
     df['top_activations_probe_original'] = ''
@@ -1173,11 +1255,11 @@ def name_nodes(
         pred_label = group['pred_label'].iloc[0]
         
         if pred_label == "Semantic":
-            name = name_semantic_node(feature_key, group, graph_json_path)
+            name = name_semantic_node(feature_key, group, graph_json_path, blacklist_tokens)
             df.loc[df['feature_key'] == feature_key, 'supernode_name'] = name
         
         elif pred_label == 'Say "X"':
-            name = name_sayx_node(feature_key, group)
+            name = name_sayx_node(feature_key, group, blacklist_tokens)
             df.loc[df['feature_key'] == feature_key, 'supernode_name'] = name
     
     # FASE 2: Raccogli token semantici dai nomi Semantic per Relationship
@@ -1213,7 +1295,8 @@ def name_nodes(
                 feature_key, 
                 group, 
                 activations_by_prompt, 
-                extended_semantic_tokens  # ← Token estesi invece di graph_tokens_original
+                extended_semantic_tokens,  # ← Token estesi invece di graph_tokens_original
+                blacklist_tokens
             )
             df.loc[df['feature_key'] == feature_key, 'supernode_name'] = name
         
@@ -1444,6 +1527,37 @@ def upload_subgraph_to_neuronpedia(
         "overwriteId": overwrite_id or ""
     }
     
+    # Save payload to temp file for debugging
+    debug_payload_path = Path("output") / "debug_neuronpedia_payload.json"
+    try:
+        with open(debug_payload_path, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, indent=2)
+        if verbose:
+            print(f"  Debug: payload salvato in {debug_payload_path}")
+    except Exception as e:
+        if verbose:
+            print(f"  Warning: impossibile salvare payload debug: {e}")
+    
+    # Validate payload
+    validation_errors = []
+    if not model_id or not isinstance(model_id, str):
+        validation_errors.append("modelId mancante o non valido")
+    if not slug or not isinstance(slug, str):
+        validation_errors.append("slug mancante o non valido")
+    if not supernodes or len(supernodes) == 0:
+        validation_errors.append("supernodes vuoto")
+    if not pinned_ids or len(pinned_ids) == 0:
+        validation_errors.append("pinnedIds vuoto")
+    
+    # Check for empty supernodes
+    empty_supernodes = [sn for sn in supernodes if len(sn) <= 1]
+    if empty_supernodes:
+        validation_errors.append(f"{len(empty_supernodes)} supernodes vuoti (senza nodi)")
+    
+    if validation_errors:
+        error_msg = "Errori validazione payload:\n  - " + "\n  - ".join(validation_errors)
+        raise ValueError(error_msg)
+    
     if verbose:
         print(f"\n  Payload:")
         print(f"    - modelId: {model_id}")
@@ -1480,12 +1594,17 @@ def upload_subgraph_to_neuronpedia(
         return result
         
     except requests.exceptions.RequestException as e:
+        # Always show response details on error, regardless of verbose flag
+        error_msg = f"Errore upload: {e}"
+        if hasattr(e, 'response') and e.response is not None:
+            error_msg += f"\nResponse status: {e.response.status_code}"
+            error_msg += f"\nResponse body: {e.response.text}"
+        
         if verbose:
-            print(f"  ❌ Errore upload: {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                print(f"  Response status: {e.response.status_code}")
-                print(f"  Response body: {e.response.text}")
-        raise
+            print(f"  ❌ {error_msg}")
+        
+        # Re-raise with enhanced error message
+        raise RuntimeError(error_msg) from e
 
 
 # ============================================================================
@@ -1569,6 +1688,13 @@ def main():
         help="Stampa info dettagliate"
     )
     
+    parser.add_argument(
+        "--blacklist",
+        type=str,
+        default="",
+        help="Token da escludere (separati da virgola, es: 'the,a,is'). Fallback al secondo token con max activation."
+    )
+    
     args = parser.parse_args()
     
     # Carica CSV
@@ -1618,11 +1744,24 @@ def main():
     
     # Step 3: Naming (opzionale)
     if not args.skip_naming and not args.skip_classify:
+        # Parse blacklist
+        blacklist_tokens = set()
+        if args.blacklist:
+            for token in args.blacklist.split(','):
+                token_clean = token.strip().lower()
+                if token_clean:
+                    blacklist_tokens.add(token_clean)
+        
+        if args.verbose and blacklist_tokens:
+            print(f"\nToken Blacklist: {len(blacklist_tokens)} token")
+            print(f"  - {', '.join(sorted(blacklist_tokens))}")
+        
         # Naming richiede classificazione
         df_final = name_nodes(
             df_classified,
             activations_json_path=args.json,
             graph_json_path=args.graph,
+            blacklist_tokens=blacklist_tokens if blacklist_tokens else None,
             verbose=args.verbose
         )
     else:
