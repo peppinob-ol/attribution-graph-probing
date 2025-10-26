@@ -17,7 +17,7 @@ from pathlib import Path
 # Importa le classi di visualizzazione
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
-from scripts.visualization.graph_visualization import (
+from visualization.graph_visualization import (
     create_graph_visualization,
     Supernode,
     InterventionGraph,
@@ -130,7 +130,7 @@ def demonstrate_intervention():
     
     # In un notebook Jupyter, `svg` si visualizzerebbe automaticamente
     # In uno script, possiamo salvarlo
-    print("\n📊 Grafo base creato. Top output: 'grande' (82%)")
+    print("\nGrafo base creato. Top output: 'grande' (82%)")
     
     # Ora simula un intervento: spegni "piccolo"
     print("\n" + "=" * 60)
@@ -172,9 +172,9 @@ def demonstrate_intervention():
         ]
         
         svg_intervento = create_graph_visualization(graph, new_outputs)
-        print("\n📊 Grafo con intervento creato.")
-        print("📉 'grande' è sceso dal 82% al 7%!")
-        print("✅ Questo conferma che il nodo 'piccolo' è causalmente importante.")
+        print("\nGrafo con intervento creato.")
+        print("'grande' e' sceso dal 82% al 7%!")
+        print("Questo conferma che il nodo 'piccolo' e' causalmente importante.")
     
     print("\n" + "=" * 60)
     print("Per visualizzare i grafi SVG, usa un notebook Jupyter")
@@ -188,7 +188,7 @@ def analyze_real_supernodes():
     json_path = Path('output/final_anthropological_optimized.json')
     
     if not json_path.exists():
-        print(f"\n⚠️  File {json_path} non trovato.")
+        print(f"\nAVVISO: File {json_path} non trovato.")
         print("Esegui prima la pipeline di analisi per generare i supernodes.")
         return
     
@@ -201,7 +201,7 @@ def analyze_real_supernodes():
     # Mostra statistiche
     if 'supernodes' in data:
         supernodes = data['supernodes']
-        print(f"\n📊 Numero totale di supernodes: {len(supernodes)}")
+        print(f"\nNumero totale di supernodes: {len(supernodes)}")
         
         # Analizza distribuzione per layer
         layer_counts = {}
@@ -211,23 +211,23 @@ def analyze_real_supernodes():
                     layer = feature.get('layer', 'unknown')
                     layer_counts[layer] = layer_counts.get(layer, 0) + 1
         
-        print(f"\n📈 Distribuzione features per layer:")
+        print(f"\nDistribuzione features per layer:")
         for layer in sorted(layer_counts.keys()):
             print(f"   Layer {layer}: {layer_counts[layer]} features")
         
         # Mostra esempi di supernodes
-        print(f"\n🔍 Primi 5 supernodes:")
+        print(f"\nPrimi 5 supernodes:")
         for i, sn in enumerate(supernodes[:5]):
             name = sn.get('name', 'unnamed')
             n_features = len(sn.get('features', []))
             print(f"   {i+1}. '{name}' ({n_features} features)")
     
-    print("\n💡 Per visualizzare questi supernodes, dovrai:")
+    print("\nPer visualizzare questi supernodes, dovrai:")
     print("   1. Caricare un modello compatibile")
     print("   2. Ottenere le attivazioni su un prompt")
     print("   3. Creare il grafo InterventionGraph")
     print("   4. Usare create_graph_visualization()")
-    print("\n📖 Vedi docs/GRAPH_VISUALIZATION_GUIDE.md per dettagli")
+    print("\nVedi docs/GRAPH_VISUALIZATION_GUIDE.md per dettagli")
 
 def main():
     """Funzione principale."""
@@ -235,16 +235,16 @@ def main():
     print("ESEMPIO DI VISUALIZZAZIONE SUPERNODES")
     print("=" * 60)
     
-    print("\n1️⃣  Creazione grafo di esempio...")
+    print("\n[1] Creazione grafo di esempio...")
     demonstrate_intervention()
     
-    print("\n2️⃣  Analisi supernodes reali del progetto...")
+    print("\n[2] Analisi supernodes reali del progetto...")
     analyze_real_supernodes()
     
     print("\n" + "=" * 60)
-    print("✅ Esempio completato!")
+    print("Esempio completato!")
     print("=" * 60)
-    print("\n📚 Prossimi passi:")
+    print("\nProssimi passi:")
     print("   - Leggi docs/GRAPH_VISUALIZATION_GUIDE.md")
     print("   - Esplora i notebook in demos/ (se disponibili)")
     print("   - Usa QUICK_REFERENCE.md per comandi rapidi")

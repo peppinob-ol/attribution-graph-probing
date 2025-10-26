@@ -1,8 +1,8 @@
-"""Pagina 2 - Node Grouping: Classifica e nomina supernodi per interpretazione"""
+"""Page 2 - Node Grouping: Classify and name supernodes for interpretation"""
 import sys
 from pathlib import Path
 
-# Aggiungi parent directory al path
+# Add parent directory to path
 parent_dir = Path(__file__).parent.parent.parent
 if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
@@ -15,10 +15,10 @@ import os
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Carica variabili d'ambiente
+# Load environment variables
 load_dotenv()
 
-# Import funzioni node grouping
+# Import node grouping functions
 import importlib.util
 script_path = parent_dir / "scripts" / "02_node_grouping.py"
 spec = importlib.util.spec_from_file_location("node_grouping", script_path)
@@ -34,17 +34,17 @@ st.set_page_config(page_title="Node Grouping", page_icon="🔗", layout="wide")
 st.title("🔗 Node Grouping & Classification")
 
 st.info("""
-**Classifica e nomina automaticamente i supernodi** per facilitare l'interpretazione del grafo di attribuzione.
+**Automatically classify and name supernodes** to facilitate attribution graph interpretation.
 
-Questa pipeline trasforma le feature SAE in supernodi interpretabili attraverso 3 step:
-1. **Preparazione**: Identifica token funzionali vs semantici e trova i target tokens
-2. **Classificazione**: Assegna ogni feature a una classe (Semantic, Say X, Relationship)
-3. **Naming**: Genera nomi descrittivi per ogni supernodo
+This pipeline transforms SAE features into interpretable supernodes through 3 steps:
+1. **Preparation**: Identify functional vs semantic tokens and find target tokens
+2. **Classification**: Assign each feature to a class (Semantic, Say X, Relationship)
+3. **Naming**: Generate descriptive names for each supernode
 """)
 
-# ===== SIDEBAR: CONFIGURAZIONE =====
+# ===== SIDEBAR: CONFIGURATION =====
 
-st.sidebar.header("⚙️ Configurazione")
+st.sidebar.header("⚙️ Configuration")
 
 # File upload
 st.sidebar.subheader("📁 Input Files")
@@ -74,25 +74,25 @@ if 'default_files_loaded' not in st.session_state:
     st.session_state['default_files_loaded'] = True
 
 uploaded_csv = st.sidebar.file_uploader(
-    "CSV Export (richiesto)",
+    "CSV Export (required)",
     type=["csv"],
     help="File CSV generato da Probe Prompts (es. *_export.csv o *_export_ENRICHED.csv)"
 )
 
 uploaded_json = st.sidebar.file_uploader(
-    "JSON Attivazioni (opzionale)",
+    "Activations JSON (optional)",
     type=["json"],
     help="File JSON con attivazioni token-by-token (migliora naming per Relationship)"
 )
 
 uploaded_graph = st.sidebar.file_uploader(
-    "Graph JSON (opzionale)",
+    "Graph JSON (optional)",
     type=["json"],
     help="File Graph JSON originale (per csv_ctx_idx fallback in Semantic naming)"
 )
 
 uploaded_nodes_json = st.sidebar.file_uploader(
-    "Selected Nodes JSON (opzionale)",
+    "Selected Nodes JSON (optional)",
     type=["json"],
     help="File JSON con node_ids selezionati da Graph Generation (per upload subgraph accurato)"
 )
@@ -294,14 +294,14 @@ graph_to_use = uploaded_graph if uploaded_graph is not None else st.session_stat
 nodes_json_to_use = uploaded_nodes_json  # Solo se caricato manualmente (no default per ora)
 
 if csv_to_use is None:
-    st.warning("⬆️ Carica un file CSV per iniziare")
+    st.warning("⬆️ Load a CSV file to begin")
     st.markdown("""
-    ### 📖 Come Funziona
+    ### 📖 How It Works
     
-    #### Step 1: Preparazione Dataset
-    - **Classifica token**: Identifica token funzionali (es. "is", "the", ",") vs semantici (es. "Texas", "capital")
-    - **Target tokens**: Per token funzionali, trova il primo token semantico nella direzione specificata
-    - **Fonte**: Usa tokens dal JSON se disponibile, altrimenti tokenizzazione fallback
+    #### Step 1: Dataset Preparation
+    - **Classify tokens**: Identify functional tokens (e.g. "is", "the", ",") vs semantic tokens (e.g. "Texas", "capital")
+    - **Target tokens**: For functional tokens, find the first semantic token in the specified direction
+    - **Source**: Use tokens from JSON if available, otherwise fallback tokenization
     
     #### Step 2: Classificazione Nodi
     
@@ -412,7 +412,7 @@ with st.expander("ℹ️ Cosa fa questo step?", expanded=False):
     - Fallback su tokenizzazione del prompt text
     """)
 
-if st.button("▶️ Esegui Step 1", key="run_step1"):
+if st.button("▶️ Run Step 1", key="run_step1"):
     with st.spinner("Preparazione dataset in corso..."):
         try:
             df_prepared = prepare_dataset(
@@ -506,7 +506,7 @@ else:
         'sem_func_vs_sem_max': sem_func_vs_sem,
     }
     
-    if st.button("▶️ Esegui Step 2", key="run_step2"):
+    if st.button("▶️ Run Step 2", key="run_step2"):
         with st.spinner("Classificazione nodi in corso..."):
             try:
                 df_classified = classify_nodes(
@@ -866,7 +866,7 @@ with st.expander("ℹ️ Cosa fa questo step?", expanded=False):
 if 'df_classified' not in st.session_state:
     st.warning("⚠️ Esegui prima Step 2")
 else:
-    if st.button("▶️ Esegui Step 3", key="run_step3"):
+    if st.button("▶️ Run Step 3", key="run_step3"):
         with st.spinner("Naming supernodi in corso..."):
             try:
                 # Salva JSON temporaneo se disponibile

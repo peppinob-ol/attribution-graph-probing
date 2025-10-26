@@ -1,8 +1,8 @@
-"""Pagina 1 - Probe Prompts: Analizza attivazioni su concepts specifici tramite API Neuronpedia"""
+"""Page 1 - Probe Prompts: Analyze activations on specific concepts via Neuronpedia API"""
 import sys
 from pathlib import Path
 
-# Aggiungi parent directory al path
+# Add parent directory to path
 parent_dir = Path(__file__).parent.parent.parent
 if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
@@ -13,7 +13,7 @@ import os
 from datetime import datetime
 import pandas as pd
 
-# Import funzioni probe
+# Import probe functions
 import importlib.util
 script_path = parent_dir / "scripts" / "01_probe_prompts.py"
 if script_path.exists():
@@ -24,10 +24,10 @@ if script_path.exists():
     filter_features_by_influence = probe_module.filter_features_by_influence
     export_concepts_to_prompts = probe_module.export_concepts_to_prompts
 else:
-    st.error("Script 01_probe_prompts.py non trovato!")
+    st.error("Script 01_probe_prompts.py not found!")
     st.stop()
 
-# Import funzioni graph generation per export features
+# Import graph generation functions for feature export
 script_path_graph = parent_dir / "scripts" / "00_neuronpedia_graph_generation.py"
 if script_path_graph.exists():
     spec_graph = importlib.util.spec_from_file_location("graph_gen", script_path_graph)
@@ -35,25 +35,25 @@ if script_path_graph.exists():
     spec_graph.loader.exec_module(graph_module)
     export_features_list = graph_module.export_features_list
 else:
-    st.error("Script 00_neuronpedia_graph_generation.py non trovato!")
+    st.error("Script 00_neuronpedia_graph_generation.py not found!")
     st.stop()
 
 st.set_page_config(page_title="Probe Prompts", page_icon="🔍", layout="wide")
 
-st.title("🔍 Probe Prompts - Analisi Concepts via API")
+st.title("🔍 Probe Prompts - Concept Analysis via API")
 
 st.info("""
-**Analizza le attivazioni delle features del grafo su concepts specifici usando le API di Neuronpedia.**
-Carica un graph JSON da Neuronpedia, genera concepts tramite OpenAI, e analizza come le features si attivano.
+**Analyze feature activations on specific concepts using Neuronpedia APIs.**
+Load a graph JSON from Neuronpedia, generate concepts via OpenAI, and analyze how features activate.
 """)
 
-# ===== SIDEBAR: CONFIGURAZIONE =====
+# ===== SIDEBAR: CONFIGURATION =====
 
-st.sidebar.header("⚙️ Configurazione")
+st.sidebar.header("⚙️ Configuration")
 
 # === API KEY NEURONPEDIA ===
 
-st.sidebar.subheader("API Neuronpedia")
+st.sidebar.subheader("Neuronpedia API")
 
 # Carica API key Neuronpedia
 def load_neuronpedia_key():
@@ -70,20 +70,20 @@ def load_neuronpedia_key():
 neuronpedia_key = load_neuronpedia_key()
 
 if not neuronpedia_key:
-    st.sidebar.warning("⚠️ API Key Neuronpedia non trovata")
+    st.sidebar.warning("⚠️ Neuronpedia API Key not found")
     st.sidebar.info("""
     Aggiungi `NEURONPEDIA_API_KEY=your-key` nel file `.env` 
     oppure imposta la variabile d'ambiente.
     """)
     neuronpedia_key = st.sidebar.text_input("Oppure inseriscila qui:", type="password", key="neuronpedia_key_input")
 else:
-    st.sidebar.success("✅ API Key Neuronpedia caricata")
+    st.sidebar.success("✅ Neuronpedia API Key loaded")
 
 st.sidebar.markdown("---")
 
 # === API KEY OPENAI ===
 
-st.sidebar.subheader("OpenAI (per concepts)")
+st.sidebar.subheader("OpenAI (for concepts)")
 
 # Carica API key OpenAI
 def load_openai_key():
@@ -100,7 +100,7 @@ def load_openai_key():
 openai_key = load_openai_key()
 
 if not openai_key:
-    st.sidebar.warning("⚠️ API Key OpenAI non trovata")
+    st.sidebar.warning("⚠️ OpenAI API Key not found")
     st.sidebar.info("""
     Aggiungi `OPENAI_API_KEY=your-key` nel file `.env` 
     oppure imposta la variabile d'ambiente.
@@ -109,17 +109,17 @@ if not openai_key:
 
 # Model selection
 model_choice = st.sidebar.selectbox(
-    "Modello OpenAI",
+    "OpenAI Model",
     ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
     index=0,
-    help="Modello da usare per generare i concepts"
+    help="Model to use for concept generation"
 )
 
 st.sidebar.markdown("---")
 
 # ===== STEP 1: CARICAMENTO GRAPH JSON =====
 
-st.header("1️⃣ Carica Graph JSON")
+st.header("1️⃣ Load Graph JSON")
 
 st.write("""
 Carica il file JSON di un attribution graph generato da Neuronpedia.
@@ -284,7 +284,7 @@ if graph_json:
 # ===== STEP 2: CARICA FEATURE SUBSET =====
 
 if graph_json:
-    st.header("2️⃣ Carica Feature Subset")
+    st.header("2️⃣ Load Feature Subset")
     
     st.write("""
     Carica un file JSON con la lista di features da analizzare, oppure usa tutte le features del grafo.
@@ -472,13 +472,13 @@ if graph_json:
 # ===== STEP 3: DEFINISCI CONCEPTS =====
 
 if graph_json:
-    st.header("3️⃣ Definisci Concepts")
+    st.header("3️⃣ Define Concepts")
     
     # Tab per generazione automatica o manuale
     tab_gen, tab_manual, tab_load = st.tabs(["🤖 Genera con OpenAI", "✏️ Inserimento Manuale", "📂 Carica da File"])
     
     with tab_gen:
-        st.subheader("Generazione Automatica Concepts")
+        st.subheader("Automatic Concept Generation")
         
         # Load del prompt dal graph
         prompt_text = graph_json.get("metadata", {}).get("prompt", "")
@@ -566,15 +566,15 @@ TEXT:
                         # Salva in session state
                         st.session_state['concepts'] = concepts_generated
                         
-                        st.success(f"✅ Generati {len(concepts_generated)} concepts!")
+                        st.success(f"✅ Generated {len(concepts_generated)} concepts!")
                         st.rerun()
                         
                     except Exception as e:
-                        st.error(f"❌ Errore nella generazione: {e}")
+                        st.error(f"❌ Generation error: {e}")
                         st.exception(e)
     
     with tab_manual:
-        st.subheader("Inserimento Manuale")
+        st.subheader("Manual Entry")
         
         st.write("Inserisci i concepts in formato JSON:")
         
@@ -612,14 +612,14 @@ TEXT:
             help="Array JSON con format: [{label, category, description}, ...]"
         )
         
-        if st.button("Carica Concepts Manualmente"):
+        if st.button("Load Concepts Manually"):
             try:
                 concepts_manual = json.loads(manual_json)
                 st.session_state['concepts'] = concepts_manual
-                st.success(f"✅ Caricati {len(concepts_manual)} concepts!")
+                st.success(f"✅ Loaded {len(concepts_manual)} concepts!")
                 st.rerun()
             except json.JSONDecodeError as e:
-                st.error(f"❌ Errore nel parsing JSON: {e}")
+                st.error(f"❌ JSON parsing error: {e}")
     
     with tab_load:
         st.subheader("Carica da File JSON")
@@ -671,7 +671,7 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("💾 Salva Concepts come Prompts JSON"):
+        if st.button("💾 Save Concepts as Prompts JSON"):
             output_dir = parent_dir / "output"
             output_prompts_path = output_dir / f"prompts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
             output_prompts_path.parent.mkdir(parents=True, exist_ok=True)
@@ -702,10 +702,10 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
             help="Formato compatibile con batch_get_activations.py"
         )
 
-# ===== STEP 4: ESEGUI ANALISI =====
+# ===== STEP 4: RUN ANALYSIS =====
 
 if 'concepts' in st.session_state and st.session_state['concepts']:
-    st.header("4️⃣ Esegui Analisi")
+    st.header("4️⃣ Run Analysis")
     
     # Crea tabs per metodi di analisi diversi
     tab1, tab2 = st.tabs(["🌐 Analisi tramite API", "📁 Carica da file"])
@@ -818,7 +818,7 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
         if st.button("▶️ Esegui Analisi", type="primary"):
             # Verifica prerequisiti
             if not neuronpedia_key:
-                st.error("❌ API Key Neuronpedia non configurata")
+                st.error("❌ Neuronpedia API Key not configured")
                 st.stop()
             
             if 'filtered_features' not in st.session_state:
@@ -950,7 +950,7 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                 Per riprendere l'analisi:
                 1. Seleziona il checkpoint nella sezione "Checkpoint & Recovery"
                 2. Abilita "Riprendi da checkpoint"
-                3. Clicca "Esegui Analisi"
+                3. Click "Run Analysis"
                 
                 Checkpoint: `{Path(checkpoint_path_to_use).name}`
                 """)
@@ -971,7 +971,7 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
         
         if 'analysis_results' in st.session_state:
             st.markdown("---")
-            st.subheader("📊 Risultati")
+            st.subheader("📊 Results")
             
             df_results = st.session_state['analysis_results']
             
@@ -1031,7 +1031,7 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                 )
                 
                 # Statistiche rapide
-                st.subheader("Statistiche Rapide")
+                st.subheader("Quick Statistics")
                 
                 col1, col2, col3, col4 = st.columns(4)
                 
