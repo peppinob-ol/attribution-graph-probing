@@ -1272,6 +1272,7 @@ def upload_subgraph_to_neuronpedia(
     api_key: str,
     display_name: Optional[str] = None,
     overwrite_id: Optional[str] = None,
+    selected_nodes_data: Optional[Dict[str, Any]] = None,
     verbose: bool = True
 ) -> Dict[str, Any]:
     """
@@ -1349,14 +1350,77 @@ def upload_subgraph_to_neuronpedia(
         for sn in supernodes[:3]:
             print(f"      - {sn[0]}: {len(sn)-1} nodi")
     
-    # Estrai pinnedIds da qParams (se presenti)
-    pinned_ids = q_params.get('pinnedIds', [])
-    
-    # Se non ci sono pinnedIds, usa tutti i node_id
-    if not pinned_ids:
-        pinned_ids = list(node_id_to_feature.keys())
+    # Estrai pinnedIds: usa node_ids dal selected_nodes_data se disponibile
+    # altrimenti usa tutti i node_id che sono nei supernodes
+    if selected_nodes_data and 'node_ids' in selected_nodes_data:
+        # Usa il subset di node_ids selezionati in Graph Generation
+        all_selected_node_ids = selected_nodes_data['node_ids']
+        
+        # Filtra solo quelli che appartengono alle feature nei supernodes
+        feature_keys_in_supernodes = set(feature_to_supernode.keys())
+        pinned_ids = []
+        
+        for node_id in all_selected_node_ids:
+            # Estrai feature_key da node_id (es. "0_12284_1" -> "0_12284")
+            parts = node_id.split('_')
+            if len(parts) >= 2:
+                feature_key = f"{parts[0]}_{parts[1]}"
+                if feature_key in feature_keys_in_supernodes:
+                    pinned_ids.append(node_id)
+        
         if verbose:
-            print(f"  Nessun pinnedId trovato, uso tutti i {len(pinned_ids)} nodi")
+            print(f"  PinnedIds (features): {len(pinned_ids)} nodi (da selected_nodes_data, filtrati per supernodes)")
+            print(f"    - Nodi totali in selected_nodes_data: {len(all_selected_node_ids)}")
+            print(f"    - Nodi feature nei supernodes: {len(pinned_ids)}")
+    else:
+        # Fallback: usa tutti i node_id che sono nei supernodes
+        pinned_ids = []
+        for supernode in supernodes:
+            # supernode formato: ["supernode_name", "node_id1", "node_id2", ...]
+            pinned_ids.extend(supernode[1:])  # Salta il nome, prendi solo i node_id
+        
+        if verbose:
+            print(f"  PinnedIds (features): {len(pinned_ids)} nodi (fallback: tutti i nodi nei supernodes)")
+            print(f"    ⚠️  WARNING: selected_nodes_data non fornito, usando tutti i nodi del grafo")
+    
+    # Aggiungi embeddings e logit target dal Graph JSON
+    # Per embeddings: solo se il token corrisponde a un supernode_name esistente
+    
+    # Raccogli tutti i supernode_name (normalizzati a lowercase per matching)
+    supernode_names_lower = set()
+    for supernode_name in set(feature_to_supernode.values()):
+        if supernode_name:
+            supernode_names_lower.add(supernode_name.strip().lower())
+    
+    # Estrai prompt_tokens per mappare ctx_idx → token
+    prompt_tokens = metadata.get('prompt_tokens', [])
+    
+    embeddings_and_logits = []
+    for node in nodes:
+        node_id = node.get('node_id', '')
+        feature_type = node.get('feature_type', '')
+        is_target_logit = node.get('is_target_logit', False)
+        
+        # Aggiungi embeddings (layer "E") solo se il token corrisponde a un supernode_name
+        if feature_type == 'embedding':
+            ctx_idx = node.get('ctx_idx', -1)
+            if 0 <= ctx_idx < len(prompt_tokens):
+                token = prompt_tokens[ctx_idx].strip().lower()
+                if token in supernode_names_lower:
+                    embeddings_and_logits.append(node_id)
+        
+        # Aggiungi logit target
+        elif feature_type == 'logit' and is_target_logit:
+            embeddings_and_logits.append(node_id)
+    
+    # Combina feature nodes + embeddings + logits
+    pinned_ids.extend(embeddings_and_logits)
+    
+    if verbose:
+        print(f"  PinnedIds (embeddings + logits): +{len(embeddings_and_logits)} nodi")
+        print(f"    - Embeddings filtrati: {len([n for n in embeddings_and_logits if n.startswith('E_')])}")
+        print(f"    - Logit target: {len([n for n in embeddings_and_logits if not n.startswith('E_')])}")
+        print(f"  PinnedIds (totale): {len(pinned_ids)} nodi")
     
     # Estrai pruning/density thresholds
     pruning_settings = metadata.get('pruning_settings', {})

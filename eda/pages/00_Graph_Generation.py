@@ -353,25 +353,58 @@ if st.session_state.extracted_graph_data is not None and st.session_state.extrac
                 for layer, feature in sorted(unique_features)
             ]
             
+            # Estrai anche i node_ids selezionati (per upload subgraph)
+            node_ids_export = sorted(filtered_features['id'].unique().tolist())
+            
+            # Crea export completo con features E node_ids
+            export_data = {
+                "features": features_export,
+                "node_ids": node_ids_export,
+                "metadata": {
+                    "n_features": len(features_export),
+                    "n_nodes": len(node_ids_export),
+                    "cumulative_threshold": cumulative_threshold_summary if 'cumulative_threshold_summary' in locals() else None,
+                    "exported_at": datetime.now().isoformat()
+                }
+            }
+            
             # Statistiche
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Features Uniche", len(features_export))
             with col2:
+                st.metric("Nodi Selezionati", len(node_ids_export))
+            with col3:
                 st.metric("Layer Unici", len({f['layer'] for f in features_export}))
             
-            # Download JSON
-            st.download_button(
-                label="⬇️ Download Features JSON",
-                data=json.dumps(features_export, indent=2, ensure_ascii=False),
-                file_name="selected_features.json",
-                mime="application/json",
-                help="Formato compatibile con batch_get_activations.py"
-            )
+            # Download JSON (formato completo)
+            col_full, col_legacy = st.columns(2)
+            
+            with col_full:
+                st.download_button(
+                    label="⬇️ Download Features + Nodes JSON",
+                    data=json.dumps(export_data, indent=2, ensure_ascii=False),
+                    file_name="selected_features_with_nodes.json",
+                    mime="application/json",
+                    help="Formato completo con features e node_ids (per Node Grouping + Upload)"
+                )
+            
+            with col_legacy:
+                st.download_button(
+                    label="⬇️ Download Features JSON (legacy)",
+                    data=json.dumps(features_export, indent=2, ensure_ascii=False),
+                    file_name="selected_features.json",
+                    mime="application/json",
+                    help="Formato legacy (solo features, compatibile con batch_get_activations.py)"
+                )
             
             # Preview
-            with st.expander("🔍 Preview (prime 10)", expanded=False):
-                st.json(features_export[:10])
+            with st.expander("🔍 Preview Export Completo", expanded=False):
+                st.json({
+                    "features": features_export[:5],
+                    "node_ids": node_ids_export[:10],
+                    "metadata": export_data["metadata"]
+                })
         
 st.markdown("---")
 

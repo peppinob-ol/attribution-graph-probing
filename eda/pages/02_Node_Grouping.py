@@ -11,7 +11,12 @@ import streamlit as st
 import pandas as pd
 import json
 import io
+import os
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Carica variabili d'ambiente
+load_dotenv()
 
 # Import funzioni node grouping
 import importlib.util
@@ -63,6 +68,7 @@ if 'default_files_loaded' not in st.session_state:
     
     if default_graph_path.exists():
         st.session_state['default_graph'] = default_graph_path
+        st.session_state['graph_json_uploaded'] = default_graph_path  # Salva anche per upload
         st.sidebar.info(f"✅ Graph JSON caricato automaticamente: `{default_graph_path.name}`")
     
     st.session_state['default_files_loaded'] = True
@@ -83,6 +89,12 @@ uploaded_graph = st.sidebar.file_uploader(
     "Graph JSON (opzionale)",
     type=["json"],
     help="File Graph JSON originale (per csv_ctx_idx fallback in Semantic naming)"
+)
+
+uploaded_nodes_json = st.sidebar.file_uploader(
+    "Selected Nodes JSON (opzionale)",
+    type=["json"],
+    help="File JSON con node_ids selezionati da Graph Generation (per upload subgraph accurato)"
 )
 
 # Parametri pipeline
@@ -279,6 +291,7 @@ with st.sidebar.expander("Semantic (Concept)", expanded=False):
 csv_to_use = uploaded_csv if uploaded_csv is not None else st.session_state.get('default_csv')
 json_to_use = uploaded_json if uploaded_json is not None else st.session_state.get('default_json')
 graph_to_use = uploaded_graph if uploaded_graph is not None else st.session_state.get('default_graph')
+nodes_json_to_use = uploaded_nodes_json  # Solo se caricato manualmente (no default per ora)
 
 if csv_to_use is None:
     st.warning("⬆️ Carica un file CSV per iniziare")
@@ -362,6 +375,23 @@ if json_to_use:
         st.success(f"✅ JSON attivazioni caricato: {json_name} - {n_prompts} prompt")
     except Exception as e:
         st.warning(f"⚠️ Errore caricamento JSON: {e}")
+
+# Carica Selected Nodes JSON (opzionale, per upload subgraph)
+selected_nodes_data = None
+if nodes_json_to_use:
+    try:
+        selected_nodes_data = json.load(nodes_json_to_use)
+        # Salva in session state per upload
+        st.session_state['selected_nodes_data'] = selected_nodes_data
+        
+        # Mostra info
+        metadata = selected_nodes_data.get('metadata', {})
+        n_nodes = metadata.get('n_nodes', len(selected_nodes_data.get('node_ids', [])))
+        n_features = metadata.get('n_features', len(selected_nodes_data.get('features', [])))
+        
+        st.success(f"✅ Selected Nodes JSON caricato: {n_features} features, {n_nodes} nodi")
+    except Exception as e:
+        st.warning(f"⚠️ Errore caricamento Selected Nodes JSON: {e}")
 
 # ===== STEP 1: PREPARAZIONE =====
 
@@ -857,6 +887,9 @@ else:
                         graph_json_content = json.loads(graph_to_use.read().decode('utf-8'))
                         with open(graph_path, 'w', encoding='utf-8') as f:
                             json.dump(graph_json_content, f)
+                    
+                    # Salva graph_to_use in session state per upload Neuronpedia
+                    st.session_state['graph_json_uploaded'] = graph_to_use
                 
                 df_named = name_nodes(
                     st.session_state['df_classified'],
@@ -1025,11 +1058,13 @@ if 'df_named' in st.session_state:
     
     st.info("Carica il subgrafo con i supernodes su Neuronpedia per visualizzazione interattiva.")
     
-    # API Key input
+    # API Key input (carica da .env se disponibile)
+    default_api_key = os.getenv("NEURONPEDIA_API_KEY", "")
     api_key = st.text_input(
         "API Key Neuronpedia",
+        value=default_api_key,
         type="password",
-        help="Inserisci la tua API key di Neuronpedia (richiesta per l'upload)"
+        help="Inserisci la tua API key di Neuronpedia (richiesta per l'upload). Può essere caricata automaticamente da .env"
     )
     
     # Display name
@@ -1083,12 +1118,16 @@ if 'df_named' in st.session_state:
                 
                 # Upload
                 with st.spinner("Uploading su Neuronpedia..."):
+                    # Recupera selected_nodes_data da session state se disponibile
+                    selected_nodes_data = st.session_state.get('selected_nodes_data')
+                    
                     result = upload_subgraph_to_neuronpedia(
                         df_grouped=df_named,
                         graph_json_path=graph_path,
                         api_key=api_key,
                         display_name=display_name if display_name else None,
                         overwrite_id=overwrite_id if overwrite_id else None,
+                        selected_nodes_data=selected_nodes_data,
                         verbose=False
                     )
                 
