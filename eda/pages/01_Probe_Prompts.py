@@ -1264,7 +1264,7 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                     
                     # ===== CHART: IMPORTANCE vs ACTIVATION =====
                     st.markdown("---")
-                    st.subheader("Main Chart: Importance vs Activation")
+                    st.subheader("📊 Main Chart: Importance vs Activation")
                     
                     st.caption("""
                     **Bar chart**: Features sorted by causal importance (node_influence).
@@ -1526,14 +1526,7 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                             else:
                                                 st.caption("📊 Distributed features")
                                     
-                                    # Download CSV
-                                    csv_export = verify_full.to_csv(index=False).encode('utf-8')
-                                    st.download_button(
-                                        label="💾 Download verification table (CSV)",
-                                        data=csv_export,
-                                        file_name="probe_prompts_verification_data.csv",
-                                        mime="text/csv"
-                                    )
+                                    # Download CSV - moved to bottom of page
                                 
                                 # ===== CHECK DI CORRETTEZZA DATI =====
                                 
@@ -1900,52 +1893,52 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                     
                                     # ===== ACTIVATION HEATMAPS (Feature × Token for all probes) =====
                                     st.markdown("---")
-                                    st.subheader("🔥 Activation Heatmaps: Feature × Token")
                                     
-                                    st.caption("""
-                                    **Feature × Token heatmaps** (one per probe) showing activation patterns.
-                                    Each heatmap shows which tokens activate which features most strongly.
-                                    Green intensity indicates activation strength (darker = stronger).
-                                    **BOS token is excluded** from all heatmaps.
-                                    """)
-                                    
-                                    try:
-                                        import plotly.graph_objects as go
+                                    with st.expander("🔥 Activation Heatmaps: Feature × Token", expanded=False):
+                                        st.caption("""
+                                        **Feature × Token heatmaps** (one per probe) showing activation patterns.
+                                        Each heatmap shows which tokens activate which features most strongly.
+                                        Green intensity indicates activation strength (darker = stronger).
+                                        **BOS token is excluded** from all heatmaps.
+                                        """)
                                         
-                                        # For each probe, create a heatmap
-                                        for probe_idx, probe_result in enumerate(activations_data.get('results', [])):
-                                            probe_id = probe_result.get('probe_id', f'probe_{probe_idx}')
-                                            prompt = probe_result.get('prompt', '')
-                                            tokens = probe_result.get('tokens', [])
+                                        try:
+                                            import plotly.graph_objects as go
                                             
-                                            # Get activations for features present in plot_data_top
-                                            activations = probe_result.get('activations', [])
-                                            
-                                            if not activations or not tokens:
-                                                continue
-                                            
-                                            # Filter to only features shown in the main chart (plot_data_top)
-                                            selected_feature_keys = set(plot_data_top['feature_key'].unique())
-                                            
-                                            # EXCLUDE BOS: skip first token and first value in activation arrays
-                                            tokens_no_bos = tokens[1:] if len(tokens) > 1 and tokens[0].upper() in ['<BOS>', '<S>'] else tokens
-                                            bos_offset = 1 if len(tokens) > len(tokens_no_bos) else 0
-                                            
-                                            # Build heatmap matrix: rows = features, columns = tokens (no BOS)
-                                            heatmap_data = []
-                                            feature_labels = []
-                                            
-                                            for activation in activations:
-                                                source = str(activation.get('source', ''))
-                                                try:
-                                                    layer = int(source.split('-', 1)[0])
-                                                except Exception:
-                                                    import re
-                                                    m = re.search(r'(\d+)', source)
-                                                    layer = int(m.group(1)) if m else None
+                                            # For each probe, create a heatmap
+                                            for probe_idx, probe_result in enumerate(activations_data.get('results', [])):
+                                                probe_id = probe_result.get('probe_id', f'probe_{probe_idx}')
+                                                prompt = probe_result.get('prompt', '')
+                                                tokens = probe_result.get('tokens', [])
                                                 
-                                                if layer is None:
+                                                # Get activations for features present in plot_data_top
+                                                activations = probe_result.get('activations', [])
+                                                
+                                                if not activations or not tokens:
                                                     continue
+                                                
+                                                # Filter to only features shown in the main chart (plot_data_top)
+                                                selected_feature_keys = set(plot_data_top['feature_key'].unique())
+                                                
+                                                # EXCLUDE BOS: skip first token and first value in activation arrays
+                                                tokens_no_bos = tokens[1:] if len(tokens) > 1 and tokens[0].upper() in ['<BOS>', '<S>'] else tokens
+                                                bos_offset = 1 if len(tokens) > len(tokens_no_bos) else 0
+                                                
+                                                # Build heatmap matrix: rows = features, columns = tokens (no BOS)
+                                                heatmap_data = []
+                                                feature_labels = []
+                                                
+                                                for activation in activations:
+                                                    source = str(activation.get('source', ''))
+                                                    try:
+                                                        layer = int(source.split('-', 1)[0])
+                                                    except Exception:
+                                                        import re
+                                                        m = re.search(r'(\d+)', source)
+                                                        layer = int(m.group(1)) if m else None
+                                                    
+                                                    if layer is None:
+                                                        continue
                                                 
                                                 idx = int(activation.get('index'))
                                                 feature_key = f"{layer}_{idx}"
@@ -1962,12 +1955,12 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                                     heatmap_data.append(values_no_bos)
                                                     feature_labels.append(feature_key)
                                             
-                                            if not heatmap_data:
-                                                st.info(f"No activation data for probe {probe_idx + 1}")
-                                                continue
-                                            
-                                            # Create heatmap
-                                            heatmap_array = np.array(heatmap_data)
+                                                if not heatmap_data:
+                                                    st.info(f"No activation data for probe {probe_idx + 1}")
+                                                    continue
+                                                
+                                                # Create heatmap
+                                                heatmap_array = np.array(heatmap_data)
                                             
                                             # Create custom hover text with token and value (no BOS)
                                             hover_text = []
@@ -2028,11 +2021,11 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                                 # Token frequency as peak
                                                 token_freq = peak_df['peak_token'].value_counts()
                                                 st.markdown(f"**Most frequent peak tokens:** {', '.join([f'{tok} ({cnt})' for tok, cnt in token_freq.head(5).items()])}")
-                                    
-                                    except Exception as e:
-                                        st.error(f"❌ Error creating heatmaps: {e}")
-                                        import traceback
-                                        st.code(traceback.format_exc())
+                                        
+                                        except Exception as e:
+                                            st.error(f"❌ Error creating heatmaps: {e}")
+                                            import traceback
+                                            st.code(traceback.format_exc())
                         
                         except Exception as e:
                             st.error(f"❌ Error processing chart: {e}")
@@ -2043,6 +2036,82 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
             except Exception as e:
                 st.error(f"❌ File loading error: {e}")
                 st.exception(e)
+                
+                # ===== DOWNLOAD BUTTON AT BOTTOM =====
+                if 'activations_uploaded_data' in st.session_state:
+                    activations_data_final = st.session_state['activations_uploaded_data']
+                    
+                    # Recreate verify_full DataFrame for download
+                    try:
+                        verification_rows_final = []
+                        for res in activations_data_final.get('results', []):
+                            prompt = res.get('prompt', '')
+                            tokens = res.get('tokens', [])
+                            T = len(tokens)
+                            
+                            for a in res.get('activations', []):
+                                import re
+                                src = str(a.get('source', ''))
+                                try:
+                                    layer = int(src.split('-', 1)[0])
+                                except Exception:
+                                    m = re.search(r'(\d+)', src)
+                                    layer = int(m.group(1)) if m else None
+                                
+                                idx = int(a.get('index'))
+                                if layer is None:
+                                    continue
+                                
+                                feature_key = f"{layer}_{idx}"
+                                
+                                # Extract values excluding BOS
+                                values = a.get('values', [])
+                                if len(values) > 1:
+                                    values_no_bos = values[1:]
+                                    max_value = max(values_no_bos) if values_no_bos else None
+                                    max_idx = values_no_bos.index(max_value) + 1 if max_value is not None else None
+                                    sum_values = sum(values_no_bos) if values_no_bos else 0
+                                    mean_value = sum_values / len(values_no_bos) if values_no_bos else 0
+                                    sparsity = (max_value - mean_value) / max_value if max_value and max_value > 0 else 0
+                                else:
+                                    max_value = None
+                                    max_idx = None
+                                    sum_values = 0
+                                    mean_value = 0
+                                    sparsity = 0
+                                    
+                                peak_token = tokens[max_idx] if isinstance(max_idx, int) and 0 <= max_idx < T else None
+                                
+                                verification_rows_final.append({
+                                    'feature_key': feature_key,
+                                    'layer': layer,
+                                    'index': idx,
+                                    'source': src,
+                                    'prompt': prompt,
+                                    'activation_max': max_value,
+                                    'activation_sum': sum_values,
+                                    'activation_mean': mean_value,
+                                    'sparsity_ratio': sparsity,
+                                    'peak_token': peak_token,
+                                    'peak_token_idx': max_idx
+                                })
+                        
+                        verify_full_final = pd.DataFrame(verification_rows_final)
+                        
+                        if not verify_full_final.empty:
+                            st.markdown("---")
+                            csv_export_final = verify_full_final.to_csv(index=False).encode('utf-8')
+                            st.download_button(
+                                label="📥 Download Activation Analysis CSV",
+                                data=csv_export_final,
+                                file_name="probe_prompts_activation_analysis.csv",
+                                mime="text/csv",
+                                type="primary",
+                                use_container_width=True,
+                                help="Download complete activation analysis data with metrics (excluding BOS)"
+                            )
+                    except Exception:
+                        pass  # Silently fail if data unavailable
         else:
             st.info("Upload a JSON file to visualize data")
 
