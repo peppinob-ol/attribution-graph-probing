@@ -72,7 +72,7 @@ st.sidebar.success(f"API Key loaded ({len(api_key)} characters)")
 st.header("🌐 Generate New Attribution Graph")
 
 # INPUT PROMPT
-st.subheader(" Prompt Configuration")
+st.subheader("[1] Prompt Configuration")
 
 prompt = st.text_area(
     "Prompt to analyze",
@@ -227,70 +227,73 @@ if generate_button:
 
 st.markdown("---")
 
-# ===== SECTION: ANALYZE EXISTING JSON -> CSV =====
+# ===== SECTION: ANALYZE GRAPH =====
 
-with st.expander("**Analyze Existing JSON -> CSV**", expanded=False):
-    st.write("""
-    If you already have a graph JSON file, you can extract the static metrics (`node_influence`, `cumulative_influence`, `frac_external_raw`)
-    without regenerating the graph.
-    """)
+st.subheader("[2] Analyze Graph")
+st.write("""
+If you already have a graph JSON file, you can extract the static metrics (`node_influence`, `cumulative_influence`, `frac_external_raw`)
+without regenerating the graph.
+""")
+
+# List available JSON files
+json_dir = parent_dir / "output" / "graph_data"
+if json_dir.exists():
+    json_files = sorted(json_dir.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True)
     
-    # List available JSON files
-    json_dir = parent_dir / "output" / "graph_data"
-    if json_dir.exists():
-        json_files = sorted(json_dir.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True)
+    if json_files:
+        # Use relative paths for display
+        json_options = [str(f.relative_to(parent_dir)) for f in json_files]
+        selected_json = st.selectbox(
+            "Select JSON file",
+            options=json_options,
+            help="JSON files sorted by date (most recent first)"
+        )
         
-        if json_files:
-            # Use relative paths for display
-            json_options = [str(f.relative_to(parent_dir)) for f in json_files]
-            selected_json = st.selectbox(
-                "Select JSON file",
-                options=json_options,
-                help="JSON files sorted by date (most recent first)"
-            )
+        # Show file info
+        if selected_json:
+            file_path = parent_dir / selected_json
+            file_size = file_path.stat().st_size / 1024 / 1024
+            file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
             
-            # Show file info
-            if selected_json:
-                file_path = parent_dir / selected_json
-                file_size = file_path.stat().st_size / 1024 / 1024
-                file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Size", f"{file_size:.2f} MB")
+            with col2:
+                st.metric("Date", file_time.strftime("%Y-%m-%d %H:%M"))
+            with col3:
+                st.metric("Name", file_path.name[:20] + "...")
+        
+        # Extract button
+        if st.button("Analyze Graph", key="extract_existing"):
+            try:
+                with st.spinner("Extracting metrics..."):
+                    json_full_path = str(parent_dir / selected_json)
+                    with open(json_full_path, 'r', encoding='utf-8') as f:
+                        graph_data = json.load(f)
+                    
+                    csv_output_path = str(parent_dir / "output" / "graph_feature_static_metrics.csv")
+                    df = extract_static_metrics_from_json(
+                        graph_data,
+                        output_path=csv_output_path,
+                        verbose=False
+                    )
+                    
+                    # Save in session_state to persist across reruns
+                    st.session_state.extracted_graph_data = graph_data
+                    st.session_state.extracted_csv_df = df
+                    st.session_state.analysis_performed = True
                 
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Size", f"{file_size:.2f} MB")
-                with col2:
-                    st.metric("Date", file_time.strftime("%Y-%m-%d %H:%M"))
-                with col3:
-                    st.metric("Name", file_path.name[:20] + "...")
-            
-            # Extract button
-            if st.button("Extract CSV", key="extract_existing"):
-                try:
-                    with st.spinner("Extracting metrics..."):
-                        json_full_path = str(parent_dir / selected_json)
-                        with open(json_full_path, 'r', encoding='utf-8') as f:
-                            graph_data = json.load(f)
-                        
-                        csv_output_path = str(parent_dir / "output" / "graph_feature_static_metrics.csv")
-                        df = extract_static_metrics_from_json(
-                            graph_data,
-                            output_path=csv_output_path,
-                            verbose=False
-                        )
-                        
-                        # Save in session_state to persist across reruns
-                        st.session_state.extracted_graph_data = graph_data
-                        st.session_state.extracted_csv_df = df
-                    
-                    st.success(f"CSV generated: `{csv_output_path}`")
-                    st.info("Scroll down to see interactive visualizations")
-                    
-                except Exception as e:
-                    st.error(f"Error: {str(e)}")
-        else:
-            st.warning("No JSON files found in `output/graph_data/`")
+                st.success(f"CSV generated: `{csv_output_path}`")
+                st.info("Scroll down to see interactive visualizations")
+                
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
     else:
-        st.warning("Directory `output/graph_data/` not found")
+        st.warning("No JSON files found in `output/graph_data/`")
+else:
+    st.warning("Directory `output/graph_data/` not found")
+
+st.markdown("---")
 
 # ===== EXTRACTED DATA VISUALIZATION (persists across reruns) =====
 
@@ -298,112 +301,46 @@ if st.session_state.extracted_graph_data is not None and st.session_state.extrac
     graph_data = st.session_state.extracted_graph_data
     df = st.session_state.extracted_csv_df
     
-    st.markdown("---")
-    st.header("Extracted Data Analysis")
-    
-    # CSV Metrics
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        st.metric("Features", len(df))
-    with col2:
-        st.metric("Unique Tokens", df['ctx_idx'].nunique())
-    with col3:
-        st.metric("Mean Activation", f"{df['activation'].mean():.3f}")
-    with col4:
-        # Use node_influence (marginal influence) for total sum
-        st.metric("Sum Node Infl", f"{df['node_influence'].sum():.2f}")
-    with col5:
-        st.metric("Mean Frac Ext", f"{df['frac_external_raw'].mean():.3f}")
-    
-    with st.expander("View Complete Dataframe", expanded=False):
-        st.dataframe(df, use_container_width=True, height=600)
-    
-    # Scatter plot: Layer vs Context Position with Influence
-    st.subheader("Feature Distribution by Layer and Position")
-    
-    # Prepare data from JSON for scatter plot
-    if 'nodes' in graph_data:
-        import pandas as pd
-        import plotly.express as px
+    # Only show if analysis was performed
+    if st.session_state.get('analysis_performed', False):
+        st.header("Extracted Data Analysis")
         
-        # Extract prompt_tokens from metadata to map ctx_idx -> token
-        prompt_tokens = graph_data.get('metadata', {}).get('prompt_tokens', [])
+        # CSV Metrics
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col1:
+            st.metric("Features", len(df))
+        with col2:
+            st.metric("Unique Tokens", df['ctx_idx'].nunique())
+        with col3:
+            st.metric("Mean Activation", f"{df['activation'].mean():.3f}")
+        with col4:
+            # Use node_influence (marginal influence) for total sum
+            st.metric("Sum Node Infl", f"{df['node_influence'].sum():.2f}")
+        with col5:
+            st.metric("Mean Frac Ext", f"{df['frac_external_raw'].mean():.3f}")
         
-        # Scatter plot visualization with filter
-        from eda.utils.graph_visualization import create_scatter_plot_with_filter
-        filtered_features = create_scatter_plot_with_filter(graph_data)
+        with st.expander("View Complete Dataframe", expanded=False):
+            st.dataframe(df, use_container_width=True, height=600)
         
-        # Export selected features
-        if filtered_features is not None and len(filtered_features) > 0:
-            st.markdown("---")
-            st.subheader("Export Selected Features")
-            
-            # Convert dataframe to format [{"layer": X, "index": Y}, ...]
-            # Remove duplicates using set of tuples (layer, feature)
-            unique_features = {
-                (int(row['layer']), int(row['feature']))
-                for _, row in filtered_features.iterrows()
-            }
-            
-            # Convert to sorted list of dicts
-            features_export = [
-                {"layer": layer, "index": feature}
-                for layer, feature in sorted(unique_features)
-            ]
-            
-            # Also extract selected node_ids (for subgraph upload)
-            node_ids_export = sorted(filtered_features['id'].unique().tolist())
-            
-            # Create complete export with features AND node_ids
-            export_data = {
-                "features": features_export,
-                "node_ids": node_ids_export,
-                "metadata": {
-                    "n_features": len(features_export),
-                    "n_nodes": len(node_ids_export),
-                    "cumulative_threshold": cumulative_threshold_summary if 'cumulative_threshold_summary' in locals() else None,
-                    "exported_at": datetime.now().isoformat()
-                }
-            }
-            
-            # Statistics
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Unique Features", len(features_export))
-            with col2:
-                st.metric("Selected Nodes", len(node_ids_export))
-            with col3:
-                st.metric("Unique Layers", len({f['layer'] for f in features_export}))
-            
-            # Download JSON (complete format)
-            col_full, col_legacy = st.columns(2)
-            
-            with col_full:
-                st.download_button(
-                    label="Download Features + Nodes JSON",
-                    data=json.dumps(export_data, indent=2, ensure_ascii=False),
-                    file_name="selected_features_with_nodes.json",
-                    mime="application/json",
-                    help="Complete format with features and node_ids (for Node Grouping + Upload)"
-                )
-            
-            with col_legacy:
-                st.download_button(
-                    label="Download Features JSON (legacy)",
-                    data=json.dumps(features_export, indent=2, ensure_ascii=False),
-                    file_name="selected_features.json",
-                    mime="application/json",
-                    help="Legacy format (features only, compatible with batch_get_activations.py)"
-                )
-            
-            # Preview
-            with st.expander("Preview Complete Export", expanded=False):
-                st.json({
-                    "features": features_export[:5],
-                    "node_ids": node_ids_export[:10],
-                    "metadata": export_data["metadata"]
-                })
+        # Scatter plot: Layer vs Context Position with Influence
+        st.subheader("Feature Distribution by Layer and Position")
         
+        # Prepare data from JSON for scatter plot
+        if 'nodes' in graph_data:
+            import pandas as pd
+            import plotly.express as px
+            
+            # Extract prompt_tokens from metadata to map ctx_idx -> token
+            prompt_tokens = graph_data.get('metadata', {}).get('prompt_tokens', [])
+            
+            # Scatter plot visualization with filter
+            from eda.utils.graph_visualization import create_scatter_plot_with_filter
+            filtered_features = create_scatter_plot_with_filter(graph_data)
+            
+            # Save filtered_features for export section
+            if filtered_features is not None and len(filtered_features) > 0:
+                st.session_state.filtered_features_export = filtered_features
+
 st.markdown("---")
 
 # ===== RESULTS VISUALIZATION =====
@@ -534,160 +471,233 @@ st.markdown("---")
 
 # ===== SUMMARY CHARTS: COVERAGE AND STRENGTH =====
 
-st.header("Summary Charts: Coverage and Strength")
+# Only show if analysis was performed
+if st.session_state.get('analysis_performed', False):
+    # Data source: prefer extracted data, otherwise last generated graph
+    graph_data_for_plots = None
+    if st.session_state.get('extracted_graph_data') is not None:
+        graph_data_for_plots = st.session_state.extracted_graph_data
+    elif st.session_state.get('generation_result') is not None and st.session_state.generation_result.get('success'):
+        graph_data_for_plots = st.session_state.generation_result.get('graph_data')
 
-# Data source: prefer extracted data, otherwise last generated graph
-graph_data_for_plots = None
-if st.session_state.get('extracted_graph_data') is not None:
-    graph_data_for_plots = st.session_state.extracted_graph_data
-elif st.session_state.get('generation_result') is not None and st.session_state.generation_result.get('success'):
-    graph_data_for_plots = st.session_state.generation_result.get('graph_data')
+    if graph_data_for_plots is not None and 'nodes' in graph_data_for_plots:
+        with st.expander("Summary Charts: Coverage and Strength", expanded=False):
+            import pandas as pd
+            import plotly.express as px
+            import numpy as np
 
-if graph_data_for_plots is None or 'nodes' not in graph_data_for_plots:
-    st.info("No graph data available: extract or generate a graph to see the summaries.")
-else:
-    import pandas as pd
-    import plotly.express as px
-    import numpy as np
-
-    nodes_df = pd.DataFrame(graph_data_for_plots['nodes'])
-    is_feature = nodes_df['node_id'].astype(str).str[0].str.isdigit() & nodes_df['node_id'].astype(str).str.contains('_')
-    feat_nodes = nodes_df.loc[is_feature].copy()
-    
-    if len(feat_nodes) == 0:
-        st.warning("No features found in current data.")
-    else:
-        # Add slider to filter (reuse same logic as create_scatter_plot_with_filter)
-        max_influence = feat_nodes['influence'].max()
-        
-        st.markdown("### Filter Features by Cumulative Influence")
-        st.info(f"""
-        **Use the slider to filter the charts below** based on cumulative influence coverage (0-{max_influence:.2f}).
-        Summary charts will show only features with `influence <= threshold`.
-        """)
-        
-        # Check if main slider already exists (from create_scatter_plot_with_filter)
-        # If it exists, use it, otherwise create a new one
-        slider_key = "cumulative_slider_summary"
-        if "cumulative_slider_main" in st.session_state:
-            # Reuse main slider value
-            cumulative_threshold_summary = st.session_state.cumulative_slider_main
-            st.info(f"Synchronized with main slider: threshold = {cumulative_threshold_summary:.4f}")
-        else:
-            # Create separate slider
-            cumulative_threshold_summary = st.slider(
-                "Cumulative Influence Threshold (summary charts)",
-                min_value=0.0,
-                max_value=float(max_influence),
-                value=float(max_influence),
-                step=0.01,
-                key=slider_key,
-                help=f"Keep only features with influence <= threshold. Range: 0.0 - {max_influence:.2f}"
-            )
-        
-        # Apply filter
-        feat_nodes_filtered = feat_nodes[feat_nodes['influence'] <= cumulative_threshold_summary].copy()
-        
-        if len(feat_nodes_filtered) == 0:
-            st.warning("No features match the current filter. Increase the threshold.")
-        else:
-            # Show filter statistics
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Total Features", len(feat_nodes))
-            with col2:
-                st.metric("Filtered Features", len(feat_nodes_filtered))
-            with col3:
-                pct = (len(feat_nodes_filtered) / len(feat_nodes) * 100) if len(feat_nodes) > 0 else 0
-                st.metric("% Kept", f"{pct:.1f}%")
+            nodes_df = pd.DataFrame(graph_data_for_plots['nodes'])
+            is_feature = nodes_df['node_id'].astype(str).str[0].str.isdigit() & nodes_df['node_id'].astype(str).str.contains('_')
+            feat_nodes = nodes_df.loc[is_feature].copy()
             
-            st.markdown("---")
-            
-            # Calculate n_ctx and statistics per feature
-            feat_nodes_filtered['feature_key'] = feat_nodes_filtered['node_id'].str.rsplit('_', n=1).str[0]
-            cov = (
-                feat_nodes_filtered.groupby('feature_key')['ctx_idx'].nunique()
-                .rename('n_ctx').reset_index()
-            )
-            per_feat = (
-                feat_nodes_filtered.groupby('feature_key')
-                .agg(mean_influence=('influence','mean'),
-                     mean_activation=('activation','mean'))
-                .reset_index()
-            )
-            per_feat_cov = per_feat.merge(cov, on='feature_key', how='left')
-            nodes_with_cov = feat_nodes_filtered.merge(cov, on='feature_key', how='left')
-
-            # Chart 1: Coverage (Histogram + ECDF)
-            st.subheader("Feature Coverage (n_ctx)")
-            c1, c2 = st.columns(2)
-            with c1:
-                fig_hist = px.histogram(cov, x='n_ctx', color_discrete_sequence=['#4C78A8'])
-                fig_hist.update_layout(title='n_ctx distribution per feature',
-                                       xaxis_title='Number of unique ctx_idx',
-                                       yaxis_title='Number of features')
-                st.plotly_chart(fig_hist, use_container_width=True)
-            with c2:
-                fig_ecdf = px.ecdf(cov, x='n_ctx', color_discrete_sequence=['#F58518'])
-                fig_ecdf.update_layout(title='n_ctx ECDF',
-                                       xaxis_title='Number of unique ctx_idx',
-                                       yaxis_title='Cumulative fraction')
-                st.plotly_chart(fig_ecdf, use_container_width=True)
-
-            # Chart 2: Strength vs Coverage (Activation vs n_ctx and Scatter mean)
-            st.subheader("Strength vs Coverage")
-            c3, c4 = st.columns(2)
-            with c3:
-                fig_violin = px.violin(nodes_with_cov, x='n_ctx', y='activation', box=True, points=False)
-                fig_violin.update_layout(title='Activation per n_ctx',
-                                         xaxis_title='n_ctx (feature)',
-                                         yaxis_title='Activation (node)')
-                st.plotly_chart(fig_violin, use_container_width=True)
-            with c4:
-                fig_scatter = px.scatter(per_feat_cov, x='mean_activation', y='mean_influence',
-                                         color='n_ctx', size='n_ctx', hover_data=['feature_key'],
-                                         color_continuous_scale='Viridis')
-                # Correlations for subtitle
-                if len(per_feat_cov) >= 2:
-                    pearson = float(per_feat_cov['mean_activation'].corr(per_feat_cov['mean_influence'], method='pearson'))
-                    spearman = float(per_feat_cov['mean_activation'].corr(per_feat_cov['mean_influence'], method='spearman'))
-                    fig_scatter.update_layout(title=f'Mean activation vs mean influence<br>(r={pearson:.2f}, rho={spearman:.2f})')
-                else:
-                    fig_scatter.update_layout(title='Mean activation vs mean influence')
-                fig_scatter.update_layout(xaxis_title='Mean activation (per feature)',
-                                          yaxis_title='Mean influence (per feature)')
-                st.plotly_chart(fig_scatter, use_container_width=True)
-            
-            # Quick insights
-            with st.expander("Insights from charts", expanded=False):
-                # Calculate key statistics
-                top_n_ctx = cov['n_ctx'].max()
-                n_top = len(cov[cov['n_ctx'] == top_n_ctx])
-                top_features = cov[cov['n_ctx'] == top_n_ctx]['feature_key'].tolist()
+            if len(feat_nodes) == 0:
+                st.warning("No features found in current data.")
+            else:
+                # Add slider to filter (reuse same logic as create_scatter_plot_with_filter)
+                max_influence = feat_nodes['influence'].max()
                 
-                st.markdown(f"""
-                **Coverage (n_ctx)**:
-                - {len(cov)} unique features in filtered dataset
-                - {n_top} features present in all {top_n_ctx} contexts
-                - Multi-context features ({top_n_ctx}): {', '.join([f'`{f}`' for f in top_features[:5]])}
-                
-                **Strength vs Coverage**:
-                - Activation-influence correlation: **r={pearson:.2f}** (Pearson), **rho={spearman:.2f}** (Spearman)
-                - {"Negative correlation: features with high activation tend to have low influence" if pearson < -0.2 else "Weak or positive correlation between activation and influence"}
+                st.markdown("### Filter Features by Cumulative Influence")
+                st.info(f"""
+                **Use the slider to filter the charts below** based on cumulative influence coverage (0-{max_influence:.2f}).
+                Summary charts will show only features with `influence <= threshold`.
                 """)
                 
-                # Group statistics
-                if len(nodes_with_cov) > 0:
-                    g1 = nodes_with_cov[nodes_with_cov['n_ctx'] == 1]
-                    g_multi = nodes_with_cov[nodes_with_cov['n_ctx'] >= 5]
+                # Check if main slider already exists (from create_scatter_plot_with_filter)
+                # If it exists, use it, otherwise create a new one
+                slider_key = "cumulative_slider_summary"
+                if "cumulative_slider_main" in st.session_state:
+                    # Reuse main slider value
+                    cumulative_threshold_summary = st.session_state.cumulative_slider_main
+                    st.info(f"Synchronized with main slider: threshold = {cumulative_threshold_summary:.4f}")
+                else:
+                    # Create separate slider
+                    cumulative_threshold_summary = st.slider(
+                        "Cumulative Influence Threshold (summary charts)",
+                        min_value=0.0,
+                        max_value=float(max_influence),
+                        value=float(max_influence),
+                        step=0.01,
+                        key=slider_key,
+                        help=f"Keep only features with influence <= threshold. Range: 0.0 - {max_influence:.2f}"
+                    )
+                
+                # Apply filter
+                feat_nodes_filtered = feat_nodes[feat_nodes['influence'] <= cumulative_threshold_summary].copy()
+                
+                if len(feat_nodes_filtered) == 0:
+                    st.warning("No features match the current filter. Increase the threshold.")
+                else:
+                    # Show filter statistics
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Total Features", len(feat_nodes))
+                    with col2:
+                        st.metric("Filtered Features", len(feat_nodes_filtered))
+                    with col3:
+                        pct = (len(feat_nodes_filtered) / len(feat_nodes) * 100) if len(feat_nodes) > 0 else 0
+                        st.metric("% Kept", f"{pct:.1f}%")
                     
-                    if len(g1) > 0 and len(g_multi) > 0:
-                        st.markdown(f"""
-                        **Group comparison**:
-                        - n_ctx=1: {len(g1)} nodes, mean_activation={g1['activation'].mean():.2f}, mean_influence={g1['influence'].mean():.3f}
-                        - n_ctx>=5: {len(g_multi)} nodes, mean_activation={g_multi['activation'].mean():.2f}, mean_influence={g_multi['influence'].mean():.3f}
-                        """)
+                    st.markdown("---")
+                    
+                    # Calculate n_ctx and statistics per feature
+                    feat_nodes_filtered['feature_key'] = feat_nodes_filtered['node_id'].str.rsplit('_', n=1).str[0]
+                    cov = (
+                        feat_nodes_filtered.groupby('feature_key')['ctx_idx'].nunique()
+                        .rename('n_ctx').reset_index()
+                    )
+                    per_feat = (
+                        feat_nodes_filtered.groupby('feature_key')
+                        .agg(mean_influence=('influence','mean'),
+                             mean_activation=('activation','mean'))
+                        .reset_index()
+                    )
+                    per_feat_cov = per_feat.merge(cov, on='feature_key', how='left')
+                    nodes_with_cov = feat_nodes_filtered.merge(cov, on='feature_key', how='left')
 
+                    # Chart 1: Coverage (Histogram + ECDF)
+                    st.subheader("Feature Coverage (n_ctx)")
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        fig_hist = px.histogram(cov, x='n_ctx', color_discrete_sequence=['#4C78A8'])
+                        fig_hist.update_layout(title='n_ctx distribution per feature',
+                                               xaxis_title='Number of unique ctx_idx',
+                                               yaxis_title='Number of features')
+                        st.plotly_chart(fig_hist, use_container_width=True)
+                    with c2:
+                        fig_ecdf = px.ecdf(cov, x='n_ctx', color_discrete_sequence=['#F58518'])
+                        fig_ecdf.update_layout(title='n_ctx ECDF',
+                                               xaxis_title='Number of unique ctx_idx',
+                                               yaxis_title='Cumulative fraction')
+                        st.plotly_chart(fig_ecdf, use_container_width=True)
+
+                    # Chart 2: Strength vs Coverage (Activation vs n_ctx and Scatter mean)
+                    st.subheader("Strength vs Coverage")
+                    c3, c4 = st.columns(2)
+                    with c3:
+                        fig_violin = px.violin(nodes_with_cov, x='n_ctx', y='activation', box=True, points=False)
+                        fig_violin.update_layout(title='Activation per n_ctx',
+                                                 xaxis_title='n_ctx (feature)',
+                                                 yaxis_title='Activation (node)')
+                        st.plotly_chart(fig_violin, use_container_width=True)
+                    with c4:
+                        fig_scatter = px.scatter(per_feat_cov, x='mean_activation', y='mean_influence',
+                                                 color='n_ctx', size='n_ctx', hover_data=['feature_key'],
+                                                 color_continuous_scale='Viridis')
+                        # Correlations for subtitle
+                        if len(per_feat_cov) >= 2:
+                            pearson = float(per_feat_cov['mean_activation'].corr(per_feat_cov['mean_influence'], method='pearson'))
+                            spearman = float(per_feat_cov['mean_activation'].corr(per_feat_cov['mean_influence'], method='spearman'))
+                            fig_scatter.update_layout(title=f'Mean activation vs mean influence<br>(r={pearson:.2f}, rho={spearman:.2f})')
+                        else:
+                            fig_scatter.update_layout(title='Mean activation vs mean influence')
+                        fig_scatter.update_layout(xaxis_title='Mean activation (per feature)',
+                                                  yaxis_title='Mean influence (per feature)')
+                        st.plotly_chart(fig_scatter, use_container_width=True)
+                    
+                    # Quick insights
+                    with st.expander("Insights from charts", expanded=False):
+                        # Calculate key statistics
+                        top_n_ctx = cov['n_ctx'].max()
+                        n_top = len(cov[cov['n_ctx'] == top_n_ctx])
+                        top_features = cov[cov['n_ctx'] == top_n_ctx]['feature_key'].tolist()
+                        
+                        st.markdown(f"""
+                        **Coverage (n_ctx)**:
+                        - {len(cov)} unique features in filtered dataset
+                        - {n_top} features present in all {top_n_ctx} contexts
+                        - Multi-context features ({top_n_ctx}): {', '.join([f'`{f}`' for f in top_features[:5]])}
+                        
+                        **Strength vs Coverage**:
+                        - Activation-influence correlation: **r={pearson:.2f}** (Pearson), **rho={spearman:.2f}** (Spearman)
+                        - {"Negative correlation: features with high activation tend to have low influence" if pearson < -0.2 else "Weak or positive correlation between activation and influence"}
+                        """)
+                        
+                        # Group statistics
+                        if len(nodes_with_cov) > 0:
+                            g1 = nodes_with_cov[nodes_with_cov['n_ctx'] == 1]
+                            g_multi = nodes_with_cov[nodes_with_cov['n_ctx'] >= 5]
+                            
+                            if len(g1) > 0 and len(g_multi) > 0:
+                                st.markdown(f"""
+                                **Group comparison**:
+                                - n_ctx=1: {len(g1)} nodes, mean_activation={g1['activation'].mean():.2f}, mean_influence={g1['influence'].mean():.3f}
+                                - n_ctx>=5: {len(g_multi)} nodes, mean_activation={g_multi['activation'].mean():.2f}, mean_influence={g_multi['influence'].mean():.3f}
+                                """)
+
+# ===== EXPORT SELECTED FEATURES =====
+
+if st.session_state.get('analysis_performed', False) and st.session_state.get('filtered_features_export') is not None:
+    filtered_features = st.session_state.filtered_features_export
+    
+    if len(filtered_features) > 0:
+        st.markdown("---")
+        st.subheader("Export Selected Features")
+        
+        # Convert dataframe to format [{"layer": X, "index": Y}, ...]
+        # Remove duplicates using set of tuples (layer, feature)
+        unique_features = {
+            (int(row['layer']), int(row['feature']))
+            for _, row in filtered_features.iterrows()
+        }
+        
+        # Convert to sorted list of dicts
+        features_export = [
+            {"layer": layer, "index": feature}
+            for layer, feature in sorted(unique_features)
+        ]
+        
+        # Also extract selected node_ids (for subgraph upload)
+        node_ids_export = sorted(filtered_features['id'].unique().tolist())
+        
+        # Create complete export with features AND node_ids
+        export_data = {
+            "features": features_export,
+            "node_ids": node_ids_export,
+            "metadata": {
+                "n_features": len(features_export),
+                "n_nodes": len(node_ids_export),
+                "cumulative_threshold": st.session_state.get('cumulative_slider_main', None),
+                "exported_at": datetime.now().isoformat()
+            }
+        }
+        
+        # Statistics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Unique Features", len(features_export))
+        with col2:
+            st.metric("Selected Nodes", len(node_ids_export))
+        with col3:
+            st.metric("Unique Layers", len({f['layer'] for f in features_export}))
+        
+        # Download JSON (complete format)
+        col_full, col_legacy = st.columns(2)
+        
+        with col_full:
+            st.download_button(
+                label="Download Features + Nodes JSON",
+                data=json.dumps(export_data, indent=2, ensure_ascii=False),
+                file_name="selected_features_with_nodes.json",
+                mime="application/json",
+                help="Complete format with features and node_ids (for Node Grouping + Upload)"
+            )
+        
+        with col_legacy:
+            st.download_button(
+                label="Download Features JSON (legacy)",
+                data=json.dumps(features_export, indent=2, ensure_ascii=False),
+                file_name="selected_features.json",
+                mime="application/json",
+                help="Legacy format (features only, compatible with batch_get_activations.py)"
+            )
+        
+        # Preview
+        with st.expander("Preview Complete Export", expanded=False):
+            st.json({
+                "features": features_export[:5],
+                "node_ids": node_ids_export[:10],
+                "metadata": export_data["metadata"]
+            })
 
 # ===== FOOTER =====
 

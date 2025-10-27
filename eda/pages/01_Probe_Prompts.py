@@ -12,6 +12,7 @@ import json
 import os
 from datetime import datetime
 import pandas as pd
+import numpy as np
 import re
 
 # Import probe functions
@@ -1217,7 +1218,7 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                         st.write(f"**Probe ID:** {first_result.get('probe_id', 'N/A')}")
                         st.write(f"**Prompt:** {first_result.get('prompt', 'N/A')}")
                         st.write(f"**Token:** `{first_result.get('tokens', [])[:10]}`{'...' if len(first_result.get('tokens', [])) > 10 else ''}")
-                        st.write(f"**Attivazioni trovate:** {len(first_result.get('activations', []))}")
+                        st.write(f"**Activations found:** {len(first_result.get('activations', []))}")
                         
                         if first_result.get('activations'):
                             st.write("**First 3 activations:**")
@@ -1490,16 +1491,16 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                             st.metric("Sparsity (media)", f"{avg_sparsity:.3f}")
                                             st.caption(f"Range: {verify_full['sparsity_ratio'].min():.3f} - {verify_full['sparsity_ratio'].max():.3f}")
                                             if avg_sparsity > 0.7:
-                                                st.caption("🎯 Features molto sparse")
+                                                st.caption("🎯 Very sparse features")
                                             elif avg_sparsity > 0.4:
-                                                st.caption("⚖️ Sparsity moderata")
+                                                st.caption("⚖️ Moderate sparsity")
                                             else:
-                                                st.caption("📊 Features distribuite")
+                                                st.caption("📊 Distributed features")
                                     
                                     # Download CSV
                                     csv_export = verify_full.to_csv(index=False).encode('utf-8')
                                     st.download_button(
-                                        label="💾 Scarica tabella verifica (CSV)",
+                                        label="💾 Download verification table (CSV)",
                                         data=csv_export,
                                         file_name="probe_prompts_verification_data.csv",
                                         mime="text/csv"
@@ -1512,22 +1513,22 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                 n_total_verify = len(verify_full)
                                 
                                 if n_with_ni == 0:
-                                    st.error("❌ ERRORE: Nessuna feature nel JSON ha node_influence dal CSV!")
-                                    st.info("Possibili cause:\n- CSV non generato dallo stesso grafo\n- Colonna 'id' nel CSV non corrisponde a 'index' nel JSON")
+                                    st.error("❌ ERROR: No feature in JSON has node_influence from CSV!")
+                                    st.info("Possible causes:\n- CSV not generated from the same graph\n- Column 'id' in CSV does not match 'index' in JSON")
                                     st.stop()
                                 
                                 if n_with_ni < n_total_verify:
-                                    st.info("Possibili cause:\n- CSV nol_verify - n_with_ni}/{n_total_verify} righe senza node_influence")
+                                    st.warning(f"⚠️ {n_total_verify - n_with_ni}/{n_total_verify} rows without node_influence")
                                 
                                 # CHECK 2: Verifica che activation_max sia sempre calcolata
                                 n_null_act = verify_full['activation_max'].isna().sum()
                                 if n_null_act > 0:
-                                    st.warning(f"⚠️ WARNING: {n_null_act} righe con activation_max = null")
+                                    st.warning(f"⚠️ WARNING: {n_null_act} rows with activation_max = null")
                                 
                                 # CHECK 3: Verifica che peak_token_idx non sia mai 0 (dovrebbe essere sempre >= 1, escludendo BOS)
                                 n_bos_peak = (verify_full['peak_token_idx'] == 0).sum()
                                 if n_bos_peak > 0:
-                                    st.error(f"❌ ERRORE: {n_bos_peak} righe hanno peak_token_idx=0 (BOS)! Il calcolo del max non ha escluso BOS correttamente.")
+                                    st.error(f"❌ ERROR: {n_bos_peak} rows have peak_token_idx=0 (BOS)! Max calculation did not exclude BOS correctly.")
                                 
                                 # CHECK 4: Verifica coerenza dati tra verify_full e agg
                                 verify_check = verify_full.groupby(['feature_key', 'prompt'], as_index=False)['activation_max'].max()
@@ -1558,8 +1559,16 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                 # Filtra solo righe con node_influence valida
                                 plot_data = verify_full[verify_full['node_influence'].notna()].copy()
                                 
+                                # EXCLUDE RECONSTRUCTION ERROR NODES (where layer == index, e.g., 18_18)
+                                n_before_error_filter = len(plot_data)
+                                plot_data = plot_data[plot_data['layer'] != plot_data['index']].copy()
+                                n_error_excluded = n_before_error_filter - len(plot_data)
+                                
+                                if n_error_excluded > 0:
+                                    st.info(f"🔧 Excluded {n_error_excluded} reconstruction error node(s) from chart")
+                                
                                 if plot_data.empty:
-                                    st.warning("❌ Nessuna feature con node_influence disponibile per il grafico.")
+                                    st.warning("❌ No feature with node_influence available for the chart.")
                                 else:
                                     # Seleziona top N features per node_influence
                                     # Per ogni feature_key, prendiamo il max node_influence (già fatto nella tabella)
@@ -1633,7 +1642,8 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                         barmode='stack',
                                         height=600,
                                         hovermode='x unified',
-                                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                                        margin=dict(t=150)
                                     )
                                     
                                     st.plotly_chart(fig, use_container_width=True)
@@ -1651,9 +1661,9 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                         # Check 2: Activation esclude BOS
                                         n_bos_in_plot = (plot_data_top['peak_token_idx'] == 0).sum()
                                         if n_bos_in_plot == 0:
-                                            check_results.append(f"✅ Nessuna activation con peak su BOS (indice 0)")
+                                            check_results.append(f"✅ No activation with peak on BOS (index 0)")
                                         else:
-                                            check_results.append(f"❌ {n_bos_in_plot} activation con peak su BOS!")
+                                            check_results.append(f"❌ {n_bos_in_plot} activation with peak on BOS!")
                                         
                                         # Check 3: node_influence presente per tutte le features visualizzate
                                         n_ni_in_plot = plot_data_top['node_influence'].notna().sum()
@@ -1667,9 +1677,9 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                         actual_order = list(pivot_data.index)
                                         expected_order = top_feats[:len(actual_order)]
                                         if actual_order == expected_order:
-                                            check_results.append(f"✅ Ordinamento features corretto per node_influence decrescente")
+                                            check_results.append(f"✅ Features correctly sorted by descending node_influence")
                                         else:
-                                            check_results.append(f"⚠️ Ordinamento features non corrisponde")
+                                            check_results.append(f"⚠️ Features ordering does not match")
                                         
                                         # Check 5: Range valori sensati
                                         max_act = plot_data_top['activation_max'].max()
@@ -1756,7 +1766,8 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                         barmode='stack',
                                         height=600,
                                         hovermode='x unified',
-                                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                                        margin=dict(t=150)
                                     )
                                     
                                     st.plotly_chart(fig2, use_container_width=True)
@@ -1783,17 +1794,20 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                     # ===== BARRE DI COPERTURA =====
                                     st.markdown("---")
                                     
-                                    # Feature attive = features con activation_max > 0 in verify_full
-                                    features_with_signal = verify_full[verify_full['activation_max'] > 0]['feature_key'].unique()
+                                    # EXCLUDE ERROR NODES for coverage analysis (same as chart filter)
+                                    verify_full_no_error = verify_full[verify_full['layer'] != verify_full['index']].copy()
+                                    
+                                    # Feature attive = features con activation_max > 0 in verify_full (excluding error nodes)
+                                    features_with_signal = verify_full_no_error[verify_full_no_error['activation_max'] > 0]['feature_key'].unique()
                                     n_features_active = len(features_with_signal)
                                     
-                                    # Feature totali = feature_key uniche nel JSON caricato (verify_full)
+                                    # Feature totali = feature_key uniche nel JSON caricato (verify_full, excluding error nodes)
                                     # NON dal CSV (che contiene tutte le features del grafo)
-                                    n_features_total = verify_full['feature_key'].nunique()
+                                    n_features_total = verify_full_no_error['feature_key'].nunique()
                                     
                                     # Calcola node_influence per feature attive vs totale
-                                    # Usa max(node_influence) per feature_key, MA SOLO per le features nel JSON
-                                    csv_max_ni_json = verify_full.groupby('feature_key', as_index=False)['node_influence'].max()
+                                    # Usa max(node_influence) per feature_key, MA SOLO per le features nel JSON (no error nodes)
+                                    csv_max_ni_json = verify_full_no_error.groupby('feature_key', as_index=False)['node_influence'].max()
                                     active_features_influence = csv_max_ni_json[csv_max_ni_json['feature_key'].isin(features_with_signal)]['node_influence'].sum()
                                     total_influence = csv_max_ni_json['node_influence'].sum()
                                     
@@ -1802,7 +1816,7 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                     pct_influence = (active_features_influence / total_influence * 100) if total_influence > 0 else 0
                                     
                                     # Progress bars
-                                    st.markdown("**📊 Coverage Analysis (Features attive sui probe prompts)**")
+                                    st.markdown("**📊 Coverage Analysis (Active features on probe prompts)**")
                                     
                                     # Barra 1: Feature count
                                     st.markdown(f"**Features Coverage:** {n_features_active} / {n_features_total} features ({pct_features:.1f}%)")
@@ -1813,11 +1827,12 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                     st.progress(pct_influence / 100)
                                     
                                     st.caption("""
-                                    💡 **Interpretazione**: 
-                                    - Features Coverage = % di features (nel JSON caricato) che si attivano (>0) su almeno uno dei probe prompts
-                                    - Importance Coverage = % dell'importanza causale (delle features nel JSON) coperta dalle features attive
+                                    💡 **Interpretation**: 
+                                    - Features Coverage = % of features (in loaded JSON) that activate (>0) on at least one probe prompt
+                                    - Importance Coverage = % of causal importance (of features in JSON) covered by active features
                                     
-                                    📌 I valori di riferimento sono le features presenti nel JSON caricato, non l'intero grafo.
+                                    📌 Reference values are features present in loaded JSON, not the entire graph.
+                                    🔧 Reconstruction error nodes (where layer == index) are excluded from these metrics.
                                     """)
                                     
                                     # Dettagli features visualizzate
@@ -1853,6 +1868,142 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
                                         file_name=f'importance_vs_activation_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv',
                                         mime='text/csv'
                                     )
+                                    
+                                    # ===== ACTIVATION HEATMAPS (Feature × Token for all probes) =====
+                                    st.markdown("---")
+                                    st.subheader("🔥 Activation Heatmaps: Feature × Token")
+                                    
+                                    st.caption("""
+                                    **Feature × Token heatmaps** (one per probe) showing activation patterns.
+                                    Each heatmap shows which tokens activate which features most strongly.
+                                    Green intensity indicates activation strength (darker = stronger).
+                                    **BOS token is excluded** from all heatmaps.
+                                    """)
+                                    
+                                    try:
+                                        import plotly.graph_objects as go
+                                        
+                                        # For each probe, create a heatmap
+                                        for probe_idx, probe_result in enumerate(activations_data.get('results', [])):
+                                            probe_id = probe_result.get('probe_id', f'probe_{probe_idx}')
+                                            prompt = probe_result.get('prompt', '')
+                                            tokens = probe_result.get('tokens', [])
+                                            
+                                            # Get activations for features present in plot_data_top
+                                            activations = probe_result.get('activations', [])
+                                            
+                                            if not activations or not tokens:
+                                                continue
+                                            
+                                            # Filter to only features shown in the main chart (plot_data_top)
+                                            selected_feature_keys = set(plot_data_top['feature_key'].unique())
+                                            
+                                            # EXCLUDE BOS: skip first token and first value in activation arrays
+                                            tokens_no_bos = tokens[1:] if len(tokens) > 1 and tokens[0].upper() in ['<BOS>', '<S>'] else tokens
+                                            bos_offset = 1 if len(tokens) > len(tokens_no_bos) else 0
+                                            
+                                            # Build heatmap matrix: rows = features, columns = tokens (no BOS)
+                                            heatmap_data = []
+                                            feature_labels = []
+                                            
+                                            for activation in activations:
+                                                source = str(activation.get('source', ''))
+                                                try:
+                                                    layer = int(source.split('-', 1)[0])
+                                                except Exception:
+                                                    import re
+                                                    m = re.search(r'(\d+)', source)
+                                                    layer = int(m.group(1)) if m else None
+                                                
+                                                if layer is None:
+                                                    continue
+                                                
+                                                idx = int(activation.get('index'))
+                                                feature_key = f"{layer}_{idx}"
+                                                
+                                                # Only include features from the main chart
+                                                if feature_key not in selected_feature_keys:
+                                                    continue
+                                                
+                                                values = activation.get('values', [])
+                                                # Exclude BOS value (first element)
+                                                values_no_bos = values[bos_offset:] if len(values) > bos_offset else values
+                                                
+                                                if len(values_no_bos) == len(tokens_no_bos):
+                                                    heatmap_data.append(values_no_bos)
+                                                    feature_labels.append(feature_key)
+                                            
+                                            if not heatmap_data:
+                                                st.info(f"No activation data for probe {probe_idx + 1}")
+                                                continue
+                                            
+                                            # Create heatmap
+                                            heatmap_array = np.array(heatmap_data)
+                                            
+                                            # Create custom hover text with token and value (no BOS)
+                                            hover_text = []
+                                            for feat_idx, feature_key in enumerate(feature_labels):
+                                                row_hover = []
+                                                for tok_idx, token in enumerate(tokens_no_bos):
+                                                    value = heatmap_array[feat_idx, tok_idx]
+                                                    row_hover.append(
+                                                        f"Feature: {feature_key}<br>"
+                                                        f"Token: {token}<br>"
+                                                        f"Activation: {value:.3f}"
+                                                    )
+                                                hover_text.append(row_hover)
+                                            
+                                            fig_heatmap = go.Figure(data=go.Heatmap(
+                                                z=heatmap_array,
+                                                x=tokens_no_bos,
+                                                y=feature_labels,
+                                                colorscale='Greens',
+                                                hovertext=hover_text,
+                                                hoverinfo='text',
+                                                colorbar=dict(title="Activation")
+                                            ))
+                                            
+                                            fig_heatmap.update_layout(
+                                                title=f"Probe {probe_idx + 1}: {prompt[:60]}{'...' if len(prompt) > 60 else ''} [BOS EXCLUDED]",
+                                                xaxis_title="Tokens (BOS excluded)",
+                                                yaxis_title="Features (layer_index)",
+                                                height=max(400, len(feature_labels) * 20),
+                                                xaxis=dict(tickangle=-45),
+                                                margin=dict(l=100, r=50, t=100, b=100)
+                                            )
+                                            
+                                            st.plotly_chart(fig_heatmap, use_container_width=True)
+                                            
+                                            # Show peak analysis for this probe (BOS already excluded)
+                                            with st.expander(f"📊 Peak Analysis for Probe {probe_idx + 1}"):
+                                                # Find peaks (max activation per feature, BOS already excluded)
+                                                peak_analysis = []
+                                                for feat_idx, feature_key in enumerate(feature_labels):
+                                                    values = heatmap_array[feat_idx, :]
+                                                    max_val = values.max()
+                                                    max_idx = values.argmax()
+                                                    peak_token = tokens_no_bos[max_idx]
+                                                    
+                                                    peak_analysis.append({
+                                                        'feature_key': feature_key,
+                                                        'peak_token': peak_token,
+                                                        'peak_value': max_val,
+                                                        'peak_position': max_idx + bos_offset  # Adjust position to account for BOS
+                                                    })
+                                                
+                                                peak_df = pd.DataFrame(peak_analysis)
+                                                peak_df = peak_df.sort_values('peak_value', ascending=False)
+                                                
+                                                st.dataframe(peak_df, use_container_width=True, height=300)
+                                                
+                                                # Token frequency as peak
+                                                token_freq = peak_df['peak_token'].value_counts()
+                                                st.markdown(f"**Most frequent peak tokens:** {', '.join([f'{tok} ({cnt})' for tok, cnt in token_freq.head(5).items()])}")
+                                    
+                                    except Exception as e:
+                                        st.error(f"❌ Error creating heatmaps: {e}")
+                                        import traceback
+                                        st.code(traceback.format_exc())
                         
                         except Exception as e:
                             st.error(f"❌ Error processing chart: {e}")

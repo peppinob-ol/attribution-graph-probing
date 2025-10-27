@@ -1,4 +1,4 @@
-"""Utilità per visualizzazione interattiva dei grafi estratti"""
+"""Utilities for interactive visualization of extracted graphs"""
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -12,7 +12,7 @@ def create_scatter_plot_with_filter(graph_data):
         graph_data: Dizionario contenente i dati del grafo (nodes, metadata, etc)
     """
     if 'nodes' not in graph_data:
-        st.warning("⚠️ Nessun nodo trovato nei dati del grafo")
+        st.warning("⚠️ No nodes found in graph data")
         return
     
     # Estrai prompt_tokens dalla metadata per mappare ctx_idx -> token
@@ -87,15 +87,15 @@ def create_scatter_plot_with_filter(graph_data):
     
     # Log nodi skippati se ce ne sono
     if skipped_nodes:
-        st.warning(f"⚠️ {len(skipped_nodes)} nodi feature con node_id malformato sono stati skippati")
-        with st.expander("Dettagli nodi skippati"):
+        st.warning(f"⚠️ {len(skipped_nodes)} feature nodes with malformed node_id were skipped")
+        with st.expander("Skipped nodes details"):
             for node_info in skipped_nodes[:10]:  # Mostra solo i primi 10
                 st.text(node_info)
             if len(skipped_nodes) > 10:
-                st.text(f"... e altri {len(skipped_nodes) - 10} nodi")
+                st.text(f"... and {len(skipped_nodes) - 10} more nodes")
     
     if not scatter_data:
-        st.warning("⚠️ Nessun nodo valido trovato per il plot")
+        st.warning("⚠️ No valid nodes found for plotting")
         return
     
     scatter_df = pd.DataFrame(scatter_data)
@@ -125,7 +125,7 @@ def create_scatter_plot_with_filter(graph_data):
     scatter_df['ctx_idx_display'] = scatter_df['ctx_idx'] + scatter_df['sub_column']
     
     # === FILTRO PER CUMULATIVE INFLUENCE ===
-    st.markdown("### 🎚️ Filtra Features per Cumulative Influence Coverage")
+    st.markdown("### [3] Filter Features by Cumulative Influence Coverage")
     
     # Calcola il massimo valore di influence presente nei dati
     max_influence = scatter_df['influence'].max()
@@ -135,15 +135,15 @@ def create_scatter_plot_with_filter(graph_data):
     
     if node_threshold_used is not None:
         st.info(f"""
-        **Il campo `influence` è la copertura cumulativa (0-{max_influence:.2f})** calcolata dal pruning del circuit tracer.Quando i nodi sono ordinati per influenza decrescente, un nodo con `influence=0.65` significa che 
-        **fino a quel nodo** viene coperto il 65% dell'influenza totale.
+        **The `influence` field is the cumulative coverage (0-{max_influence:.2f})** calculated by circuit tracer pruning. When nodes are sorted by descending influence, a node with `influence=0.65` means that 
+        **up to that node** covers 65% of the total influence.
         """)
     else:
         st.info(f"""
-        **Il campo `influence` è la copertura cumulativa (0-{max_influence:.2f})** calcolata dal pruning del circuit tracer.
+        **The `influence` field is the cumulative coverage (0-{max_influence:.2f})** calculated by circuit tracer pruning.
         
-        Quando i nodi sono ordinati per influenza decrescente, un nodo con `influence=0.65` significa che 
-        **fino a quel nodo** viene coperto il 65% dell'influenza totale.
+        When nodes are sorted by descending influence, a node with `influence=0.65` means that 
+        **up to that node** covers 65% of the total influence.
         """)
     
     cumulative_threshold = st.slider(
@@ -153,15 +153,15 @@ def create_scatter_plot_with_filter(graph_data):
         value=float(max_influence),
         step=0.01,
         key="cumulative_slider_main",
-        help=f"Mantieni solo i nodi con influence ≤ threshold. Range: 0.0 - {max_influence:.2f} (max nei dati)"
+        help=f"Keep only nodes with influence ≤ threshold. Range: 0.0 - {max_influence:.2f} (max in data)"
     )
     
     # Checkbox per filtrare reconstruction error nodes
     filter_error_nodes = st.checkbox(
-        "Escludi Reconstruction Error Nodes (feature = -1)",
+        "Exclude Reconstruction Error Nodes (feature = -1)",
         value=False,
         key="filter_error_checkbox",
-        help="I reconstruction error nodes rappresentano la parte del modello non spiegata dalle features SAE"
+        help="Reconstruction error nodes represent the part of the model not explained by SAE features"
     )
     
     # Filtra usando direttamente il campo influence dal JSON
@@ -218,17 +218,17 @@ def create_scatter_plot_with_filter(graph_data):
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Nodi Totali", num_total)
+        st.metric("Total Nodes", num_total)
     
     with col2:
-        st.metric("Nodi Selezionati", num_selected)
+        st.metric("Selected Nodes", num_selected)
     
     with col3:
         pct = (num_selected / num_total * 100) if num_total > 0 else 0
-        st.metric("% Nodi", f"{pct:.1f}%")
+        st.metric("% Nodes", f"{pct:.1f}%")
     
     with col4:
-        st.metric("Soglia Influence", f"{threshold_influence:.6f}")
+        st.metric("Influence Threshold", f"{threshold_influence:.6f}")
     
 
     # Usa il dataframe filtrato per il plot
@@ -271,15 +271,15 @@ def create_scatter_plot_with_filter(graph_data):
     col1, col2 = st.columns(2)
     with col1:
         st.metric(
-            "% Nodi Error", 
+            "% Error Nodes", 
             f"{pct_error_nodes:.1f}%",
-            help=f"{n_error_total} nodi su {num_total} totali sono reconstruction error (feature=-1)"
+            help=f"{n_error_total} out of {num_total} total nodes are reconstruction error (feature=-1)"
         )
     with col2:
         st.metric(
             "% Node Influence (Error)", 
             f"{pct_error_influence:.1f}%",
-            help=f"I reconstruction error nodes contribuiscono al {pct_error_influence:.1f}% della node_influence totale"
+            help=f"Reconstruction error nodes contribute {pct_error_influence:.1f}% of total node_influence"
         )
     
         # Messaggio info con breakdown
@@ -291,7 +291,7 @@ def create_scatter_plot_with_filter(graph_data):
     if n_error_excluded > 0:
         excluded_parts.append(f"{n_error_excluded} error nodes")
     
-    st.info(f"📊 Visualizzando {n_embeddings + n_features + n_error_nodes} nodi: {', '.join(info_parts)} ({', '.join(excluded_parts)} esclusi)")
+    st.info(f"📊 Displaying {n_embeddings + n_features + n_error_nodes} nodes: {', '.join(info_parts)} ({', '.join(excluded_parts)} excluded)")
     
     
     # Identifica i 2 gruppi: embeddings e features (escludi logits)
@@ -359,7 +359,7 @@ def create_scatter_plot_with_filter(graph_data):
             'token': 'Token',
             'feature': 'Feature'
         },
-        title='Features per Layer e Position (grandezza: node_influence^3 normalizzata per gruppo)',
+        title='Features by Layer and Position (size: node_influence^3 normalized per group)',
         hover_data={
             'ctx_idx': True,
             'token': True,
@@ -397,7 +397,7 @@ def create_scatter_plot_with_filter(graph_data):
         height=600,
         showlegend=True,  # Mostra legenda per i 3 gruppi
         legend=dict(
-            title="Tipo Nodo",
+            title="Node Type",
             orientation="v",
             yanchor="top",
             y=0.99,
@@ -418,233 +418,232 @@ def create_scatter_plot_with_filter(graph_data):
     st.plotly_chart(fig, use_container_width=True)
     
     # Mostra statistiche per gruppo
-    with st.expander("📊 Statistiche per Gruppo (Normalizzazione Grandezza)", expanded=False):
+    with st.expander("📊 Statistics by Group (Size Normalization)", expanded=False):
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("**🟩 Embeddings (quadrati verdi)**")
+            st.markdown("**🟩 Embeddings (green squares)**")
             emb_data = scatter_df[scatter_df['node_type'] == 'embedding']
             if len(emb_data) > 0:
-                st.metric("Nodi", len(emb_data))
+                st.metric("Nodes", len(emb_data))
                 st.metric("Max node_influence", f"{emb_data['node_influence'].max():.6f}")
                 st.metric("Mean node_influence", f"{emb_data['node_influence'].mean():.6f}")
                 st.metric("Min node_influence", f"{emb_data['node_influence'].min():.6f}")
             else:
-                st.info("Nessun embedding nel dataset filtrato")
+                st.info("No embeddings in filtered dataset")
         
         with col2:
-            st.markdown("**⚪ Features (cerchi grigi)**")
+            st.markdown("**⚪ Features (gray circles)**")
             feat_data = scatter_df[scatter_df['node_type'] == 'feature']
             if len(feat_data) > 0:
-                st.metric("Nodi", len(feat_data))
+                st.metric("Nodes", len(feat_data))
                 st.metric("Max node_influence", f"{feat_data['node_influence'].max():.6f}")
                 st.metric("Mean node_influence", f"{feat_data['node_influence'].mean():.6f}")
                 st.metric("Min node_influence", f"{feat_data['node_influence'].min():.6f}")
             else:
-                st.info("Nessuna feature nel dataset filtrato")
+                st.info("No features in filtered dataset")
         
         st.info("""
-        💡 **Formula grandezza**: `grandezza = (node_influence_normalizzata)³ × 1000 + 10`
+        💡 **Size formula**: `size = (normalized_node_influence)³ × 1000 + 10`
         
-        La dimensione è normalizzata **per gruppo** e usa **power 3** per estremizzare le differenze:
-        - Un nodo con 50% del max → grandezza = 0.5³ = 12.5% (molto più piccolo)
-        - Un nodo con 80% del max → grandezza = 0.8³ = 51.2%
-        - Un nodo con 100% del max → grandezza = 1.0³ = 100%
+        Size is normalized **per group** and uses **power 3** to emphasize differences:
+        - A node with 50% of max → size = 0.5³ = 12.5% (much smaller)
+        - A node with 80% of max → size = 0.8³ = 51.2%
+        - A node with 100% of max → size = 1.0³ = 100%
         
-        I 2 gruppi (embeddings e features) hanno scale indipendenti.
-        Nota di cautela: nel JSON il campo “influence” è la cumulativa pre-pruning, quindi stimare la node_influence come differenza tra cumulativi consecutivi è solo una proxy normalizzata (da rinormalizzare sul set corrente), perché il grafo può essere già potata topologicamente e la selezione non coincide con un prefisso contiguo dei nodi ordinati.
+        The 2 groups (embeddings and features) have independent scales.
+        Note: in the JSON the "influence" field is the pre-pruning cumulative, so estimating node_influence as the difference between consecutive cumulatives is only a normalized proxy (to be renormalized on the current set), because the graph may already be topologically pruned and the selection does not coincide with a contiguous prefix of sorted nodes.
         """)
     
     # === GRAFICO PARETO: NODE INFLUENCE (solo features, no embeddings/logits) ===
-    st.markdown("### 📈 Analisi Pareto Node Influence (solo Features)")
-    
-    try:
-        # Filtra solo features (scatter_df ha già rimosso i logit e ha node_type)
-        features_only = scatter_df[scatter_df['node_type'] == 'feature'].copy()
-        
-        if len(features_only) == 0:
-            st.warning("⚠️ Nessuna feature trovata nel dataset filtrato")
-            return
-        
-        # Ordina per node_influence decrescente
-        sorted_df = features_only.sort_values('node_influence', ascending=False).reset_index(drop=True)
-        
-        # Calcola rank e percentile
-        sorted_df['rank'] = range(1, len(sorted_df) + 1)
-        sorted_df['rank_pct'] = sorted_df['rank'] / len(sorted_df) * 100
-        
-        # Calcola node_influence cumulativa (somma progressiva)
-        total_node_inf = sorted_df['node_influence'].sum()
-        
-        if total_node_inf == 0:
-            st.warning("⚠️ Total Node influence is 0")
-            return
-        
-        sorted_df['cumulative_node_influence'] = sorted_df['node_influence'].cumsum()
-        sorted_df['cumulative_node_influence_pct'] = sorted_df['cumulative_node_influence'] / total_node_inf * 100
-        
-        # Crea grafico Pareto con doppio asse Y
-        import plotly.graph_objects as go
-        from plotly.subplots import make_subplots
-        
-        # Crea subplot con asse Y secondario
-        fig_pareto = make_subplots(specs=[[{"secondary_y": True}]])
-        
-        # Barra: node_influence individuale (limita a primi 100 nodi per leggibilità)
-        display_limit = min(100, len(sorted_df))
-        
-        fig_pareto.add_trace(
-            go.Bar(
-                x=sorted_df['rank'][:display_limit],
-                y=sorted_df['node_influence'][:display_limit],
-                name='Node Influence',
-                marker=dict(color='#2196F3', opacity=0.6),
-                hovertemplate='<b>Rank: %{x}</b><br>Node Influence: %{y:.6f}<extra></extra>'
-            ),
-            secondary_y=False
-        )
-        
-        # Linea: cumulativa % (usa tutti i nodi)
-        fig_pareto.add_trace(
-            go.Scatter(
-                x=sorted_df['rank_pct'],
-                y=sorted_df['cumulative_node_influence_pct'],
-                mode='lines+markers',
-                name='Cumulative %',
-                line=dict(color='#FF5722', width=3),
-                marker=dict(size=4),
-                hovertemplate='<b>Top %{x:.1f}% features</b><br>Cumulative: %{y:.1f}%<extra></extra>'
-            ),
-            secondary_y=True
-        )
-        
-        # Linee di riferimento Pareto (80%, 90%, 95%)
-        for pct, label in [(80, '80%'), (90, '90%'), (95, '95%')]:
-            fig_pareto.add_hline(
-                y=pct, 
-                line_dash="dash", 
-                line_color="gray", 
-                opacity=0.5,
+    with st.expander("📈 Pareto Analysis Node Influence (Features only)", expanded=False):
+        try:
+            # Filtra solo features (scatter_df ha già rimosso i logit e ha node_type)
+            features_only = scatter_df[scatter_df['node_type'] == 'feature'].copy()
+            
+            if len(features_only) == 0:
+                st.warning("⚠️ No features found in filtered dataset")
+                return
+            
+            # Ordina per node_influence decrescente
+            sorted_df = features_only.sort_values('node_influence', ascending=False).reset_index(drop=True)
+            
+            # Calcola rank e percentile
+            sorted_df['rank'] = range(1, len(sorted_df) + 1)
+            sorted_df['rank_pct'] = sorted_df['rank'] / len(sorted_df) * 100
+            
+            # Calcola node_influence cumulativa (somma progressiva)
+            total_node_inf = sorted_df['node_influence'].sum()
+            
+            if total_node_inf == 0:
+                st.warning("⚠️ Total Node influence is 0")
+                return
+            
+            sorted_df['cumulative_node_influence'] = sorted_df['node_influence'].cumsum()
+            sorted_df['cumulative_node_influence_pct'] = sorted_df['cumulative_node_influence'] / total_node_inf * 100
+            
+            # Crea grafico Pareto con doppio asse Y
+            import plotly.graph_objects as go
+            from plotly.subplots import make_subplots
+            
+            # Crea subplot con asse Y secondario
+            fig_pareto = make_subplots(specs=[[{"secondary_y": True}]])
+            
+            # Barra: node_influence individuale (limita a primi 100 nodi per leggibilità)
+            display_limit = min(100, len(sorted_df))
+            
+            fig_pareto.add_trace(
+                go.Bar(
+                    x=sorted_df['rank'][:display_limit],
+                    y=sorted_df['node_influence'][:display_limit],
+                    name='Node Influence',
+                    marker=dict(color='#2196F3', opacity=0.6),
+                    hovertemplate='<b>Rank: %{x}</b><br>Node Influence: %{y:.6f}<extra></extra>'
+                ),
+                secondary_y=False
+            )
+            
+            # Linea: cumulativa % (usa tutti i nodi)
+            fig_pareto.add_trace(
+                go.Scatter(
+                    x=sorted_df['rank_pct'],
+                    y=sorted_df['cumulative_node_influence_pct'],
+                    mode='lines+markers',
+                    name='Cumulative %',
+                    line=dict(color='#FF5722', width=3),
+                    marker=dict(size=4),
+                    hovertemplate='<b>Top %{x:.1f}% features</b><br>Cumulative: %{y:.1f}%<extra></extra>'
+                ),
                 secondary_y=True
             )
-            fig_pareto.add_annotation(
-                x=100, 
-                y=pct, 
-                text=label, 
-                showarrow=False, 
-                xanchor='left',
-                yref='y2'
-            )
-        
-        # Trova il "knee" (punto dove la cumulativa raggiunge 80%)
-        knee_idx = (sorted_df['cumulative_node_influence_pct'] >= 80).idxmax()
-        knee_rank_pct = sorted_df.loc[knee_idx, 'rank_pct']
-        knee_cumul = sorted_df.loc[knee_idx, 'cumulative_node_influence_pct']
-        
-        fig_pareto.add_trace(
-            go.Scatter(
-                x=[knee_rank_pct],
-                y=[knee_cumul],
-                mode='markers',
-                name='Knee (80%)',
-                marker=dict(size=15, color='#4CAF50', symbol='diamond', line=dict(width=2, color='white')),
-                hovertemplate=f'<b>Knee Point</b><br>Top {knee_rank_pct:.1f}% features<br>Cumulativa: {knee_cumul:.1f}%<extra></extra>',
-                showlegend=True
-            ),
-            secondary_y=True
-        )
-        
-        # Layout
-        fig_pareto.update_xaxes(title_text="Rank % Features (by descending node_influence)")
-        fig_pareto.update_yaxes(title_text="Node Influence (individual)", secondary_y=False)
-        fig_pareto.update_yaxes(title_text="Cumulative % Node Influence", secondary_y=True, range=[0, 105])
-        
-        fig_pareto.update_layout(
-            height=500,
-            showlegend=True,
-            template='plotly_white',
-            legend=dict(x=0.02, y=0.98, xanchor='left', yanchor='top'),
-            title="Grafico Pareto: Node Influence delle Features"
-        )
-        
-        st.plotly_chart(fig_pareto, use_container_width=True)
-        
-        # Statistiche chiave Pareto
-        st.markdown("#### 📊 Statistiche Pareto (Node Influence)")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        # Trova percentili chiave
-        top_10_idx = max(0, int(len(sorted_df) * 0.1))
-        top_20_idx = max(0, int(len(sorted_df) * 0.2))
-        top_50_idx = max(0, int(len(sorted_df) * 0.5))
-        
-        top_10_pct = sorted_df['cumulative_node_influence_pct'].iloc[top_10_idx] if top_10_idx < len(sorted_df) else 0
-        top_20_pct = sorted_df['cumulative_node_influence_pct'].iloc[top_20_idx] if top_20_idx < len(sorted_df) else 0
-        top_50_pct = sorted_df['cumulative_node_influence_pct'].iloc[top_50_idx] if top_50_idx < len(sorted_df) else 0
-        
-        with col1:
-            st.metric("Top 10% features", f"{top_10_pct:.1f}% node_influence", 
-                     help=f"Le prime {int(len(sorted_df)*0.1)} features più influenti coprono {top_10_pct:.1f}% dell'influenza totale")
-        with col2:
-            st.metric("Top 20% features", f"{top_20_pct:.1f}% node_influence",
-                     help=f"Le prime {int(len(sorted_df)*0.2)} features più influenti coprono {top_20_pct:.1f}% dell'influenza totale")
-        with col3:
-            st.metric("Top 50% features", f"{top_50_pct:.1f}% node_influence",
-                     help=f"Le prime {int(len(sorted_df)*0.5)} features più influenti coprono {top_50_pct:.1f}% dell'influenza totale")
-        with col4:
-            # Gini coefficient
-            gini = 1 - 2 * np.trapz(sorted_df['cumulative_node_influence_pct'] / 100, sorted_df['rank_pct'] / 100)
-            st.metric("Gini Coefficient", f"{gini:.3f}", help="0 = distribuzione uguale, 1 = molto concentrata")
-        
-        # Info sul knee point e suggerimento threshold
-        # sorted_df[knee_idx] ci dà la riga del knee point
-        knee_cumul_threshold = sorted_df.loc[knee_idx, 'influence'] if 'influence' in sorted_df.columns else scatter_df['influence'].max()
-        
-        st.success(f"""
-        🎯 **Knee Point (80%)**: Le prime **{knee_rank_pct:.1f}%** delle features ({int(len(sorted_df) * knee_rank_pct / 100)} nodi) 
-        coprono l'**80%** della node_influence totale.
-        
-        💡 **Suggerimento Threshold**: Per concentrarti sulle features fino al knee point (80%), 
-        usa `cumulative_threshold ≈ {knee_cumul_threshold:.4f}` nello slider sopra.
-        """)
-        
-        # Histogram distribuzione node_influence (opzionale, in expander)
-        with st.expander("📊 Histogram Distribuzione Node Influence", expanded=False):
-            fig_hist = px.histogram(
-                sorted_df,
-                x='node_influence',
-                nbins=50,
-                title='Distribuzione Node Influence (Features)',
-                labels={'node_influence': 'Node Influence', 'count': 'Frequenza'},
-                color_discrete_sequence=['#2196F3']
+            
+            # Linee di riferimento Pareto (80%, 90%, 95%)
+            for pct, label in [(80, '80%'), (90, '90%'), (95, '95%')]:
+                fig_pareto.add_hline(
+                    y=pct, 
+                    line_dash="dash", 
+                    line_color="gray", 
+                    opacity=0.5,
+                    secondary_y=True
+                )
+                fig_pareto.add_annotation(
+                    x=100, 
+                    y=pct, 
+                    text=label, 
+                    showarrow=False, 
+                    xanchor='left',
+                    yref='y2'
+                )
+            
+            # Trova il "knee" (punto dove la cumulativa raggiunge 80%)
+            knee_idx = (sorted_df['cumulative_node_influence_pct'] >= 80).idxmax()
+            knee_rank_pct = sorted_df.loc[knee_idx, 'rank_pct']
+            knee_cumul = sorted_df.loc[knee_idx, 'cumulative_node_influence_pct']
+            
+            fig_pareto.add_trace(
+                go.Scatter(
+                    x=[knee_rank_pct],
+                    y=[knee_cumul],
+                    mode='markers',
+                    name='Knee (80%)',
+                    marker=dict(size=15, color='#4CAF50', symbol='diamond', line=dict(width=2, color='white')),
+                    hovertemplate=f'<b>Knee Point</b><br>Top {knee_rank_pct:.1f}% features<br>Cumulativa: {knee_cumul:.1f}%<extra></extra>',
+                    showlegend=True
+                ),
+                secondary_y=True
             )
             
-            fig_hist.update_layout(
-                height=350,
+            # Layout
+            fig_pareto.update_xaxes(title_text="Rank % Features (by descending node_influence)")
+            fig_pareto.update_yaxes(title_text="Node Influence (individual)", secondary_y=False)
+            fig_pareto.update_yaxes(title_text="Cumulative % Node Influence", secondary_y=True, range=[0, 105])
+            
+            fig_pareto.update_layout(
+                height=500,
+                showlegend=True,
                 template='plotly_white',
-                showlegend=False
+                legend=dict(x=0.02, y=0.98, xanchor='left', yanchor='top'),
+                title="Pareto Chart: Node Influence of Features"
             )
             
-            fig_hist.update_traces(marker=dict(opacity=0.7))
+            st.plotly_chart(fig_pareto, use_container_width=True)
             
-            st.plotly_chart(fig_hist, use_container_width=True)
+            # Statistiche chiave Pareto
+            st.markdown("#### 📊 Pareto Statistics (Node Influence)")
             
-            # Statistiche distribuzione
             col1, col2, col3, col4 = st.columns(4)
+            
+            # Trova percentili chiave
+            top_10_idx = max(0, int(len(sorted_df) * 0.1))
+            top_20_idx = max(0, int(len(sorted_df) * 0.2))
+            top_50_idx = max(0, int(len(sorted_df) * 0.5))
+            
+            top_10_pct = sorted_df['cumulative_node_influence_pct'].iloc[top_10_idx] if top_10_idx < len(sorted_df) else 0
+            top_20_pct = sorted_df['cumulative_node_influence_pct'].iloc[top_20_idx] if top_20_idx < len(sorted_df) else 0
+            top_50_pct = sorted_df['cumulative_node_influence_pct'].iloc[top_50_idx] if top_50_idx < len(sorted_df) else 0
+            
             with col1:
-                st.metric("Mean", f"{sorted_df['node_influence'].mean():.6f}")
+                st.metric("Top 10% features", f"{top_10_pct:.1f}% node_influence", 
+                         help=f"The top {int(len(sorted_df)*0.1)} most influential features cover {top_10_pct:.1f}% of total influence")
             with col2:
-                st.metric("Median", f"{sorted_df['node_influence'].median():.6f}")
+                st.metric("Top 20% features", f"{top_20_pct:.1f}% node_influence",
+                         help=f"The top {int(len(sorted_df)*0.2)} most influential features cover {top_20_pct:.1f}% of total influence")
             with col3:
-                st.metric("Std Dev", f"{sorted_df['node_influence'].std():.6f}")
+                st.metric("Top 50% features", f"{top_50_pct:.1f}% node_influence",
+                         help=f"The top {int(len(sorted_df)*0.5)} most influential features cover {top_50_pct:.1f}% of total influence")
             with col4:
-                st.metric("Max", f"{sorted_df['node_influence'].max():.6f}")
-    
-    except Exception as e:
-        st.error(f"❌ Errore nella creazione del grafico di distribuzione: {str(e)}")
-        import traceback
-        st.code(traceback.format_exc())
+                # Gini coefficient
+                gini = 1 - 2 * np.trapz(sorted_df['cumulative_node_influence_pct'] / 100, sorted_df['rank_pct'] / 100)
+                st.metric("Gini Coefficient", f"{gini:.3f}", help="0 = equal distribution, 1 = highly concentrated")
+            
+            # Info sul knee point e suggerimento threshold
+            # sorted_df[knee_idx] ci dà la riga del knee point
+            knee_cumul_threshold = sorted_df.loc[knee_idx, 'influence'] if 'influence' in sorted_df.columns else scatter_df['influence'].max()
+            
+            st.success(f"""
+            🎯 **Knee Point (80%)**: The first **{knee_rank_pct:.1f}%** of features ({int(len(sorted_df) * knee_rank_pct / 100)} nodes) 
+            cover **80%** of total node_influence.
+            
+            💡 **Threshold Suggestion**: To focus on features up to the knee point (80%), 
+            use `cumulative_threshold ≈ {knee_cumul_threshold:.4f}` in the slider above.
+            """)
+            
+            # Histogram distribuzione node_influence (opzionale, in expander)
+            with st.expander("📊 Node Influence Distribution Histogram", expanded=False):
+                fig_hist = px.histogram(
+                    sorted_df,
+                    x='node_influence',
+                    nbins=50,
+                    title='Node Influence Distribution (Features)',
+                    labels={'node_influence': 'Node Influence', 'count': 'Frequency'},
+                    color_discrete_sequence=['#2196F3']
+                )
+                
+                fig_hist.update_layout(
+                    height=350,
+                    template='plotly_white',
+                    showlegend=False
+                )
+                
+                fig_hist.update_traces(marker=dict(opacity=0.7))
+                
+                st.plotly_chart(fig_hist, use_container_width=True)
+                
+                # Statistiche distribuzione
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Mean", f"{sorted_df['node_influence'].mean():.6f}")
+                with col2:
+                    st.metric("Median", f"{sorted_df['node_influence'].median():.6f}")
+                with col3:
+                    st.metric("Std Dev", f"{sorted_df['node_influence'].std():.6f}")
+                with col4:
+                    st.metric("Max", f"{sorted_df['node_influence'].max():.6f}")
+        
+        except Exception as e:
+            st.error(f"❌ Error creating distribution chart: {str(e)}")
+            import traceback
+            st.code(traceback.format_exc())
     
     # Ritorna le feature filtrate (solo SAE features, no embeddings/logits/errors)
     # Utile per export
