@@ -477,7 +477,7 @@ def create_scatter_plot_with_filter(graph_data):
         total_node_inf = sorted_df['node_influence'].sum()
         
         if total_node_inf == 0:
-            st.warning("⚠️ Node influence totale è zero")
+            st.warning("⚠️ Total Node influence is 0")
             return
         
         sorted_df['cumulative_node_influence'] = sorted_df['node_influence'].cumsum()
@@ -510,10 +510,10 @@ def create_scatter_plot_with_filter(graph_data):
                 x=sorted_df['rank_pct'],
                 y=sorted_df['cumulative_node_influence_pct'],
                 mode='lines+markers',
-                name='Cumulativa %',
+                name='Cumulative %',
                 line=dict(color='#FF5722', width=3),
                 marker=dict(size=4),
-                hovertemplate='<b>Top %{x:.1f}% features</b><br>Cumulativa: %{y:.1f}%<extra></extra>'
+                hovertemplate='<b>Top %{x:.1f}% features</b><br>Cumulative: %{y:.1f}%<extra></extra>'
             ),
             secondary_y=True
         )
@@ -555,9 +555,9 @@ def create_scatter_plot_with_filter(graph_data):
         )
         
         # Layout
-        fig_pareto.update_xaxes(title_text="Rank % Features (ordinate per node_influence decrescente)")
-        fig_pareto.update_yaxes(title_text="Node Influence (individuale)", secondary_y=False)
-        fig_pareto.update_yaxes(title_text="Cumulativa % Node Influence", secondary_y=True, range=[0, 105])
+        fig_pareto.update_xaxes(title_text="Rank % Features (by descending node_influence)")
+        fig_pareto.update_yaxes(title_text="Node Influence (individual)", secondary_y=False)
+        fig_pareto.update_yaxes(title_text="Cumulative % Node Influence", secondary_y=True, range=[0, 105])
         
         fig_pareto.update_layout(
             height=500,
