@@ -72,7 +72,7 @@ st.sidebar.success(f"API Key loaded ({len(api_key)} characters)")
 st.header("🌐 Generate New Attribution Graph")
 
 # INPUT PROMPT
-st.subheader("[1] Prompt Configuration")
+st.subheader("1️⃣ Prompt Configuration")
 
 prompt = st.text_area(
     "Prompt to analyze",
@@ -229,7 +229,7 @@ st.markdown("---")
 
 # ===== SECTION: ANALYZE GRAPH =====
 
-st.subheader("[2] Analyze Graph")
+st.subheader("2️⃣ Analyze Graph")
 st.write("""
 If you already have a graph JSON file, you can extract the static metrics (`node_influence`, `cumulative_influence`, `frac_external_raw`)
 without regenerating the graph.
@@ -264,7 +264,7 @@ if json_dir.exists():
                 st.metric("Name", file_path.name[:20] + "...")
         
         # Extract button
-        if st.button("Analyze Graph", key="extract_existing"):
+        if st.button("📊 Analyze Graph", key="extract_existing", type="primary"):
             try:
                 with st.spinner("Extracting metrics..."):
                     json_full_path = str(parent_dir / selected_json)
@@ -340,8 +340,6 @@ if st.session_state.extracted_graph_data is not None and st.session_state.extrac
             # Save filtered_features for export section
             if filtered_features is not None and len(filtered_features) > 0:
                 st.session_state.filtered_features_export = filtered_features
-
-st.markdown("---")
 
 # ===== RESULTS VISUALIZATION =====
 
@@ -466,8 +464,6 @@ if st.session_state.generation_result is not None:
             f"{result['slug']}.json",
             "application/json"
         )
-
-st.markdown("---")
 
 # ===== SUMMARY CHARTS: COVERAGE AND STRENGTH =====
 
@@ -671,25 +667,25 @@ if st.session_state.get('analysis_performed', False) and st.session_state.get('f
             st.metric("Unique Layers", len({f['layer'] for f in features_export}))
         
         # Download JSON (complete format)
-        col_full, col_legacy = st.columns(2)
+        st.download_button(
+            label="📥 Download Features+Nodes Subset",
+            data=json.dumps(export_data, indent=2, ensure_ascii=False),
+            file_name="selected_features_with_nodes.json",
+            mime="application/json",
+            help="Complete format with features and node_ids (for Node Grouping + Probe Prompts + batch_get_activations.py)",
+            use_container_width=True,
+            type="primary"
+        )
         
-        with col_full:
-            st.download_button(
-                label="Download Features + Nodes JSON",
-                data=json.dumps(export_data, indent=2, ensure_ascii=False),
-                file_name="selected_features_with_nodes.json",
-                mime="application/json",
-                help="Complete format with features and node_ids (for Node Grouping + Upload)"
-            )
-        
-        with col_legacy:
-            st.download_button(
-                label="Download Features JSON (legacy)",
-                data=json.dumps(features_export, indent=2, ensure_ascii=False),
-                file_name="selected_features.json",
-                mime="application/json",
-                help="Legacy format (features only, compatible with batch_get_activations.py)"
-            )
+        # LEGACY BUTTON (hidden - all tools now support complete format)
+        # with col_legacy:
+        #     st.download_button(
+        #         label="Download Features JSON (legacy)",
+        #         data=json.dumps(features_export, indent=2, ensure_ascii=False),
+        #         file_name="selected_features.json",
+        #         mime="application/json",
+        #         help="Legacy format (features only, compatible with batch_get_activations.py)"
+        #     )
         
         # Preview
         with st.expander("Preview Complete Export", expanded=False):

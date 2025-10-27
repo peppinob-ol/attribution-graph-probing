@@ -373,13 +373,27 @@ if graph_json:
         uploaded_features = st.file_uploader(
             "JSON file with features",
             type=['json'],
-            help="Format: [{\"layer\": int, \"index\": int}, ...]",
+            help="Accepts: [{'layer': int, 'index': int}, ...] OR {'features': [...], 'node_ids': [...]}",
             key="features_uploader"
         )
         
         if uploaded_features is not None:
             try:
-                features_json = json.load(uploaded_features)
+                raw_json = json.load(uploaded_features)
+                
+                # Support both formats:
+                # 1. [{"layer": int, "index": int}, ...] (legacy)
+                # 2. {"features": [...], "node_ids": [...], "metadata": {...}} (complete)
+                if isinstance(raw_json, dict) and "features" in raw_json:
+                    # Complete format with features + nodes - extract only features
+                    features_json = raw_json["features"]
+                    st.info("📦 Complete format detected (features + nodes). Using features only.")
+                elif isinstance(raw_json, list):
+                    # Legacy format (features only)
+                    features_json = raw_json
+                else:
+                    st.error("❌ Unrecognized JSON format")
+                    st.stop()
                 
                 # Convert features format to features_in_graph format
                 features_in_graph = []
@@ -781,15 +795,16 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
             help="Format compatible with batch_get_activations.py"
         )
 
-# ===== STEP 4: RUN ANALYSIS =====
+# ===== STEP 4: GET FEATURE ACTIVATIONS =====
 
 if 'concepts' in st.session_state and st.session_state['concepts']:
-    st.header("4️⃣ Run Analysis")
+    st.header("4️⃣ Get Feature Activations")
     
     # Create tabs for different analysis methods
-    tab1, tab2 = st.tabs(["Analysis via API", "Load from file"])
+    tab1, tab2 = st.tabs(["Load from file", "Analysis via API"])
     
-    with tab1:
+    with tab2:
+        st.warning("⚠️ **Temporarily disabled** due to Neuronpedia API rate limits. Please use the 'Load from file' tab with pre-calculated activations from Colab.")
         st.write("Analysis parameters:")
         
         col1, col2, col3 = st.columns(3)
@@ -894,7 +909,7 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
             - **Estimated time**: ~{total_calls / 5 / 60:.1f} minutes (rate limit: 5 req/sec)
             """)
         
-        if st.button("Run Analysis", type="primary"):
+        if st.button("Run Analysis", type="primary", disabled=True):
             # Check prerequisites
             if not neuronpedia_key:
                 st.error("❌ Neuronpedia API Key not configured")
@@ -1132,7 +1147,21 @@ if 'concepts' in st.session_state and st.session_state['concepts']:
             else:
                 st.warning("⚠️ No results available")
     
-    with tab2:
+    with tab1:
+        st.info("""
+        **📊 Use Colab for batch processing** — Process multiple prompts and features efficiently using GPU.
+        
+        **Colab Notebook:** [Open batch_get_activations.py](https://colab.research.google.com/drive/1YlZ9El6Cx2UnFqaQwBhLHsoernRTMxK4?usp=sharing)
+        
+        **Estimated time:** ~15 minutes for 5 prompts × 50 features with L4 GPU
+        
+        **How to use:**
+        1. Open the Colab notebook (Runtime > Change runtime type > L4 GPU)
+        2. Prepare your `prompts.json` and `features.json` files
+        3. Run the cell to get `activations_dump.json`
+        4. Upload the JSON file below for analysis
+        """)
+        
         st.markdown("""
         ### Load Activations from JSON File
         

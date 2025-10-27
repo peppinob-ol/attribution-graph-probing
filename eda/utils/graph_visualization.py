@@ -125,7 +125,7 @@ def create_scatter_plot_with_filter(graph_data):
     scatter_df['ctx_idx_display'] = scatter_df['ctx_idx'] + scatter_df['sub_column']
     
     # === FILTRO PER CUMULATIVE INFLUENCE ===
-    st.markdown("### [3] Filter Features by Cumulative Influence Coverage")
+    st.markdown("### 3️⃣ Filter Features by Cumulative Influence Coverage")
     
     # Calcola il massimo valore di influence presente nei dati
     max_influence = scatter_df['influence'].max()
