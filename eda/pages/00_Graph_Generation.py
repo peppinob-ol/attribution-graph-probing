@@ -12,6 +12,13 @@ import json
 import os
 from datetime import datetime
 
+# Try to import PipelineState (optional - won't break if missing)
+try:
+    from eda.utils.pipeline_state import PipelineState
+    PIPELINE_STATE_AVAILABLE = True
+except ImportError:
+    PIPELINE_STATE_AVAILABLE = False
+
 # Import graph generation functions
 try:
     from scripts.neuronpedia_graph_generation import (
@@ -37,8 +44,9 @@ st.set_page_config(page_title="Graph Generation", page_icon="🌐", layout="wide
 st.title("🌐 Attribution Graph Generation")
 
 st.info("""
-**Generate a new attribution graph on Neuronpedia** to analyze how the model predicts the next token.
-The graph shows sparse features (latents) that contribute most significantly to the prediction.
+1. **Generate a new attribution graph on Neuronpedia** to analyze how the model predicts the next token. \n
+2. **Analyze the graph** to understand the contribution of each feature.\n
+3. **Filter Features by Cumulative Influence Coverage** for downstream analysis.
 """)
 
 # ===== SIDEBAR: CONFIGURATION =====
@@ -210,12 +218,49 @@ if generate_button:
         status_text.empty()
         progress_bar.empty()
         
+        # Add generation parameters to result for later use
+        if result['success']:
+            result['source_set_name'] = source_set_name
+            result['node_threshold'] = node_threshold
+            result['desired_logit_prob'] = desired_logit_prob
+        
+        # Rename file to new format if saved locally (BEFORE saving to session_state)
+        if result['success'] and result.get('local_path') and save_locally and PIPELINE_STATE_AVAILABLE:
+            old_path = Path(result['local_path'])
+            if old_path.exists():
+                # Generate new filename with st1_ prefix
+                new_filename = PipelineState.generate_filename(
+                    step=1,
+                    file_type='graph',
+                    prompt=prompt
+                )
+                new_path = old_path.parent / new_filename
+                
+                # Rename file
+                old_path.rename(new_path)
+                
+                # Update result with absolute path (AFTER rename)
+                result['local_path'] = str(new_path.resolve())
+                result['renamed_to_new_format'] = True
+        
+        # Save result to session_state (with updated path)
         st.session_state.generation_result = result
         
+        # Build Neuronpedia URL
         if result['success']:
-            st.success("Graph generated successfully!")
-        else:
-            st.error(f"Error: {result.get('error', 'Unknown')}")
+            neuronpedia_url = (
+                f"https://www.neuronpedia.org/{result.get('model_id', 'gemma-2-2b')}/graph"
+                f"?sourceSet={result.get('source_set_name', 'clt-hp')}"
+                f"&slug={result.get('slug', '')}"
+                f"&pruningThreshold={result.get('node_threshold', 0.8)}"
+                f"&densityThreshold={result.get('desired_logit_prob', 0.95)}"
+            )
+            
+            # Get the filename for display
+            if result.get('local_path'):
+                filename = Path(result['local_path']).name
+                st.success(f"✅ Graph generated successfully: `{filename}`\n\n" f"[**Open Graph on Neuronpedia**]({neuronpedia_url})")
+    
     
     except Exception as e:
         progress_bar.empty()
@@ -230,68 +275,122 @@ st.markdown("---")
 # ===== SECTION: ANALYZE GRAPH =====
 
 st.subheader("2️⃣ Analyze Graph")
-st.write("""
-If you already have a graph JSON file, you can extract the static metrics (`node_influence`, `cumulative_influence`, `frac_external_raw`)
-without regenerating the graph.
-""")
 
-# List available JSON files
-json_dir = parent_dir / "output" / "graph_data"
-if json_dir.exists():
-    json_files = sorted(json_dir.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True)
+# Check if we just generated a graph
+just_generated = st.session_state.get('generation_result') and st.session_state.generation_result.get('success')
+generated_path = st.session_state.generation_result.get('local_path') if just_generated else None
+
+if just_generated and generated_path:
+    # Auto-select the just-generated graph
+    from pathlib import Path as PathLib
     
-    if json_files:
-        # Use relative paths for display
-        json_options = [str(f.relative_to(parent_dir)) for f in json_files]
-        selected_json = st.selectbox(
-            "Select JSON file",
-            options=json_options,
-            help="JSON files sorted by date (most recent first)"
-        )
-        
-        # Show file info
-        if selected_json:
-            file_path = parent_dir / selected_json
-            file_size = file_path.stat().st_size / 1024 / 1024
-            file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Size", f"{file_size:.2f} MB")
-            with col2:
-                st.metric("Date", file_time.strftime("%Y-%m-%d %H:%M"))
-            with col3:
-                st.metric("Name", file_path.name[:20] + "...")
-        
-        # Extract button
-        if st.button("📊 Analyze Graph", key="extract_existing", type="primary"):
-            try:
-                with st.spinner("Extracting metrics..."):
-                    json_full_path = str(parent_dir / selected_json)
-                    with open(json_full_path, 'r', encoding='utf-8') as f:
-                        graph_data = json.load(f)
-                    
-                    csv_output_path = str(parent_dir / "output" / "graph_feature_static_metrics.csv")
-                    df = extract_static_metrics_from_json(
-                        graph_data,
-                        output_path=csv_output_path,
-                        verbose=False
-                    )
-                    
-                    # Save in session_state to persist across reruns
-                    st.session_state.extracted_graph_data = graph_data
-                    st.session_state.extracted_csv_df = df
-                    st.session_state.analysis_performed = True
-                
-                st.success(f"CSV generated: `{csv_output_path}`")
-                st.info("Scroll down to see interactive visualizations")
-                
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
+    # Convert to Path and handle both absolute and relative paths
+    gen_path = PathLib(generated_path)
+    if gen_path.is_absolute():
+        # Absolute path - make it relative to parent_dir
+        selected_json = str(gen_path.relative_to(parent_dir))
     else:
-        st.warning("No JSON files found in `output/graph_data/`")
+        # Already relative - use as is
+        selected_json = str(gen_path).replace('\\', '/')
+    
+    st.info(f"📊 **Ready to analyze**: `{gen_path.name}` (just generated)")
+    
+    # Option to select a different file
+    with st.expander("📁 Select a different graph file", expanded=False):
+        json_dir = parent_dir / "output" / "graph_data"
+        if json_dir.exists():
+            json_files = sorted(json_dir.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True)
+            if json_files:
+                json_options = [str(f.relative_to(parent_dir)) for f in json_files]
+                # Find index of generated file
+                default_idx = 0
+                try:
+                    default_idx = json_options.index(selected_json)
+                except ValueError:
+                    pass
+                
+                selected_json_alt = st.selectbox(
+                    "Select JSON file",
+                    options=json_options,
+                    index=default_idx,
+                    key="alt_json_select",
+                    help="JSON files sorted by date (most recent first)"
+                )
+                if st.button("Use this file instead"):
+                    selected_json = selected_json_alt
+                    st.rerun()
 else:
-    st.warning("Directory `output/graph_data/` not found")
+    # Normal file selection (no graph just generated)
+    st.write("""
+    Extract static metrics (`node_influence`, `cumulative_influence`, `frac_external_raw`) from an existing graph.
+    """)
+    
+    json_dir = parent_dir / "output" / "graph_data"
+    if json_dir.exists():
+        json_files = sorted(json_dir.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True)
+        
+        if json_files:
+            # Use relative paths for display
+            json_options = [str(f.relative_to(parent_dir)) for f in json_files]
+            selected_json = st.selectbox(
+                "Select JSON file",
+                options=json_options,
+                help="JSON files sorted by date (most recent first)"
+            )
+        else:
+            st.warning("No JSON files found in `output/graph_data/`")
+            selected_json = None
+    else:
+        st.warning("Directory `output/graph_data/` not found")
+        selected_json = None
+
+# Show file info and analysis button if we have a selected file
+if selected_json:
+    file_path = parent_dir / selected_json
+    
+    # Check if file exists before accessing stats
+    if not file_path.exists():
+        st.error(f"❌ File not found: `{file_path.name}`")
+        st.warning("The file may have been moved or renamed. Please refresh the page or select another file.")
+        st.stop()
+    
+    file_size = file_path.stat().st_size / 1024 / 1024
+    file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Size", f"{file_size:.2f} MB")
+    with col2:
+        st.metric("Date", file_time.strftime("%Y-%m-%d %H:%M"))
+    with col3:
+        st.metric("Name", file_path.name[:20] + "...")
+    
+    # Extract button
+    button_label = "📊 Analyze This Graph" if just_generated else "📊 Analyze Graph"
+    if st.button(button_label, key="extract_existing", type="primary"):
+        try:
+            with st.spinner("Extracting metrics..."):
+                json_full_path = str(parent_dir / selected_json)
+                with open(json_full_path, 'r', encoding='utf-8') as f:
+                    graph_data = json.load(f)
+                
+                csv_output_path = str(parent_dir / "output" / "graph_feature_static_metrics.csv")
+                df = extract_static_metrics_from_json(
+                    graph_data,
+                    output_path=csv_output_path,
+                    verbose=False
+                )
+                
+                # Save in session_state to persist across reruns
+                st.session_state.extracted_graph_data = graph_data
+                st.session_state.extracted_csv_df = df
+                st.session_state.analysis_performed = True
+            
+            st.success(f"✅ CSV generated: `{csv_output_path}`")
+            st.info("📊 Scroll down to see interactive visualizations")
+            
+        except Exception as e:
+            st.error(f"❌ Error: {str(e)}")
 
 st.markdown("---")
 
@@ -323,8 +422,7 @@ if st.session_state.extracted_graph_data is not None and st.session_state.extrac
             st.dataframe(df, use_container_width=True, height=600)
         
         # Scatter plot: Layer vs Context Position with Influence
-        st.subheader("Feature Distribution by Layer and Position")
-        
+
         # Prepare data from JSON for scatter plot
         if 'nodes' in graph_data:
             import pandas as pd
@@ -360,53 +458,7 @@ if st.session_state.generation_result is not None:
         with col4:
             slug_short = result['slug'][:15] + "..." if len(result['slug']) > 15 else result['slug']
             st.metric("Slug", slug_short)
-        
-        # Neuronpedia Link
-        st.subheader("View on Neuronpedia")
-        neuronpedia_url = f"https://www.neuronpedia.org/graph/{result['model_id']}/{result['slug']}"
-        st.markdown(f"[**Open Graph**]({neuronpedia_url})")
-        
-        # Statistics
-        st.subheader("Graph Statistics")
-        stats = get_graph_stats(result['graph_data'])
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("**Composition:**")
-            st.write(f"- Embeddings: {stats['embedding_nodes']}")
-            st.write(f"- Features: {stats['feature_nodes']}")
-            st.write(f"- Logits: {stats['logit_nodes']}")
-        
-        with col2:
-            st.write("**Layers:**")
-            for layer in stats['layers'][:8]:
-                st.write(f"- Layer {layer}: {stats['nodes_by_layer'][layer]}")
-            if len(stats['layers']) > 8:
-                st.caption(f"... and {len(stats['layers']) - 8} more layers")
-        
-        # EXTRACT CSV FROM NEWLY GENERATED GRAPH
-        st.subheader("Static Metrics")
-        
-        st.info("""
-        **Required for pipeline:** Generate CSV with `node_influence`, `cumulative_influence` and `frac_external_raw` 
-        to use this graph in subsequent steps (compute thresholds, supernodes, etc.)
-        """)
-        
-        if st.button("Generate CSV Metrics", key="extract_new"):
-            try:
-                with st.spinner("Extracting..."):
-                    csv_output_path = str(parent_dir / "output" / "graph_feature_static_metrics.csv")
-                    df = extract_static_metrics_from_json(
-                        result['graph_data'],
-                        output_path=csv_output_path,
-                        verbose=False
-                    )
-                    st.session_state.static_metrics_df = df
                 
-                st.success(f"CSV generated: `{csv_output_path}`")
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
-        
         # Show CSV if available
         if st.session_state.static_metrics_df is not None:
             df = st.session_state.static_metrics_df
@@ -448,25 +500,9 @@ if st.session_state.generation_result is not None:
                 "text/csv"
             )
         
-        st.markdown("---")
-        
-        # Download JSON
-        if result.get('local_path'):
-            st.subheader("Saved File")
-            st.code(result['local_path'])
-            file_size = os.path.getsize(result['local_path']) / 1024 / 1024
-            st.caption(f"Size: {file_size:.2f} MB")
-        
-        json_str = json.dumps(result['graph_data'], ensure_ascii=False, indent=2)
-        st.download_button(
-            "Download JSON",
-            json_str,
-            f"{result['slug']}.json",
-            "application/json"
-        )
+
 
 # ===== SUMMARY CHARTS: COVERAGE AND STRENGTH =====
-
 # Only show if analysis was performed
 if st.session_state.get('analysis_performed', False):
     # Data source: prefer extracted data, otherwise last generated graph

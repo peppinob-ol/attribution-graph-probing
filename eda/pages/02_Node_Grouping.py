@@ -49,30 +49,6 @@ st.sidebar.header("⚙️ Configuration")
 # File upload
 st.sidebar.subheader("📁 Input Files")
 
-# Default paths
-default_csv_path = parent_dir / "output" / "2025-10-21T07-40_export_ENRICHED.csv"
-default_json_path = parent_dir / "output" / "activations_dump (2).json"
-default_graph_path = parent_dir / "output" / "graph_data" / "clt-hp-the-capital-of-201020250035-20251020-003525.json"
-
-# Auto-load default files if they exist and haven't been loaded yet
-if 'default_files_loaded' not in st.session_state:
-    st.session_state['default_files_loaded'] = False
-    
-    if default_csv_path.exists():
-        st.session_state['default_csv'] = default_csv_path
-        st.sidebar.info(f"✅ CSV auto-loaded: `{default_csv_path.name}`")
-    
-    if default_json_path.exists():
-        st.session_state['default_json'] = default_json_path
-        st.sidebar.info(f"✅ JSON auto-loaded: `{default_json_path.name}`")
-    
-    if default_graph_path.exists():
-        st.session_state['default_graph'] = default_graph_path
-        st.session_state['graph_json_uploaded'] = default_graph_path  # Save for upload too
-        st.sidebar.info(f"✅ Graph JSON auto-loaded: `{default_graph_path.name}`")
-    
-    st.session_state['default_files_loaded'] = True
-
 uploaded_csv = st.sidebar.file_uploader(
     "Activation Analysis CSV (required)",
     type=["csv"],
@@ -80,19 +56,19 @@ uploaded_csv = st.sidebar.file_uploader(
 )
 
 uploaded_json = st.sidebar.file_uploader(
-    "Activations JSON (optional)",
+    "Activations JSON (required)",
     type=["json"],
     help="JSON file with token-by-token activations (improves naming for Relationship)"
 )
 
 uploaded_graph = st.sidebar.file_uploader(
-    "Graph JSON (optional)",
+    "Graph JSON (required)",
     type=["json"],
     help="Original Graph JSON file (for csv_ctx_idx fallback in Semantic naming)"
 )
 
 uploaded_nodes_json = st.sidebar.file_uploader(
-    "Selected Nodes JSON (optional)",
+    "Selected Nodes JSON (required)",
     type=["json"],
     help="JSON file with node_ids selected from Graph Generation (for accurate subgraph upload)"
 )
@@ -311,11 +287,11 @@ with st.sidebar.expander("Semantic (Concept)", expanded=False):
 
 # ===== MAIN: PIPELINE EXECUTION =====
 
-# Use uploaded files or default
-csv_to_use = uploaded_csv if uploaded_csv is not None else st.session_state.get('default_csv')
-json_to_use = uploaded_json if uploaded_json is not None else st.session_state.get('default_json')
-graph_to_use = uploaded_graph if uploaded_graph is not None else st.session_state.get('default_graph')
-nodes_json_to_use = uploaded_nodes_json  # Only if manually uploaded (no default for now)
+# Use uploaded files
+csv_to_use = uploaded_csv
+json_to_use = uploaded_json
+graph_to_use = uploaded_graph
+nodes_json_to_use = uploaded_nodes_json
 
 if csv_to_use is None:
     st.warning("⬆️ Load a CSV file to begin")
