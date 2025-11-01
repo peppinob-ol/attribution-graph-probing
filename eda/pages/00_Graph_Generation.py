@@ -246,6 +246,21 @@ if generate_button:
         # Save result to session_state (with updated path)
         st.session_state.generation_result = result
         
+        # Save Graph JSON to pipeline session_state for auto-loading in next steps
+        if result['success'] and result.get('local_path'):
+            try:
+                with open(result['local_path'], 'r', encoding='utf-8') as f:
+                    graph_data = json.load(f)
+                
+                st.session_state['pipeline_graph_json'] = {
+                    'data': graph_data,
+                    'filename': Path(result['local_path']).name,
+                    'timestamp': datetime.now().isoformat()
+                }
+            except Exception as e:
+                # Don't break the flow if saving to pipeline state fails
+                pass
+        
         # Build Neuronpedia URL
         if result['success']:
             neuronpedia_url = (
@@ -260,6 +275,37 @@ if generate_button:
             if result.get('local_path'):
                 filename = Path(result['local_path']).name
                 st.success(f"✅ Graph generated successfully: `{filename}`\n\n" f"[**Open Graph on Neuronpedia**]({neuronpedia_url})")
+                
+                # Auto-download the generated graph JSON
+                try:
+                    import streamlit.components.v1 as components
+                    import base64
+                    
+                    with open(result['local_path'], 'r', encoding='utf-8') as f:
+                        graph_json_content = f.read()
+                    
+                    # Encode to base64 for JavaScript
+                    b64 = base64.b64encode(graph_json_content.encode()).decode()
+                    
+                    # Auto-download with JavaScript
+                    html = f"""
+                    <script>
+                    function downloadFile() {{
+                        const link = document.createElement('a');
+                        link.href = 'data:application/json;base64,{b64}';
+                        link.download = '{filename}';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }}
+                    // Trigger download after a short delay
+                    setTimeout(downloadFile, 100);
+                    </script>
+                    """
+                    components.html(html, height=50)
+                    
+                except Exception as e:
+                    st.warning(f"⚠️ Could not prepare auto-download: {e}")
     
     
     except Exception as e:
@@ -701,6 +747,13 @@ if st.session_state.get('analysis_performed', False) and st.session_state.get('f
             st.metric("Selected Nodes", len(node_ids_export))
         with col3:
             st.metric("Unique Layers", len({f['layer'] for f in features_export}))
+        
+        # Save to pipeline session_state for auto-loading in next steps
+        st.session_state['pipeline_selected_nodes'] = {
+            'data': export_data,
+            'filename': f"st1_feat_node_subset_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+            'timestamp': datetime.now().isoformat()
+        }
         
         # Download JSON (complete format)
         st.download_button(

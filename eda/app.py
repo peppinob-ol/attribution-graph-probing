@@ -24,6 +24,11 @@ st.set_page_config(
 st.title("🔬 Automating Attribution Graph Analysis")
 st.write("**Research Project: Automated interpretation of sparse features through probe prompting**")
 
+st.info("""
+🚀 **Demo Mode**: Complete the entire pipeline (Step 1 → 2 → 3) in one session.
+Files are automatically passed between steps. **Don't reload the page** or you'll lose progress!
+""")
+
 st.markdown("""
 This application implements a **three-stage pipeline** for automatically analyzing and interpreting 
 attribution graphs from sparse feature models (SAE and/or CLT cross-layer transcoders):
