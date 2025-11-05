@@ -350,8 +350,19 @@ elif 'pipeline_selected_nodes' in st.session_state:
 else:
     nodes_json_to_use = None
 
+# Check all required files
+missing_files = []
+if graph_to_use is None:
+    missing_files.append("Graph JSON")
+if nodes_json_to_use is None:
+    missing_files.append("Selected Nodes JSON")
+if json_to_use is None:
+    missing_files.append("Activations JSON")
 if csv_to_use is None:
-    st.warning("⬆️ Load a CSV file to begin")
+    missing_files.append("Activation Analysis CSV")
+
+if missing_files:
+    st.warning(f"⬆️ Please load the following required files from the sidebar: **{', '.join(missing_files)}**")
     st.markdown("""
     ### 📖 How It Works
     
@@ -397,6 +408,9 @@ if csv_to_use is None:
     - **Layer**: Model layer where the feature resides
     """)
     st.stop()
+
+# All required files are loaded
+st.success("✅ All required files loaded successfully! You can now proceed with the pipeline.")
 
 # Load CSV
 try:
@@ -963,7 +977,7 @@ else:
                 # Save temporary JSON if available
                 json_path = None
                 if tokens_json:
-                    json_path = Path("temp_activations.json")
+                    json_path = Path("output/temp_activations.json")
                     with open(json_path, 'w', encoding='utf-8') as f:
                         json.dump(tokens_json, f)
                 
@@ -974,7 +988,7 @@ else:
                         graph_path = str(graph_to_use)
                     else:
                         # If uploaded file, save temporarily
-                        graph_path = Path("temp_graph.json")
+                        graph_path = Path("output/temp_graph.json")
                         graph_to_use.seek(0)  # Reset file pointer to beginning
                         graph_json_content = json.loads(graph_to_use.read().decode('utf-8'))
                         with open(graph_path, 'w', encoding='utf-8') as f:
@@ -994,8 +1008,11 @@ else:
                 # Remove temporary files
                 if json_path and json_path.exists():
                     json_path.unlink()
-                if graph_path and Path(graph_path).name == "temp_graph.json" and Path(graph_path).exists():
-                    Path(graph_path).unlink()
+                if graph_path:
+                    if isinstance(graph_path, Path) and graph_path.name == "temp_graph.json" and graph_path.exists():
+                        graph_path.unlink()
+                    elif isinstance(graph_path, str) and Path(graph_path).name == "temp_graph.json" and Path(graph_path).exists():
+                        Path(graph_path).unlink()
                 
                 # Save in session state
                 st.session_state['df_named'] = df_named
@@ -1151,13 +1168,13 @@ if 'df_named' in st.session_state:
     
     st.info("Upload the subgraph with supernodes to Neuronpedia for interactive visualization.")
     
-    # API Key input (load from .env if available)
-    default_api_key = os.getenv("NEURONPEDIA_API_KEY", "")
+    # API Key input (load from session_state, .env, or empty)
+    default_api_key = st.session_state.get('neuronpedia_api_key', os.getenv("NEURONPEDIA_API_KEY", ""))
     api_key = st.text_input(
         "Neuronpedia API Key",
         value=default_api_key,
         type="password",
-        help="Enter your Neuronpedia API key (required for upload). Can be auto-loaded from .env"
+        help="Enter your Neuronpedia API key (required for upload). Auto-loaded from Graph Generation or .env if available."
     )
     
     # Display name
@@ -1214,7 +1231,7 @@ if 'df_named' in st.session_state:
                     graph_path = str(graph_to_use)
                 else:
                     # If uploaded file, save temporarily
-                    graph_path = "temp_graph_upload.json"
+                    graph_path = Path("output/temp_graph_upload.json")
                     graph_to_use.seek(0)  # Reset file pointer to beginning
                     graph_json_content = json.loads(graph_to_use.read().decode('utf-8'))
                     with open(graph_path, 'w', encoding='utf-8') as f:
@@ -1223,7 +1240,8 @@ if 'df_named' in st.session_state:
                 # Import upload function
                 import sys
                 import importlib.util
-                spec = importlib.util.spec_from_file_location("node_grouping", "scripts/02_node_grouping.py")
+                upload_script_path = parent_dir / "scripts" / "02_node_grouping.py"
+                spec = importlib.util.spec_from_file_location("node_grouping", upload_script_path)
                 node_grouping = importlib.util.module_from_spec(spec)
                 sys.modules["node_grouping"] = node_grouping
                 spec.loader.exec_module(node_grouping)
@@ -1249,7 +1267,9 @@ if 'df_named' in st.session_state:
                     )
                 
                 # Remove temporary file
-                if Path(graph_path).name == "temp_graph_upload.json" and Path(graph_path).exists():
+                if isinstance(graph_path, Path) and graph_path.name == "temp_graph_upload.json" and graph_path.exists():
+                    graph_path.unlink()
+                elif isinstance(graph_path, str) and Path(graph_path).name == "temp_graph_upload.json" and Path(graph_path).exists():
                     Path(graph_path).unlink()
                 
                 st.success("✅ Subgraph uploaded successfully!")

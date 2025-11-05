@@ -56,6 +56,10 @@ st.sidebar.header("Configuration")
 # Load API key
 api_key = load_api_key()
 
+# Save to session_state for reuse in other pages
+if api_key:
+    st.session_state['neuronpedia_api_key'] = api_key
+
 if not api_key:
     st.sidebar.error("API Key not found!")
     st.error("""
@@ -403,6 +407,19 @@ if selected_json:
     file_size = file_path.stat().st_size / 1024 / 1024
     file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
     
+    # Load JSON to extract graph metadata
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            graph_metadata = json.load(f)
+        num_nodes = len(graph_metadata.get('nodes', []))
+        num_links = len(graph_metadata.get('links', []))
+        model_id = graph_metadata.get('metadata', {}).get('model_id', 'N/A')
+    except Exception:
+        num_nodes = None
+        num_links = None
+        model_id = None
+    
+    # Display file info and graph metadata
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Size", f"{file_size:.2f} MB")
@@ -410,6 +427,15 @@ if selected_json:
         st.metric("Date", file_time.strftime("%Y-%m-%d %H:%M"))
     with col3:
         st.metric("Name", file_path.name[:20] + "...")
+    
+    if num_nodes is not None and num_links is not None and model_id is not None:
+        col4, col5, col6 = st.columns(3)
+        with col4:
+            st.metric("Nodes", num_nodes)
+        with col5:
+            st.metric("Links", num_links)
+        with col6:
+            st.metric("Model", model_id)
     
     # Extract button
     button_label = "📊 Analyze This Graph" if just_generated else "📊 Analyze Graph"
@@ -484,69 +510,6 @@ if st.session_state.extracted_graph_data is not None and st.session_state.extrac
             # Save filtered_features for export section
             if filtered_features is not None and len(filtered_features) > 0:
                 st.session_state.filtered_features_export = filtered_features
-
-# ===== RESULTS VISUALIZATION =====
-
-if st.session_state.generation_result is not None:
-    result = st.session_state.generation_result
-    
-    if result['success']:
-        st.header("Results")
-        
-        # Metrics
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Nodes", result['num_nodes'])
-        with col2:
-            st.metric("Links", result['num_links'])
-        with col3:
-            st.metric("Model", result['model_id'])
-        with col4:
-            slug_short = result['slug'][:15] + "..." if len(result['slug']) > 15 else result['slug']
-            st.metric("Slug", slug_short)
-                
-        # Show CSV if available
-        if st.session_state.static_metrics_df is not None:
-            df = st.session_state.static_metrics_df
-            
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Features", len(df))
-            with col2:
-                st.metric("Sum Node Infl", f"{df['node_influence'].sum():.2f}")
-            with col3:
-                st.metric("Max Cumul", f"{df['cumulative_influence'].max():.4f}")
-            with col4:
-                st.metric("Mean Frac Ext", f"{df['frac_external_raw'].mean():.3f}")
-            
-            with st.expander("Preview CSV"):
-                st.dataframe(df.head(20), use_container_width=True)
-            
-            with st.expander("Distribution"):
-                try:
-                    import plotly.express as px
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        fig = px.histogram(df, x='node_influence', nbins=50, 
-                                         title='node_influence (marginal)')
-                        st.plotly_chart(fig, use_container_width=True)
-                    with col2:
-                        fig = px.histogram(df, x='cumulative_influence', nbins=50,
-                                         title='cumulative_influence')
-                        st.plotly_chart(fig, use_container_width=True)
-                except:
-                    pass
-            
-            csv_str = df.to_csv(index=False)
-            st.download_button(
-                "Download CSV",
-                csv_str,
-                "graph_feature_static_metrics.csv",
-                "text/csv"
-            )
-        
-
 
 # ===== SUMMARY CHARTS: COVERAGE AND STRENGTH =====
 # Only show if analysis was performed

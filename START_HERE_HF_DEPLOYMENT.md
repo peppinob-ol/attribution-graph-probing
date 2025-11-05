@@ -116,7 +116,8 @@ When creating your Space:
 ```
 Name: attribution-graph-probing
 License: GPL-3.0
-SDK: Streamlit
+SDK: Docker
+Template: Streamlit
 Hardware: CPU Basic (free)
 Visibility: Public
 ```

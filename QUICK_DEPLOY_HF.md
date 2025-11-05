@@ -12,7 +12,8 @@
    - Owner: YOUR_USERNAME
    - Space name: `attribution-graph-probing`
    - License: `GPL-3.0`
-   - Select SDK: **Streamlit**
+   - Select SDK: **Docker**
+   - Select Template: **Streamlit** (second in first row)
    - Space hardware: **CPU basic** (free)
    - Visibility: **Public**
 4. Click **"Create Space"**
@@ -27,6 +28,7 @@ From your local project, prepare these files:
 
 **Root level:**
 - `README_HF.md` (rename to `README.md` when uploading)
+- `Dockerfile`
 - `app_hf.py`
 - `requirements_hf.txt` (rename to `requirements.txt` when uploading)
 - `LICENSE`

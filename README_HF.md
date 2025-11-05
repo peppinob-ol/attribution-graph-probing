@@ -3,9 +3,8 @@ title: Attribution Graph Probing
 emoji: 🔬
 colorFrom: blue
 colorTo: purple
-sdk: streamlit
-sdk_version: 1.28.0
-app_file: app_hf.py
+sdk: docker
+app_port: 7860
 pinned: false
 license: gpl-3.0
 ---
