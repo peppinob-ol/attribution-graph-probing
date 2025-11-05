@@ -53,31 +53,47 @@ st.info("""
 
 st.sidebar.header("Configuration")
 
-# Load API key
+# Neuronpedia API Key
+st.sidebar.subheader("Neuronpedia API")
+
+# Try to load from environment/secrets
 api_key = load_api_key()
+
+if not api_key:
+    st.sidebar.warning("⚠️ Neuronpedia API Key not found")
+    st.sidebar.info("""
+    Add `NEURONPEDIA_API_KEY=your-key` to HF Secrets
+    or enter it below.
+    """)
+    
+    # Allow manual input
+    api_key = st.sidebar.text_input(
+        "Enter API Key:", 
+        type="password", 
+        key="neuronpedia_key_input",
+        help="Enter your Neuronpedia API key"
+    )
+    
+    if not api_key:
+        st.error("""
+        **Neuronpedia API Key Required!**
+        
+        1. Obtain an API key from [Neuronpedia](https://www.neuronpedia.org/)
+        2. Enter it in the sidebar, OR
+        3. Add to HF Spaces Secrets (Settings → Repository secrets):
+           ```
+           NEURONPEDIA_API_KEY = your-key-here
+           ```
+        """)
+        st.stop()
+    else:
+        st.sidebar.success(f"✅ API Key entered ({len(api_key)} characters)")
+else:
+    st.sidebar.success(f"✅ API Key loaded ({len(api_key)} characters)")
 
 # Save to session_state for reuse in other pages
 if api_key:
     st.session_state['neuronpedia_api_key'] = api_key
-
-if not api_key:
-    st.sidebar.error("API Key not found!")
-    st.error("""
-    **Neuronpedia API Key Required!**
-       
-    1. Obtain an API key from [Neuronpedia](https://www.neuronpedia.org/)
-    2. Add to `.env` file in project root:
-       ```
-       NEURONPEDIA_API_KEY='your-key-here'
-       ```
-    3. Or set the environment variable:
-       ```
-       export NEURONPEDIA_API_KEY='your-key-here'
-       ```
-    """)
-    st.stop()
-
-st.sidebar.success(f"API Key loaded ({len(api_key)} characters)")
 
 # ===== SECTION: GENERATE NEW GRAPH =====
 
