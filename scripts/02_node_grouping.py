@@ -43,8 +43,11 @@ FUNCTIONAL_TOKEN_MAP = {
     "a": "forward",
     "an": "forward",
     
+    # Possessive markers
+    "'s": "backward",  # Possessive: "Texas's capital" looks back to "Texas"
+    
     # Preposizioni comuni
-    "of": "forward",
+    "of": "backward",  # Possessive: "capital of Texas" looks back to "capital"
     "in": "forward",
     "to": "forward",
     "for": "forward",

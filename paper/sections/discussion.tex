@@ -1,0 +1,106 @@
+% Section: Discussion
+% Outline (for review):
+% - Interpretability vs completeness trade-off
+% - Early-vs-late hierarchy implications
+% - Threats to validity (red-team checklist)
+% - Baseline fairness and limitations
+% - Future work: causal interventions and scaling sweep
+
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{Interpretability vs completeness}
+Our subgraphs deliberately compress raw attribution graphs to emphasize functional roles and causal pathways. Completeness remains high, while Replacement drops due to unpinned nodes treated as error. This is an intended trade-off favoring legibility.
+
+\paragraph{Early vs late hierarchy}
+Evidence supports a backbone of early-layer features that generalize across entity swaps and a specialization of late-layer features for output promotion (Say-X). This suggests a staged computation: early relational binding and semantic detection, followed by late-stage output shaping.
+
+\subsection{Implications for Interpretability Research}
+
+Our results suggest three actionable insights for mechanistic interpretability:
+
+\paragraph{1. Automated first-pass analysis}
+Probe prompting reduces initial circuit interpretation from approximately 2 hours of manual analysis to 10--20 minutes of semi-automated processing (concept generation via LLM, probe execution via API, automated grouping). This speedup enables researchers to:
+
+\begin{itemize}
+  \item \textbf{Rapid validation:} Quickly assess whether a circuit exhibits interpretable structure (clear Semantic/Relationship/Say-X separation) before committing to deep manual analysis. Circuits with diffuse, unstructured features may not be amenable to mechanistic decomposition.
+  
+  \item \textbf{Hypothesis generation:} Use automated supernode labels as initial hypotheses about feature roles, guiding targeted manual investigations. For example, feature 1\_12928 received the generic autointerp label ``AssemblyCulture'' but our system labeled it ``(texas) related''---examination of its top Neuronpedia activation revealed a Texas government document containing both ``Texas'' and ``Austin'', grounding the interpretation in specific corpus content. This demonstrates how probe-based concept alignment can serve as both hypothesis generation and validation.
+  
+  \item \textbf{Scalability:} Extend interpretability efforts to larger model families where manual analysis per circuit is infeasible. Batch processing mode (\texttt{scripts/batch\_run.py}) supports multi-circuit analysis with automated aggregation, enabling meta-studies of circuit structure across tasks.
+\end{itemize}
+
+The method is not a replacement for careful manual interpretation---human judgment remains essential for validating automated groupings, identifying edge cases, and generating causal hypotheses. Rather, probe prompting is a force multiplier that focuses human effort where it adds most value: ambiguity resolution, hypothesis refinement, and causal validation.
+
+\paragraph{2. Standardized taxonomies}
+The Semantic/Relationship/Say-X framework provides a common vocabulary for describing feature roles across circuits. While domain-specific refinements may be needed (e.g., distinguishing `Entity' from `Attribute' within Semantic, or separating `Binding' from `Selection' within Relationship), a shared taxonomy enables:
+
+\begin{itemize}
+  \item \textbf{Meta-analyses:} Compare circuit structure across tasks with consistent labels. Example: ``Do all capital circuits concentrate Say-X features in layer 7+, or does this vary by model architecture / training data?'' Aggregating findings requires consistent terminology.
+  
+  \item \textbf{Transfer learning:} Identify reusable computational motifs across circuits. If `capital-of' Relationship features from geographic circuits activate similarly to `member-of' features from sports circuits, this suggests shared relational structure that could inform circuit design or intervention strategies.
+  
+  \item \textbf{Communication:} Improve consistency in interpretability reporting. Current literature uses ad-hoc terminology (`feature X detects France-ness', `neuron Y promotes Paris'), making cross-paper synthesis difficult. Standardized categories facilitate clearer communication.
+\end{itemize}
+
+Future work could formalize this taxonomy into an ontology with hierarchical relationships (e.g., `Entity Detector' is-a `Semantic Feature'), validation criteria (inter-rater reliability metrics for manual vs automated classification), and extension guidelines for new domains.
+
+\paragraph{3. Computational hierarchies and safety implications}
+The early-vs-late transfer pattern suggests a general principle: early layers encode task-general structure (entity detection, relational binding), late layers specialize for task-specific outputs (token promotion, distribution shaping). If this generalizes beyond capitals circuits, it has implications for AI safety:
+
+\begin{itemize}
+  \item \textbf{Localization of safety-relevant properties:} Deceptive reasoning, goal misrepresentation, or value misalignment may manifest in early-to-mid-layer Relationship features that encode strategic structure (`if monitored, then comply; if unmonitored, then defect'). Late-layer Say-X features merely implement the output of this reasoning. Interventions targeting late layers (activation steering, weight editing) may be superficial, leaving underlying strategic computation intact.
+  
+  \item \textbf{Intervention stability:} Early-layer features that transfer robustly across contexts may be more stable targets for safety interventions. Steering `honesty' features in early layers could generalize across diverse prompts. Late-layer steering may be fragile: a `refuse harmful request' Say-X feature might only work for specific phrasings, failing under adversarial variation.
+  
+  \item \textbf{Mechanistic audits:} Different properties of interest may concentrate in different layer ranges. Auditing for world-modeling capabilities (factual knowledge, logical reasoning) likely requires analyzing early-to-mid layers. Auditing for output-control properties (refusal behavior, tone compliance) likely requires late-layer analysis. Efficient audits should prioritize layer ranges based on target property.
+\end{itemize}
+
+Testing this hierarchy across diverse task families (arithmetic, code generation, moral reasoning, long-horizon planning) is a key next step. If the pattern holds generally, it suggests interpretability research should stratify analyses by layer depth, with different methodologies for early-layer structure (causal tracing, intervention studies) vs late-layer output shaping (activation steering, logit lens).
+
+\subsection{Threats to Validity and Mitigation Strategies}
+
+We identify common failure modes and document current limitations:
+
+\paragraph{Alternative explanations for behavioral metrics}
+Peak-token consistency and activation similarity could arise from coincidental token overlaps rather than genuine functional coherence. For example, if all probes happen to include the token `is', features might spuriously show high consistency on `is' without actually detecting that concept.
+
+\emph{Current mitigation:} We employ systematic context variation in probe design: entities vary (Texas$\rightarrow$California$\rightarrow$France), syntax varies (declarative$\rightarrow$interrogative). Aggregation across 5--10 diverse probes per concept reduces coincidental overlap probability. Entity-swap validation provides cross-validation: if behavioral grouping were spurious, transferred features would fail to activate appropriately on new entities (but we observe 96\% entity-appropriate activation). However, we cannot rule out all confounds; causal ablation studies (planned for future work) would provide stronger evidence of functional roles.
+
+\paragraph{Sample size and statistical power}
+Sample sizes are modest: 5 circuits, 39 features in primary transfer study, 5--10 probes per concept. Results are descriptive rather than inferential; we avoid claiming statistical significance. Effect sizes are reported where applicable (layer difference $\Delta=10.1$, behavioral coherence 2.3$\times$/5.8$\times$ improvements) but without formal significance tests or confidence intervals.
+
+\emph{Current status:} We frame findings as proof-of-concept demonstrating feasibility, not definitive characterization. The transfer effect (10.1-layer difference) is large relative to variance (SD $\sim$6 layers), providing preliminary support for hierarchy hypothesis. Larger-scale validation across 20--50 circuits (planned as templated sweep over all US state-capital pairs) would better characterize method stability and failure modes. Current results should guide follow-up confirmatory studies, not stand alone as conclusive evidence.
+
+\paragraph{Duplicate features and naming ambiguity}
+Classification can be ambiguous when features exhibit mixed behavior (e.g., peaking on both semantic and functional tokens with comparable confidence). We enforce duplicate prevention via weighted alignment scores, but edge cases remain.
+
+\emph{Current mitigation:} Conflict resolution uses weighted scoring combining peak consistency (40\%), category confidence (30\%), layer prior (20\%), and sparsity (10\%). Ties are broken by highest absolute confidence score. Features failing to meet $\ge$60\% cross-probe stability are marked ``ungrouped'' and excluded (typically 5--10\% of candidates). Naming relies on single-token peaks; multi-token concepts (`New York', `United States') require manual post-correction or longest-match heuristics (currently implemented as `use first token'). Future work could incorporate Neuronpedia autointerp descriptions to resolve ambiguity systematically.
+
+\paragraph{Attention routing not modeled}
+CLT replacement models linearize residual stream pathways by freezing attention patterns and layer norms during attribution computation. This enables tractable causal tracing but may underestimate indirect effects where features modulate computation via attention pattern changes rather than direct residual contribution.
+
+\emph{Current status:} Replacement models are standard in current interpretability literature and provide consistent attribution graphs across tools (Neuronpedia, TransformerLens). Our method operates on these graphs regardless of attribution method---alternative approaches (integrated gradients on attention weights, attention flow analysis) could be substituted. We focus on grouping and interpretation given an attribution graph, not proposing a new attribution method. Attention-aware variants could complement our approach; we document this as a known limitation.
+
+\paragraph{Language and domain specificity}
+Current implementation is optimized for English prompts with explicit copulas (`is', `are'). We encountered a notable failure when testing the English pipeline on the French prompt ``le contraire de `petit' est'': the model produced incoherent activations with no valid supernode grouping due to language mismatch and absence of French functional tokens in preprocessing. Performance improved after adding French-language probe prompts and expanding the blacklist to include mixed English-French functional terms, but required manual refinement.
+
+\emph{Current status:} We provide configurable functional token lists and directionality rules (Appendix~\ref{sec:functional-vocab}, \texttt{config/languages/} in GitHub). Users can adapt vocabularies for target languages via YAML config files. However, the current prototype remains unreliable in multilingual contexts without explicit cross-lingual adaptation. Domain specificity (code, math, vision-language models) may require analogous adaptations: code circuits might use `def'/`return' as functional markers, math circuits might use operators (`+', `=') rather than words. Generalization testing is planned.
+
+\paragraph{Threshold sensitivity and hyperparameter dependence}
+Decision rules rely on hand-tuned thresholds (peak consistency $\ge$0.80, Say-X layer $\ge$7, etc.). While chosen via iterative refinement on held-out examples, different thresholds could yield different groupings.
+
+\emph{Current status:} Thresholds represent codified expert judgment informed by manual circuit analysis (including extensive ``feature ethnography'' where activations were printed and annotated by hand over several days). We do not claim these are globally optimal. For practical use, we recommend treating thresholds as configurable defaults that users can adjust for domain-specific needs (e.g., stricter Say-X layer prior for shallow models, looser peak consistency for polysemantic features). Interactive demo UI exposes threshold sliders for real-time exploration. Systematic sensitivity analysis planned for future work.
+
+\paragraph{Baseline tuning documentation}
+We tuned geometric baselines (cosine clustering, layer-adjacency) to ensure fair comparison, selecting cluster counts and linkage methods to maximize geometric quality indices (Silhouette for cosine, modularity for adjacency). However, we have not exhaustively documented hyperparameter grid searches or sensitivity analysis for baselines.
+
+\emph{Current status:} All three methods (concept-aligned, cosine, layer-adjacency) received comparable attention during development. We do not claim optimal hyperparameters for any method; rather, our goal was to ensure baselines were not trivially weak. Results in Table~\ref{tab:baselines} are descriptive differences from a single circuit without significance tests. Systematic threshold optimization and baseline tuning documentation are planned for future work, along with proper train/validation/test splits across multiple circuits.
+
+\paragraph{Baseline fairness}
+We document baseline hyperparameters and tuning effort to avoid under-tuning, particularly for cosine and adjacency clustering where parameter choices materially affect geometric indices.
+
+\paragraph{Future work}
+We plan causal interventions (feature ablations, steering, cross-circuit transfer) and a templated sweep across many state--capital graphs to assess stability and generalization, including attention-aware variants.
+
+

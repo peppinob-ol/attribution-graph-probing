@@ -326,6 +326,15 @@ if generate_button:
                     
                 except Exception as e:
                     st.warning(f"⚠️ Could not prepare auto-download: {e}")
+        else:
+            # Generation failed
+            error_msg = result.get('error', 'Unknown error')
+            st.error(f"❌ Graph generation failed!\n\nError: {error_msg}")
+            
+            # Show details if available
+            if result.get('details'):
+                with st.expander("Error details"):
+                    st.code(result['details'])
     
     
     except Exception as e:
@@ -350,20 +359,25 @@ if just_generated and generated_path:
     # Auto-select the just-generated graph
     from pathlib import Path as PathLib
     
-    # Convert to Path and handle both absolute and relative paths
+    # Use the absolute path directly - we know it exists
     gen_path = PathLib(generated_path)
-    if gen_path.is_absolute():
-        # Absolute path - make it relative to parent_dir
-        selected_json = str(gen_path.relative_to(parent_dir))
-    else:
-        # Already relative - use as is
-        selected_json = str(gen_path).replace('\\', '/')
+    
+    # Store the absolute path for use later
+    selected_json = str(gen_path)
     
     st.info(f"📊 **Ready to analyze**: `{gen_path.name}` (just generated)")
     
     # Option to select a different file
     with st.expander("📁 Select a different graph file", expanded=False):
         json_dir = parent_dir / "output" / "graph_data"
+        
+        # Create directory if it doesn't exist
+        if not json_dir.exists():
+            try:
+                json_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass  # Silently fail in expander
+        
         if json_dir.exists():
             json_files = sorted(json_dir.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True)
             if json_files:
@@ -385,6 +399,10 @@ if just_generated and generated_path:
                 if st.button("Use this file instead"):
                     selected_json = selected_json_alt
                     st.rerun()
+            else:
+                st.info("No other graph files found in `output/graph_data/`")
+        else:
+            st.warning("Directory `output/graph_data/` not accessible")
 else:
     # Normal file selection (no graph just generated)
     st.write("""
@@ -392,6 +410,14 @@ else:
     """)
     
     json_dir = parent_dir / "output" / "graph_data"
+    
+    # Create directory if it doesn't exist
+    if not json_dir.exists():
+        try:
+            json_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            st.warning(f"⚠️ Could not create directory: {e}")
+    
     if json_dir.exists():
         json_files = sorted(json_dir.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True)
         
@@ -412,28 +438,49 @@ else:
 
 # Show file info and analysis button if we have a selected file
 if selected_json:
-    file_path = parent_dir / selected_json
+    # Handle both absolute and relative paths
+    file_path = Path(selected_json)
+    if not file_path.is_absolute():
+        file_path = parent_dir / selected_json
     
-    # Check if file exists before accessing stats
-    if not file_path.exists():
+    # Check if file exists - if not, try to use session_state data
+    file_exists = file_path.exists()
+    
+    # If file doesn't exist but we have data in session_state (just generated), use that
+    use_session_data = False
+    if not file_exists and just_generated and 'pipeline_graph_json' in st.session_state:
+        graph_data = st.session_state['pipeline_graph_json']['data']
+        use_session_data = True
+        st.info("📦 Using graph data from current session (file system is temporary on HF Spaces)")
+    elif not file_exists:
         st.error(f"❌ File not found: `{file_path.name}`")
         st.warning("The file may have been moved or renamed. Please refresh the page or select another file.")
         st.stop()
     
-    file_size = file_path.stat().st_size / 1024 / 1024
-    file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
-    
-    # Load JSON to extract graph metadata
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            graph_metadata = json.load(f)
-        num_nodes = len(graph_metadata.get('nodes', []))
-        num_links = len(graph_metadata.get('links', []))
-        model_id = graph_metadata.get('metadata', {}).get('model_id', 'N/A')
-    except Exception:
-        num_nodes = None
-        num_links = None
-        model_id = None
+    # Get file stats and metadata
+    if use_session_data:
+        # Use data from session_state
+        file_size = len(json.dumps(graph_data)) / 1024 / 1024  # Approximate size
+        file_time = datetime.fromisoformat(st.session_state['pipeline_graph_json']['timestamp'])
+        num_nodes = len(graph_data.get('nodes', []))
+        num_links = len(graph_data.get('links', []))
+        model_id = graph_data.get('metadata', {}).get('model_id', 'N/A')
+    else:
+        # Use file on disk
+        file_size = file_path.stat().st_size / 1024 / 1024
+        file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
+        
+        # Load JSON to extract graph metadata
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                graph_metadata = json.load(f)
+            num_nodes = len(graph_metadata.get('nodes', []))
+            num_links = len(graph_metadata.get('links', []))
+            model_id = graph_metadata.get('metadata', {}).get('model_id', 'N/A')
+        except Exception:
+            num_nodes = None
+            num_links = None
+            model_id = None
     
     # Display file info and graph metadata
     col1, col2, col3 = st.columns(3)
@@ -458,9 +505,15 @@ if selected_json:
     if st.button(button_label, key="extract_existing", type="primary"):
         try:
             with st.spinner("Extracting metrics..."):
-                json_full_path = str(parent_dir / selected_json)
-                with open(json_full_path, 'r', encoding='utf-8') as f:
-                    graph_data = json.load(f)
+                # Use graph_data from session_state if available, otherwise load from file
+                if use_session_data:
+                    # Already have graph_data from session_state
+                    pass
+                else:
+                    # Load from file
+                    json_full_path = str(parent_dir / selected_json)
+                    with open(json_full_path, 'r', encoding='utf-8') as f:
+                        graph_data = json.load(f)
                 
                 csv_output_path = str(parent_dir / "output" / "graph_feature_static_metrics.csv")
                 df = extract_static_metrics_from_json(

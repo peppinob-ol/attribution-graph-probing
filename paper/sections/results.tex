@@ -1,0 +1,102 @@
+% Section: Results
+% Outline (for review):
+% - Setup: model, CLT set, prompt families
+% - Quantitative: T1 (Graph vs Subgraph), T2 (baselines), T3 (cross-prompt)
+% - Qualitative: example subgraph and supernode composition; early-vs-late visualization
+% - Notes on exploratory vs pre-specified elements; baseline fairness note
+
+\section{Results}
+\label{sec:results}
+
+\paragraph{Experimental setup}
+We evaluate on Gemma-2-2B-it using cross-layer transcoders (CLTs) as our feature dictionary. CLTs read from the residual stream at each layer and jointly reconstruct MLP outputs downstream, trained with JumpReLU activations and an explicit sparsity penalty. For Gemma-2 (2B), a published CLT suite contains ~2.5M features in total, which we use to build local replacement models and attribution graphs. Prompt families span multiple domains to test generalization beyond single-circuit artifacts:
+
+\begin{itemize}
+  \item Geographic knowledge: ``The capital of Texas is'' $\rightarrow$ Austin (Dallas variant), ``The capital of California is'' $\rightarrow$ Sacramento (Oakland variant)
+  \item Sports entities: ``Michael Jordan plays'' $\rightarrow$ Basketball  
+  \item Semantic opposition: ``The opposite of small is'' $\rightarrow$ large
+  \item Anatomical relations: ``The muscle called the diaphragm''
+\end{itemize}
+
+Each circuit uses Neuronpedia's attribution graph generation with replacement model (freezing attention patterns, layer norms). We select features via cumulative influence threshold ($\tau = 0.60$--0.80, chosen to capture top 70--80\% of influence). Probe prompts generated via Claude-3.5-Sonnet with temperature 0.7, manually reviewed for quality (rejecting semantically identical or syntactically malformed prompts). Activation measurements via Neuronpedia API (approximately 10--15 minutes on L4 GPU for 5 probes $\times$ 40 features). All experiments use fixed random seeds.
+
+\paragraph{Graph vs subgraph compression}
+Table~\ref{tab:graph-subgraph} reports Neuronpedia metrics on full graphs vs concept-aligned subgraphs. Completeness remains high (approx.\ 0.83 mean) while Replacement trades off (approx.\ 0.54 mean), consistent with interpretability-oriented compression.
+\input{tables/T1_graph_vs_subgraph}
+
+\paragraph{Interpretation (C2: Interpretability-Oriented Compression)}
+These results support our second claim that behavioral grouping enables interpretability-oriented compression. Completeness remains high (mean 0.83 vs 0.90 for full graphs, $\Delta = -0.07$), indicating concept-aligned subgraphs capture most incoming edge influence to nodes: the subgraph is largely self-contained with few unexplained inputs. Replacement drops more substantially (mean 0.54 vs 0.70, $\Delta = -0.16$), reflecting our deliberate choice to exclude low-influence nodes that contribute little to functional understanding but would inflate raw coverage.
+
+This trade-off is intentional and aligns with interpretability goals. We prioritize legibility (30--50 interpretable supernodes with semantic labels) over exhaustive coverage (600+ unlabeled features). Replacement is computed against full end-to-end influence from input embeddings to target logit; unpinned nodes are treated as error, so lower Replacement indicates higher abstraction rather than lost explanatory power. A perfectly complete subgraph (Replacement = Completeness = 1.0) would be the full raw graph---maximally comprehensive but minimally interpretable.
+
+The consistent 79--86\% Completeness across all five prompts, despite varying Replacement scores (0.45--0.62), indicates that concept-aligned grouping successfully identifies features that explain model behavior, even when the simplified circuit doesn't fully replicate it. This trade-off---interpretability vs.\ completeness---is acceptable for circuit analysis purposes where understanding causal structure matters more than perfect reconstruction.
+
+\paragraph{Behavioral coherence vs geometric baselines}
+Table~\ref{tab:baselines} compares behavioral coherence against cosine-only and layer-adjacency clustering on the Michael Jordan circuit. Concept-aligned grouping shows higher token consistency and activation pattern similarity, with lower sparsity consistency (better concentration). Geometric indices favor adjacency, reflecting compactness rather than functional coherence.
+\input{tables/T2_baselines}
+
+\paragraph{Interpretation (C1: Behavioral Coherence)}
+These results support our first claim that concept-aligned grouping exhibits higher behavioral coherence than geometric clustering. Peak-token consistency (0.425 vs 0.183 for cosine, 2.3$\times$ improvement) indicates concept-aligned features activate on the same tokens far more reliably across probes: 42.5\% of features in a supernode peak on identical tokens, compared to 18.3\% for cosine-clustered features. Activation-pattern similarity (0.762 vs 0.130 for cosine, 5.8$\times$ improvement) indicates higher within-group activation vector correlation: features in a behavioral supernode respond similarly across contexts, while cosine-clustered features may be geometrically close but functionally diverse.
+
+The trade-off is geometric compactness: concept-aligned grouping scores lower on Silhouette index (0.124 vs 0.707 for layer-adjacency), indicating groups are not spatially compact in activation vector space or layer-influence graph. This is expected and desirable: functional roles (semantic detection, relationship binding, output promotion) can span multiple layers and diverse activation patterns. Layer-adjacency clustering trivially achieves high Silhouette by grouping nearby layers, but this reflects geometric proximity rather than shared function---adjacent-layer features may perform unrelated computational roles.
+
+Davies-Bouldin scores are comparable across methods (1.30 vs 1.58/0.49), suggesting reasonable within-group cohesion despite cross-layer membership. Sparsity consistency (0.255) is lower than baselines (0.335--0.399), indicating concept-aligned features concentrate activation on fewer tokens (lower is better for this metric). This aligns with the Say-X category: output promoters should activate sparsely on functional tokens, not diffusely across all tokens.
+
+Important caveat: Neuronpedia Replacement/Completeness scores are near-invariant across the three methods (all pin the same 39 nodes) and thus do not discriminate grouping quality. The behavioral metrics above provide the actual comparison. Results are descriptive from a single circuit; broader validation needed.
+
+\paragraph{Cross-prompt robustness and early-vs-late hierarchy}
+Table~\ref{tab:cross-prompt} summarizes transfer from Dallas to Oakland. Early layers show stronger transfer than late layers (mean layers 6.3 vs 16.4), supporting a backbone-and-specialization view with Say-X features concentrated late.
+\input{tables/T3_cross_prompt_robustness}
+
+\paragraph{Interpretation (C3: Early-vs-Late Hierarchy)}
+These results support our third claim of a layerwise computational hierarchy. Features that transfer from Dallas$\rightarrow$Austin to Oakland$\rightarrow$Sacramento (64\%, 25/39 features) come from significantly earlier layers (mean 6.3, SD 5.2) than features that fail to transfer (mean 16.4, SD 5.8). The layer difference ($\Delta = 10.1$ layers, approximately 40\% of the model's 26 layers) is substantial and consistent with a two-stage computation: early layers encode transferable relational structure (`X is the capital of Y'), late layers specialize for specific output tokens (`say Austin' vs `say Sacramento').
+
+Transferred features show perfect behavioral consistency when substituting entities: 96\% peak on the appropriate capital for the new entity (Oakland features peak on `Sacramento', not `Austin'; Dallas features peak on `Austin', not `Sacramento'). Activation overlap is 1.000 (SD 0.000), indicating transferred features' activation patterns are identical (within numerical precision) across entity swaps after accounting for entity-token substitution. This validates that transfer captures genuine functional equivalence, not spurious token overlap.
+
+The 64\% transfer rate is descriptive and derives from a single circuit pair. We interpret this as proof-of-concept evidence for hierarchical computation, not definitive characterization. Replication across additional entity pairs (e.g., Paris$\rightarrow$France, London$\rightarrow$England) would strengthen generality claims. Follow-up work testing whether non-geographic circuits (arithmetic, code generation) exhibit similar early-vs-late split would assess whether this is a domain-general principle or specific to factual recall tasks.
+
+\paragraph{Compositional analysis}
+Examining feature categories, transferred features are predominantly Semantic (entity detectors: `capital', `state', `containing') and Relationship (`capital-of' relation, copula binding). Failed-transfer features are predominantly Say-X (`Say Austin', `Say Texas') concentrated in layers 14--18. This categorical separation supports the backbone-and-specialization model: early layers build task-general representations (entity detection, structural binding), late layers shape output distribution (token promotion, probability allocation).
+
+\paragraph{Qualitative subgraph}
+We include qualitative supernode structure and paths from entity detectors to Say-X nodes for capitals circuits (figures provided as high-resolution PDFs). Empirically, Relationship nodes concentrate in early layers with diffuse activation, while late layers aggregate Say-X features that promote the output token.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/w_1790.png}
+  \caption{Probe prompting pipeline overview. Four-stage process: (1) Attribution Graph: Start with Neuronpedia graph (600+ features), select high-influence features via cumulative threshold $\tau$. (2) Probe Prompts: LLM generates 5--10 concept-targeted prompts preserving syntactic structure while varying semantic content (e.g., ``capital of Texas'' $\rightarrow$ ``capital of California''). (3) Behavioral Signatures: Measure feature activations across all probes, computing peak-token consistency, sparsity, and semantic vs functional peak percentage. (4) Interpretable Supernodes: Apply transparent decision rules to classify features into Semantic (content detectors), Relationship (structural binding), and Say-X (output promotion) categories. This abstraction hierarchy trades raw graph completeness (83\% vs 90\%) for legibility and actionable insight: researchers can quickly identify entity detectors, relational binding features, and output promoters without hours of manual activation inspection. Typical processing time: 2--5 minutes for graphs with 50--200 features.}
+  \label{fig:pipeline}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/w_1382.png}
+  \caption{Activation characteristics distinguish feature categories across layers.(Left) Violin plot showing activation magnitude increases with context coverage (n_ctx). Multi-context features exhibit higher mean activation. (Right) Scatter plot reveals near-zero correlation between activation strength and causal influence (r=0.02, ρ=-0.12), demonstrating that highly-activating features are not necessarily causally important. Color indicates context breadth; size reflects influence.}
+  \label{fig:activation-patterns}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/w_1147.png}
+  \caption{Rule-based feature typing for probe-prompted subgraphs. Decision rules used to assign each feature to one of four categories—Semantic (Dictionary), Semantic (Concept), Relationship, and Say “X”—based on cross-prompt behavior. Primary thresholds use peak consistency and number of distinct peaks for stable token detectors; median sparsity and early-layer bias for relationship-type binders; and the balance of functional-vs-semantic peaks with high functional confidence for output-promotion features, typically in later layers. Secondary conditions act as tie-breakers (e.g., early-layer preference for semantic detectors; early-binding layers for relationships; late-layer prior for Say “X”). Metric shorthand: peak consistency = share of probes with the same peak token; semantic_conf = probability mass on semantic targets; func_vs_sem = proportion of functional vs semantic activations; median_sparsity = median zero-fraction across probes; confidence_functional = classifier confidence of functional behavior. Written to be standalone per common journal guidance for captions.}
+  \label{fig:layerwise}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/w_893.png}
+  \caption{Stacked-prompts activation map and Cross-Prompt Activation Signature (CPAS) for Feature 20-clt-hp:74108 (“Say capital”). Rows are generated probe prompts; columns are tokens. Shading shows feature activation. The feature fires on functional tokens—most strongly on is and the—across diverse contexts and reaches its global maximum immediately before capital (63.31). Its CPAS—a summary of behavior over probe prompts built from the peak-token histogram, activation density, sparsity, and semantic-vs-functional balance—shows high functional peak consistency with low variance across prompts. This pattern aligns with an output-promotion (“say-X”) role rather than semantic detection and matches the broader observation that attribution graphs often include output features that directly up-weight specific next tokens.}
+  \label{fig:baselines}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/w_2100.png}
+  \caption{Cross-prompt transfer validation (Dallas$\rightarrow$Oakland entity swap). Heatmap shows supernode activation overlap between Dallas$\rightarrow$Austin (Texas, x-axis) and Oakland$\rightarrow$Sacramento (California, y-axis). Cell color indicates normalized activation overlap (dark red = high bilateral transfer $\sim$0.15--0.20, orange = unilateral, light = no overlap). Universal features (`is', `capital', `containing') show high bilateral transfer, indicating early-layer backbone computation. Entity-specific features (`Texas', `Dallas', `California', `Oakland') show unilateral activation (orange blocks), confirming entity specificity. Say-X output promoters (`Say Austin', `Say Sacramento') are target-appropriate (bottom rows), appearing only for correct circuit. This pattern supports the early-vs-late hierarchy: early layers encode transferable relational structure, late layers specialize for specific output tokens. Transfer rate (64\%, 25/39 features) and 10.1-layer difference between transferred (mean 6.3) vs failed (mean 16.4) features provide quantitative evidence for this stratification.}
+  \label{fig:transfer}
+\end{figure}
+
+\paragraph{Exploratory vs pre-specified}
+We distinguish pre-specified metrics (definitions, procedures) from exploratory elements (prompt families, thresholds sensitivity). Baseline hyperparameters and tuning effort are documented to avoid under-tuning competitors.
+
+

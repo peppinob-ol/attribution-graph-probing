@@ -1,0 +1,24 @@
+\begin{table}[H]
+\centering
+\caption{\textbf{Cross-Prompt Robustness (C3: Early-vs-Late Hierarchy).} Entity swap (Dallas$\rightarrow$Oakland). Transfer measured by matching Dallas features to Oakland and computing activation overlap (threshold: cosine > 0.80). Features with high overlap (>0.80) are classified as ``transferred''; low overlap (<0.50) as ``failed.'' \textsc{Pre-specified:} Entity-swap experimental design with identical syntactic structure (``The capital of [STATE] is [CITY]''), transfer as primary outcome measure, layerwise analysis. \textsc{Exploratory:} Specific prompt pair (Dallas/Oakland selected among candidate state-capital pairs). \emph{Interpretation:} Transfer rate (64\%, 25/39 features) and layer distributions support hierarchical hypothesis. Early-layer features show robust transfer (mean layer 6.3) with perfect entity-appropriate activation: Oakland features peak on `Sacramento', not `Austin', confirming functional rather than spurious transfer. Late-layer features specialize per entity (mean layer 16.4, only 36\% transfer). Results are descriptive from single circuit pair; replication across additional entity-swap pairs (e.g., Paris$\rightarrow$France, London$\rightarrow$England) needed for confirmatory evidence of generalization.}
+\label{tab:cross-prompt}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total Dallas Features                 & 39 \\
+Transferred to Oakland                & 25 (64.1\%) \\
+Failed to Transfer                    & 14 (35.9\%) \\
+Layer Distribution:                   & \\
+\quad Transferred Features (mean)     & 6.3 (SD = 5.2) \\
+\quad Failed Features (mean)          & 16.4 (SD = 5.8) \\
+\quad Layer Difference                & $\Delta = 10.1$ layers \\
+Behavioral Validation:                & \\
+\quad Activation Overlap (transferred)& 1.000 (SD = 0.000) \\
+\quad Peak Token Consistency          & 96\% \\
+\quad Entity-Appropriate Activation   & 100\% (Oakland features $\rightarrow$ `Sacramento') \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
