@@ -82,3 +82,8 @@ Write-Host ""
 Write-Host "Zip file size: $([math]::Round((Get-Item $outputZip).Length / 1MB, 2)) MB" -ForegroundColor Cyan
 
 
+
+
+
+
+
