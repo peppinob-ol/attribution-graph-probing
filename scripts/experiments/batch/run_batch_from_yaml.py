@@ -9,6 +9,15 @@ import argparse
 import sys
 from pathlib import Path
 
+# Load .env file if available
+try:
+    from dotenv import load_dotenv
+    # Look for .env in repo root (4 levels up from this script)
+    env_path = Path(__file__).parent.parent.parent.parent / '.env'
+    load_dotenv(dotenv_path=env_path)
+except ImportError:
+    pass  # python-dotenv not installed, continue without
+
 # Add parent to path
 parent_dir = Path(__file__).parent.parent.parent.parent
 if str(parent_dir) not in sys.path:
@@ -20,6 +29,8 @@ from pipeline.loader import (
 from pipeline.graph import process_graph_step
 from pipeline.probes import process_probes_step
 from pipeline.activations_local import process_activations_step
+from pipeline.remote import process_remote_activation_step
+from pipeline.grouping import process_grouping_step
 from pipeline.manifest import create_manifest, write_manifest
 
 
@@ -160,13 +171,32 @@ def run_batch(config_path: str, dry_run: bool = False, force: bool = False, verb
                 if paths['activations_dump_json'].exists() and not force:
                     print(f"  [SKIP] Activations already exist (use --force to overwrite)")
                 else:
-                    if not process_activations_step(config, seed, paths, verbose=verbose):
-                        seed_success = False
-                        error_msg = "Activations processing failed"
+                    # Check if remote execution is enabled
+                    remote_enabled = config.get('compute', {}).get('remote', {}).get('enabled', False)
+                    
+                    if remote_enabled:
+                        # Use remote GPU node
+                        success, remote_metadata = process_remote_activation_step(config, seed, paths, verbose=verbose)
+                        if not success:
+                            seed_success = False
+                            error_msg = "Remote activations processing failed"
+                        else:
+                            # Update manifest with remote metadata
+                            manifest.update(remote_metadata)
+                    else:
+                        # Use local execution
+                        if not process_activations_step(config, seed, paths, verbose=verbose):
+                            seed_success = False
+                            error_msg = "Activations processing failed"
             
-            # Step: Grouping (placeholder for now)
+            # Step: Grouping
             if seed_success and steps.get('grouping'):
-                print(f"  [TODO] Grouping step not yet implemented")
+                if paths['grouping_csv'].exists() and not force:
+                    print(f"  [SKIP] Grouping already exists (use --force to overwrite)")
+                else:
+                    if not process_grouping_step(config, seed, paths, verbose=verbose):
+                        seed_success = False
+                        error_msg = "Grouping processing failed"
         
         except Exception as e:
             seed_success = False
@@ -175,6 +205,9 @@ def run_batch(config_path: str, dry_run: bool = False, force: bool = False, verb
             traceback.print_exc()
         
         # Update manifest
+        from datetime import datetime
+        manifest['timestamp_completed'] = datetime.now().isoformat()
+        
         if seed_success:
             manifest['status'] = 'completed'
             write_manifest(manifest, paths)

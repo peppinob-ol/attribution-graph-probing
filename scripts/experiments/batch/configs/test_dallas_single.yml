@@ -1,0 +1,60 @@
+version: 0.1
+experiment_name: test_dallas_single
+
+# Minimal config for E2E testing with Dallas example
+
+paths:
+  outputs_root: output/test_batch_dallas
+
+model:
+  id: gemma-2-2b
+  source_set: gemmascope-res-16k  # Lighter than clt-hp for testing
+
+features:
+  selection: cumulative_influence
+  threshold: 0.95
+
+probes:
+  mode: shared_file
+  shared_file:
+    prompts_json: output/examples/Dallas/prompts.json
+
+get_activations:
+  backend: local
+  local:
+    chunk_by_layer: false  # Disable for testing (faster)
+    include_zero: false
+    gpus: [0]
+
+compute:
+  remote:
+    enabled: true  # Set true to test remote execution
+    host: "207.53.234.140"
+    user: "giuseppe"
+    password_env: "ELEUTHERAI_NODE_PSW"
+    base_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe"
+    repo_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/attribution-graph-probing"
+    logs_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/logs"
+    env_activate_cmd: "source /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/env.sh"
+    use_gpu_count: 1
+    gpu_selection: auto
+
+grouping:
+  enabled: false  # Enable after activations work
+
+steps:
+  graph_generation: false
+  feature_export: true
+  probe_prompts: true
+  activations: true
+  grouping: false
+  dry_run: false
+  force: false
+
+graph_generation:
+  seeds_mode: precomputed
+
+precomputed_seeds:
+  - slug: dallas_test
+    graph_json: output/examples/Dallas/clt-hp-the-capital-of-201020250035-20251020-003525.json
+

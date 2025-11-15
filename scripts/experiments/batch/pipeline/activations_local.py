@@ -48,7 +48,7 @@ def process_activations_step(config: Dict[str, Any], seed: Dict[str, Any], paths
         print(f"    Output: {env['OUT_JSON_PATH']}")
     
     # Path to batch_get_activations.py
-    script_path = Path(__file__).parent.parent.parent.parent / 'neuronpedia activations' / 'batch_get_activations.py'
+    script_path = Path(__file__).parent.parent.parent.parent / 'neuronpedia_activations' / 'batch_get_activations.py'
     
     if not script_path.exists():
         print(f"ERROR: batch_get_activations.py not found at: {script_path}")

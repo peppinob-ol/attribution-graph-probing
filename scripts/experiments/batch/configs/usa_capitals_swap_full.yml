@@ -20,13 +20,19 @@ compute:
   local:
     seeds_per_gpu: 1
     max_parallel_seeds: 8
-  # Remote node settings (optional). Used by a runner to rsync/ssh.
+  # Remote node settings (EleutherAI 8xA40 node)
   remote:
-    enabled: false
-    ssh_host: ""
-    ssh_user: ""
-    remote_root: "/home/user/experiments/usa_capitals_swap"
-    rsync_excludes: ["*.tmp", "*.log"]
+    enabled: false          # Set true to run activations on remote GPU node
+    host: "207.53.234.140"
+    user: "giuseppe"
+    password_env: "ELEUTHERAI_NODE_PSW"  # Read password from env var
+    base_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe"
+    repo_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/attribution-graph-probing"
+    logs_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/logs"
+    env_activate_cmd: "source /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/env.sh"
+    use_gpu_count: 1        # Number of GPUs to use per batch (1 = sequential)
+    gpu_selection: auto     # auto (pick free GPU) | manual (use gpus list)
+    rsync_excludes: ["*.tmp", "*.log", "__pycache__"]
 
 model:
   id: gemma-2-2b
@@ -124,7 +130,7 @@ get_activations:
     activation_threshold_quantile: 0.90
 
 grouping:
-  enabled: false
+  enabled: false          # Set true to run node grouping (classification + naming)
   window: 7
   blacklist: ""           # comma-separated tokens to avoid for naming
   thresholds:

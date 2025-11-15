@@ -7,11 +7,30 @@ from pathlib import Path
 from typing import Dict, Any, List
 
 # Add parent to path for imports
-parent_dir = Path(__file__).parent.parent.parent.parent
-if str(parent_dir) not in sys.path:
-    sys.path.insert(0, str(parent_dir))
+# From scripts/experiments/batch/pipeline/graph.py:
+#   parent = pipeline/
+#   parent.parent = batch/
+#   parent.parent.parent = experiments/
+#   parent.parent.parent.parent = scripts/
+#   parent.parent.parent.parent.parent = repo_root
+repo_root = Path(__file__).parent.parent.parent.parent.parent
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
 
-from scripts import generate_attribution_graph, extract_static_metrics_from_json
+# Import functions by loading the script module directly
+import importlib.util
+
+graph_gen_script = repo_root / "scripts" / "00_neuronpedia_graph_generation.py"
+
+if not graph_gen_script.exists():
+    raise FileNotFoundError(f"Graph generation script not found at: {graph_gen_script}")
+
+spec = importlib.util.spec_from_file_location("graph_gen_module", str(graph_gen_script))
+graph_gen_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(graph_gen_module)
+
+generate_attribution_graph = graph_gen_module.generate_attribution_graph
+extract_static_metrics_from_json = graph_gen_module.extract_static_metrics_from_json
 
 
 def process_graph_step(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict[str, Path], 

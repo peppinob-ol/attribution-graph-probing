@@ -57,9 +57,14 @@ def create_manifest(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict[st
             'threshold': config['features'].get('threshold'),
         },
         'steps_enabled': config['steps'],
-        'timestamp': datetime.now().isoformat(),
+        'timestamp_started': datetime.now().isoformat(),
+        'timestamp_completed': None,
         'status': status,
         'git': git_info,
+        'compute': {
+            'backend': config['get_activations']['backend'],
+            'remote_enabled': config.get('compute', {}).get('remote', {}).get('enabled', False),
+        },
     }
     
     if error:

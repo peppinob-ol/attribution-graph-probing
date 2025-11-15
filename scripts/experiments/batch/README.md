@@ -189,42 +189,56 @@ For gated models (e.g., Gemma):
 - Dry-run mode
 - Force overwrite mode
 
+### Implemented (Remote Execution)
+- SSH-based remote execution for activations on GPU nodes
+- Automatic GPU selection (finds free GPU via nvidia-smi)
+- GPU locking to avoid conflicts on shared nodes
+- Rsync/SCP for file upload/download
+- Remote log capture and local storage
+- Node grouping step (classification + naming)
+- Activations dump to CSV conversion
+
 ### Not Yet Implemented
-- Remote execution via SSH (activations run locally for now)
-- GPU scheduling (manual CUDA_VISIBLE_DEVICES for now)
-- Node grouping step (step 3 of pipeline)
+- Parallel seed processing (currently sequential)
 - Subgraph upload to Neuronpedia
 - API backend for activations
 - Per-seed probe prompts mode (per_seed_file)
 
-## Future Work
+## Remote Execution (Implemented)
 
-### Remote Execution
-Add SSH-based remote execution for activations on GPU nodes:
+Enable remote GPU execution by setting `compute.remote.enabled: true` in your config:
 
 ```yaml
 compute:
   remote:
     enabled: true
-    host: giuseppe@207.53.234.140
-    base_dir: /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe
-    gpus: [0,1,2,3,4,5,6,7]
-    gpu_selection: auto  # auto | manual
+    host: "207.53.234.140"
+    user: "giuseppe"
+    password_env: "ELEUTHERAI_NODE_PSW"  # Or use SSH keys
+    base_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe"
+    repo_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/attribution-graph-probing"
+    logs_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/logs"
+    env_activate_cmd: "source /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/env.sh"
+    use_gpu_count: 1
+    gpu_selection: auto  # Automatically finds free GPU
 ```
 
-### GPU Scheduling
-Automatic free GPU detection and locking:
+**Features:**
+- Automatic free GPU detection via nvidia-smi (mem < 500MB, util < 5%)
+- GPU locking (mkdir-based) to avoid conflicts on shared nodes
+- Upload inputs (prompts.json, features.json) via scp
+- Run activations remotely with proper env setup
+- Download results (activations_dump.json, logs) back to laptop
+- Automatic GPU lock release on completion or failure
 
-- Query `nvidia-smi` to find idle GPUs
-- Create lock files to avoid conflicts
-- Parallel seed processing (one seed per GPU)
+## Future Work
 
-### Node Grouping
-Integrate step 3 (classification and naming):
+### Parallel Seed Processing
+Run multiple seeds concurrently (one per GPU):
 
-- Convert activations_dump.json to CSV
-- Call `scripts/02_node_grouping.py`
-- Optional: upload subgraph to Neuronpedia
+- Distribute seeds across available GPUs
+- Monitor GPU availability in real-time
+- Queue seeds when all GPUs busy
 
 ### Additional Features
 - Resume from checkpoint (skip completed seeds)
