@@ -53,22 +53,22 @@ import os, sys, json, shutil, time, re, traceback
 from typing import Any
 
 # --------------------------- CONFIGURAZIONE BASE (EDITA QUI) ---------------------------------------------
-# Modello e SAE set (devono essere compatibili!)
+# Modello e SAE set (possono essere sovrascritti via variabili d'ambiente)
 # COMPATIBILITÀ PRINCIPALI:
 #   gpt2-small       → "res-jb"
 #   gemma-2-2b       → "gemmascope-res-16k", "gemmascope-transcoder-16k", "clt-hp" (Circuit Tracer)
 #   gemma-2-2b-it    → "gemmascope-res-16k", "gemmascope-transcoder-16k"
 # NOTA: altri SAE set potrebbero funzionare anche se non nel registry standard di SAELens
 # RIFERIMENTI: https://www.neuronpedia.org/transcoders-hp (il set si chiama "clt-hp", non "transcoders-hp")
-MODEL_ID    = "gemma-2-2b"               # "gpt2-small" | "gemma-2-2b" | "gemma-2-2b-it" | ecc.
-SOURCE_SET  = "clt-hp"                   # "res-jb" | "gemmascope-res-16k" | "gemmascope-transcoder-16k" | "clt-hp"
+MODEL_ID    = os.environ.get("MODEL_ID", "gemma-2-2b")    # "gpt2-small" | "gemma-2-2b" | "gemma-2-2b-it" | ecc.
+SOURCE_SET  = os.environ.get("SOURCE_SET", "clt-hp")      # "res-jb" | "gemmascope-res-16k" | "gemmascope-transcoder-16k" | "clt-hp"
 
-# File di input (caricali su Colab/Drive; vedi schema sopra e example_*.json)
-PROMPTS_JSON_PATH  = "/content/prompts.json"
-FEATURES_JSON_PATH = "/content/features.json"
+# File di input (possono essere sovrascritti via env; default per Colab: /content/...)
+PROMPTS_JSON_PATH  = os.environ.get("PROMPTS_JSON_PATH", "/content/prompts.json")
+FEATURES_JSON_PATH = os.environ.get("FEATURES_JSON_PATH", "/content/features.json")
 
-# File di output
-OUT_JSON_PATH      = "/content/activations_dump.json"
+# File di output (può essere sovrascritto via env)
+OUT_JSON_PATH      = os.environ.get("OUT_JSON_PATH", "/content/activations_dump.json")
 
 # Se True, processa layer-by-layer per tutti i prompt (ottimizzato per SAE pesanti)
 # IMPORTANTE: per SAE pesanti come clt-hp, impostare True per evitare OOM
@@ -78,11 +78,11 @@ OUT_JSON_PATH      = "/content/activations_dump.json"
 #   - Pulisce cache HF e libera GPU
 #   - Passa al layer successivo
 # Risultato: ~5x più veloce rispetto a processare prompt-by-prompt con re-download
-CHUNK_BY_LAYER = True  # ← True per clt-hp (consigliato), False per res-jb/gemmascope (leggeri)
+CHUNK_BY_LAYER = os.environ.get("CHUNK_BY_LAYER", "true").lower() in ("true", "1", "yes")
 
 # Se True, include nell'output anche le feature richieste con attivazione = 0
 # Se False, include solo le feature che si sono effettivamente attivate (più compatto)
-INCLUDE_ZERO_ACTIVATIONS = True  # ← True per vedere tutte le 55 feature, False solo quelle attive
+INCLUDE_ZERO_ACTIVATIONS = os.environ.get("INCLUDE_ZERO_ACTIVATIONS", "true").lower() in ("true", "1", "yes")
 
 # Eventuale token HF per modelli gated (es. Gemma)
 # IMPORTANTE: Non inserire mai token direttamente nel codice!
@@ -105,10 +105,13 @@ print(f"✓ File input verificati:\n  - {PROMPTS_JSON_PATH}\n  - {FEATURES_JSON_
 
 # ========================= clona repo neuronpedia e setta sys.path =======================================
 REPO_URL = "https://github.com/hijohnnylin/neuronpedia.git"
-REPO_DIR = "/content/neuronpedia"
+# Base directory per il clone del repo; su Colab di default è /content, su nodi remoti usa NP_WORKDIR
+REPO_BASE = os.environ.get("NP_WORKDIR", "/content")
+REPO_DIR = os.path.join(REPO_BASE, "neuronpedia")
 
 if not os.path.exists(REPO_DIR):
     import subprocess
+    os.makedirs(REPO_BASE, exist_ok=True)
     subprocess.run(["git", "clone", "-q", REPO_URL, REPO_DIR], check=True)
 
 # Percorsi per importare i moduli interni (inference) e i modelli OpenAPI (client Python)
@@ -142,7 +145,8 @@ import gc
 
 # CLEANUP DISCO: cache Hugging Face (importante per clt-hp che scarica 8-12 GB per layer!)
 print("Pulizia cache Hugging Face (spazio disco)...")
-HF_CACHE_DIR = os.path.expanduser("~/.cache/huggingface/hub")
+HF_HOME = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+HF_CACHE_DIR = os.path.join(HF_HOME, "hub")
 if os.path.exists(HF_CACHE_DIR):
     # Calcola spazio usato prima
     def get_dir_size(path):
