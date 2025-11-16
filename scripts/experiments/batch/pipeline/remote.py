@@ -626,7 +626,9 @@ class RemoteExecutor:
             shared_log_local = None
 
         # Download results manifest (if present)
-        tmp_results = Path(tempfile.mkstemp(prefix="batch_results_", suffix=".json")[1])
+        fd, tmp_path = tempfile.mkstemp(prefix="batch_results_", suffix=".json")
+        os.close(fd)
+        tmp_results = Path(tmp_path)
         results_loaded = False
         if self.rsync_down(remote_results, str(tmp_results), verbose=False):
             try:
