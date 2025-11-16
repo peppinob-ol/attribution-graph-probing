@@ -23,7 +23,7 @@ import gc
 # Locate helpers (scripts/neuronpedia_activations/helpers.py)
 # ---------------------------------------------------------------------------
 PIPELINE_DIR = Path(__file__).resolve().parent
-SCRIPTS_DIR = PIPELINE_DIR.parents[3]  # .../scripts
+SCRIPTS_DIR = PIPELINE_DIR.parents[2]  # .../scripts
 NEURONPEDIA_DIR = SCRIPTS_DIR / "neuronpedia_activations"
 if str(NEURONPEDIA_DIR) not in sys.path:
     sys.path.insert(0, str(NEURONPEDIA_DIR))
