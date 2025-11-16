@@ -49,8 +49,10 @@
 # NOTA: Usa la stessa pipeline di /activation/all (ActivationProcessor), garantendo coerenza.
 # =========================================================================================================
 
-import os, sys, json, shutil, time, re, traceback
+import os, sys, json, shutil, time, traceback
 from typing import Any
+
+from helpers import load_prompts, load_features
 
 # --------------------------- CONFIGURAZIONE BASE (EDITA QUI) ---------------------------------------------
 # Modello e SAE set (possono essere sovrascritti via variabili d'ambiente)
@@ -83,6 +85,9 @@ CHUNK_BY_LAYER = os.environ.get("CHUNK_BY_LAYER", "true").lower() in ("true", "1
 # Se True, include nell'output anche le feature richieste con attivazione = 0
 # Se False, include solo le feature che si sono effettivamente attivate (più compatto)
 INCLUDE_ZERO_ACTIVATIONS = os.environ.get("INCLUDE_ZERO_ACTIVATIONS", "true").lower() in ("true", "1", "yes")
+
+# Control whether SAE cache directories are removed after each layer
+PERSIST_SAE_CACHE = os.environ.get("PERSIST_SAE_CACHE", "false").lower() in ("true", "1", "yes")
 
 # Eventuale token HF per modelli gated (es. Gemma)
 # IMPORTANTE: Non inserire mai token direttamente nel codice!
@@ -144,41 +149,45 @@ import torch
 import gc
 
 # CLEANUP DISCO: cache Hugging Face (importante per clt-hp che scarica 8-12 GB per layer!)
-print("Pulizia cache Hugging Face (spazio disco)...")
 HF_HOME = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
 HF_CACHE_DIR = os.path.join(HF_HOME, "hub")
-if os.path.exists(HF_CACHE_DIR):
-    # Calcola spazio usato prima
-    def get_dir_size(path):
-        total = 0
-        try:
-            for entry in os.scandir(path):
-                if entry.is_file(follow_symlinks=False):
-                    total += entry.stat().st_size
-                elif entry.is_dir(follow_symlinks=False):
-                    total += get_dir_size(entry.path)
-        except (PermissionError, FileNotFoundError):
-            pass
-        return total
-    
-    cache_size_gb = get_dir_size(HF_CACHE_DIR) / 1024**3
-    print(f"  Cache HF attuale: {cache_size_gb:.2f} GB")
-    
-    # Rimuovi solo i modelli SAE vecchi (non il modello base che è già scaricato)
-    # Pattern: models--mntss--clt-* (i SAE clt-hp)
-    cleaned_gb = 0
-    for item in os.listdir(HF_CACHE_DIR):
-        item_path = os.path.join(HF_CACHE_DIR, item)
-        if "mntss--clt-" in item and os.path.isdir(item_path):
-            item_size = get_dir_size(item_path) / 1024**3
-            print(f"  Rimuovo cache SAE: {item} ({item_size:.2f} GB)")
-            shutil.rmtree(item_path, ignore_errors=True)
-            cleaned_gb += item_size
-    
-    if cleaned_gb > 0:
-        print(f"  ✓ Liberati {cleaned_gb:.2f} GB di spazio disco")
-    else:
-        print(f"  Cache SAE già pulita")
+
+if PERSIST_SAE_CACHE:
+    print("PERSIST_SAE_CACHE=true → salto la pulizia della cache HF (riuso layer scaricati)")
+else:
+    print("Pulizia cache Hugging Face (spazio disco)...")
+    if os.path.exists(HF_CACHE_DIR):
+        # Calcola spazio usato prima
+        def get_dir_size(path):
+            total = 0
+            try:
+                for entry in os.scandir(path):
+                    if entry.is_file(follow_symlinks=False):
+                        total += entry.stat().st_size
+                    elif entry.is_dir(follow_symlinks=False):
+                        total += get_dir_size(entry.path)
+            except (PermissionError, FileNotFoundError):
+                pass
+            return total
+        
+        cache_size_gb = get_dir_size(HF_CACHE_DIR) / 1024**3
+        print(f"  Cache HF attuale: {cache_size_gb:.2f} GB")
+        
+        # Rimuovi solo i modelli SAE vecchi (non il modello base che è già scaricato)
+        # Pattern: models--mntss--clt-* (i SAE clt-hp)
+        cleaned_gb = 0
+        for item in os.listdir(HF_CACHE_DIR):
+            item_path = os.path.join(HF_CACHE_DIR, item)
+            if "mntss--clt-" in item and os.path.isdir(item_path):
+                item_size = get_dir_size(item_path) / 1024**3
+                print(f"  Rimuovo cache SAE: {item} ({item_size:.2f} GB)")
+                shutil.rmtree(item_path, ignore_errors=True)
+                cleaned_gb += item_size
+        
+        if cleaned_gb > 0:
+            print(f"  ✓ Liberati {cleaned_gb:.2f} GB di spazio disco")
+        else:
+            print(f"  Cache SAE già pulita")
 
 # Check spazio disco disponibile
 if hasattr(shutil, 'disk_usage'):
@@ -307,81 +316,6 @@ else:
     sae_mgr.load_saes()
     print(f"✓ SAE manager pronto")
 
-# ========================= helper: lettura input robusta ================================================
-
-def load_prompts(path: str) -> list[dict]:
-    """
-    Accetta:
-      - lista di stringhe: ["text1", "text2", ...]
-      - lista di oggetti: [{"id": "...", "text": "..."}, ...]
-      - oggetto con chiave "prompts": come sopra
-    Normalizza in lista di dict: [{"id": str, "text": str}, ...]
-    """
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    # unwrap "prompts"
-    if isinstance(data, dict) and "prompts" in data:
-        data = data["prompts"]
-    out = []
-    if isinstance(data, list):
-        for i, item in enumerate(data):
-            if isinstance(item, str):
-                out.append({"id": f"p{i}", "text": item})
-            elif isinstance(item, dict):
-                # campi tollerati: "text" o "prompt" + opzionale "id"
-                text = item.get("text", item.get("prompt", None))
-                if not isinstance(text, str):
-                    raise ValueError(f"Prompt #{i} non valido: {item}")
-                pid = str(item.get("id", f"p{i}"))
-                out.append({"id": pid, "text": text})
-            else:
-                raise ValueError(f"Elemento prompt non riconosciuto: {type(item)}")
-    else:
-        raise ValueError("Formato prompts.json non valido")
-    return out
-
-def load_features(path: str, source_set: str) -> list[dict]:
-    """
-    Accetta:
-      - lista di oggetti: [{"source":"L-source_set","index":int}, ...]
-      - oppure [{"layer":int,"index":int}, ...] -> converto a {"source": f"{layer}-{source_set}", "index": int}
-      - oppure oggetto {"features":[...]} come sopra
-    Verifica che tutte le source abbiano il suffisso == source_set (coerenza col request all.py).
-    """
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    if isinstance(data, dict) and "features" in data:
-        data = data["features"]
-    if not isinstance(data, list):
-        raise ValueError("Formato features.json non valido")
-    norm = []
-    for i, item in enumerate(data):
-        if not isinstance(item, dict):
-            raise ValueError(f"feature #{i}: atteso oggetto, trovato {type(item)}")
-        if "source" in item and "index" in item:
-            source = str(item["source"])
-            idx = int(item["index"])
-            # controllo coerenza del suffisso con SOURCE_SET richiesto
-            # Esempio: "10-res-jb" → suffisso "res-jb"
-            if "-" not in source:
-                # accetto anche formati tipo "blocks.10.hook_resid_post" → estraggo layer
-                m = re.search(r"(\d+)", source)
-                if not m:
-                    raise ValueError(f"source non riconosciuta: {source}")
-                layer = int(m.group(1))
-                source = f"{layer}-{source_set}"
-            else:
-                suff = source.split("-", 1)[1]
-                if suff != source_set:
-                    raise ValueError(f"feature #{i}: source_set '{suff}' != atteso '{source_set}'")
-            norm.append({"source": source, "index": idx})
-        elif "layer" in item and "index" in item:
-            layer = int(item["layer"])
-            idx = int(item["index"])
-            norm.append({"source": f"{layer}-{source_set}", "index": idx})
-        else:
-            raise ValueError(f"feature #{i}: campi attesi ('source','index') o ('layer','index')")
-    return norm
 
 # ========================= core: una chiamata ActivationProcessor per prompt =============================
 
@@ -551,7 +485,7 @@ def run_per_layer_for_prompt(prompt_text: str, wanted_features: list[dict]) -> d
         
         # PULIZIA CACHE DISCO dopo ogni layer per liberare spazio (critico per clt-hp!)
         # Rimuove i file del layer appena processato dalla cache HF
-        if SOURCE_SET == "clt-hp":
+        if SOURCE_SET == "clt-hp" and not PERSIST_SAE_CACHE:
             try:
                 HF_CACHE_DIR = os.path.expanduser("~/.cache/huggingface/hub")
                 for item in os.listdir(HF_CACHE_DIR):
@@ -673,7 +607,7 @@ def run_layer_by_layer_all_prompts(prompts: list[dict], wanted_features: list[di
         if sae_id in sae_mgr.loaded_saes:
             sae_mgr.unload_sae(sae_id)
         
-        if SOURCE_SET == "clt-hp":
+        if SOURCE_SET == "clt-hp" and not PERSIST_SAE_CACHE:
             try:
                 HF_CACHE_DIR = os.path.expanduser("~/.cache/huggingface/hub")
                 for item in os.listdir(HF_CACHE_DIR):

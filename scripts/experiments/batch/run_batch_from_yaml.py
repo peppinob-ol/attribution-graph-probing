@@ -24,12 +24,15 @@ if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
 
 from pipeline.loader import (
-    load_config, validate_config, resolve_seeds, get_seed_paths
+    load_config, validate_config, resolve_seeds, get_seed_paths, plan_batches
 )
 from pipeline.graph import process_graph_step
 from pipeline.probes import process_probes_step
 from pipeline.activations_local import process_activations_step
-from pipeline.remote import process_remote_activation_step
+from pipeline.remote import (
+    process_remote_activation_step,
+    process_remote_activation_batch
+)
 from pipeline.grouping import process_grouping_step
 from pipeline.manifest import create_manifest, write_manifest
 
@@ -130,109 +133,197 @@ def run_batch(config_path: str, dry_run: bool = False, force: bool = False, verb
     # Execute for each seed
     print_banner(f"Processing {len(seeds)} Seed(s)")
     
-    success_count = 0
-    failed_seeds = []
+    seed_states = []
+    remote_config = config.get('compute', {}).get('remote', {})
+    remote_enabled = remote_config.get('enabled', False)
+    remote_batch_size = max(1, remote_config.get('batch_size', 1))
+    remote_max_gpus = max(1, remote_config.get('max_gpus', 1))
     
     for i, seed in enumerate(seeds, 1):
         print(f"\n[{i}/{len(seeds)}] Seed: {seed['slug']}")
         print(f"{'─'*70}")
         
         paths = get_seed_paths(config, seed)
-        
-        # Create manifest (started)
         manifest = create_manifest(config, seed, paths, status='started')
         write_manifest(manifest, paths)
         
-        seed_success = True
-        error_msg = None
+        state = {
+            'seed': seed,
+            'paths': paths,
+            'manifest': manifest,
+            'success': True,
+            'error': None,
+            'activations_pending': False,
+            'activations_done': False,
+            'remote_metadata': {},
+        }
         
         try:
-            # Step: Graph generation / feature export
-            if steps.get('graph_generation') or steps.get('feature_export'):
-                # Check if already done
+            # Graph/features
+            if state['success'] and (steps.get('graph_generation') or steps.get('feature_export')):
                 if paths['selected_features_json'].exists() and not force:
-                    print(f"  [SKIP] Graph/features already exist (use --force to overwrite)")
+                    print("  [SKIP] Graph/features already exist (use --force to overwrite)")
                 else:
                     if not process_graph_step(config, seed, paths, verbose=verbose):
-                        seed_success = False
-                        error_msg = "Graph/feature processing failed"
+                        state['success'] = False
+                        state['error'] = "Graph/feature processing failed"
             
-            # Step: Probe prompts
-            if seed_success and steps.get('probe_prompts', True):
+            # Probes
+            if state['success'] and steps.get('probe_prompts', True):
                 if paths['prompts_json'].exists() and not force:
-                    print(f"  [SKIP] Prompts already exist (use --force to overwrite)")
+                    print("  [SKIP] Prompts already exist (use --force to overwrite)")
                 else:
                     if not process_probes_step(config, seed, paths, verbose=verbose):
-                        seed_success = False
-                        error_msg = "Probe prompts processing failed"
+                        state['success'] = False
+                        state['error'] = "Probe prompts processing failed"
             
-            # Step: Activations
-            if seed_success and steps.get('activations'):
+            # Activations decision (execution deferred for remote batching)
+            if state['success'] and steps.get('activations'):
                 if paths['activations_dump_json'].exists() and not force:
-                    print(f"  [SKIP] Activations already exist (use --force to overwrite)")
+                    print("  [SKIP] Activations already exist (use --force to overwrite)")
+                    state['activations_done'] = True
                 else:
-                    # Check if remote execution is enabled
-                    remote_enabled = config.get('compute', {}).get('remote', {}).get('enabled', False)
-                    
                     if remote_enabled:
-                        # Use remote GPU node
-                        success, remote_metadata = process_remote_activation_step(config, seed, paths, verbose=verbose)
-                        if not success:
-                            seed_success = False
-                            error_msg = "Remote activations processing failed"
-                        else:
-                            # Update manifest with remote metadata
-                            manifest.update(remote_metadata)
+                        state['activations_pending'] = True
+                        print("  [QUEUE] Activations scheduled for remote batch run")
                     else:
-                        # Use local execution
-                        if not process_activations_step(config, seed, paths, verbose=verbose):
-                            seed_success = False
-                            error_msg = "Activations processing failed"
+                        if process_activations_step(config, seed, paths, verbose=verbose):
+                            state['activations_done'] = True
+                        else:
+                            state['success'] = False
+                            state['error'] = "Activations processing failed"
+            elif state['success'] and not steps.get('activations'):
+                # Assume activations already exist when step disabled
+                if paths['activations_dump_json'].exists():
+                    state['activations_done'] = True
+                else:
+                    state['activations_done'] = False
             
-            # Step: Grouping
-            if seed_success and steps.get('grouping'):
+            # Grouping deferred if activations pending
+            if state['success'] and steps.get('grouping') and not state['activations_pending']:
                 if paths['grouping_csv'].exists() and not force:
-                    print(f"  [SKIP] Grouping already exists (use --force to overwrite)")
+                    print("  [SKIP] Grouping already exists (use --force to overwrite)")
                 else:
                     if not process_grouping_step(config, seed, paths, verbose=verbose):
-                        seed_success = False
-                        error_msg = "Grouping processing failed"
+                        state['success'] = False
+                        state['error'] = "Grouping processing failed"
         
-        except Exception as e:
-            seed_success = False
-            error_msg = f"Exception: {e}"
+        except Exception as exc:
+            state['success'] = False
+            state['error'] = f"Exception: {exc}"
             import traceback
             traceback.print_exc()
         
-        # Update manifest
-        from datetime import datetime
+        seed_states.append(state)
+    
+    # Remote batch activations stage
+    if remote_enabled:
+        pending_remote = [s for s in seed_states if s['success'] and s['activations_pending']]
+        if pending_remote:
+            print_banner(f"Remote Activations ({len(pending_remote)} seed(s))")
+            batches = plan_batches(pending_remote, remote_batch_size)
+            print(f"  Planned {len(batches)} batch(es) "
+                  f"(batch_size={remote_batch_size}, max_gpus={remote_max_gpus})")
+            
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            futures = {}
+            with ThreadPoolExecutor(max_workers=remote_max_gpus) as executor:
+                for batch_index, batch_states in enumerate(batches, 1):
+                    batch_id = f"batch_{batch_index:03d}"
+                    future = executor.submit(
+                        process_remote_activation_batch,
+                        config,
+                        batch_states,
+                        batch_id,
+                        verbose
+                    )
+                    futures[future] = (batch_id, batch_states)
+                
+                for future in as_completed(futures):
+                    batch_id, batch_states = futures[future]
+                    try:
+                        batch_success, metadata, per_seed = future.result()
+                    except Exception as exc:
+                        batch_success = False
+                        metadata = {}
+                        per_seed = {}
+                        print(f"ERROR: Remote batch {batch_id} raised exception: {exc}")
+                    
+                    for batch_state in batch_states:
+                        slug = batch_state['seed']['slug']
+                        result = per_seed.get(slug, {})
+                        if result.get('success'):
+                            batch_state['activations_pending'] = False
+                            batch_state['activations_done'] = True
+                            batch_state['remote_metadata'] = {
+                                'remote': {
+                                    'gpu_id': metadata.get('gpu_id'),
+                                    'remote_log': result.get('remote_log'),
+                                    'local_log': result.get('local_log'),
+                                    'batch_id': batch_id,
+                                }
+                            }
+                        else:
+                            batch_state['success'] = False
+                            batch_state['error'] = result.get('error') or "Remote activations failed"
+                            batch_state['remote_metadata'] = {
+                                'remote': {
+                                    'batch_id': batch_id,
+                                    'remote_log': result.get('remote_log'),
+                                    'local_log': result.get('local_log'),
+                                    'gpu_id': metadata.get('gpu_id'),
+                                    'error': result.get('error'),
+                                }
+                            }
+    
+    # Grouping pass for seeds whose activations completed after remote batching
+    for state in seed_states:
+        if not state['success']:
+            continue
+        if steps.get('grouping') and not state['activations_pending'] and not state['activations_done']:
+            # Should not happen, warn
+            print(f"WARNING: Seed {state['seed']['slug']} missing activations for grouping")
+            continue
+        if steps.get('grouping') and state['activations_done'] and state['paths']['grouping_csv'].exists() and not force:
+            continue
+        if steps.get('grouping') and state['activations_done'] and (force or not state['paths']['grouping_csv'].exists()):
+            if not process_grouping_step(config, state['seed'], state['paths'], verbose=verbose):
+                state['success'] = False
+                state['error'] = "Grouping processing failed"
+    
+    # Finalize manifests and summary
+    success_count = 0
+    failed_seeds = []
+    
+    from datetime import datetime
+    for state in seed_states:
+        manifest = state['manifest']
         manifest['timestamp_completed'] = datetime.now().isoformat()
+        if state['remote_metadata']:
+            manifest.update(state['remote_metadata'])
         
-        if seed_success:
+        if state['success']:
             manifest['status'] = 'completed'
-            write_manifest(manifest, paths)
+            write_manifest(manifest, state['paths'])
             success_count += 1
-            print(f"  ✓ Seed completed successfully")
         else:
             manifest['status'] = 'failed'
-            manifest['error'] = error_msg
-            write_manifest(manifest, paths)
-            failed_seeds.append((seed['slug'], error_msg))
-            print(f"  ✗ Seed failed: {error_msg}")
+            manifest['error'] = state['error']
+            write_manifest(manifest, state['paths'])
+            failed_seeds.append((state['seed']['slug'], state['error']))
     
-    # Summary
     print_banner("Batch Run Summary")
     print(f"Total seeds: {len(seeds)}")
     print(f"Successful: {success_count}")
     print(f"Failed: {len(failed_seeds)}")
     
     if failed_seeds:
-        print(f"\nFailed seeds:")
+        print("\nFailed seeds:")
         for slug, error in failed_seeds:
             print(f"  - {slug}: {error}")
         return False
     
-    print(f"\n✓ All seeds completed successfully")
+    print("\n✓ All seeds completed successfully")
     return True
 
 

@@ -65,6 +65,7 @@ def create_manifest(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict[st
             'backend': config['get_activations']['backend'],
             'remote_enabled': config.get('compute', {}).get('remote', {}).get('enabled', False),
         },
+        'remote': None,
     }
     
     if error:

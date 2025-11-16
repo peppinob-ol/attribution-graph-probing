@@ -29,15 +29,17 @@ get_activations:
 compute:
   remote:
     enabled: true  # Set true to test remote execution
-    host: "207.53.234.140"
+    host_env: "ELEUTHERAI_NODE_IP"
     user: "giuseppe"
-    password_env: "ELEUTHERAI_NODE_PSW"
+    password_env: ""  # Leave empty for key-based auth, use "ELEUTHERAI_NODE_PSW" for password auth
     base_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe"
     repo_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/attribution-graph-probing"
     logs_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/logs"
     env_activate_cmd: "source /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/env.sh"
-    use_gpu_count: 1
     gpu_selection: auto
+    max_gpus: 1
+    batch_size: 1
+    persist_sae_cache: false
 
 grouping:
   enabled: false  # Enable after activations work

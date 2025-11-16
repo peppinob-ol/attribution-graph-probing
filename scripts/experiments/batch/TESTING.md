@@ -8,7 +8,7 @@
    - ELEUTHERAI_NODE_PSW set in environment (for remote execution)
 
 2. **Remote (GPU node):**
-   - SSH access to giuseppe@207.53.234.140
+   - SSH access to `giuseppe@${ELEUTHERAI_NODE_IP}` (value stored in `.env`)
    - Python venv set up at /mnt/ssd-1/.../giuseppe/venv
    - env.sh configured with HF_HOME, HF_TOKEN, venv activation
    - Repo cloned at /mnt/ssd-1/.../giuseppe/attribution-graph-probing
@@ -87,14 +87,17 @@ python run_batch_from_yaml.py \
 
 **Verify on node:**
 ```bash
-ssh giuseppe@207.53.234.140
+# PowerShell
+ssh giuseppe@$env:ELEUTHERAI_NODE_IP
+# or bash/zsh
+ssh giuseppe@$ELEUTHERAI_NODE_IP
 ls /mnt/ssd-1/.../giuseppe/experiments/dallas_test/
 ls /mnt/ssd-1/.../giuseppe/logs/
 # Should see activations_dump.json and log file
 ```
 
 **Expected manifest additions:**
-- remote_host: "giuseppe@207.53.234.140"
+- remote_host: "giuseppe@${ELEUTHERAI_NODE_IP}"
 - gpu_id: 0
 - remote_log: "/mnt/.../logs/dallas_test_TIMESTAMP.log"
 - base_dir: "/mnt/.../giuseppe"
@@ -134,14 +137,17 @@ get_activations:
 compute:
   remote:
     enabled: true
-    host: "207.53.234.140"
+    host_env: "ELEUTHERAI_NODE_IP"
     user: "giuseppe"
     password_env: "ELEUTHERAI_NODE_PSW"
     base_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe"
     repo_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/attribution-graph-probing"
     logs_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/logs"
     env_activate_cmd: "source /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/env.sh"
-    use_gpu_count: 1
+    gpu_selection: auto
+    max_gpus: 1
+    batch_size: 2          # process both seeds in one batch
+    persist_sae_cache: true
 
 steps:
   graph_generation: false
@@ -167,10 +173,10 @@ python run_batch_from_yaml.py --config configs/test_two_seeds.yml
 ```
 
 **Expected behavior:**
-- Processes dallas_test first (GPU 0)
-- Releases GPU lock
-- Processes oakland_test second (GPU 0 again, since it's free)
-- Both complete successfully
+- Seeds grouped into a single remote batch (2 seeds)
+- Batch runner loads each clt-hp layer once, processes both seeds per layer
+- GPU lock released after batch completes
+- Both seeds complete successfully with shared remote log
 
 **Verify:**
 ```bash
@@ -252,7 +258,7 @@ If you prefer not to use passwords:
 
 2. Copy to remote:
    ```bash
-   ssh-copy-id giuseppe@207.53.234.140
+   ssh-copy-id giuseppe@$ELEUTHERAI_NODE_IP
    ```
 
 3. Update YAML:
@@ -265,10 +271,10 @@ If you see "Failed to acquire lock for GPU X":
 
 ```bash
 # Check locks on remote
-ssh giuseppe@207.53.234.140 'ls /mnt/ssd-1/.../giuseppe/.locks/'
+ssh giuseppe@$ELEUTHERAI_NODE_IP 'ls /mnt/ssd-1/.../giuseppe/.locks/'
 
 # Remove stale lock if needed
-ssh giuseppe@207.53.234.140 'rmdir /mnt/ssd-1/.../giuseppe/.locks/gpu0'
+ssh giuseppe@$ELEUTHERAI_NODE_IP 'rmdir /mnt/ssd-1/.../giuseppe/.locks/gpu0'
 ```
 
 ### Import errors

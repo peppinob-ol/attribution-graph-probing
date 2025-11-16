@@ -195,11 +195,12 @@ For gated models (e.g., Gemma):
 - GPU locking to avoid conflicts on shared nodes
 - Rsync/SCP for file upload/download
 - Remote log capture and local storage
+- Multi-seed batching (download each SAE layer once per batch)
+- Limited parallelism across GPUs via configurable max_gpus
 - Node grouping step (classification + naming)
 - Activations dump to CSV conversion
 
 ### Not Yet Implemented
-- Parallel seed processing (currently sequential)
 - Subgraph upload to Neuronpedia
 - API backend for activations
 - Per-seed probe prompts mode (per_seed_file)
@@ -212,15 +213,17 @@ Enable remote GPU execution by setting `compute.remote.enabled: true` in your co
 compute:
   remote:
     enabled: true
-    host: "207.53.234.140"
+    host_env: "ELEUTHERAI_NODE_IP"  # defined in .env, e.g. ELEUTHERAI_NODE_IP=198.51.100.10
     user: "giuseppe"
     password_env: "ELEUTHERAI_NODE_PSW"  # Or use SSH keys
     base_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe"
     repo_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/attribution-graph-probing"
     logs_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/logs"
     env_activate_cmd: "source /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/env.sh"
-    use_gpu_count: 1
-    gpu_selection: auto  # Automatically finds free GPU
+    gpu_selection: auto          # Automatically finds free GPU
+    max_gpus: 2                  # Upper bound on concurrent remote batches
+    batch_size: 5                # Seeds per remote batch (share the same layer sweep)
+    persist_sae_cache: true      # Keep downloaded SAE layers on disk between batches
 ```
 
 **Features:**
@@ -230,19 +233,20 @@ compute:
 - Run activations remotely with proper env setup
 - Download results (activations_dump.json, logs) back to laptop
 - Automatic GPU lock release on completion or failure
+- Batch manifest + per-seed summaries (manifest.json records batch_id/gpu/log paths)
+- Configurable SAE cache persistence (reuse clt-hp layers without re-downloading)
 
 ## Future Work
 
 ### Parallel Seed Processing
-Run multiple seeds concurrently (one per GPU):
+Improve scheduler and resume capabilities:
 
-- Distribute seeds across available GPUs
-- Monitor GPU availability in real-time
-- Queue seeds when all GPUs busy
+- Smarter queueing/priorities beyond fixed batch_size
+- Resume partial batches (skip seeds that already completed)
+- Dynamic scaling when more GPUs become available mid-run
 
 ### Additional Features
 - Resume from checkpoint (skip completed seeds)
-- Parallel seed processing
 - Progress bars and ETA
 - Email/Slack notifications on completion
 - Resource monitoring (GPU mem, disk usage)

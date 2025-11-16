@@ -2,9 +2,13 @@
 Remote execution module for running activations on GPU nodes via SSH.
 Handles rsync, GPU selection, locking, and remote command execution.
 """
+import json
 import os
+import shutil
 import subprocess
+import tempfile
 import time
+import traceback
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, List
 
@@ -24,7 +28,16 @@ class RemoteExecutor:
         if not self.remote_config.get('enabled'):
             raise ValueError("Remote execution not enabled in config")
         
-        self.host = self.remote_config['host']
+        host_value = self.remote_config.get('host')
+        host_env = self.remote_config.get('host_env')
+        if host_env:
+            env_value = os.environ.get(host_env)
+            if not env_value:
+                raise ValueError(f"Environment variable '{host_env}' not set for compute.remote.host_env")
+            host_value = env_value
+        if not host_value:
+            raise ValueError("compute.remote requires host or host_env")
+        self.host = host_value
         self.user = self.remote_config['user']
         self.base_dir = self.remote_config['base_dir']
         self.repo_dir = self.remote_config['repo_dir']
@@ -32,6 +45,7 @@ class RemoteExecutor:
         self.env_activate_cmd = self.remote_config['env_activate_cmd']
         self.use_gpu_count = self.remote_config.get('use_gpu_count', 1)
         self.gpu_selection = self.remote_config.get('gpu_selection', 'auto')
+        self.persist_sae_cache = self.remote_config.get('persist_sae_cache', False)
         
         # Get password from env if specified
         password_env = self.remote_config.get('password_env')
@@ -429,6 +443,236 @@ class RemoteExecutor:
         
         return True, gpu_id, remote_log
 
+    def run_remote_batch(self, config: Dict[str, Any], batch_states: List[Dict[str, Any]],
+                         batch_id: str, verbose: bool = True) -> Tuple[bool, Dict[str, Any], Dict[str, Any]]:
+        """
+        Run a batch of seeds on the remote node using remote_batch_runner.py.
+        Returns (success, metadata, per_seed_results).
+        """
+        if not batch_states:
+            return True, {}, {}
+
+        model_cfg = config['model']
+        act_cfg = config['get_activations']['local']
+        include_zero = act_cfg.get('include_zero', False)
+        chunk_by_layer = act_cfg.get('chunk_by_layer', True)
+        persist_cache = self.remote_config.get('persist_sae_cache', False)
+
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        remote_batch_dir = f"{self.base_dir}/experiments/{batch_id}_{timestamp}"
+        remote_manifest = f"{remote_batch_dir}/batch_manifest.json"
+        remote_results = f"{remote_batch_dir}/batch_results.json"
+        remote_log = f"{self.logs_dir}/{batch_id}_{timestamp}.log"
+
+        if verbose:
+            slugs = ", ".join(state['seed']['slug'] for state in batch_states)
+            print(f"  [REMOTE] Preparing batch {batch_id} ({len(batch_states)} seeds: {slugs})")
+
+        # Create directories
+        cmd = f'mkdir -p "{remote_batch_dir}" "{self.logs_dir}" "{self.base_dir}/.locks"'
+        rc, _, stderr = self.ssh_run(cmd, timeout=10, capture_output=False)
+        if rc != 0:
+            print(f"ERROR: Failed to create remote batch directory: {stderr}")
+            return False, {}, {}
+
+        seed_remote_info: Dict[str, Dict[str, Any]] = {}
+        manifest = {
+            "batch_id": batch_id,
+            "timestamp": timestamp,
+            "model": {
+                "id": model_cfg['id'],
+                "source_set": model_cfg['source_set'],
+            },
+            "activation": {
+                "chunk_by_layer": True if model_cfg['source_set'] == 'clt-hp' else chunk_by_layer,
+                "include_zero": include_zero,
+                "persist_sae_cache": persist_cache,
+            },
+            "seeds": [],
+        }
+
+        # Upload inputs per seed
+        for state in batch_states:
+            slug = state['seed']['slug']
+            paths = state['paths']
+            remote_seed_dir = f"{remote_batch_dir}/{slug}"
+            self.ssh_run(f'mkdir -p "{remote_seed_dir}"', timeout=5, capture_output=False)
+
+            local_prompts = paths['prompts_json']
+            local_features = paths['selected_features_json']
+
+            if not local_prompts.exists() or not local_features.exists():
+                error_msg = f"Missing prompts/features for seed {slug}"
+                print(f"ERROR: {error_msg}")
+                return False, {}, {}
+
+            remote_prompts = f"{remote_seed_dir}/prompts.json"
+            remote_features = f"{remote_seed_dir}/features.json"
+            remote_out = f"{remote_seed_dir}/activations_dump.json"
+
+            if not self.rsync_up(str(local_prompts), remote_prompts, verbose=False):
+                return False, {}, {}
+            if not self.rsync_up(str(local_features), remote_features, verbose=False):
+                return False, {}, {}
+
+            seed_remote_info[slug] = {
+                "remote_prompts": remote_prompts,
+                "remote_features": remote_features,
+                "remote_out": remote_out,
+                "local_out": paths['activations_dump_json'],
+                "local_base": paths['base'],
+            }
+
+            manifest["seeds"].append({
+                "slug": slug,
+                "prompts_json": remote_prompts,
+                "features_json": remote_features,
+                "out_json": remote_out,
+            })
+
+        # Write manifest locally and upload
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, encoding='utf-8') as tf:
+            json.dump(manifest, tf, indent=2)
+            temp_manifest_path = tf.name
+        upload_ok = self.rsync_up(temp_manifest_path, remote_manifest, verbose=False)
+        Path(temp_manifest_path).unlink(missing_ok=True)
+        if not upload_ok:
+            return False, {}, {}
+
+        # Select GPU
+        gpu_id = self.get_free_gpu()
+        if gpu_id is None:
+            print("ERROR: No free GPU found for batch")
+            return False, {}, {}
+        if verbose:
+            print(f"  [REMOTE] Batch {batch_id} assigned GPU {gpu_id}")
+
+        import platform
+        lock_acquired = False
+        if platform.system() != 'Windows':
+            lock_acquired = self.acquire_gpu_lock(gpu_id)
+            if not lock_acquired:
+                print(f"ERROR: Failed to acquire GPU lock for GPU {gpu_id}")
+                return False, {}, {}
+
+        env_vars = {
+            'NP_WORKDIR': self.base_dir,
+            'MODEL_ID': model_cfg['id'],
+            'SOURCE_SET': model_cfg['source_set'],
+            'CHUNK_BY_LAYER': 'true',
+            'INCLUDE_ZERO_ACTIVATIONS': 'true' if include_zero else 'false',
+            'PERSIST_SAE_CACHE': 'true' if persist_cache else 'false',
+            'PYTHONIOENCODING': 'utf-8',
+        }
+
+        script_lines = [
+            '#!/bin/bash',
+            'set -e',
+            self.env_activate_cmd,
+            f'cd {self.repo_dir}',
+        ]
+        for k, v in env_vars.items():
+            script_lines.append(f'export {k}={v}')
+        script_lines.append(
+            f'CUDA_VISIBLE_DEVICES={gpu_id} python scripts/experiments/batch/pipeline/remote_batch_runner.py '
+            f'--manifest {remote_manifest} --results {remote_results} 2>&1 | tee {remote_log}'
+        )
+        script_content = '\n'.join(script_lines) + '\n'
+        remote_script = f"{remote_batch_dir}/run_batch.sh"
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False, encoding='utf-8', newline='\n') as tf:
+            tf.write(script_content)
+            temp_script_path = tf.name
+
+        if not self.rsync_up(temp_script_path, remote_script, verbose=False):
+            Path(temp_script_path).unlink(missing_ok=True)
+            if lock_acquired:
+                self.release_gpu_lock(gpu_id)
+            return False, {}, {}
+        Path(temp_script_path).unlink(missing_ok=True)
+
+        self.ssh_run(f'chmod +x {remote_script}', timeout=5, capture_output=False)
+        if verbose:
+            print(f"  [REMOTE] Running batch script {remote_script}")
+
+        rc, stdout, stderr = self.ssh_run(f'bash {remote_script}', timeout=7200, capture_output=True)
+
+        if lock_acquired:
+            self.release_gpu_lock(gpu_id)
+
+        per_seed_results: Dict[str, Dict[str, Any]] = {
+            state['seed']['slug']: {
+                "success": False,
+                "error": "Batch execution failed" if rc != 0 else "Unknown",
+                "remote_log": remote_log,
+                "local_log": None,
+            }
+            for state in batch_states
+        }
+
+        # Download log once and copy to each seed directory
+        shared_log_name = Path(f"{batch_id}_{timestamp}.log")
+        first_base = batch_states[0]['paths']['base']
+        shared_log_local = first_base / shared_log_name
+        shared_log_local.parent.mkdir(parents=True, exist_ok=True)
+        if self.rsync_down(remote_log, str(shared_log_local), verbose=False):
+            for state in batch_states:
+                dest = state['paths']['base'] / shared_log_name
+                if dest != shared_log_local:
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy(shared_log_local, dest)
+                per_seed_results[state['seed']['slug']]['local_log'] = str(dest)
+        else:
+            shared_log_local = None
+
+        # Download results manifest (if present)
+        tmp_results = Path(tempfile.mkstemp(prefix="batch_results_", suffix=".json")[1])
+        results_loaded = False
+        if self.rsync_down(remote_results, str(tmp_results), verbose=False):
+            try:
+                summary = json.loads(tmp_results.read_text(encoding='utf-8'))
+                results_loaded = True
+            except Exception:
+                traceback.print_exc()
+            finally:
+                tmp_results.unlink(missing_ok=True)
+        else:
+            tmp_results.unlink(missing_ok=True)
+
+        if results_loaded:
+            for entry in summary.get('seeds', []):
+                slug = entry.get('slug')
+                if slug not in per_seed_results:
+                    continue
+                per_seed_results[slug]['success'] = entry.get('success', False)
+                per_seed_results[slug]['error'] = entry.get('error')
+
+        # Download outputs for successful seeds
+        for slug, info in per_seed_results.items():
+            if not info.get('success'):
+                continue
+            remote_out = seed_remote_info[slug]['remote_out']
+            local_out = seed_remote_info[slug]['local_out']
+            if not self.rsync_down(remote_out, str(local_out), verbose=False):
+                info['success'] = False
+                info['error'] = "Failed to download activations_dump.json"
+
+        if not results_loaded and rc != 0:
+            if verbose:
+                print(f"ERROR: Batch script failed rc={rc}")
+                print(stderr)
+            return False, {"gpu_id": gpu_id, "remote_log": remote_log, "batch_id": batch_id}, per_seed_results
+
+        batch_success = all(result.get('success') for result in per_seed_results.values())
+        metadata = {
+            "gpu_id": gpu_id,
+            "remote_log": remote_log,
+            "batch_id": batch_id,
+            "remote_dir": remote_batch_dir,
+        }
+
+        return batch_success, metadata, per_seed_results
+
 
 def check_sshpass_available() -> bool:
     """Check if sshpass is available (needed for password auth)."""
@@ -488,4 +732,29 @@ def process_remote_activation_step(config: Dict[str, Any], seed: Dict[str, Any],
     }
     
     return success, metadata
+
+
+def process_remote_activation_batch(config: Dict[str, Any], batch_states: List[Dict[str, Any]],
+                                    batch_id: str, verbose: bool = True) -> Tuple[bool, Dict[str, Any], Dict[str, Any]]:
+    """
+    Process a batch of seeds using the remote GPU node.
+    Returns (success, metadata, per_seed_results).
+    """
+    remote_config = config.get('compute', {}).get('remote', {})
+    if not remote_config.get('enabled'):
+        print("ERROR: Remote execution not enabled in config")
+        return False, {}, {}
+
+    password_env = remote_config.get('password_env')
+    if password_env and not os.environ.get(password_env):
+        print(f"ERROR: Password env var {password_env} not set")
+        return False, {}, {}
+
+    if password_env and not check_sshpass_available():
+        print("WARNING: sshpass not available; password auth may fail")
+
+    executor = RemoteExecutor(config)
+    success, metadata, per_seed = executor.run_remote_batch(config, batch_states, batch_id, verbose=verbose)
+    metadata.update({'remote_host': f"{executor.user}@{executor.host}"})
+    return success, metadata, per_seed
 

@@ -62,6 +62,33 @@ def validate_config(config: Dict[str, Any]) -> List[str]:
         for step in required_steps:
             if step not in config['steps']:
                 errors.append(f"Missing steps.{step}")
+
+    # Validate compute.remote batching knobs
+    remote_cfg = config.get('compute', {}).get('remote', {})
+    if remote_cfg.get('enabled'):
+        batch_size = remote_cfg.get('batch_size')
+        max_gpus = remote_cfg.get('max_gpus')
+
+        if batch_size is not None:
+            if not isinstance(batch_size, int) or batch_size <= 0:
+                errors.append("compute.remote.batch_size must be a positive integer")
+        if max_gpus is not None:
+            if not isinstance(max_gpus, int) or max_gpus <= 0:
+                errors.append("compute.remote.max_gpus must be a positive integer")
+
+        # Ensure required connection fields exist
+        host = remote_cfg.get('host')
+        host_env = remote_cfg.get('host_env')
+        if host and host_env:
+            errors.append("compute.remote: specify either 'host' or 'host_env', not both")
+        if not host and not host_env:
+            errors.append("compute.remote requires 'host_env' (preferred) or literal 'host'")
+        elif host_env and not isinstance(host_env, str):
+            errors.append("compute.remote.host_env must be a string env var name")
+
+        for key in ['user', 'base_dir', 'repo_dir', 'logs_dir', 'env_activate_cmd']:
+            if key not in remote_cfg:
+                errors.append(f"compute.remote missing required key '{key}' when enabled")
     
     return errors
 
@@ -184,4 +211,30 @@ def get_seed_paths(config: Dict[str, Any], seed: Dict[str, Any]) -> Dict[str, Pa
     paths['grouping_csv'] = paths['grouping_dir'] / 'node_grouping.csv'
     
     return paths
+
+
+def plan_batches(seeds: List[Dict[str, Any]], batch_size: int) -> List[List[Dict[str, Any]]]:
+    """
+    Group seeds into batches of size batch_size.
+    Returns list of batches preserving original order.
+    """
+    if batch_size <= 0:
+        raise ValueError("batch_size must be > 0")
+
+    if not seeds:
+        return []
+
+    batches: List[List[Dict[str, Any]]] = []
+    current: List[Dict[str, Any]] = []
+
+    for seed in seeds:
+        current.append(seed)
+        if len(current) == batch_size:
+            batches.append(current)
+            current = []
+
+    if current:
+        batches.append(current)
+
+    return batches
 
