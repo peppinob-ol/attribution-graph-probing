@@ -6,6 +6,7 @@ import json
 import csv
 import subprocess
 import sys
+import os
 from pathlib import Path
 from typing import Dict, Any, List
 
@@ -97,6 +98,93 @@ def activations_dump_to_csv(activations_json_path: Path, output_csv_path: Path,
         return False
 
 
+def upload_subgraph(config: Dict[str, Any], seed: Dict[str, Any], 
+                   paths: Dict[str, Path], verbose: bool = True) -> bool:
+    """
+    Upload grouped subgraph to Neuronpedia.
+    
+    Args:
+        config: Full experiment config
+        seed: Seed config
+        paths: Paths dict
+        verbose: Print progress
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    grouping_config = config.get('grouping', {})
+    upload_config = grouping_config.get('upload', {})
+    
+    if not upload_config.get('enabled'):
+        if verbose:
+            print(f"  [SKIP] Neuronpedia upload disabled")
+        return True
+    
+    if verbose:
+        print(f"  Uploading subgraph to Neuronpedia...")
+    
+    # Get API key
+    api_key_env = upload_config.get('api_key_env', 'NEURONPEDIA_API_KEY')
+    api_key = os.environ.get(api_key_env)
+    
+    if not api_key:
+        print(f"ERROR: {api_key_env} not set in environment")
+        return False
+    
+    # Load grouped CSV
+    import pandas as pd
+    try:
+        df_grouped = pd.read_csv(paths['grouping_csv'], encoding='utf-8')
+    except Exception as e:
+        print(f"ERROR: Failed to load grouped CSV: {e}")
+        return False
+    
+    # Get display name
+    display_name_template = upload_config.get('display_name_template', '{slug} (auto-grouped)')
+    display_name = display_name_template.format(slug=seed['slug'])
+    
+    # Import upload function from 02_node_grouping.py
+    parent_dir = Path(__file__).parent.parent.parent.parent
+    sys.path.insert(0, str(parent_dir / 'scripts'))
+    
+    import importlib.util
+    grouping_script = parent_dir / 'scripts' / '02_node_grouping.py'
+    spec = importlib.util.spec_from_file_location("grouping_module", str(grouping_script))
+    grouping_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(grouping_module)
+    
+    upload_subgraph_to_neuronpedia = grouping_module.upload_subgraph_to_neuronpedia
+    
+    # Call upload
+    try:
+        result = upload_subgraph_to_neuronpedia(
+            df_grouped=df_grouped,
+            graph_json_path=str(paths['graph_json']),
+            api_key=api_key,
+            display_name=display_name,
+            overwrite_id=upload_config.get('overwrite_id', ''),
+            selected_nodes_data=None,  # Will be extracted from selected_features_with_nodes.json if needed
+            verbose=verbose
+        )
+        
+        # Save upload response
+        upload_response_path = paths['grouping_dir'] / 'upload_response.json'
+        with open(upload_response_path, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        
+        if verbose:
+            print(f"    Upload successful!")
+            print(f"    Response saved: {upload_response_path}")
+        
+        return True
+    
+    except Exception as e:
+        print(f"ERROR: Subgraph upload failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def process_grouping_step(config: Dict[str, Any], seed: Dict[str, Any], 
                          paths: Dict[str, Path], verbose: bool = True) -> bool:
     """
@@ -105,7 +193,8 @@ def process_grouping_step(config: Dict[str, Any], seed: Dict[str, Any],
     Steps:
     1. Convert activations_dump.json to CSV
     2. Run scripts/02_node_grouping.py with thresholds from config
-    3. Write outputs to 02 Node Grouping/
+    3. Optionally upload subgraph to Neuronpedia
+    4. Write outputs to 02 Node Grouping/
     
     Args:
         config: Full experiment config
@@ -204,6 +293,12 @@ def process_grouping_step(config: Dict[str, Any], seed: Dict[str, Any],
         # Clean up temp CSV
         if temp_csv.exists():
             temp_csv.unlink()
+        
+        # Step 3: Upload to Neuronpedia (if enabled)
+        if config.get('steps', {}).get('upload_subgraph', False):
+            if not upload_subgraph(config, seed, paths, verbose=verbose):
+                print(f"WARNING: Upload failed, but grouping succeeded")
+                # Don't fail the whole step if upload fails
         
         return True
     

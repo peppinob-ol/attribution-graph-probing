@@ -104,7 +104,8 @@ def process_graph_step(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict
             if result.get('local_path'):
                 generated_path = Path(result['local_path'])
                 if generated_path != graph_json_path:
-                    generated_path.rename(graph_json_path)
+                    # Use replace() to overwrite if exists (Windows-safe)
+                    generated_path.replace(graph_json_path)
         
         except Exception as e:
             print(f"ERROR: Graph generation exception: {e}")

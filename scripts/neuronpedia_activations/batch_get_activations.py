@@ -242,6 +242,13 @@ Config._instance = cfg  # Registra come singleton
 
 print(f"Config inizializzato: device={cfg.device}, dtype={cfg.model_dtype}, token_limit={cfg.token_limit}")
 
+# Limita il numero di SAE caricati contemporaneamente quando chunk_by_layer è attivo
+if CHUNK_BY_LAYER:
+    original_max_saes = getattr(cfg, "max_loaded_saes", None)
+    cfg.max_loaded_saes = 1
+    if original_max_saes and original_max_saes != 1:
+        print(f"⚠️ max_loaded_saes ridotto da {original_max_saes} a 1 per chunk_by_layer (clt-hp)")
+
 # ========================= validazione MODEL_ID <-> SOURCE_SET =======================================
 valid_models = cfg.get_valid_model_ids()
 if MODEL_ID not in valid_models and cfg.custom_hf_model_id not in valid_models:
@@ -291,16 +298,10 @@ print(f"SAEManager configurato: device={sae_mgr.device}, layers={sae_mgr.num_lay
 if CHUNK_BY_LAYER:
     print(f"⚠️ SAE set '{SOURCE_SET}' - caricamento on-demand per risparmiare memoria")
     print(f"   (i layer verranno caricati uno alla volta quando necessario)")
-    # Setup solo metadati senza caricare i pesi
-    sae_mgr.setup_neuron_layers()
-    # Configura sae_set_to_saes per i metadati
-    from neuronpedia_inference.config import get_saelens_neuronpedia_directory_df, config_to_json
-    directory_df = get_saelens_neuronpedia_directory_df()
-    config_json = config_to_json(directory_df, selected_sets_neuronpedia=[SOURCE_SET], selected_model=MODEL_ID)
-    for sae_set in config_json:
-        sae_mgr.valid_sae_sets.append(sae_set["set"])
-        sae_mgr.sae_set_to_saes[sae_set["set"]] = sae_set["saes"]
-    print(f"✓ SAE manager pronto (on-demand loading)")
+    # load_saes() inizializza hook e metadata per TUTTI i layer,
+    # poi scarica immediatamente i pesi per mantenere l'utilizzo di memoria basso
+    sae_mgr.load_saes()
+    print(f"✓ SAE manager pronto (hook registrati, caricamento on-demand)")
 else:
     print(f"Caricamento completo SAE set '{SOURCE_SET}'...")
     sae_mgr.load_saes()

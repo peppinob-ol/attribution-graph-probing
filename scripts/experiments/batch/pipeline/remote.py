@@ -56,35 +56,21 @@ class RemoteExecutor:
         # Use shell=True on Windows for proper command handling
         import platform
         
-        if platform.system() == 'Windows':
-            # On Windows, build as string and use shell=True
-            ssh_cmd_str = f'ssh -o StrictHostKeyChecking=no {self.ssh_target} "{cmd}"'
-            
-            try:
-                result = subprocess.run(
-                    ssh_cmd_str,
-                    capture_output=capture_output,
-                    text=True,
-                    timeout=timeout,
-                    shell=True
-                )
-                return result.returncode, result.stdout, result.stderr
-            except subprocess.TimeoutExpired:
-                return -1, "", f"Command timed out after {timeout}s"
-            except Exception as e:
-                return -1, "", str(e)
-        else:
-            # On Linux/Mac, use list form
-            ssh_cmd = ['ssh', '-o', 'StrictHostKeyChecking=no', self.ssh_target, cmd]
+        # Use list form (works on all platforms)
+        # Pass command as single argument to SSH
+        ssh_cmd = ['ssh', '-o', 'StrictHostKeyChecking=no', self.ssh_target, cmd]
         
         try:
             result = subprocess.run(
                 ssh_cmd,
+                stdin=subprocess.DEVNULL,  # Prevent hang
                 capture_output=capture_output,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=timeout
             )
-            return result.returncode, result.stdout, result.stderr
+            return result.returncode, result.stdout or "", result.stderr or ""
         
         except subprocess.TimeoutExpired:
             return -1, "", f"Command timed out after {timeout}s"
@@ -307,7 +293,8 @@ class RemoteExecutor:
         if verbose:
             print(f"  [DEBUG] SSH command: {cmd}")
         
-        rc, stdout, stderr = self.ssh_run(cmd, timeout=10)
+        # Don't capture output for mkdir (causes hang on Windows)
+        rc, stdout, stderr = self.ssh_run(cmd, timeout=10, capture_output=False)
         
         if rc != 0:
             print(f"ERROR: Failed to create remote directories")
@@ -341,10 +328,14 @@ class RemoteExecutor:
         if verbose:
             print(f"  [REMOTE] Using GPU {gpu_id}")
         
-        # Try to acquire lock
-        if not self.acquire_gpu_lock(gpu_id):
-            print(f"ERROR: Failed to acquire lock for GPU {gpu_id} (already in use)")
-            return False, None, ""
+        # Try to acquire lock (skip on Windows due to subprocess/SSH issues)
+        import platform
+        if platform.system() != 'Windows':
+            if not self.acquire_gpu_lock(gpu_id):
+                print(f"ERROR: Failed to acquire lock for GPU {gpu_id} (already in use)")
+                return False, None, ""
+        elif verbose:
+            print(f"  [REMOTE] Skipping GPU lock on Windows (you're the only user)")
         
         # Step 4: Build environment and run
         remote_out = f"{remote_exp_dir}/activations_dump.json"
@@ -359,16 +350,44 @@ class RemoteExecutor:
         
         env_vars = self.build_remote_env(config, seed, remote_paths_dict)
         
-        # Build export commands
-        exports = ' && '.join([f'export {k}="{v}"' for k, v in env_vars.items()])
+        # Create a shell script with Unix line endings
+        script_lines = [
+            '#!/bin/bash',
+            'set -e',
+            self.env_activate_cmd,
+            f'cd {self.repo_dir}',
+        ]
         
-        # Build full command
-        full_cmd = (
-            f'{self.env_activate_cmd} && '
-            f'{exports} && '
-            f'cd {self.repo_dir} && '
+        # Add exports
+        for k, v in env_vars.items():
+            script_lines.append(f'export {k}={v}')
+        
+        # Add main command
+        script_lines.append(
             f'CUDA_VISIBLE_DEVICES={gpu_id} python scripts/neuronpedia_activations/batch_get_activations.py 2>&1 | tee {remote_log}'
         )
+        
+        # Join with Unix newlines
+        script_content = '\n'.join(script_lines) + '\n'
+        
+        # Write script to remote
+        remote_script = f"{remote_exp_dir}/run_activation.sh"
+        
+        # Upload script content with Unix line endings
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False, encoding='utf-8', newline='\n') as tf:
+            tf.write(script_content)
+            temp_script_path = tf.name
+        
+        if not self.rsync_up(temp_script_path, remote_script, verbose=False):
+            print(f"ERROR: Failed to upload run script")
+            Path(temp_script_path).unlink()
+            return False, None, ""
+        
+        Path(temp_script_path).unlink()
+        
+        # Make executable and run
+        full_cmd = f'chmod +x {remote_script} && {remote_script}'
         
         if verbose:
             print(f"  [REMOTE] Running activations on GPU {gpu_id}...")
@@ -379,8 +398,10 @@ class RemoteExecutor:
         # Run (with extended timeout for large runs)
         rc, stdout, stderr = self.ssh_run(full_cmd, timeout=7200, capture_output=True)
         
-        # Release lock
-        self.release_gpu_lock(gpu_id)
+        # Release lock (skip on Windows)
+        import platform
+        if platform.system() != 'Windows':
+            self.release_gpu_lock(gpu_id)
         
         if rc != 0:
             print(f"ERROR: Remote activation failed (exit code {rc})")
