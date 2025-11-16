@@ -758,3 +758,44 @@ def process_remote_activation_batch(config: Dict[str, Any], batch_states: List[D
     metadata.update({'remote_host': f"{executor.user}@{executor.host}"})
     return success, metadata, per_seed
 
+
+def verify_remote_connection(config: Dict[str, Any], verbose: bool = True) -> bool:
+    """
+    Run a quick SSH + directory check before kicking off remote work.
+    """
+    remote_config = config.get('compute', {}).get('remote', {})
+    if not remote_config.get('enabled'):
+        return True
+    
+    try:
+        executor = RemoteExecutor(config)
+    except Exception as exc:
+        print(f"ERROR: Failed to initialize remote executor: {exc}")
+        return False
+    
+    if verbose:
+        print(f"  [REMOTE] Checking connectivity to {executor.ssh_target} ...")
+    
+    rc, stdout, stderr = executor.ssh_run('echo __REMOTE_OK__', timeout=10)
+    if rc != 0 or '__REMOTE_OK__' not in stdout:
+        print("ERROR: SSH connection failed")
+        if stderr:
+            print(f"  stderr: {stderr.strip()}")
+        if stdout:
+            print(f"  stdout: {stdout.strip()}")
+        return False
+    
+    dir_cmd = f'mkdir -p "{executor.base_dir}" "{executor.logs_dir}" && echo __REMOTE_DIR_OK__'
+    rc, stdout, stderr = executor.ssh_run(dir_cmd, timeout=10)
+    if rc != 0 or '__REMOTE_DIR_OK__' not in stdout:
+        print("ERROR: Unable to access remote base/log directories")
+        if stderr:
+            print(f"  stderr: {stderr.strip()}")
+        if stdout:
+            print(f"  stdout: {stdout.strip()}")
+        return False
+    
+    if verbose:
+        print("  [REMOTE] Connectivity OK")
+    return True
+

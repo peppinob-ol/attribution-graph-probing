@@ -31,7 +31,8 @@ from pipeline.probes import process_probes_step
 from pipeline.activations_local import process_activations_step
 from pipeline.remote import (
     process_remote_activation_step,
-    process_remote_activation_batch
+    process_remote_activation_batch,
+    verify_remote_connection
 )
 from pipeline.grouping import process_grouping_step
 from pipeline.manifest import create_manifest, write_manifest
@@ -138,10 +139,16 @@ def run_batch(config_path: str, dry_run: bool = False, force: bool = False, verb
     remote_enabled = remote_config.get('enabled', False)
     remote_batch_size = max(1, remote_config.get('batch_size', 1))
     remote_max_gpus = max(1, remote_config.get('max_gpus', 1))
+
+    if remote_enabled:
+        print_banner("Remote Preflight")
+        if not verify_remote_connection(config, verbose=verbose):
+            print("ERROR: Remote connectivity check failed. Aborting.")
+            return False
     
     for i, seed in enumerate(seeds, 1):
         print(f"\n[{i}/{len(seeds)}] Seed: {seed['slug']}")
-        print(f"{'─'*70}")
+        print("-"*70)
         
         paths = get_seed_paths(config, seed)
         manifest = create_manifest(config, seed, paths, status='started')
