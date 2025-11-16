@@ -10,6 +10,9 @@ import os
 from pathlib import Path
 from typing import Dict, Any, List
 
+REPO_ROOT = Path(__file__).resolve().parents[4]
+SCRIPTS_DIR = REPO_ROOT / 'scripts'
+
 
 def activations_dump_to_csv(activations_json_path: Path, output_csv_path: Path, 
                             verbose: bool = True) -> bool:
@@ -144,11 +147,10 @@ def upload_subgraph(config: Dict[str, Any], seed: Dict[str, Any],
     display_name = display_name_template.format(slug=seed['slug'])
     
     # Import upload function from 02_node_grouping.py
-    parent_dir = Path(__file__).parent.parent.parent.parent
-    sys.path.insert(0, str(parent_dir / 'scripts'))
+    sys.path.insert(0, str(SCRIPTS_DIR))
     
     import importlib.util
-    grouping_script = parent_dir / 'scripts' / '02_node_grouping.py'
+    grouping_script = SCRIPTS_DIR / '02_node_grouping.py'
     spec = importlib.util.spec_from_file_location("grouping_module", str(grouping_script))
     grouping_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(grouping_module)
@@ -231,8 +233,7 @@ def process_grouping_step(config: Dict[str, Any], seed: Dict[str, Any],
     blacklist = grouping_config.get('blacklist', '')
     
     # Path to 02_node_grouping.py
-    parent_dir = Path(__file__).parent.parent.parent.parent
-    grouping_script = parent_dir / 'scripts' / '02_node_grouping.py'
+    grouping_script = SCRIPTS_DIR / '02_node_grouping.py'
     
     if not grouping_script.exists():
         print(f"ERROR: 02_node_grouping.py not found at: {grouping_script}")
