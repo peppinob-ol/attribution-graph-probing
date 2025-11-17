@@ -154,13 +154,14 @@ Minimal changes for new prompts:
 For non-English: Create language-specific functional token list.
 
 \subsection{Baseline Tuning and Hyperparameters}
+\label{sec:baseline-tuning}
 
 To ensure fair comparison, we tuned geometric baselines (cosine clustering, layer-adjacency) alongside our concept-aligned method. Below we document tuning approaches and acknowledge limitations.
 
 \paragraph{Cosine Clustering (Activation-Vector Similarity)}
-Method: Hierarchical clustering on cosine distance of activation vectors (measured on seed prompt). Activation vector for feature $i$ is its per-token activation: $\mathbf{a}_i \in \mathbb{R}^{n_{\text{ctx}}}$.
+Method: Hierarchical clustering on cosine distance of the same cross-prompt activation matrix used for behavioral metrics. For each feature $i$, we build $\mathbf{a}_i \in \mathbb{R}^{|V_{\text{sem}}|}$ where $V_{\text{sem}}$ is the semantic-token allow-list obtained from original graph tokens plus semantic supernode names. Entries are the maximum activation observed on that token across all probe prompts (derived from \texttt{top\_activations\_probe\_original}); tokens never activated receive zero. This restricts the cosine baseline to concept-bearing context, matching the pipeline applied to the concept-aligned method.
 
-Tuning: We selected agglomerative clustering with cosine distance metric. Cluster count and linkage method were chosen to maximize Silhouette score on the Michael Jordan circuit. We tested common linkage methods (single, complete, average, ward) and selected the configuration yielding best geometric quality. Final configuration prioritized geometric compactness while maintaining interpretable cluster sizes ($\sim$7--10 clusters for comparability with concept-aligned groups).
+Tuning: We selected agglomerative clustering with cosine distance metric and average linkage (mirroring the implementation in \texttt{compare\_grouping\_methods.py}). Cluster count is fixed to the number of concept-aligned supernodes (39 for Table~\ref{tab:baselines}) so that all methods partition the same node set. We tested common linkage methods (single, complete, average, ward) and chose the configuration that maximized Silhouette score while maintaining interpretable cluster sizes (approximately 7--10 clusters, depending on the circuit).
 
 Note: We did not perform exhaustive grid search across all hyperparameter combinations. Tuning was iterative and informed by standard clustering practices.
 

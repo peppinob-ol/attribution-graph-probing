@@ -15,6 +15,8 @@ model:
 features:
   selection: cumulative_influence
   threshold: 0.95
+  post_filter:
+    node_threshold: 70   # Apply an extra prune (percent or 0-1 float) even for cached graphs
 
 probes:
   mode: templated  # Generate entity-specific probes for each seed
@@ -35,7 +37,7 @@ get_activations:
   backend: local
   local:
     chunk_by_layer: true  # Required for clt-hp
-    include_zero: false
+    include_zero: true
     gpus: [0]
 
 compute:
@@ -49,13 +51,15 @@ compute:
     env_activate_cmd: "source /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/env.sh"
     gpu_selection: auto          # auto (nvidia-smi heuristic) | manual
     max_gpus: 3                  # upper bound on concurrent jobs to respect etiquette
-    batch_size: 5                # seeds per remote activation batch
+    batch_size: 8                # seeds per remote activation batch
     persist_sae_cache: true      # keep downloaded SAE layers on disk between batches
 
 grouping:
   enabled: true  # Enable classification and naming
   window: 7
-  blacklist: ""
+  blacklist: ""   # Legacy string format (comma-separated)
+  blacklist_tokens:
+    - "<bos>"
   thresholds:
     dict_peak_consistency_min: 0.8
     dict_n_distinct_peaks_max: 1
@@ -100,7 +104,7 @@ graph_generation:
       items:
         - { city: "Dallas", state: "texas", capital: "Austin" }
         - { city: "Oakland", state: "california", capital: "Sacramento" }
-        - { city: "Miami", state: "florida", capital: "Tallahassee" }
-        - { city: "Buffalo", state: "newyork", capital: "Albany" }
-        - { city: "Chicago", state: "illinois", capital: "Springfield" }
+#        - { city: "Miami", state: "florida", capital: "Tallahassee" }
+#        - { city: "Buffalo", state: "newyork", capital: "Albany" }
+#        - { city: "Chicago", state: "illinois", capital: "Springfield" }
 

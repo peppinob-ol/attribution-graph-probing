@@ -75,6 +75,10 @@ def validate_config(config: Dict[str, Any]) -> List[str]:
         if max_gpus is not None:
             if not isinstance(max_gpus, int) or max_gpus <= 0:
                 errors.append("compute.remote.max_gpus must be a positive integer")
+        max_retries = remote_cfg.get('max_retries')
+        if max_retries is not None:
+            if not isinstance(max_retries, int) or max_retries < 0:
+                errors.append("compute.remote.max_retries must be a non-negative integer")
 
         # Ensure required connection fields exist
         host = remote_cfg.get('host')

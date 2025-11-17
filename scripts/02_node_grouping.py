@@ -1413,10 +1413,18 @@ def upload_subgraph_to_neuronpedia(
     # Crea mapping feature_key → supernode_name
     feature_to_supernode = df_grouped.groupby('feature_key')['supernode_name'].first().to_dict()
     
+    allowed_node_ids = None
+    if selected_nodes_data:
+        node_list = selected_nodes_data.get('node_ids')
+        if node_list:
+            allowed_node_ids = set(node_list)
+
     # Crea supernodes: raggruppa node_id per supernode_name
     supernode_groups = {}  # {supernode_name: [node_ids]}
     
     for node_id, feature_key in node_id_to_feature.items():
+        if allowed_node_ids is not None and node_id not in allowed_node_ids:
+            continue
         supernode_name = feature_to_supernode.get(feature_key)
         if supernode_name:
             if supernode_name not in supernode_groups:

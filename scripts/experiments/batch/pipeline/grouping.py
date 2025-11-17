@@ -7,6 +7,7 @@ import csv
 import subprocess
 import sys
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List
 
@@ -157,6 +158,23 @@ def upload_subgraph(config: Dict[str, Any], seed: Dict[str, Any],
     
     upload_subgraph_to_neuronpedia = grouping_module.upload_subgraph_to_neuronpedia
     
+    # Load selected nodes (features + node_ids) to mimic manual workflow
+    selected_nodes_data = None
+    selected_nodes_path = paths.get('selected_features_json')
+    if selected_nodes_path and selected_nodes_path.exists():
+        try:
+            with open(selected_nodes_path, 'r', encoding='utf-8') as f:
+                selected_nodes_data = json.load(f)
+            if verbose:
+                n_nodes = len(selected_nodes_data.get('node_ids', []))
+                n_features = len(selected_nodes_data.get('features', []))
+                print(f"    Loaded selected nodes: {n_features} features / {n_nodes} nodes")
+        except Exception as e:
+            print(f"WARNING: Failed to load selected nodes JSON ({selected_nodes_path}): {e}")
+    else:
+        if verbose:
+            print(f"    WARNING: selected_features_with_nodes.json not found; embeddings/logits may be grouped")
+
     # Call upload
     try:
         result = upload_subgraph_to_neuronpedia(
@@ -165,7 +183,7 @@ def upload_subgraph(config: Dict[str, Any], seed: Dict[str, Any],
             api_key=api_key,
             display_name=display_name,
             overwrite_id=upload_config.get('overwrite_id', ''),
-            selected_nodes_data=None,  # Will be extracted from selected_features_with_nodes.json if needed
+            selected_nodes_data=selected_nodes_data,
             verbose=verbose
         )
         
@@ -177,7 +195,61 @@ def upload_subgraph(config: Dict[str, Any], seed: Dict[str, Any],
         if verbose:
             print(f"    Upload successful!")
             print(f"    Response saved: {upload_response_path}")
-        
+
+        # Update manifest with Neuronpedia URL metadata
+        metadata_url = None
+        metadata = {}
+        try:
+            with open(paths['graph_json'], 'r', encoding='utf-8') as graph_file:
+                graph_data = json.load(graph_file)
+            metadata = graph_data.get('metadata', {})
+        except Exception as exc:
+            if verbose:
+                print(f"    WARNING: unable to read graph metadata for manifest update: {exc}")
+
+        if metadata:
+            model_id = metadata.get('model_id') or metadata.get('scan') or config['model']['id']
+            source_set = metadata.get('source_set_name') or metadata.get('source_set') or config['model']['source_set']
+            slug = metadata.get('slug', seed['slug'])
+            node_threshold = metadata.get('node_threshold') or metadata.get('pruning_settings', {}).get('node_threshold') or config.get('graph_generation', {}).get('api_params', {}).get('nodeThreshold', 0.8)
+            density_threshold = metadata.get('desired_logit_prob') or metadata.get('density_threshold') or config.get('graph_generation', {}).get('api_params', {}).get('desiredLogitProb', 0.95)
+            metadata_url = (
+                f"https://www.neuronpedia.org/{model_id}/graph"
+                f"?sourceSet={source_set}"
+                f"&slug={slug}"
+                f"&pruningThreshold={node_threshold}"
+                f"&densityThreshold={density_threshold}"
+            )
+
+        manifest_path = paths['base'] / 'manifest.json'
+        if manifest_path.exists():
+            try:
+                with open(manifest_path, 'r', encoding='utf-8') as mfile:
+                    manifest_data = json.load(mfile)
+            except Exception:
+                manifest_data = {}
+        else:
+            manifest_data = {}
+
+        neuronpedia_entry = {
+            "display_name": display_name,
+            "subgraph_id": result.get('subgraphId') or result.get('subgraph_id'),
+            "uploaded_at": datetime.now().isoformat(),
+            "supernodes": int(df_grouped['feature_key'].nunique()),
+            "pinned_nodes": len(selected_nodes_data.get('node_ids', [])) if selected_nodes_data else None,
+            "url": metadata_url,
+        }
+
+        manifest_data['neuronpedia'] = {k: v for k, v in neuronpedia_entry.items() if v is not None}
+
+        try:
+            with open(manifest_path, 'w', encoding='utf-8') as mfile:
+                json.dump(manifest_data, mfile, indent=2, ensure_ascii=False)
+            if verbose:
+                print(f"    Manifest updated with Neuronpedia reference")
+        except Exception as exc:
+            print(f"WARNING: Failed to update manifest with Neuronpedia metadata: {exc}")
+
         return True
     
     except Exception as e:
@@ -230,7 +302,30 @@ def process_grouping_step(config: Dict[str, Any], seed: Dict[str, Any],
     # Build command with thresholds from config
     thresholds = grouping_config.get('thresholds', {})
     window = grouping_config.get('window', 7)
-    blacklist = grouping_config.get('blacklist', '')
+
+    # Build blacklist from legacy string + new token list
+    blacklist_tokens: set[str] = set()
+    legacy_blacklist = grouping_config.get('blacklist', '')
+    if isinstance(legacy_blacklist, str) and legacy_blacklist.strip():
+        for token in legacy_blacklist.split(','):
+            token_clean = token.strip().lower()
+            if token_clean:
+                blacklist_tokens.add(token_clean)
+
+    configured_tokens = grouping_config.get('blacklist_tokens', [])
+    if isinstance(configured_tokens, str):
+        configured_tokens = [configured_tokens]
+    if isinstance(configured_tokens, list):
+        for token in configured_tokens:
+            if not token:
+                continue
+            token_clean = str(token).strip().lower()
+            if token_clean:
+                blacklist_tokens.add(token_clean)
+
+    # Always include <bos> so BOS never forms a supernode
+    blacklist_tokens.add('<bos>')
+    blacklist_arg = ','.join(sorted(blacklist_tokens))
     
     # Path to 02_node_grouping.py
     grouping_script = SCRIPTS_DIR / '02_node_grouping.py'
@@ -254,8 +349,8 @@ def process_grouping_step(config: Dict[str, Any], seed: Dict[str, Any],
         cmd.extend(['--graph', str(paths['graph_json'])])
     
     # Add blacklist if provided
-    if blacklist:
-        cmd.extend(['--blacklist', blacklist])
+    if blacklist_arg:
+        cmd.extend(['--blacklist', blacklist_arg])
     
     # Add threshold overrides
     if 'dict_peak_consistency_min' in thresholds:

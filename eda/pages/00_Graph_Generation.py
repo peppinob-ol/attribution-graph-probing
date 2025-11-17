@@ -10,6 +10,7 @@ if str(parent_dir) not in sys.path:
 import streamlit as st
 import json
 import os
+import math
 from datetime import datetime
 
 # Try to import PipelineState (optional - won't break if missing)
@@ -744,11 +745,42 @@ if st.session_state.get('analysis_performed', False) and st.session_state.get('f
         st.subheader("Export Selected Features")
         
         # Convert dataframe to format [{"layer": X, "index": Y}, ...]
-        # Remove duplicates using set of tuples (layer, feature)
-        unique_features = {
-            (int(row['layer']), int(row['feature']))
-            for _, row in filtered_features.iterrows()
-        }
+        # Remove duplicates using set of tuples (layer, index)
+        def resolve_feature_index(row):
+            """Return per-layer feature index, falling back to node_id parsing for legacy data."""
+            feature_val = row.get('feature')
+            try:
+                if feature_val is not None:
+                    feature_int = int(feature_val)
+                    if feature_int >= 0:
+                        return feature_int
+            except (TypeError, ValueError):
+                pass
+
+            node_id_val = row.get('id') or row.get('node_id')
+            if node_id_val:
+                parts = str(node_id_val).split('_')
+                if len(parts) >= 2:
+                    try:
+                        return int(parts[1])
+                    except (TypeError, ValueError):
+                        return None
+            return None
+
+        unique_features = set()
+        for _, row in filtered_features.iterrows():
+            try:
+                layer_val = int(row.get('layer', -1))
+            except (TypeError, ValueError):
+                continue
+            if layer_val < 0:
+                continue
+
+            idx_val = resolve_feature_index(row)
+            if idx_val is None:
+                continue
+
+            unique_features.add((layer_val, idx_val))
         
         # Convert to sorted list of dicts
         features_export = [
@@ -757,7 +789,12 @@ if st.session_state.get('analysis_performed', False) and st.session_state.get('f
         ]
         
         # Also extract selected node_ids (for subgraph upload)
-        node_ids_export = sorted(filtered_features['id'].unique().tolist())
+        if 'id' in filtered_features.columns:
+            node_ids_export = sorted(filtered_features['id'].dropna().astype(str).unique().tolist())
+        elif 'node_id' in filtered_features.columns:
+            node_ids_export = sorted(filtered_features['node_id'].dropna().astype(str).unique().tolist())
+        else:
+            node_ids_export = []
         
         # Create complete export with features AND node_ids
         export_data = {

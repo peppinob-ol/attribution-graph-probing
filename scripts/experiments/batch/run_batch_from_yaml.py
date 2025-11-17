@@ -6,8 +6,10 @@ Usage:
     python run_batch_from_yaml.py --config configs/usa_capitals_swap_full.yml [--dry-run] [--force]
 """
 import argparse
+import json
 import sys
 from pathlib import Path
+from typing import Any, Dict, List
 
 # Load .env file if available
 try:
@@ -163,6 +165,7 @@ def run_batch(config_path: str, dry_run: bool = False, force: bool = False, verb
             'activations_pending': False,
             'activations_done': False,
             'remote_metadata': {},
+            'retry_attempts': 0,
         }
         
         try:
@@ -224,64 +227,99 @@ def run_batch(config_path: str, dry_run: bool = False, force: bool = False, verb
         seed_states.append(state)
     
     # Remote batch activations stage
+    total_remote_requeues = 0
+    remote_retry_limit = max(0, remote_config.get('max_retries', 1)) if remote_enabled else 0
     if remote_enabled:
         pending_remote = [s for s in seed_states if s['success'] and s['activations_pending']]
         if pending_remote:
             print_banner(f"Remote Activations ({len(pending_remote)} seed(s))")
-            batches = plan_batches(pending_remote, remote_batch_size)
-            print(f"  Planned {len(batches)} batch(es) "
-                  f"(batch_size={remote_batch_size}, max_gpus={remote_max_gpus})")
-            
             from concurrent.futures import ThreadPoolExecutor, as_completed
-            futures = {}
-            with ThreadPoolExecutor(max_workers=remote_max_gpus) as executor:
-                for batch_index, batch_states in enumerate(batches, 1):
-                    batch_id = f"batch_{batch_index:03d}"
-                    future = executor.submit(
-                        process_remote_activation_batch,
-                        config,
-                        batch_states,
-                        batch_id,
-                        verbose
-                    )
-                    futures[future] = (batch_id, batch_states)
-                
-                for future in as_completed(futures):
-                    batch_id, batch_states = futures[future]
-                    try:
-                        batch_success, metadata, per_seed = future.result()
-                    except Exception as exc:
-                        batch_success = False
-                        metadata = {}
-                        per_seed = {}
-                        print(f"ERROR: Remote batch {batch_id} raised exception: {exc}")
-                    
-                    for batch_state in batch_states:
-                        slug = batch_state['seed']['slug']
-                        result = per_seed.get(slug, {})
-                        if result.get('success'):
-                            batch_state['activations_pending'] = False
-                            batch_state['activations_done'] = True
-                            batch_state['remote_metadata'] = {
-                                'remote': {
-                                    'gpu_id': metadata.get('gpu_id'),
-                                    'remote_log': result.get('remote_log'),
-                                    'local_log': result.get('local_log'),
-                                    'batch_id': batch_id,
+
+            attempt_index = 0
+            while pending_remote:
+                attempt_index += 1
+                batches = plan_batches(pending_remote, remote_batch_size)
+                print(f"  Attempt {attempt_index}: {len(batches)} batch(es) "
+                      f"(batch_size={remote_batch_size}, max_gpus={remote_max_gpus})")
+
+                failures: List[Dict[str, Any]] = []
+                with ThreadPoolExecutor(max_workers=remote_max_gpus) as executor:
+                    futures = {}
+                    for batch_index, batch_states in enumerate(batches, 1):
+                        batch_id = f"batch_{batch_index:03d}"
+                        future = executor.submit(
+                            process_remote_activation_batch,
+                            config,
+                            batch_states,
+                            batch_id,
+                            verbose
+                        )
+                        futures[future] = (batch_id, batch_states)
+
+                    for future in as_completed(futures):
+                        batch_id, batch_states = futures[future]
+                        try:
+                            batch_success, metadata, per_seed = future.result()
+                        except Exception as exc:
+                            batch_success = False
+                            metadata = {}
+                            per_seed = {}
+                            print(f"ERROR: Remote batch {batch_id} raised exception: {exc}")
+
+                        for batch_state in batch_states:
+                            slug = batch_state['seed']['slug']
+                            result = per_seed.get(slug, {})
+                            if result.get('success'):
+                                batch_state['activations_pending'] = False
+                                batch_state['activations_done'] = True
+                                batch_state['remote_metadata'] = {
+                                    'remote': {
+                                        'gpu_id': metadata.get('gpu_id'),
+                                        'remote_log': result.get('remote_log'),
+                                        'local_log': result.get('local_log'),
+                                        'batch_id': batch_id,
+                                    }
                                 }
-                            }
-                        else:
-                            batch_state['success'] = False
-                            batch_state['error'] = result.get('error') or "Remote activations failed"
-                            batch_state['remote_metadata'] = {
-                                'remote': {
-                                    'batch_id': batch_id,
-                                    'remote_log': result.get('remote_log'),
-                                    'local_log': result.get('local_log'),
-                                    'gpu_id': metadata.get('gpu_id'),
-                                    'error': result.get('error'),
+                            else:
+                                batch_state['success'] = False
+                                batch_state['error'] = result.get('error') or "Remote activations failed"
+                                batch_state['remote_metadata'] = {
+                                    'remote': {
+                                        'batch_id': batch_id,
+                                        'remote_log': result.get('remote_log'),
+                                        'local_log': result.get('local_log'),
+                                        'gpu_id': metadata.get('gpu_id'),
+                                        'error': result.get('error'),
+                                    }
                                 }
-                            }
+                                failures.append(batch_state)
+
+                if not failures:
+                    break
+
+                next_attempt: List[Dict[str, Any]] = []
+                for failed_state in failures:
+                    failed_state['retry_attempts'] += 1
+                    if failed_state['retry_attempts'] <= remote_retry_limit:
+                        slug = failed_state['seed']['slug']
+                        print(f"  [RETRY] Re-queuing {slug} "
+                              f"(attempt {failed_state['retry_attempts']} of {remote_retry_limit})")
+                        failed_state['success'] = True
+                        failed_state['error'] = None
+                        failed_state['activations_pending'] = True
+                        failed_state['activations_done'] = False
+                        failed_state['remote_metadata'] = {}
+                        next_attempt.append(failed_state)
+                    else:
+                        if verbose:
+                            print(f"  [FAIL] Giving up on {failed_state['seed']['slug']} "
+                                  f"after {failed_state['retry_attempts']} failed remote attempt(s)")
+
+                if not next_attempt:
+                    break
+
+                total_remote_requeues += len(next_attempt)
+                pending_remote = next_attempt
     
     # Grouping pass for seeds whose activations completed after remote batching
     for state in seed_states:
@@ -301,10 +339,18 @@ def run_batch(config_path: str, dry_run: bool = False, force: bool = False, verb
     # Finalize manifests and summary
     success_count = 0
     failed_seeds = []
+    summary_entries: List[Dict[str, Any]] = []
     
     from datetime import datetime
     for state in seed_states:
+        manifest_path = state['paths']['base'] / 'manifest.json'
         manifest = state['manifest']
+        if manifest_path.exists():
+            try:
+                with open(manifest_path, 'r', encoding='utf-8') as mfile:
+                    manifest = json.load(mfile)
+            except Exception:
+                manifest = state['manifest']
         manifest['timestamp_completed'] = datetime.now().isoformat()
         if state['remote_metadata']:
             manifest.update(state['remote_metadata'])
@@ -318,11 +364,44 @@ def run_batch(config_path: str, dry_run: bool = False, force: bool = False, verb
             manifest['error'] = state['error']
             write_manifest(manifest, state['paths'])
             failed_seeds.append((state['seed']['slug'], state['error']))
+        
+        state['manifest'] = manifest
+        summary_entries.append({
+            'slug': state['seed']['slug'],
+            'status': manifest.get('status'),
+            'error': manifest.get('error'),
+            'retry_attempts': state.get('retry_attempts', 0),
+            'neuronpedia': manifest.get('neuronpedia'),
+            'remote': manifest.get('remote'),
+        })
     
     print_banner("Batch Run Summary")
     print(f"Total seeds: {len(seeds)}")
     print(f"Successful: {success_count}")
     print(f"Failed: {len(failed_seeds)}")
+    
+    outputs_root = Path(config['paths']['outputs_root'])
+    outputs_root.mkdir(parents=True, exist_ok=True)
+    summary_payload = {
+        'experiment_name': config.get('experiment_name'),
+        'timestamp': datetime.now().isoformat(),
+        'total_seeds': len(seeds),
+        'successful': success_count,
+        'failed': len(failed_seeds),
+        'remote': {
+            'max_retries': remote_retry_limit if remote_enabled else 0,
+            'requeues': total_remote_requeues,
+            'seeds_retried': len([s for s in seed_states if s.get('retry_attempts', 0) > 0]),
+        },
+        'seeds': summary_entries,
+    }
+    summary_path = outputs_root / f"_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    try:
+        with open(summary_path, 'w', encoding='utf-8') as summary_file:
+            json.dump(summary_payload, summary_file, indent=2, ensure_ascii=False)
+        print(f"\nSummary written to {summary_path}")
+    except Exception as exc:
+        print(f"\nWARNING: Unable to write summary file: {exc}")
     
     if failed_seeds:
         print("\nFailed seeds:")

@@ -2,6 +2,7 @@
 Graph generation and feature selection for batch experiments.
 """
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Dict, Any, List
@@ -150,6 +151,14 @@ def process_graph_step(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict
         features_config = config['features']
         selection = features_config['selection']
         
+        post_filter_cfg = features_config.get('post_filter', {})
+        node_threshold_config = post_filter_cfg.get('node_threshold')
+        node_threshold_value = None
+        if node_threshold_config is not None:
+            node_threshold_value = float(node_threshold_config)
+            if node_threshold_value > 1:
+                node_threshold_value = node_threshold_value / 100.0
+
         if selection == 'cumulative_influence':
             threshold = features_config['threshold']
             
@@ -160,9 +169,12 @@ def process_graph_step(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict
             features_list = []
             for _, row in selected.iterrows():
                 if row['layer'] >= 0:  # Exclude embeddings (layer -1) for now
+                    idx_value = row.get('id')
+                    if idx_value is None or (isinstance(idx_value, float) and math.isnan(idx_value)):
+                        idx_value = row['feature']
                     features_list.append({
                         'layer': int(row['layer']),
-                        'index': int(row['feature'])
+                        'index': int(idx_value)
                     })
             
             # Remove duplicates
@@ -173,6 +185,37 @@ def process_graph_step(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict
                 if key not in seen:
                     seen.add(key)
                     unique_features.append(feat)
+
+            if node_threshold_value is not None and graph_data:
+                allowed_pairs = set()
+                for node in graph_data.get('nodes', []):
+                    node_id = node.get('node_id') or node.get('nodeId')
+                    if not node_id:
+                        continue
+                    feature_type = node.get('feature_type', '')
+                    if feature_type != 'cross layer transcoder':
+                        continue
+                    parts = str(node_id).split('_')
+                    if len(parts) < 2 or not parts[0].isdigit():
+                        continue
+                    try:
+                        layer_val = int(parts[0])
+                        feature_val = int(parts[1])
+                    except ValueError:
+                        continue
+                    influence_val = node.get('influence')
+                    if influence_val is None:
+                        continue
+                    if influence_val >= node_threshold_value:
+                        allowed_pairs.add((layer_val, feature_val))
+
+                before_filter = len(unique_features)
+                unique_features = [
+                    feat for feat in unique_features
+                    if (feat['layer'], feat['index']) in allowed_pairs
+                ]
+                if verbose:
+                    print(f"    Applied node_threshold {node_threshold_value:.3f}: kept {len(unique_features)} of {before_filter}")
             
             if verbose:
                 print(f"    Selected {len(unique_features)} features at threshold {threshold}")
@@ -181,6 +224,33 @@ def process_graph_step(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict
             print(f"ERROR: Unsupported selection method: {selection}")
             return False
         
+        # Collect node_ids for selected features to keep uploads scoped to these nodes
+        selected_pairs = {(feat['layer'], feat['index']) for feat in unique_features}
+        selected_node_ids: List[str] = []
+        if graph_data and selected_pairs:
+            for node in graph_data.get('nodes', []):
+                node_id = node.get('node_id') or node.get('nodeId')
+                if not node_id:
+                    continue
+                feature_type = node.get('feature_type', '')
+                if feature_type != 'cross layer transcoder':
+                    # Skip embeddings, logits, reconstruction error nodes
+                    continue
+                parts = str(node_id).split('_')
+                if len(parts) < 2:
+                    continue
+                layer_token = parts[0]
+                if not layer_token.isdigit():
+                    # Skip embeddings/logits (e.g., 'E')
+                    continue
+                try:
+                    layer_val = int(layer_token)
+                    feature_val = int(parts[1])
+                except ValueError:
+                    continue
+                if (layer_val, feature_val) in selected_pairs:
+                    selected_node_ids.append(node_id)
+
         # Write selected_features_with_nodes.json
         output_data = {
             'features': unique_features,
@@ -188,8 +258,14 @@ def process_graph_step(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict
                 'n_features': len(unique_features),
                 'selection': selection,
                 'threshold': threshold if selection == 'cumulative_influence' else None,
+                'n_nodes': len(selected_node_ids),
             }
         }
+        if node_threshold_value is not None:
+            output_data['metadata'].setdefault('post_filter', {})
+            output_data['metadata']['post_filter']['node_threshold'] = node_threshold_config
+        if selected_node_ids:
+            output_data['node_ids'] = selected_node_ids
         
         selected_features_path = paths['selected_features_json']
         with open(selected_features_path, 'w', encoding='utf-8') as f:
