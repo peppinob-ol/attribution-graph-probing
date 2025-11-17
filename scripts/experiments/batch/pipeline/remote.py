@@ -270,6 +270,42 @@ class RemoteExecutor:
             env['CHUNK_BY_LAYER'] = 'true'
         
         return env
+
+    def build_remote_steering_env(
+        self,
+        config: Dict[str, Any],
+        seed: Dict[str, Any],
+        remote_paths: Dict[str, str],
+        steering_cfg: Dict[str, Any],
+    ) -> Dict[str, str]:
+        """
+        Build environment variables dict for remote steering run.
+        """
+        model_config = config["model"]
+        env = {
+            "NP_WORKDIR": self.base_dir,
+            "MODEL_ID": model_config["id"],
+            "SOURCE_SET": model_config["source_set"],
+            "PROMPTS_JSON_PATH": remote_paths["prompts_json"],
+            "FEATURES_JSON_PATH": remote_paths["features_json"],
+            "OUT_JSON_PATH": remote_paths["steering_dump_json"],
+            "STEER_TEMPERATURE": str(steering_cfg.get("temperature", 0.5)),
+            "STEER_N_TOKENS": str(steering_cfg.get("n_tokens", 16)),
+            "STEER_FREQ_PENALTY": str(steering_cfg.get("freq_penalty", 2.0)),
+            "STEER_SEED": str(steering_cfg.get("seed", 42)),
+            "STEER_STRENGTH_MULTIPLIER": str(
+                steering_cfg.get("strength_multiplier", 1.0)
+            ),
+            "STEER_METHOD": steering_cfg.get(
+                "steer_method", "ORTHOGONAL_DECOMP"
+            ),
+            "STEER_N_LOGPROBS": str(steering_cfg.get("n_logprobs", 5)),
+            "STEER_NORMALIZE": "true"
+            if steering_cfg.get("normalize", False)
+            else "false",
+            "PYTHONIOENCODING": "utf-8",
+        }
+        return env
     
     def run_remote_activation(self, config: Dict[str, Any], seed: Dict[str, Any], 
                              local_paths: Dict[str, Path], verbose: bool = True) -> Tuple[bool, Optional[int], str]:
@@ -441,6 +477,132 @@ class RemoteExecutor:
             print(f"    Remote log: {remote_log}")
             print(f"    Local log: {local_log_path}")
         
+        return True, gpu_id, remote_log
+
+    def run_remote_steering(
+        self,
+        config: Dict[str, Any],
+        seed: Dict[str, Any],
+        local_paths: Dict[str, Path],
+        verbose: bool = True,
+    ) -> Tuple[bool, Optional[int], str]:
+        """
+        Run batch_steering.py on the remote node for a given seed.
+        """
+        steering_cfg = config.get("steering", {})
+        slug = seed["slug"]
+
+        if verbose:
+            print(f"  [REMOTE] Setting up remote steering for {slug}...")
+
+        remote_exp_dir = f"{self.base_dir}/steering/{slug}"
+        remote_logs_dir = self.logs_dir
+        cmd = f'mkdir -p "{remote_exp_dir}" "{remote_logs_dir}" "{self.base_dir}/.locks"'
+        rc, _, stderr = self.ssh_run(cmd, timeout=10, capture_output=False)
+        if rc != 0:
+            print(f"ERROR: Failed to create remote directories for steering: {stderr}")
+            return False, None, ""
+
+        remote_prompts = f"{remote_exp_dir}/prompts.json"
+        remote_features = f"{remote_exp_dir}/features.json"
+        if not self.rsync_up(str(local_paths["prompts_json"]), remote_prompts, verbose=False):
+            return False, None, ""
+        if not self.rsync_up(str(local_paths["steering_features_json"]), remote_features, verbose=False):
+            return False, None, ""
+
+        if verbose:
+            print("  [REMOTE] Finding free GPU for steering...")
+        gpu_id = self.get_free_gpu()
+        if gpu_id is None:
+            print("ERROR: No free GPU available for steering")
+            return False, None, ""
+        if verbose:
+            print(f"  [REMOTE] Using GPU {gpu_id}")
+
+        import platform
+        lock_acquired = False
+        if platform.system() != "Windows":
+            lock_acquired = self.acquire_gpu_lock(gpu_id)
+            if not lock_acquired:
+                print(f"ERROR: GPU {gpu_id} already locked")
+                return False, None, ""
+        elif verbose:
+            print("  [REMOTE] Skipping GPU lock on Windows")
+
+        remote_out = f"{remote_exp_dir}/steering_dump.json"
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        remote_log = f"{remote_logs_dir}/{slug}_{timestamp}_steer.log"
+
+        remote_paths_dict = {
+            "prompts_json": remote_prompts,
+            "features_json": remote_features,
+            "steering_dump_json": remote_out,
+        }
+        env_vars = self.build_remote_steering_env(
+            config, seed, remote_paths_dict, steering_cfg
+        )
+
+        script_lines = [
+            "#!/bin/bash",
+            "set -e",
+            self.env_activate_cmd,
+            f"cd {self.repo_dir}",
+        ]
+        for k, v in env_vars.items():
+            script_lines.append(f'export {k}="{v}"')
+        script_lines.append(
+            f"CUDA_VISIBLE_DEVICES={gpu_id} python scripts/neuronpedia_steering/batch_steering.py "
+            f"2>&1 | tee {remote_log}"
+        )
+        script_content = "\n".join(script_lines) + "\n"
+        remote_script = f"{remote_exp_dir}/run_steering.sh"
+
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".sh", delete=False, encoding="utf-8", newline="\n"
+        ) as tf:
+            tf.write(script_content)
+            temp_script_path = tf.name
+
+        if not self.rsync_up(temp_script_path, remote_script, verbose=False):
+            Path(temp_script_path).unlink(missing_ok=True)
+            if lock_acquired:
+                self.release_gpu_lock(gpu_id)
+            return False, None, ""
+        Path(temp_script_path).unlink(missing_ok=True)
+
+        full_cmd = f"chmod +x {remote_script} && {remote_script}"
+        if verbose:
+            print(f"  [REMOTE] Running steering script on GPU {gpu_id}...")
+        rc, stdout, stderr = self.ssh_run(full_cmd, timeout=7200, capture_output=True)
+
+        if lock_acquired:
+            self.release_gpu_lock(gpu_id)
+
+        if rc != 0:
+            print(f"ERROR: Remote steering failed (exit code {rc})")
+            if verbose:
+                print(f"STDERR:\n{stderr}")
+            return False, gpu_id, remote_log
+
+        if verbose:
+            print("  [REMOTE] Downloading steering results...")
+        if not self.rsync_down(
+            remote_out, str(local_paths["steering_dump_json"]), verbose=False
+        ):
+            print("ERROR: Failed to download steering_dump.json")
+            return False, gpu_id, remote_log
+
+        local_log_path = local_paths["base"] / f"remote_steer_{timestamp}.log"
+        self.rsync_down(remote_log, str(local_log_path), verbose=False)
+
+        if verbose:
+            print("  [REMOTE] Steering completed successfully")
+            print(f"    GPU: {gpu_id}")
+            print(f"    Remote log: {remote_log}")
+            print(f"    Local log: {local_log_path}")
+
         return True, gpu_id, remote_log
 
     def run_remote_batch(self, config: Dict[str, Any], batch_states: List[Dict[str, Any]],
