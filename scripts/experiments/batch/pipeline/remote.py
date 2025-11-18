@@ -10,7 +10,7 @@ import tempfile
 import time
 import traceback
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, Tuple, List, Set
 
 
 class RemoteExecutor:
@@ -172,6 +172,32 @@ class RemoteExecutor:
             print(f"ERROR: Download exception: {e}")
             return False
     
+    def _get_busy_gpu_uuids(self) -> Optional[Set[str]]:
+        """
+        Return set of GPU UUIDs that currently have compute processes.
+        """
+        cmd = "nvidia-smi --query-compute-apps=gpu_uuid --format=csv,noheader"
+        rc, stdout, stderr = self.ssh_run(cmd, timeout=10)
+
+        if rc != 0:
+            # Some older drivers don't support this query; fall back to heuristics
+            if stderr.strip():
+                print(f"WARNING: Failed to query compute apps via nvidia-smi: {stderr.strip()}")
+            return None
+
+        busy: Set[str] = set()
+        for line in stdout.strip().splitlines():
+            entry = line.strip()
+            if not entry or entry.lower().startswith("no running"):
+                continue
+            parts = [p.strip() for p in entry.split(",")]
+            if not parts:
+                continue
+            uuid = parts[0]
+            if uuid:
+                busy.add(uuid)
+        return busy
+
     def get_free_gpu(self) -> Optional[int]:
         """
         Find a free GPU on the remote node.
@@ -180,30 +206,71 @@ class RemoteExecutor:
         Returns GPU index if found, None otherwise.
         """
         # Query GPU status
-        cmd = 'nvidia-smi --query-gpu=index,memory.used,utilization.gpu --format=csv,noheader,nounits'
+        cmd = 'nvidia-smi --query-gpu=index,uuid,memory.used,utilization.gpu --format=csv,noheader,nounits'
         rc, stdout, stderr = self.ssh_run(cmd, timeout=10)
         
         if rc != 0:
             print(f"ERROR: Failed to query nvidia-smi: {stderr}")
             return None
-        
-        # Parse output: "0, 0, 0" means GPU 0 with 0 MB used, 0% util
+
+        gpu_rows = []
         for line in stdout.strip().split('\n'):
             parts = [p.strip() for p in line.split(',')]
-            if len(parts) >= 3:
+            if len(parts) >= 4:
                 try:
                     gpu_idx = int(parts[0])
-                    mem_used = int(parts[1])
-                    util = int(parts[2])
-                    
-                    # Consider free if memory < 500 MB and util < 5%
-                    if mem_used < 500 and util < 5:
-                        return gpu_idx
-                
+                    uuid = parts[1]
+                    mem_used = int(parts[2])
+                    util = int(parts[3])
                 except ValueError:
                     continue
-        
-        return None
+                gpu_rows.append(
+                    {
+                        "index": gpu_idx,
+                        "uuid": uuid,
+                        "memory": mem_used,
+                        "util": util,
+                    }
+                )
+
+        if not gpu_rows:
+            print("ERROR: Unable to parse nvidia-smi output for GPU selection")
+            return None
+
+        busy_uuids = self._get_busy_gpu_uuids()
+        if busy_uuids is not None:
+            # Prefer GPUs with no running compute processes and low utilization
+            free_candidates = [
+                row
+                for row in gpu_rows
+                if row["uuid"] not in busy_uuids and row["util"] < 50
+            ]
+            if not free_candidates:
+                # If everything is busy according to utilization, fall back to
+                # "not in busy_uuids" and pick the least loaded one.
+                free_candidates = [
+                    row for row in gpu_rows if row["uuid"] not in busy_uuids
+                ]
+            if free_candidates:
+                free_candidates.sort(
+                    key=lambda row: (row["util"], row["memory"], row["index"])
+                )
+                return free_candidates[0]["index"]
+
+        # Fallback to memory/util heuristics (legacy behavior) if busy set is unavailable
+        for row in gpu_rows:
+            # Consider free if reasonably low memory and utilization
+            if row["memory"] < 4000 and row["util"] < 50:
+                return row["index"]
+
+        # As a last resort, pick the lowest-utilization GPU to avoid hard failure
+        gpu_rows.sort(key=lambda row: (row["util"], row["memory"], row["index"]))
+        chosen = gpu_rows[0]["index"]
+        print(
+            f"WARNING: No clearly free GPU found; falling back to GPU {chosen} "
+            f"(util={gpu_rows[0]['util']}%, mem={gpu_rows[0]['memory']}MB)"
+        )
+        return chosen
     
     def acquire_gpu_lock(self, gpu_id: int) -> bool:
         """
