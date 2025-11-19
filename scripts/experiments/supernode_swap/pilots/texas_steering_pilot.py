@@ -134,6 +134,11 @@ def main() -> None:
     model_cfg = config["model"]
     source_set = model_cfg["source_set"]
 
+    # Ensure steering config exists and default to CPU-backed steering for pilots
+    steering_cfg = config.setdefault("steering", {})
+    steering_cfg.setdefault("device", "cpu")
+    steering_cfg.setdefault("n_tokens", 4)
+
     slug_paths = derive_paths(args.slug)
     outputs_dir = Path(args.outputs_dir)
     prompts_path = outputs_dir / "prompts.json"

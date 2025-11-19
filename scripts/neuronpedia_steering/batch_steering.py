@@ -251,7 +251,11 @@ def initialize_inference_stack(
     from neuronpedia_inference.shared import STR_TO_DTYPE  # type: ignore
 
     # Model + SAE dtype setup (mirrors batch_get_activations)
-    device_guess = "cuda" if torch.cuda.is_available() else "cpu"
+    device_override = os.environ.get("STEER_DEVICE")
+    if device_override in ("cpu", "cuda"):
+        device_guess = device_override
+    else:
+        device_guess = "cuda" if torch.cuda.is_available() else "cpu"
     os.environ.setdefault("MODEL_ID", model_id)
     os.environ.setdefault("SAE_SETS", json.dumps([source_set]))
     os.environ.setdefault("DEVICE", device_guess)
@@ -328,53 +332,6 @@ def build_np_features(
     ]
 
 
-async def generate_once_async(
-    prompt: str,
-    features,
-    *,
-    strength_multiplier: float,
-    seed: int,
-    temperature: float,
-    freq_penalty: float,
-    max_new_tokens: int,
-    steer_method: str,
-    normalize_steering: bool,
-    n_logprobs: int,
-):
-    from neuronpedia_inference_client.models.np_steer_method import NPSteerMethod  # type: ignore
-    from neuronpedia_inference_client.models.np_steer_type import NPSteerType  # type: ignore
-    from neuronpedia_inference.inference_utils.steering import remove_sse_formatting  # type: ignore
-    from neuronpedia_inference.endpoints.steer.completion import run_batched_generate  # type: ignore
-
-    steer_method_enum = NPSteerMethod(steer_method)
-    steer_types = [NPSteerType.STEERED, NPSteerType.DEFAULT]
-
-    generator = run_batched_generate(
-        prompt=prompt,
-        features=features,
-        steer_types=steer_types,
-        strength_multiplier=strength_multiplier,
-        seed=seed,
-        temperature=temperature,
-        freq_penalty=freq_penalty,
-        max_new_tokens=max_new_tokens,
-        steer_method=steer_method_enum,
-        normalize_steering=normalize_steering,
-        use_stream_lock=False,
-        n_logprobs=n_logprobs,
-    )
-
-    last_item = None
-    async for item in generator:
-        last_item = item
-
-    if last_item is None:
-        raise RuntimeError("Generator yielded no results.")
-
-    cleaned = remove_sse_formatting(last_item)
-    return json.loads(cleaned)
-
-
 def run_generation(
     prompt: str,
     features,
@@ -388,20 +345,148 @@ def run_generation(
     normalize_steering: bool,
     n_logprobs: int,
 ):
-    return asyncio.run(
-        generate_once_async(
-            prompt,
-            features,
-            strength_multiplier=strength_multiplier,
-            seed=seed,
-            temperature=temperature,
-            freq_penalty=freq_penalty,
-            max_new_tokens=max_new_tokens,
-            steer_method=steer_method,
-            normalize_steering=normalize_steering,
-            n_logprobs=n_logprobs,
-        )
+    """
+    Local steering runner that mirrors the Neuronpedia /steer/completion endpoint
+    but uses HookedTransformer.generate instead of generate_stream.
+
+    This avoids relying on generate_stream (which is unavailable in older
+    transformer_lens versions) while keeping the steering math identical: we use
+    the same steering_hook logic, OrthogonalProjector, and SAE hooks.
+    """
+    from neuronpedia_inference_client.models.np_steer_feature import (  # type: ignore
+        NPSteerFeature,
     )
+    from neuronpedia_inference_client.models.np_steer_method import (  # type: ignore
+        NPSteerMethod,
+    )
+    from neuronpedia_inference_client.models.np_steer_type import NPSteerType  # type: ignore
+    from neuronpedia_inference.config import Config  # type: ignore
+    from neuronpedia_inference.inference_utils.steering import (  # type: ignore
+        OrthogonalProjector,
+    )
+    from neuronpedia_inference.sae_manager import SAEManager  # type: ignore
+    from neuronpedia_inference.shared import Model  # type: ignore
+
+    steer_method_enum = NPSteerMethod(steer_method)
+    steer_types = [NPSteerType.STEERED, NPSteerType.DEFAULT]
+
+    model = Model.get_instance()
+    sae_manager = SAEManager.get_instance()
+    _ = Config.get_instance()  # currently unused, kept for parity/logging if needed
+
+    if seed is not None:
+        torch.manual_seed(seed)
+
+    tokenized = model.to_tokens(
+        prompt, prepend_bos=model.cfg.tokenizer_prepends_bos, truncate=False
+    )[0]
+
+    def steering_hook(activations: torch.Tensor, hook: Any) -> torch.Tensor:  # type: ignore[unused-argument]
+        for i, flag in enumerate(steer_types):
+            if flag == NPSteerType.STEERED:
+                for feature in features:
+                    steering_vector = torch.tensor(feature.steering_vector).to(
+                        activations.device
+                    )
+
+                    if not torch.isfinite(steering_vector).all():
+                        raise ValueError("Steering vector contains inf or nan values")
+
+                    if normalize_steering:
+                        norm = torch.norm(steering_vector)
+                        if norm == 0:
+                            raise ValueError("Zero norm steering vector")
+                        steering_vector = steering_vector / norm
+
+                    # If it's attention hook, reshape it to (n_heads, head_dim)
+                    if isinstance(
+                        feature, NPSteerFeature
+                    ) and "attn.hook_z" in sae_manager.get_sae_hook(feature.source):
+                        n_heads = model.cfg.n_heads
+                        d_head = model.cfg.d_head
+                        steering_vector = steering_vector.view(n_heads, d_head)
+
+                    coeff = strength_multiplier * feature.strength
+
+                    if steer_method_enum == NPSteerMethod.SIMPLE_ADDITIVE:
+                        activations[i] += coeff * steering_vector
+                    elif steer_method_enum == NPSteerMethod.ORTHOGONAL_DECOMP:
+                        projector = OrthogonalProjector(steering_vector)
+                        activations[i] = projector.project(activations[i], coeff)
+        return activations
+
+    generate_both = (
+        NPSteerType.STEERED in steer_types and NPSteerType.DEFAULT in steer_types
+    )
+
+    outputs = []
+
+    # Helper to run one generation (steered or default)
+    def _run_single_generation(apply_steering: bool) -> str:
+        if seed is not None:
+            torch.manual_seed(seed)
+
+        model.reset_hooks()
+        if apply_steering:
+            editing_hooks = [
+                (
+                    (
+                        sae_manager.get_sae_hook(feature.source)
+                        if isinstance(feature, NPSteerFeature)
+                        else feature.hook
+                    ),
+                    steering_hook,
+                )
+                for feature in features
+            ]
+        else:
+            editing_hooks = []
+
+        with model.hooks(fwd_hooks=editing_hooks):  # type: ignore[arg-type]
+            tokens = model.generate(
+                input=tokenized.unsqueeze(0),
+                max_new_tokens=max_new_tokens,
+                stop_at_eos=(model.cfg.device != "mps"),
+                do_sample=True,
+                temperature=temperature,
+                freq_penalty=freq_penalty,
+                return_type="tokens",
+            )
+
+        # tokens includes the prompt; strip it off (same behavior as completion.py)
+        return model.to_string(tokens[0][1:])
+
+    if generate_both:
+        steered_text = _run_single_generation(apply_steering=True)
+        default_text = _run_single_generation(apply_steering=False)
+
+        outputs.append(
+            {
+                "type": NPSteerType.STEERED.value,
+                "output": steered_text,
+                "logprobs": None if n_logprobs <= 0 else None,
+            }
+        )
+        outputs.append(
+            {
+                "type": NPSteerType.DEFAULT.value,
+                "output": default_text,
+                "logprobs": None if n_logprobs <= 0 else None,
+            }
+        )
+    else:
+        # Only one of STEERED / DEFAULT requested; mirror completion.py semantics.
+        apply_steering = steer_types[0] == NPSteerType.STEERED
+        text = _run_single_generation(apply_steering=apply_steering)
+        outputs.append(
+            {
+                "type": steer_types[0].value,
+                "output": text,
+                "logprobs": None if n_logprobs <= 0 else None,
+            }
+        )
+
+    return {"outputs": outputs}
 
 
 def summarize_outputs(raw_outputs: Dict[str, Any]) -> Dict[str, Any]:

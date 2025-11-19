@@ -237,40 +237,92 @@ class RemoteExecutor:
             print("ERROR: Unable to parse nvidia-smi output for GPU selection")
             return None
 
-        busy_uuids = self._get_busy_gpu_uuids()
-        if busy_uuids is not None:
-            # Prefer GPUs with no running compute processes and low utilization
-            free_candidates = [
-                row
-                for row in gpu_rows
-                if row["uuid"] not in busy_uuids and row["util"] < 50
-            ]
-            if not free_candidates:
-                # If everything is busy according to utilization, fall back to
-                # "not in busy_uuids" and pick the least loaded one.
-                free_candidates = [
-                    row for row in gpu_rows if row["uuid"] not in busy_uuids
+        idle_mem_threshold = int(self.remote_config.get("gpu_idle_memory_mb", 2000))
+        warn_mem_threshold = int(self.remote_config.get("gpu_warn_memory_mb", 4000))
+        
+        # Manual override: allow user to pin candidate GPUs via compute.remote.gpus
+        # We only check VRAM here (ignoring utilization and compute-apps) because on
+        # some shared nodes utilization and compute-apps can be misleading or stale.
+        manual_gpus = self.remote_config.get("gpus")
+        if isinstance(manual_gpus, list) and manual_gpus:
+            try:
+                manual_indices = {int(g) for g in manual_gpus}
+            except Exception:
+                manual_indices = set()
+            if manual_indices:
+                candidates = [
+                    row
+                    for row in gpu_rows
+                    if row["index"] in manual_indices and row["memory"] < 4000
                 ]
-            if free_candidates:
-                free_candidates.sort(
-                    key=lambda row: (row["util"], row["memory"], row["index"])
-                )
-                return free_candidates[0]["index"]
+                if candidates:
+                    candidates.sort(key=lambda row: (row["memory"], row["index"]))
+                    chosen = candidates[0]["index"]
+                    print(f"  [REMOTE] Using manually configured GPU {chosen}")
+                    return chosen
 
-        # Fallback to memory/util heuristics (legacy behavior) if busy set is unavailable
+        busy_uuids = self._get_busy_gpu_uuids()
+        busy_uuids = busy_uuids if busy_uuids is not None else set()
+        
+        free_candidates: List[Dict[str, int]] = []
+        ghost_candidates: List[Dict[str, int]] = []
+        nonbusy_candidates: List[Dict[str, int]] = []
+        
         for row in gpu_rows:
-            # Consider free if reasonably low memory and utilization
-            if row["memory"] < 4000 and row["util"] < 50:
-                return row["index"]
-
-        # As a last resort, pick the lowest-utilization GPU to avoid hard failure
-        gpu_rows.sort(key=lambda row: (row["util"], row["memory"], row["index"]))
-        chosen = gpu_rows[0]["index"]
+            is_busy = row["uuid"] in busy_uuids
+            if not is_busy:
+                nonbusy_candidates.append(row)
+            if row["memory"] <= idle_mem_threshold:
+                if not is_busy:
+                    free_candidates.append(row)
+                else:
+                    ghost_candidates.append(row)
+        
+        def _choose(candidate_rows: List[Dict[str, int]], note: Optional[str] = None) -> int:
+            candidate_rows.sort(key=lambda r: (r["memory"], r["index"]))
+            chosen_row = candidate_rows[0]
+            if note:
+                print(note.format(idx=chosen_row["index"], mem=chosen_row["memory"]))
+            return chosen_row["index"]
+        
+        if free_candidates:
+            return _choose(free_candidates)
+        
+        if ghost_candidates:
+            return _choose(
+                ghost_candidates,
+                note=(
+                    "  [REMOTE] Treating GPU {idx} as free despite compute-app residue "
+                    "(memory {mem} MB < idle threshold)"
+                ),
+            )
+        
+        if nonbusy_candidates:
+            low_mem = [row for row in nonbusy_candidates if row["memory"] <= warn_mem_threshold]
+            if low_mem:
+                return _choose(
+                    low_mem,
+                    note=(
+                        "  [REMOTE] No fully idle GPUs; using lowest-memory GPU {idx} "
+                        "(memory {mem} MB)"
+                    ),
+                )
+            return _choose(
+                nonbusy_candidates,
+                note=(
+                    "  [REMOTE] All GPUs above warning threshold; falling back to GPU {idx} "
+                    "(memory {mem} MB)"
+                ),
+            )
+        
+        # Last resort: pick the lowest-memory GPU overall, even if busy, but warn loudly.
+        gpu_rows.sort(key=lambda r: (r["memory"], r["index"]))
+        chosen_row = gpu_rows[0]
         print(
-            f"WARNING: No clearly free GPU found; falling back to GPU {chosen} "
-            f"(util={gpu_rows[0]['util']}%, mem={gpu_rows[0]['memory']}MB)"
+            "WARNING: All GPUs report active compute processes; falling back to GPU "
+            f"{chosen_row['index']} (memory {chosen_row['memory']} MB)."
         )
-        return chosen
+        return chosen_row["index"]
     
     def acquire_gpu_lock(self, gpu_id: int) -> bool:
         """
@@ -372,6 +424,13 @@ class RemoteExecutor:
             else "false",
             "PYTHONIOENCODING": "utf-8",
         }
+        steer_device = steering_cfg.get("device")
+        if steer_device in ("cpu", "cuda"):
+            env["STEER_DEVICE"] = steer_device
+        env.setdefault(
+            "PYTORCH_CUDA_ALLOC_CONF",
+            steering_cfg.get("cuda_alloc_conf", "expandable_segments:True"),
+        )
         return env
     
     def run_remote_activation(self, config: Dict[str, Any], seed: Dict[str, Any], 
