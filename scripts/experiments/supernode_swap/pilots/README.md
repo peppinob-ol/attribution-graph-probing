@@ -92,6 +92,49 @@ This setup lets you validate CLT-based steering end-to-end on a single
 case (Texas/Dallas/Austin) using the exact Neuronpedia inference code,
 before scaling up to 50×50 state-swap experiments.
 
+### RunPod GPU setup (Texas steering)
+
+You now have **two** ways to prep RunPod pods:
+
+1. **Custom image (recommended)** – build the Dockerfile at
+   `docker/runpod/Dockerfile`, push it to your registry, and use it in your
+   RunPod template. The entrypoint automatically configures sshd with symmetric
+   port mapping, clones the repo to the persistent volume, creates/updates the
+   venv, installs `sae-lens` + `nnterp`, and writes `/workspace/graphs/giuseppe/env.sh`.
+   Details and build instructions live in `docs/runpod_docker.md`.
+
+2. **Manual bootstrap (legacy fallback)** – if you prefer the original flow,
+   copy `scripts/runpod_bootstrap_template.sh` to
+   `/workspace/graphs/giuseppe/runpod_bootstrap.sh` on the volume and run it
+   after each pod restart. It installs sshd, builds the venv, installs deps,
+   and rewrites `env.sh`. You must still update the SSH port manually in
+   `~/.ssh/config` when the pod restarts.
+
+Whichever option you pick, the persistent volume layout and `env.sh` contract are
+the same (and `usa_states_full_runpod.yml` already points
+`env_activate_cmd: source /workspace/graphs/giuseppe/env.sh`).
+
+#### Verifying the Neuronpedia stack
+
+After the pod finishes bootstrapping:
+
+1. SSH in (`ssh runpod-gpu`).
+2. Run:
+   ```bash
+   source /workspace/graphs/giuseppe/env.sh
+   python -c "import sae_lens, nnterp; print('remote env ok')"
+   ```
+3. Start the pilot from your laptop:
+   ```bash
+   python scripts/experiments/supernode_swap/pilots/texas_steering_pilot.py
+   ```
+4. Inspect `/workspace/graphs/giuseppe/logs` on the pod if steering_dump.json
+   fails to download.
+
+With the custom image (option 1) the SSH port stays fixed (70022) thanks to
+RunPod’s symmetric mapping, so your Windows ssh config never needs editing
+again.
+
 ### Sequence Diagram (Texas Steering Pilot)
 
 ```mermaid

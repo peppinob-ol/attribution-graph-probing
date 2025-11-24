@@ -236,6 +236,41 @@ compute:
 - Batch manifest + per-seed summaries (manifest.json records batch_id/gpu/log paths)
 - Configurable SAE cache persistence (reuse clt-hp layers without re-downloading)
 
+### RunPod-specific notes
+
+For pods created on RunPod, use the dedicated config
+`configs/usa_states_full_runpod.yml`. There are two ways to prepare pods:
+
+1. **Custom image (preferred)** – build `docker/runpod/Dockerfile`, push it to
+   a registry, and point your RunPod template at that image. The entrypoint
+   handles sshd (with symmetric port mapping), repo cloning, venv creation, and
+   installs `sae-lens` + `nnterp`. Full instructions live in
+   `docs/runpod_docker.md`.
+2. **Manual bootstrap** – copy `scripts/runpod_bootstrap_template.sh` to the
+   persistent volume and run it after each restart.
+
+Either way, the config assumes the volume layout below:
+
+- `compute.remote.base_dir: /workspace/graphs/giuseppe`
+- `repo_dir: /workspace/graphs/giuseppe/attribution-graph-probing`
+- `logs_dir: /workspace/graphs/giuseppe/logs`
+- `env_activate_cmd: source /workspace/graphs/giuseppe/env.sh`
+
+Operational checklist:
+
+1. **SSH** – if you use the custom image with symmetric port mapping, keep
+   `~/.ssh/config` fixed at `Port 70022`. If you use manual bootstrap, update
+   the port after each restart.
+2. **Bootstrap** – either let the image entrypoint run automatically (option 1)
+   or run the bootstrap script once per fresh pod (option 2).
+3. **Verify** – SSH into the pod, run
+   `source /workspace/graphs/giuseppe/env.sh` followed by
+   `python -c "import sae_lens, nnterp; print('remote env ok')"` to confirm the
+   environment matches what `batch_steering.py` expects.
+
+After these steps you can launch both batch runs and steering pilots from your
+local machine without touching the pod configuration again.
+
 ## Future Work
 
 ### Parallel Seed Processing

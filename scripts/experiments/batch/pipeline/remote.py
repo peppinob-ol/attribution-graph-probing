@@ -210,8 +210,9 @@ class RemoteExecutor:
         rc, stdout, stderr = self.ssh_run(cmd, timeout=10)
         
         if rc != 0:
-            print(f"ERROR: Failed to query nvidia-smi: {stderr}")
-            return None
+            warning = stderr.strip() or "nvidia-smi unavailable"
+            print(f"WARNING: Failed to query nvidia-smi: {warning}")
+            return self._fallback_gpu_index()
 
         gpu_rows = []
         for line in stdout.strip().split('\n'):
@@ -323,6 +324,22 @@ class RemoteExecutor:
             f"{chosen_row['index']} (memory {chosen_row['memory']} MB)."
         )
         return chosen_row["index"]
+
+    def _fallback_gpu_index(self) -> Optional[int]:
+        """
+        Return a best-effort GPU index when nvidia-smi is unavailable.
+        Prefers user-specified compute.remote.gpus list, otherwise GPU 0.
+        """
+        manual_gpus = self.remote_config.get("gpus")
+        if isinstance(manual_gpus, list) and manual_gpus:
+            try:
+                fallback = int(manual_gpus[0])
+                print(f"  [REMOTE] Falling back to configured GPU {fallback}")
+                return fallback
+            except (ValueError, TypeError):
+                pass
+        print("  [REMOTE] Falling back to GPU 0 (nvidia-smi unavailable)")
+        return 0
     
     def acquire_gpu_lock(self, gpu_id: int) -> bool:
         """

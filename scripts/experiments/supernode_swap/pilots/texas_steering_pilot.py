@@ -47,7 +47,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Texas steering pilot via remote GPU.")
     parser.add_argument(
         "--config",
-        default="scripts/experiments/batch/configs/usa_states_full.yml",
+        default="scripts/experiments/batch/configs/usa_states_full_runpod.yml",
         help="Batch config YAML (used to read model + remote settings).",
     )
     parser.add_argument("--slug", default="texas_Dallas", help="Seed slug")
@@ -137,7 +137,7 @@ def main() -> None:
     # Ensure steering config exists and default to CPU-backed steering for pilots
     steering_cfg = config.setdefault("steering", {})
     steering_cfg.setdefault("device", "cpu")
-    steering_cfg.setdefault("n_tokens", 4)
+    steering_cfg.setdefault("n_tokens", 3)
 
     slug_paths = derive_paths(args.slug)
     outputs_dir = Path(args.outputs_dir)
