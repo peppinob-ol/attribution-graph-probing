@@ -10,10 +10,8 @@ LOG_PREFIX="[RUNPOD]"
 echo "$LOG_PREFIX Using APP_ROOT=$APP_ROOT"
 mkdir -p "${APP_ROOT}/logs" "${APP_ROOT}/hf_cache"
 
-###############################################################################
-# SSHD setup (symmetric port mapping when RUNPOD_TCP_PORT_70022 is provided)
-###############################################################################
-SSH_PORT="${RUNPOD_TCP_PORT_70022:-22}"
+# Expected symmetric port passed from RunPod via RUNPOD_TCP_PORT_55222.
+SSH_PORT="${RUNPOD_TCP_PORT_55222:-55222}"
 echo "$LOG_PREFIX Configuring sshd on port ${SSH_PORT}"
 
 cat >/etc/ssh/sshd_config <<EOF
