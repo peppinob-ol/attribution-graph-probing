@@ -10,8 +10,8 @@ LOG_PREFIX="[RUNPOD]"
 echo "$LOG_PREFIX Using APP_ROOT=$APP_ROOT"
 mkdir -p "${APP_ROOT}/logs" "${APP_ROOT}/hf_cache"
 
-# Expected symmetric port passed from RunPod via RUNPOD_TCP_PORT_55222.
-SSH_PORT="${RUNPOD_TCP_PORT_55222:-55222}"
+# Always bind sshd to the standard port 22; RunPod maps external ports as needed.
+SSH_PORT=22
 echo "$LOG_PREFIX Configuring sshd on port ${SSH_PORT}"
 
 cat >/etc/ssh/sshd_config <<EOF
@@ -57,8 +57,8 @@ else
 fi
 
 if [ ! -d "$VENV_DIR" ]; then
-  echo "$LOG_PREFIX Creating virtualenv at $VENV_DIR"
-  python3 -m venv "$VENV_DIR"
+  echo "$LOG_PREFIX Creating virtualenv at $VENV_DIR (linking system packages)"
+  python3 -m venv --system-site-packages "$VENV_DIR"
 fi
 
 echo "$LOG_PREFIX Activating virtualenv"
@@ -76,13 +76,6 @@ fi
 
 echo "$LOG_PREFIX Installing sae-lens"
 pip install --upgrade sae-lens
-
-if [ -n "${GITHUB_TOKEN:-}" ]; then
-  echo "$LOG_PREFIX Installing nnterp with provided GITHUB_TOKEN"
-  pip install --upgrade "git+https://${GITHUB_TOKEN}@github.com/Oldunein/nnterp.git"
-else
-  echo "$LOG_PREFIX NOTE: GITHUB_TOKEN not set; nnterp not installed"
-fi
 
 echo "$LOG_PREFIX Writing env activator to $ENV_FILE"
 cat >"$ENV_FILE" <<'EOF'

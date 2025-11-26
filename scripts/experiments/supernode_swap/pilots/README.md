@@ -1,184 +1,509 @@
 ## Supernode Swap Pilots
 
-This directory contains small, focused pilot scripts used to validate and
-debug supernode-level interventions before scaling to full experiments.
+This directory contains pilot scripts for validating supernode-level interventions
+using **Circuit Tracer's ReplacementModel** before scaling to full experiments.
 
 ### Files
 
-- `texas_ablation_pilot.py`  
-  - Runs **per-supernode ablations** for the Texas seed
-    (`texas_Dallas` / Austin) using the public Neuronpedia `/steer` API
-    (for SAE sets that are API-available).  
-  - For a single prompt (`"The capital of the state containing Dallas is"`),
-    it:
-    - Loads `node_grouping.csv` and `graph_feature_static_metrics.csv`.  
-    - Extracts multiple supernodes (including `"texas"`) from grouping.  
-    - Computes static influence scores per supernode.  
-    - Sweeps over a set of multiplicative factors `M` and measures how much
-      the logprob of the Austin token changes for each ablation.
+- `texas_steering_pilot_ct.py`
+  - Runs **CT feature interventions** using Circuit Tracer's
+    `ReplacementModel.feature_intervention_generate()`.
+  - **Dual-graph support**: Ablate concept from one graph, amplify concept from another graph.
+  - **Stored activations**: Uses activations from `graph.json` (no redundant forward pass).
+  - Supports both local execution (with GPU) and remote execution via ELEUTHERAI_NODE.
 
-- `texas_steering_pilot.py`  
-  - Runs **full steering with `clt-hp`**, using the Neuronpedia inference
-    code on a remote GPU node (no public API).  
-  - For the same Texas prompt, it:
-    - Extracts the `"texas"` supernode locally via `03_neuronpedia_steering.py`.  
-    - Converts its features into per-feature steering strengths.  
-    - Writes `prompts.json` and `features.json` under
-      `output/steering_pilots/texas/`.  
-    - Uses the remote steering helper to call
-      `scripts/neuronpedia_steering/batch_steering.py` on the GPU node
-      (which internally runs `run_batched_generate` with `clt-hp`).  
-    - Downloads `steering_dump.json` and prints the STEERED/DEFAULT texts
-      and the logprob delta for the Austin token.
+---
 
-### High-Level Sequence (Texas Steering Pilot)
+## Quick Start: Texas -> California Swap
 
-The steering pilot uses the following flow:
+```bash
+# Ablate "texas" features, amplify "california" features
+python scripts/experiments/supernode_swap/pilots/texas_steering_pilot_ct.py \
+    --remote \
+    --graph-dir output/usa_states_batch/texas_Dallas \
+    --graph-dir-to output/usa_states_batch/california_Oakland \
+    --concept-from texas \
+    --concept-to california \
+    --M-ablate 0.0 \
+    --M-amplify 2.0
+```
 
-1. **Local laptop**
-   - You run:
-     - `python scripts/experiments/supernode_swap/pilots/texas_steering_pilot.py`
-   - The pilot:
-     - Reads `usa_states_full.yml` to get model/source set and remote config.  
-     - Reads Texas `node_grouping.csv` and `graph_feature_static_metrics.csv`.  
-     - Uses `extract_concept_supernode("texas")` to get the Texas supernode.  
-     - Uses `compute_supernode_strengths` to produce feature strengths.  
-     - Writes:
-       - `prompts.json` with the Dallas prompt.  
-       - `features.json` describing steering features.
+This will:
+1. Load Texas graph -> extract "texas" supernode features -> ablate (M=0)
+2. Load California graph -> extract "california" supernode features -> amplify (M=2)
+3. Use prompt from Texas graph: `"<bos>The capital of the state containing Dallas is"`
+4. Run steering on remote GPU
 
-2. **Remote steering orchestration**
-   - The pilot calls
-     `experiments.batch.pipeline.steering_remote.process_remote_steering_step`.  
-   - `RemoteExecutor.run_remote_steering`:
-     - Creates a remote experiment directory (e.g. `$BASE/steering/texas_Dallas`).  
-     - Uploads `prompts.json` and `features.json` via `scp`.  
-     - Finds a free GPU (`nvidia-smi`), acquires a lock, and builds a tiny
-       shell script to run steering.  
-     - The script activates the remote environment, sets env variables
-       (`MODEL_ID`, `SOURCE_SET=clt-hp`, `PROMPTS_JSON_PATH`, etc.), and then
-       runs:
-       - `python scripts/neuronpedia_steering/batch_steering.py 2>&1 | tee ...`
+---
 
-3. **Remote GPU node (`batch_steering.py`)**
-   - `batch_steering.py`:
-     - Clones (or reuses) the Neuronpedia repo under `NP_WORKDIR`.  
-     - Adds `apps/inference` and `neuronpedia-inference-client` to `sys.path`.  
-     - Initializes `Config`, `Model`, and `SAEManager` for `MODEL_ID` +
-       `SOURCE_SET="clt-hp"`.  
-     - Loads prompts via `load_prompts(prompts.json)`.  
-     - Loads steering features (`source`, `index`, `strength`) and converts
-       them into `NPSteerFeature` objects.  
-     - Calls `process_features_vectorized` to compute steering vectors
-       from the CLT decoder (`W_dec`).  
-     - For each prompt, calls `run_batched_generate` with:
-       - `STEERED` and `DEFAULT` types,  
-       - `NPSteerMethod` (e.g. `ORTHOGONAL_DECOMP`),  
-       - `strength_multiplier`, `seed`, `temperature`, `freq_penalty`, etc.  
-     - Parses the SSE-style generator output into a
-       `steering_dump.json` containing STEERED/DEFAULT texts and logprobs.
+## Circuit Tracer Steering Overview
 
-4. **Back to local laptop**
-   - `RemoteExecutor.run_remote_steering`:
-     - Downloads `steering_dump.json` and the remote log file to the local
-       `outputs_dir`.  
-   - `texas_steering_pilot.py`:
-     - Loads `steering_dump.json`, prints the prompt and the STEERED/DEFAULT
-       continuations.  
-     - Looks up the logprob of the Austin token in both STEERED and DEFAULT
-       logprobs and prints the delta.
+Circuit Tracer steering differs fundamentally from SAE-based steering:
 
-This setup lets you validate CLT-based steering end-to-end on a single
-case (Texas/Dallas/Austin) using the exact Neuronpedia inference code,
-before scaling up to 50×50 state-swap experiments.
+| Aspect | SAE-based Steering | Circuit Tracer |
+|--------|-------------------|----------------|
+| Model | HookedTransformer + SAE | ReplacementModel + CLT |
+| Intervention | Add steering vector to single hook point | Modify feature activation, decoder writes to ALL subsequent layers |
+| Position | Global (all tokens) | Position-specific |
+| Method | `activations += coeff * steering_vector` | `feature_intervention_generate(intervention_tuples)` |
+| Cross-layer | No | Yes (CLT decoder writes to layers L+1...N) |
 
-### RunPod GPU setup (Texas steering)
+### Cross-Layer Transcoder (CLT)
 
-You now have **two** ways to prep RunPod pods:
+The CLT encodes features at one layer and decodes to ALL subsequent layers:
 
-1. **Custom image (recommended)** – build the Dockerfile at
-   `docker/runpod/Dockerfile`, push it to your registry, and use it in your
-   RunPod template. The entrypoint automatically configures sshd with symmetric
-   port mapping, clones the repo to the persistent volume, creates/updates the
-   venv, installs `sae-lens` + `nnterp`, and writes `/workspace/graphs/giuseppe/env.sh`.
-   Details and build instructions live in `docs/runpod_docker.md`.
+```
+Layer L feature f activates -> CLT decoder writes to:
+  - Layer L+1 residual stream
+  - Layer L+2 residual stream
+  - ...
+  - Layer N residual stream
+```
 
-2. **Manual bootstrap (legacy fallback)** – if you prefer the original flow,
-   copy `scripts/runpod_bootstrap_template.sh` to
-   `/workspace/graphs/giuseppe/runpod_bootstrap.sh` on the volume and run it
-   after each pod restart. It installs sshd, builds the venv, installs deps,
-   and rewrites `env.sh`. You must still update the SSH port manually in
-   `~/.ssh/config` when the pod restarts.
+This means modifying a single feature can affect many downstream layers simultaneously.
 
-Whichever option you pick, the persistent volume layout and `env.sh` contract are
-the same (and `usa_states_full_runpod.yml` already points
-`env_activate_cmd: source /workspace/graphs/giuseppe/env.sh`).
+---
 
-#### Verifying the Neuronpedia stack
+## Input Data Requirements
 
-After the pod finishes bootstrapping:
+### Required Files Structure
 
-1. SSH in (`ssh runpod-gpu`).
-2. Run:
-   ```bash
-   source /workspace/graphs/giuseppe/env.sh
-   python -c "import sae_lens, nnterp; print('remote env ok')"
-   ```
-3. Start the pilot from your laptop:
-   ```bash
-   python scripts/experiments/supernode_swap/pilots/texas_steering_pilot.py
-   ```
-4. Inspect `/workspace/graphs/giuseppe/logs` on the pod if steering_dump.json
-   fails to download.
+```
+graph_dir/
+  |-- 00 Graph Generation/
+  |     |-- graph.json              # Graph with prompt + stored activations
+  |     |-- graph_feature_static_metrics.csv  # Feature influence scores
+  |
+  |-- 02 Node Grouping/
+        |-- node_grouping.csv       # Feature -> supernode mapping
+```
 
-With the custom image (option 1) the SSH port stays fixed (70022) thanks to
-RunPod’s symmetric mapping, so your Windows ssh config never needs editing
-again.
+### Dual-Graph Support
 
-### Sequence Diagram (Texas Steering Pilot)
+For concept swapping (e.g., Texas -> California), you need TWO graphs:
+
+```
+--graph-dir output/usa_states_batch/texas_Dallas      # Source: ablate "texas"
+--graph-dir-to output/usa_states_batch/california_Oakland  # Target: amplify "california"
+```
+
+### 1. `graph.json` (Primary Data Source)
+
+The **prompt** and **stored activations** come from `graph.json`:
+
+```json
+{
+  "metadata": {
+    "prompt": "<bos>The capital of the state containing Dallas is",
+    "info": {
+      "model_id": "google/gemma-2-2b",
+      "transcoder_set": "mntss/clt-gemma-2-2b-2.5M"
+    }
+  },
+  "nodes": [
+    {
+      "node_id": "0_1861_7",
+      "activation": 1.8438
+    }
+  ]
+}
+```
+
+**Parsing `node_id`**: `"0_1861_7"` -> layer=0, feature=1861, position=7
+
+This eliminates the need for `get_activations()` at steering time!
+
+### 2. `node_grouping.csv`
+
+Maps features to conceptual supernodes:
+
+| seed_slug | feature_id | layer | position | supernode_id | supernode_label |
+|-----------|------------|-------|----------|--------------|-----------------|
+| texas_Dallas | 0_12345 | 0 | 5 | 1 | texas |
+| texas_Dallas | 7_67890 | 7 | 5 | 1 | texas |
+
+### 3. `graph_feature_static_metrics.csv`
+
+Contains influence scores per feature:
+
+| seed_slug | feature_id | layer | static_influence |
+|-----------|------------|-------|------------------|
+| texas_Dallas | 0_12345 | 0 | 0.0432 |
+| texas_Dallas | 7_67890 | 7 | 0.1256 |
+
+### 4. `graph.json` (metadata)
+
+```json
+{
+  "metadata": {
+    "info": {
+      "model_id": "google/gemma-2-2b",
+      "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",
+      "source_urls": [...]
+    }
+  }
+}
+```
+
+---
+
+## Output: `features.json` (CT Intervention Format)
+
+The pilot prepares interventions in Circuit Tracer format, following the original demo:
+
+```json
+[
+  {
+    "layer": 0,
+    "index": 1861,
+    "position": 7,
+    "M": 0.0,
+    "steer_generated_tokens": true,
+    "stored_activation": 1.8438
+  },
+  {
+    "layer": 7,
+    "index": 86167,
+    "position": 7,
+    "M": 2.0,
+    "steer_generated_tokens": true,
+    "stored_activation": 17.17
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `layer` | int | CLT encoder layer (0 to N-1) |
+| `index` | int | Feature index in transcoder (0 to d_transcoder-1) |
+| `position` | int | Token position (from graph.json node_id) |
+| `M` | float | Multiplicative factor: `new_value = M * activation` |
+| `steer_generated_tokens` | bool | If true, apply to all generated tokens |
+| `stored_activation` | float | **NEW**: Pre-computed activation from graph.json |
+
+**M values** (following original demo):
+- `M=0`: Full ablation (set to 0)
+- `M=1`: No change
+- `M=2`: Double the activation
+- `M=10`: 10x amplification (like in the demo)
+- `M=-1`: Negate the activation (reverse direction)
+- `M=-2`: Double and reverse
+
+---
+
+## Output: `steering_dump.json`
+
+Results after steering:
+
+```json
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "test_0",
+      "prompt": "The capital of the state containing Dallas is",
+      "steered": "The capital of the state containing Dallas is Tallahassee...",
+      "default": "The capital of the state containing Dallas is Austin...",
+      "steered_topk": [{"token": " Tall", "prob": 0.85}, ...],
+      "default_topk": [{"token": " Austin", "prob": 0.92}, ...],
+      "intervention_count": 15
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 32,
+    "freeze_attention": false
+  }
+}
+```
+
+---
+
+## Sequence Diagram: CT Steering Flow (Dual-Graph + Stored Activations)
 
 ```mermaid
 sequenceDiagram
-    participant U as User laptop
-    participant P as texas_steering_pilot.py
-    participant R as RemoteExecutor/SSH
-    participant N as Remote GPU (batch_steering.py)
-    participant I as Neuronpedia Inference (Model+SAE)
+    participant U as User (laptop)
+    participant P as texas_steering_pilot_ct.py
+    participant CT as 03_ct_steering.py
+    participant R as steering_remote_ct.py
+    participant SSH as RemoteExecutor/SSH
+    participant G as Remote GPU Node
+    participant B as batch_steering_ct.py
+    participant M as ReplacementModel (circuit_tracer)
 
-    U->>P: Run texas_steering_pilot.py
-    P->>P: Load config (usa_states_full.yml)
-    P->>P: Read node_grouping.csv & graph_feature_static_metrics.csv
-    P->>P: extract_concept_supernode(\"texas\")
-    P->>P: compute_supernode_strengths(M)
-    P->>P: Write prompts.json & features.json
+    Note over U,M: PHASE 1: Local Preparation (Dual-Graph)
 
-    P->>R: process_remote_steering_step(config, seed, paths)
-    R->>R: Create remote dirs (steering/slug, logs, .locks)
-    R->>R: Upload prompts.json & features.json (scp)
-    R->>R: Find free GPU via nvidia-smi
-    R->>R: Acquire GPU lock (if non-Windows)
+    U->>P: Run with --graph-dir texas --graph-dir-to california
+    P->>P: Load config (concepts, M_ablate/amplify)
+    
+    P->>P: load_graph_data(texas_Dallas)
+    Note right of P: Reads graph.json -> prompt + activations_map<br/>node_grouping.csv -> supernodes
 
-    R->>R: Build run_steering.sh with env + CUDA_VISIBLE_DEVICES
-    R->>R: SSH chmod +x & execute run_steering.sh
+    P->>P: load_graph_data(california_Oakland)
+    Note right of P: Reads graph.json -> activations_map<br/>node_grouping.csv -> supernodes
 
-    R->>N: CUDA_VISIBLE_DEVICES=GPU python batch_steering.py
-    N->>N: ensure_repo() & setup_sys_path()
-    N->>I: initialize_inference_stack(MODEL_ID, SOURCE_SET=\"clt-hp\")
-    N->>N: load_prompts() & load_steering_features()
-    N->>I: process_features_vectorized(NPSteerFeature[])
-    N->>I: run_batched_generate(prompt, features, STEERED+DEFAULT)
-    I-->>N: SSE chunks with output/logprobs
-    N->>N: remove_sse_formatting() & parse JSON
-    N->>N: Write steering_dump.json
+    P->>CT: extract_ct_supernode("texas", texas_data)
+    CT-->>P: CTSupernodeSpec (texas features)
 
-    N-->>R: steering_dump.json & logs on remote disk
-    R->>R: Download steering_dump.json & log (scp)
-    R-->>P: success, metadata
+    P->>CT: compute_ct_interventions(texas, M=0.0, activations_map)
+    CT-->>P: List with {layer, index, position, M, stored_activation}
 
-    P->>P: Load steering_dump.json
-    P->>P: Print STEERED/DEFAULT texts
-    P->>P: Compare logprob for \" Austin\" (delta)
-    P-->>U: Display steering effects for analysis
+    P->>CT: extract_ct_supernode("california", california_data)
+    CT-->>P: CTSupernodeSpec (california features)
+
+    P->>CT: compute_ct_interventions(california, M=2.0, activations_map)
+    CT-->>P: List with {layer, index, position, M, stored_activation}
+
+    P->>P: Write prompts.json, features.json (with stored_activation)
+    Note right of P: Prompt from texas graph.json<br/>Features include stored_activation
+
+    Note over U,M: PHASE 2: Remote Execution
+
+    P->>R: execute_remote_ct_steering(work_dir, config)
+    R->>SSH: Upload files, acquire GPU lock
+    SSH->>G: Execute batch_steering_ct.py
+
+    Note over G,M: PHASE 3: GPU Inference (Optimized)
+
+    G->>B: CUDA_VISIBLE_DEVICES=0 python batch_steering_ct.py
+    B->>M: load_replacement_model(model_id, transcoder_set)
+
+    B->>B: load_ct_features(features.json)
+    Note right of B: All features have stored_activation!
+
+    loop For each prompt
+        B->>B: Check: all features have stored_activation?
+        Note right of B: YES -> SKIP get_activations()!
+        
+        B->>B: build_intervention_tuples(features, None, seq_len)
+        Note right of B: Uses stored_activation directly<br/>new_value = M * stored_activation
+
+        B->>M: model.generate(prompt) -> default_text
+        M-->>B: default generation
+
+        B->>M: model.feature_intervention_generate(prompt, intervention_tuples)
+        Note right of M: CLT decoder writes to layers L+1...N
+
+        M-->>B: (steered_tokens, steered_logits)
+    end
+
+    B->>G: Write steering_dump.json
+    G-->>SSH: Execution complete
+
+    Note over U,M: PHASE 4: Results Download
+
+    SSH->>G: rsync steering_dump.json
+    SSH-->>P: results dict
+    P->>U: Print: steered vs default comparison
 ```
 
+---
 
+## Key Code Flow in `batch_steering_ct.py`
+
+### 1. Build Intervention Tuples (with Stored Activations)
+
+```python
+def build_intervention_tuples(features, activations, sequence_length):
+    """
+    If stored_activation is available, use it directly (no get_activations needed).
+    Otherwise, fall back to live activations tensor.
+    """
+    intervention_tuples = []
+    for feat in features:
+        token_pos = sequence_length + feat.position if feat.position < 0 else feat.position
+        
+        # Prefer stored_activation from graph.json (OPTIMIZATION)
+        if feat.stored_activation is not None:
+            original_value = feat.stored_activation  # From graph.json
+        elif activations is not None:
+            original_value = activations[feat.layer, token_pos, feat.index]  # Live
+        else:
+            original_value = 0.0
+        
+        # Compute new value: new_value = M * activation
+        new_value = feat.M * original_value
+        
+        # Position for steering (slice for generated tokens)
+        if feat.steer_generated_tokens:
+            steer_pos = slice(sequence_length, None)  # All generated tokens
+        else:
+            steer_pos = token_pos
+        
+        intervention_tuples.append((feat.layer, steer_pos, feat.index, new_value))
+    
+    return intervention_tuples
+```
+
+### 2. Skip get_activations() When Possible
+
+```python
+def run_ct_generation(prompt, features, model, ...):
+    # Check if all features have stored_activation
+    if all(f.stored_activation is not None for f in features):
+        activations = None  # SKIP get_activations() - saves a forward pass!
+        print("[OPTIMIZATION] Using stored activations from graph.json")
+    else:
+        _, activations = model.get_activations(prompt, sparse=True)
+    
+    intervention_tuples = build_intervention_tuples(features, activations, seq_len)
+    ...
+```
+
+### 2. Feature Intervention Generate (circuit_tracer)
+
+Inside `ReplacementModel.feature_intervention_generate()`:
+
+```python
+# Simplified from circuit_tracer/replacement_model.py
+def _get_feature_intervention_hooks(intervention_tuples):
+    # For each layer, accumulate deltas
+    layer_deltas = torch.zeros(n_layers, seq_len, d_model)
+    
+    for (layer, pos, feat_idx, new_value) in intervention_tuples:
+        # Get CLT decoder vectors (writes to ALL subsequent layers)
+        decoder_vectors = clt.W_dec[layer][feat_idx]  # shape: [n_remaining_layers, d_model]
+        
+        # Scale by intervention value
+        decoder_vectors = decoder_vectors * new_value
+        
+        # Add to all downstream layers
+        layer_deltas[layer+1:, pos] += decoder_vectors
+    
+    # Return hooks that add these deltas during forward pass
+```
+
+---
+
+## Usage
+
+### 1. Simple Ablation (Single Graph)
+
+Ablate "texas" features only:
+
+```bash
+python scripts/experiments/supernode_swap/pilots/texas_steering_pilot_ct.py \
+    --remote \
+    --graph-dir output/usa_states_batch/texas_Dallas \
+    --concept-from texas \
+    --M-ablate 0.0
+```
+
+### 2. Concept Swap (Dual Graph) - Texas -> California
+
+Ablate "texas" from Texas graph, amplify "california" from California graph:
+
+```bash
+python scripts/experiments/supernode_swap/pilots/texas_steering_pilot_ct.py \
+    --remote \
+    --graph-dir output/usa_states_batch/texas_Dallas \
+    --graph-dir-to output/usa_states_batch/california_Oakland \
+    --concept-from texas \
+    --concept-to california \
+    --M-ablate 0.0 \
+    --M-amplify 2.0
+```
+
+**Expected behavior:**
+- Prompt: `"<bos>The capital of the state containing Dallas is"` (from Texas graph)
+- Default output: `"Austin"` (Texas capital)
+- Steered output: `"Sacramento"` (California capital) or disrupted
+
+### 3. Negative M (Reverse Direction)
+
+```bash
+python scripts/experiments/supernode_swap/pilots/texas_steering_pilot_ct.py \
+    --remote \
+    --graph-dir output/usa_states_batch/texas_Dallas \
+    --concept-from texas \
+    --M-ablate -2.0  # Reverse and double
+```
+
+### 4. Local Execution (requires GPU + circuit_tracer)
+
+```bash
+python scripts/experiments/supernode_swap/pilots/texas_steering_pilot_ct.py \
+    --local \
+    --graph-dir output/usa_states_batch/texas_Dallas \
+    --concept-from texas \
+    --M-ablate 0.0
+```
+
+### 5. Dry Run (prepare files only)
+
+```bash
+python scripts/experiments/supernode_swap/pilots/texas_steering_pilot_ct.py \
+    --dry-run \
+    --graph-dir output/usa_states_batch/texas_Dallas \
+    --graph-dir-to output/usa_states_batch/california_Oakland \
+    --concept-from texas \
+    --concept-to california
+```
+
+---
+
+## Remote Node Setup (ELEUTHERAI_NODE)
+
+Before running remote steering, ensure the node has:
+
+1. **Python environment** with circuit_tracer:
+   ```bash
+   source /path/to/env.sh
+   pip install circuit_tracer
+   ```
+
+2. **HuggingFace token** for gated models (gemma-2):
+   ```bash
+   export HF_TOKEN=hf_...
+   ```
+
+3. **Repository cloned** at expected path:
+   ```bash
+   git clone https://github.com/your-org/circuit_tracer-prompt_rover.git
+   ```
+
+4. **env.sh** with correct paths:
+   ```bash
+   export HF_TOKEN=hf_...
+   export PYTHONPATH=/path/to/circuit_tracer-prompt_rover/scripts:$PYTHONPATH
+   ```
+
+---
+
+## Intervention Math
+
+Following the original circuit_tracer demo, for a feature `f` at layer `L`:
+
+```python
+# Original demo approach (now implemented)
+new_value = M * activations[layer, pos, feature_idx]
+```
+
+**Ablation (M=0):**
+```
+new_value = 0 * a_orig = 0.0
+effect = -a_orig * decoder_vectors[f]  # Removes feature contribution
+```
+
+**No Change (M=1):**
+```
+new_value = 1 * a_orig = a_orig
+effect = 0  # No change
+```
+
+**Amplification (M=2):**
+```
+new_value = 2 * a_orig
+effect = +a_orig * decoder_vectors[f]  # Doubles feature contribution
+```
+
+**10x Amplification (M=10, like demo):**
+```
+new_value = 10 * a_orig
+effect = +9 * a_orig * decoder_vectors[f]  # Strong amplification
+```
+
+The decoder vectors are applied to ALL layers from L+1 to N, making this a cross-layer intervention.

@@ -49,13 +49,6 @@ fi
 echo "$LOG_PREFIX Installing sae-lens..."
 pip install --upgrade sae-lens
 
-if [ -n "${GITHUB_TOKEN:-}" ]; then
-    echo "$LOG_PREFIX Installing nnterp from GitHub..."
-    pip install --upgrade "git+https://${GITHUB_TOKEN}@github.com/Oldunein/nnterp.git"
-else
-    echo "$LOG_PREFIX WARNING: GITHUB_TOKEN not set; nnterp installation skipped."
-fi
-
 echo "$LOG_PREFIX Writing $ENV_FILE"
 cat > "$ENV_FILE" <<'EOF'
 source /workspace/graphs/giuseppe/attribution-graph-probing/.venv/bin/activate

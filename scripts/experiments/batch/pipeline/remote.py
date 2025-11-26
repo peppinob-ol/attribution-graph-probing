@@ -38,6 +38,13 @@ class RemoteExecutor:
         if not host_value:
             raise ValueError("compute.remote requires host or host_env")
         self.host = host_value
+        port_value = self.remote_config.get('port')
+        port_env = self.remote_config.get('port_env')
+        if port_env:
+            env_port = os.environ.get(port_env)
+            if env_port:
+                port_value = env_port
+        self.port = str(port_value) if port_value else None
         self.user = self.remote_config['user']
         self.base_dir = self.remote_config['base_dir']
         self.repo_dir = self.remote_config['repo_dir']
@@ -72,7 +79,10 @@ class RemoteExecutor:
         
         # Use list form (works on all platforms)
         # Pass command as single argument to SSH
-        ssh_cmd = ['ssh', '-o', 'StrictHostKeyChecking=no', self.ssh_target, cmd]
+        ssh_cmd = ['ssh', '-o', 'StrictHostKeyChecking=no']
+        if self.port:
+            ssh_cmd.extend(['-p', self.port])
+        ssh_cmd.extend([self.ssh_target, cmd])
         
         try:
             result = subprocess.run(
@@ -114,7 +124,10 @@ class RemoteExecutor:
         
         # Use scp (more widely available than rsync on Windows)
         # On Windows, assume SSH key-based auth (no sshpass)
-        scp_cmd = ['scp', '-o', 'StrictHostKeyChecking=no', '-r', str(local_path), remote_target]
+        scp_cmd = ['scp', '-o', 'StrictHostKeyChecking=no']
+        if self.port:
+            scp_cmd.extend(['-P', self.port])
+        scp_cmd.extend(['-r', str(local_path), remote_target])
         
         try:
             result = subprocess.run(
@@ -152,7 +165,10 @@ class RemoteExecutor:
         remote_target = f"{self.ssh_target}:{remote_path}"
         
         # On Windows, assume SSH key-based auth (no sshpass)
-        scp_cmd = ['scp', '-o', 'StrictHostKeyChecking=no', '-r', remote_target, str(local_path)]
+        scp_cmd = ['scp', '-o', 'StrictHostKeyChecking=no']
+        if self.port:
+            scp_cmd.extend(['-P', self.port])
+        scp_cmd.extend(['-r', remote_target, str(local_path)])
         
         try:
             result = subprocess.run(

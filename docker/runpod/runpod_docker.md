@@ -2,9 +2,9 @@
 
 This guide shows how to build and use a custom container image that boots with
 everything pre-configured for the Texas steering pilot and batch pipelines. The
-container handles SSH, virtualenv creation, dependency installation (`sae-lens`,
-`nnterp`), and `env.sh` generation automatically using the persistent volume
-mounted at `/workspace/graphs/giuseppe`.
+container handles SSH, virtualenv creation, dependency installation (`sae-lens`),
+and `env.sh` generation automatically using the persistent volume mounted at
+`/workspace/graphs/giuseppe`.
 
 ## Directory layout
 
@@ -23,7 +23,7 @@ on first boot):
 ```
 /workspace/graphs/giuseppe/
 ├── attribution-graph-probing/      # repo checkout (cloned if missing)
-├── attribution-graph-probing/.venv # virtualenv with requirements + sae-lens + nnterp
+├── attribution-graph-probing/.venv # virtualenv with requirements + sae-lens
 ├── env.sh                          # activation script (source this on the pod)
 ├── hf_cache/                       # HuggingFace cache
 └── logs/                           # remote logs
@@ -53,8 +53,8 @@ When creating the pod template:
 
 1. **Image**: use the tag you pushed (e.g.
    `ghcr.io/<your-org>/attribution-graph-probing-runpod:latest`).
-2. **Expose TCP Ports**: add `70022`. RunPod will set
-   `RUNPOD_TCP_PORT_70022` at runtime, and the entrypoint configures sshd to
+2. **Expose TCP Ports**: add `55222`. RunPod will set
+   `RUNPOD_TCP_PORT_55222` at runtime, and the entrypoint configures sshd to
    listen on that port so external/internal numbers match.
 3. **Volumes**:
    - Attach a network volume (same region as the pod).
@@ -62,19 +62,15 @@ When creating the pod template:
 4. **Environment variables**:
    - `PUBLIC_KEY=ssh-ed25519 AAAA...` (your Windows public key), or use
      `SSH_PUBLIC_KEY`.
-   - Optional `GITHUB_TOKEN=ghp_...` if `nnterp` is private. The entrypoint runs
-     `pip install git+https://${GITHUB_TOKEN}@github.com/Oldunein/nnterp.git`
-     when this variable is set.
 5. **Command**: leave empty; the Dockerfile already sets `CMD` to the entrypoint.
 
 Once the pod starts, the entrypoint:
 
 1. Configures sshd with the symmetric port (read from
-   `RUNPOD_TCP_PORT_70022`, fallback 22).
+   `RUNPOD_TCP_PORT_55222`, fallback 22).
 2. Writes `/root/.ssh/authorized_keys` from `PUBLIC_KEY` / `SSH_PUBLIC_KEY`.
 3. Clones the repo into the volume (if missing).
-4. Creates/updates the virtualenv, installs `requirements.txt`, `sae-lens`,
-   and `nnterp`.
+4. Creates/updates the virtualenv, installs `requirements.txt` and `sae-lens`.
 5. Writes `/workspace/graphs/giuseppe/env.sh`.
 6. Keeps the container alive via `tail -f /dev/null` for SSH access.
 
@@ -86,7 +82,7 @@ unchanged:
 ```
 Host runpod-gpu
     HostName <RunPod public IP>
-    Port 70022
+    Port 55222
     User root
     IdentityFile C:/Users/OrmaLabUser/.ssh/id_ed25519
 ```
@@ -106,7 +102,7 @@ No more port updates after restarts.
 
    ```bash
    source /workspace/graphs/giuseppe/env.sh
-   python -c "import sae_lens, nnterp; print('remote env ok')"
+   python -c "import sae_lens; print('remote env ok')"
    ```
 
 4. Run pilots or batches from your laptop using

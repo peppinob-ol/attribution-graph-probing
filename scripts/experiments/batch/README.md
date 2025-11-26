@@ -244,7 +244,7 @@ For pods created on RunPod, use the dedicated config
 1. **Custom image (preferred)** – build `docker/runpod/Dockerfile`, push it to
    a registry, and point your RunPod template at that image. The entrypoint
    handles sshd (with symmetric port mapping), repo cloning, venv creation, and
-   installs `sae-lens` + `nnterp`. Full instructions live in
+   installs `sae-lens`. Full instructions live in
    `docs/runpod_docker.md`.
 2. **Manual bootstrap** – copy `scripts/runpod_bootstrap_template.sh` to the
    persistent volume and run it after each restart.
@@ -258,14 +258,12 @@ Either way, the config assumes the volume layout below:
 
 Operational checklist:
 
-1. **SSH** – if you use the custom image with symmetric port mapping, keep
-   `~/.ssh/config` fixed at `Port 70022`. If you use manual bootstrap, update
-   the port after each restart.
+1. **SSH** – use the proxy command (`ssh <pod-id>@ssh.runpod.io …`) for quick interactive shells. For SCP/automation, copy the “SSH over exposed TCP” host + port from the RunPod UI and set `RUNPOD_HOST` and `RUNPOD_SSH_PORT` in your local shell before running the pipeline.
 2. **Bootstrap** – either let the image entrypoint run automatically (option 1)
    or run the bootstrap script once per fresh pod (option 2).
 3. **Verify** – SSH into the pod, run
    `source /workspace/graphs/giuseppe/env.sh` followed by
-   `python -c "import sae_lens, nnterp; print('remote env ok')"` to confirm the
+   `python -c "import sae_lens; print('remote env ok')"` to confirm the
    environment matches what `batch_steering.py` expects.
 
 After these steps you can launch both batch runs and steering pilots from your
