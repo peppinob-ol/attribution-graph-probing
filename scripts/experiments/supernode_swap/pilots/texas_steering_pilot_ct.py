@@ -69,15 +69,18 @@ DEFAULT_CONFIG = {
         "to": "california",   # Concept to amplify (from graph_dir_to)
     },
     "steering": {
-        "M_ablate": -2,      # Multiplier for 'from' (0=ablate, -1=reverse, etc.)
-        "M_amplify": 20,     # Multiplier for 'to' (2=double)
+        "M_ablate": -2,       # Multiplier for 'from' (0=ablate, -1=reverse, etc.)
+        "M_amplify": 20,      # Multiplier for 'to' (2=double, 5=moderate boost)
         "temperature": 0.3,
-        "n_tokens": 3,
+        "n_tokens": 6,
         "freq_penalty": 2.0,
         "seed": 42,
         "freeze_attention": False,
         "top_k": 5,
-        "steer_generated_tokens": True,
+        # steer_generated_tokens=False: steer at position=-1 (last prompt token)
+        # This affects the FIRST token prediction (e.g., Austin vs Sacramento)
+        # steer_generated_tokens=True would only affect tokens AFTER the first one
+        "steer_generated_tokens": False,
     },
     "slug": "texas_to_california",
     "graph_dir": "output/usa_states_batch/texas_Dallas",           # Graph for ablation (texas)
@@ -214,7 +217,9 @@ def prepare_ct_features_json(
     """
     features = []
 
-    # Extract 'from' supernode for ablation (from graph_from)
+    # Extract 'from' supernode for ABLATION (from graph_from)
+    # MULTIPLICATION mode: use live activations from current prompt
+    # The Texas features ARE active on the Texas/Dallas prompt, so we multiply them
     if concept_from:
         try:
             supernode_from = ct_steering.extract_ct_supernode(
@@ -223,22 +228,24 @@ def prepare_ct_features_json(
                 concept=concept_from,
                 slug=slug,
             )
-            # Pass activations_map from graph.json if available
-            activations_map_from = data_from.get("activations_map", {})
+            # For ABLATION: use live activations, not stored
+            # use_stored_as_base=False (default) means: new_value = M * live_activation
             from_interventions = ct_steering.compute_ct_interventions(
                 supernode_from, 
                 M_ablate, 
                 steer_generated_tokens=steer_generated_tokens,
-                activations_map=activations_map_from if activations_map_from else None,
+                activations_map=None,  # Don't need stored - will use live activations
+                use_stored_as_base=False,  # MULTIPLICATION mode
             )
             features.extend(from_interventions)
-            n_with_stored = sum(1 for f in from_interventions if "stored_activation" in f)
             print(f"  [ABLATE] '{concept_from}' from {data_from.get('graph_dir', 'graph_from')}: "
-                  f"{len(from_interventions)} features (M={M_ablate}, {n_with_stored} with stored activation)")
+                  f"{len(from_interventions)} features (M={M_ablate}, using LIVE activations)")
         except ValueError as e:
             print(f"  Warning: Could not extract '{concept_from}' supernode: {e}")
 
-    # Extract 'to' supernode for amplification (from graph_to, which may be different!)
+    # Extract 'to' supernode for AMPLIFICATION (from graph_to, which may be different!)
+    # INJECTION mode: use stored activations from source graph
+    # California features are NOT active on the Texas/Dallas prompt, so we inject them
     if concept_to and data_to:
         try:
             supernode_to = ct_steering.extract_ct_supernode(
@@ -247,18 +254,20 @@ def prepare_ct_features_json(
                 concept=concept_to,
                 slug=slug,
             )
-            # Pass activations_map from graph.json if available
+            # For AMPLIFICATION (cross-graph): use stored activations from source graph
+            # use_stored_as_base=True means: new_value = M * stored_activation
             activations_map_to = data_to.get("activations_map", {})
             to_interventions = ct_steering.compute_ct_interventions(
                 supernode_to, 
                 M_amplify, 
                 steer_generated_tokens=steer_generated_tokens,
                 activations_map=activations_map_to if activations_map_to else None,
+                use_stored_as_base=True,  # INJECTION mode - use stored as base
             )
             features.extend(to_interventions)
             n_with_stored = sum(1 for f in to_interventions if "stored_activation" in f)
             print(f"  [AMPLIFY] '{concept_to}' from {data_to.get('graph_dir', 'graph_to')}: "
-                  f"{len(to_interventions)} features (M={M_amplify}, {n_with_stored} with stored activation)")
+                  f"{len(to_interventions)} features (M={M_amplify}, {n_with_stored} INJECTED with stored activation)")
         except ValueError as e:
             print(f"  Warning: Could not extract '{concept_to}' supernode: {e}")
 

@@ -81,7 +81,7 @@ TOP_K = int(os.environ.get("TOP_K", "5"))
 class CTInterventionFeature:
     """A single Circuit Tracer intervention specification.
     
-    The intervention value is computed as: new_value = M * original_activation
+    The intervention value is computed as: new_value = M * base_activation
     
     M values:
         M = 0.0  : Full ablation (zero out the feature)
@@ -90,17 +90,27 @@ class CTInterventionFeature:
         M = -1.0 : Reverse the direction
         M = -2.0 : Double and reverse
     
-    If stored_activation is provided (from graph.json), it will be used directly
-    instead of calling get_activations() - this is more efficient and guarantees
-    consistency with the original graph analysis.
+    Two modes of operation:
+    
+    1. MULTIPLICATION mode (use_stored_as_base=False, default):
+       base_activation = live activation from get_activations() on current prompt
+       Use for: Ablating/inhibiting features that ARE active on the current prompt
+       Example: Reversing Texas features on a Dallas prompt
+    
+    2. INJECTION mode (use_stored_as_base=True):
+       base_activation = stored_activation from graph.json
+       Use for: Injecting features that are NOT active on the current prompt
+       Example: Amplifying California features on a Dallas prompt
+       Per Anthropic paper: "using activations significantly greater than typical"
     """
     layer: int
     index: int
     position: int  # Token position where the feature was originally active
     steer_position: Optional[int]  # Position to apply steering (None = same as position)
-    M: float  # Multiplicative factor: new_value = M * original_activation
+    M: float  # Multiplicative factor: new_value = M * base_activation
     steer_generated_tokens: bool = False  # If True, apply to all generated tokens
     stored_activation: Optional[float] = None  # Pre-computed activation from graph.json
+    use_stored_as_base: bool = False  # If True, use stored_activation as base (injection mode)
 
 
 def parse_args() -> argparse.Namespace:
@@ -229,6 +239,9 @@ def _normalize_ct_feature_list(
         stored_activation = item.get("stored_activation")
         if stored_activation is not None:
             stored_activation = float(stored_activation)
+        
+        # Injection mode: use stored_activation as base instead of live activation
+        use_stored_as_base = bool(item.get("use_stored_as_base", False))
 
         normalized.append(
             CTInterventionFeature(
@@ -239,6 +252,7 @@ def _normalize_ct_feature_list(
                 M=M,
                 steer_generated_tokens=steer_generated_tokens,
                 stored_activation=stored_activation,
+                use_stored_as_base=use_stored_as_base,
             )
         )
     return normalized
@@ -305,18 +319,31 @@ def build_intervention_tuples(
     """
     Convert CTInterventionFeature list to circuit_tracer intervention tuples.
 
+    Supports two modes per feature:
+    
+    1. MULTIPLICATION mode (use_stored_as_base=False):
+       base = live activation from get_activations() on current prompt
+       new_value = M * live_activation
+       Use for: Ablating features active on current prompt
+    
+    2. INJECTION mode (use_stored_as_base=True):
+       base = stored_activation from graph.json  
+       new_value = M * stored_activation
+       Use for: Adding features NOT active on current prompt (cross-graph steering)
+
     Args:
         features: List of intervention specifications
         activations: Sparse tensor of shape [n_layers, n_pos, d_transcoder].
-                     Can be None if all features have stored_activation.
+                     Can be None if all features use injection mode.
         sequence_length: Number of tokens in the prompt
 
     Returns:
         List of (layer, position, feature_idx, new_value) tuples
     """
     intervention_tuples = []
-    n_stored = 0
-    n_live = 0
+    n_injected = 0  # Features using stored_activation as base (injection mode)
+    n_multiplied = 0  # Features using live activation as base (multiplication mode)
+    n_fallback = 0  # Features using stored as fallback when live unavailable
 
     for feat in features:
         # Resolve negative positions
@@ -324,26 +351,41 @@ def build_intervention_tuples(
         if token_pos < 0:
             token_pos = sequence_length + token_pos
 
-        # Get activation value: prefer stored_activation from graph.json
-        if feat.stored_activation is not None:
-            original_value = feat.stored_activation
-            n_stored += 1
+        # Determine base activation value based on mode
+        if feat.use_stored_as_base:
+            # INJECTION mode: use stored_activation as base
+            # For features not active on current prompt (e.g., California on Texas prompt)
+            if feat.stored_activation is not None:
+                original_value = feat.stored_activation
+                n_injected += 1
+            else:
+                print(
+                    f"Warning: use_stored_as_base=True but no stored_activation for "
+                    f"layer={feat.layer}, index={feat.index}. Using 0.0"
+                )
+                original_value = 0.0
+                n_injected += 1
         elif activations is not None:
-            # Fall back to live activations from get_activations()
+            # MULTIPLICATION mode: use live activation from current prompt
+            # For ablating features active on current prompt
             try:
                 if activations.is_sparse:
                     dense_activations = activations.to_dense()
                 else:
                     dense_activations = activations
                 original_value = float(dense_activations[feat.layer, token_pos, feat.index])
-                n_live += 1
+                n_multiplied += 1
             except (IndexError, RuntimeError):
                 print(
-                    f"Warning: Could not get activation for layer={feat.layer}, "
+                    f"Warning: Could not get live activation for layer={feat.layer}, "
                     f"pos={token_pos}, index={feat.index}. Using 0.0"
                 )
                 original_value = 0.0
-                n_live += 1
+                n_multiplied += 1
+        elif feat.stored_activation is not None:
+            # Fallback: use stored if no live activations available
+            original_value = feat.stored_activation
+            n_fallback += 1
         else:
             print(
                 f"Warning: No stored_activation and no activations tensor for "
@@ -352,7 +394,6 @@ def build_intervention_tuples(
             original_value = 0.0
 
         # Compute new value using M (multiplicative factor)
-        # This matches the original demo: new_value = M * activations[feature]
         # M=0 means ablation, M<0 means reverse direction, M>1 means amplify
         new_value = feat.M * original_value
 
@@ -369,8 +410,16 @@ def build_intervention_tuples(
 
         intervention_tuples.append((feat.layer, steer_pos, feat.index, new_value))
 
-    if n_stored > 0 or n_live > 0:
-        print(f"  [ACTIVATIONS] Using {n_stored} stored (graph.json) + {n_live} live (get_activations)")
+    # Report activation source breakdown
+    parts = []
+    if n_injected > 0:
+        parts.append(f"{n_injected} injected (stored as base)")
+    if n_multiplied > 0:
+        parts.append(f"{n_multiplied} multiplied (live)")
+    if n_fallback > 0:
+        parts.append(f"{n_fallback} fallback (stored)")
+    if parts:
+        print(f"  [ACTIVATIONS] {' + '.join(parts)}")
 
     return intervention_tuples
 
@@ -507,18 +556,15 @@ def run_ct_generation(
         steered_logits = None
 
     # Get top-k logits for FIRST generated token
-    # steered_logits from feature_intervention_generate contains logits for generated tokens
-    # Position 0 = prediction for first generated token
+    # steered_logits from feature_intervention_generate has shape [batch, prompt+generated, vocab]
+    # Position (sequence_length - 1) predicts the first generated token
     steered_topk = []
     if steered_logits is not None:
         with torch.inference_mode():
-            # Debug: print shape to understand structure
-            print(f"  [DEBUG] steered_logits shape: {steered_logits.shape}")
-            # steered_logits should be [batch, num_generated, vocab] or [num_generated, vocab]
-            # We want the logits that predicted the FIRST generated token
-            # In autoregressive generation, logits[i] predicts token[i+1]
-            # So logits[0] is the prediction for the first generated token
-            steered_topk = get_topk_logits(steered_logits, model.tokenizer, top_k, position=0)
+            # steered_logits includes both prompt and generated tokens
+            # Position i predicts token i+1, so position (seq_len-1) predicts first new token
+            first_gen_position = sequence_length - 1
+            steered_topk = get_topk_logits(steered_logits, model.tokenizer, top_k, position=first_gen_position)
 
     # For default: use baseline logits captured BEFORE generation
     # This gives us the clean prediction for the first token after the prompt

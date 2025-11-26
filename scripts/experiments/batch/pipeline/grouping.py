@@ -57,14 +57,22 @@ def activations_dump_to_csv(activations_json_path: Path, output_csv_path: Path,
                 if not values:
                     continue
                 
-                # Find peak
-                peak_val = max(values)
-                peak_idx = values.index(peak_val)
+                # Find peak (exclude BOS at index 0, matching frontend behavior)
+                if len(values) > 1:
+                    values_no_bos = values[1:]
+                    peak_val = max(values_no_bos)
+                    peak_idx = values_no_bos.index(peak_val) + 1  # +1 to account for skipped BOS
+                else:
+                    peak_val = values[0] if values else 0
+                    peak_idx = 0
                 peak_token = tokens[peak_idx] if peak_idx < len(tokens) else ""
                 
-                # Calculate sparsity ratio: (peak - mean) / peak
-                mean_val = sum(values) / len(values)
-                sparsity_ratio = (peak_val - mean_val) / peak_val if peak_val > 0 else 0.0
+                # Calculate sparsity ratio: (peak - mean) / peak (using values_no_bos)
+                if len(values) > 1:
+                    mean_val = sum(values_no_bos) / len(values_no_bos)
+                    sparsity_ratio = (peak_val - mean_val) / peak_val if peak_val > 0 else 0.0
+                else:
+                    sparsity_ratio = 0.0
                 
                 rows.append({
                     'feature_key': f"{layer}_{index}",

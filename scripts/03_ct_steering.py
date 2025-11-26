@@ -255,6 +255,7 @@ def compute_ct_interventions(
     *,
     steer_generated_tokens: bool = False,
     activations_map: Optional[Dict[Tuple[int, int, int], float]] = None,
+    use_stored_as_base: bool = False,
 ) -> List[Dict[str, Any]]:
     """
     Convert a supernode into Circuit Tracer intervention specifications.
@@ -273,6 +274,10 @@ def compute_ct_interventions(
         steer_generated_tokens: If True, apply to all generated tokens
         activations_map: Optional dict mapping (layer, feature, position) to stored activation values
                          from graph.json. If provided, stored_activation will be included in output.
+        use_stored_as_base: If True, use stored_activation as the base value for M multiplication
+                           (injection mode). If False, use live activation from current prompt
+                           (multiplication mode). Injection mode is needed for cross-graph steering
+                           where the target features may not be active on the current prompt.
 
     Returns:
         List of intervention dicts ready for batch_steering_ct.py
@@ -287,16 +292,27 @@ def compute_ct_interventions(
             "layer": feature.layer,
             "index": feature.index,
             "position": feature.position,
-            "M": M,  # Multiplicative factor applied to live activation
+            "M": M,  # Multiplicative factor applied to activation
             "ablate": M == 0,  # Ablate flag for M=0 case
             "steer_generated_tokens": steer_generated_tokens,
         }
         
         # Include stored activation from graph.json if available
+        # Handles position=-1 (relative) by searching for any matching (layer, feature, *)
         if activations_map is not None:
             key = (feature.layer, feature.index, feature.position)
             if key in activations_map:
                 entry["stored_activation"] = activations_map[key]
+            elif feature.position == -1:
+                # Position is relative (-1 = last token) - search for any match
+                for (l, f, p), val in activations_map.items():
+                    if l == feature.layer and f == feature.index:
+                        entry["stored_activation"] = val
+                        break
+        
+        # Mark whether to use stored_activation as the base value (injection mode)
+        if use_stored_as_base:
+            entry["use_stored_as_base"] = True
         
         interventions.append(entry)
     
