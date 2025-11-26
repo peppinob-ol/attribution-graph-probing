@@ -66,22 +66,22 @@ DEFAULT_CONFIG = {
     "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",  # 2.5M features CLT (matches Neuronpedia graphs)
     "concepts": {
         "from": "texas",      # Concept to ablate (from graph_dir)
-        "to": None,           # Concept to amplify (from graph_dir_to, optional)
+        "to": "california",   # Concept to amplify (from graph_dir_to)
     },
     "steering": {
-        "M_ablate": 0.0,        # Multiplier for 'from' (0=ablate, -1=reverse, etc.)
-        "M_amplify": 2.0,       # Multiplier for 'to' (2=double)
+        "M_ablate": -2,      # Multiplier for 'from' (0=ablate, -1=reverse, etc.)
+        "M_amplify": 20,     # Multiplier for 'to' (2=double)
         "temperature": 0.3,
-        "n_tokens": 32,
+        "n_tokens": 3,
         "freq_penalty": 2.0,
         "seed": 42,
         "freeze_attention": False,
         "top_k": 5,
         "steer_generated_tokens": True,
     },
-    "slug": "texas",
-    "graph_dir": str(GRAPHS_DIR / "texas"),      # Graph for ablation (concept_from)
-    "graph_dir_to": None,                         # Graph for amplification (concept_to) - optional
+    "slug": "texas_to_california",
+    "graph_dir": "output/usa_states_batch/texas_Dallas",           # Graph for ablation (texas)
+    "graph_dir_to": "output/usa_states_batch/california_Oakland",  # Graph for amplification (california)
 }
 
 

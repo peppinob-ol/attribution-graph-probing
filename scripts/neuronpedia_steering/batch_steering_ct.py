@@ -376,10 +376,23 @@ def build_intervention_tuples(
 
 
 def get_topk_logits(
-    logits: torch.Tensor, tokenizer, k: int = 5
+    logits: torch.Tensor, tokenizer, k: int = 5, position: int = -1
 ) -> List[Dict[str, Any]]:
-    """Get top-k token predictions from logits."""
-    probs = torch.softmax(logits.squeeze()[-1], dim=-1)
+    """Get top-k token predictions from logits at a specific position.
+    
+    Args:
+        logits: Model logits tensor [batch, seq_len, vocab_size] or [seq_len, vocab_size]
+        tokenizer: Tokenizer for decoding tokens
+        k: Number of top predictions to return
+        position: Position in sequence to get predictions for (default: -1 = last)
+    """
+    squeezed = logits.squeeze()
+    if squeezed.dim() == 1:
+        # Already a single position's logits
+        probs = torch.softmax(squeezed, dim=-1)
+    else:
+        # Multiple positions - select the specified one
+        probs = torch.softmax(squeezed[position], dim=-1)
     topk = torch.topk(probs, k)
     return [
         {
@@ -439,6 +452,11 @@ def run_ct_generation(
         features, activations, sequence_length
     )
 
+    # Get baseline logits FIRST (before any generation pollutes state)
+    # This gives us the model's prediction for the first token after the prompt
+    with torch.inference_mode():
+        baseline_logits = model(prompt)
+    
     # Set seed for reproducibility
     if seed is not None:
         torch.manual_seed(seed)
@@ -488,17 +506,26 @@ def run_ct_generation(
         steered_text = default_text
         steered_logits = None
 
-    # Get top-k logits for steered output
+    # Get top-k logits for FIRST generated token
+    # steered_logits from feature_intervention_generate contains logits for generated tokens
+    # Position 0 = prediction for first generated token
     steered_topk = []
     if steered_logits is not None:
         with torch.inference_mode():
-            steered_topk = get_topk_logits(steered_logits, model.tokenizer, top_k)
+            # Debug: print shape to understand structure
+            print(f"  [DEBUG] steered_logits shape: {steered_logits.shape}")
+            # steered_logits should be [batch, num_generated, vocab] or [num_generated, vocab]
+            # We want the logits that predicted the FIRST generated token
+            # In autoregressive generation, logits[i] predicts token[i+1]
+            # So logits[0] is the prediction for the first generated token
+            steered_topk = get_topk_logits(steered_logits, model.tokenizer, top_k, position=0)
 
-    # Get top-k logits for default output
+    # For default: use baseline logits captured BEFORE generation
+    # This gives us the clean prediction for the first token after the prompt
     default_topk = []
     with torch.inference_mode():
-        default_logits = model(default_text)
-        default_topk = get_topk_logits(default_logits, model.tokenizer, top_k)
+        # Last position of prompt predicts first generated token
+        default_topk = get_topk_logits(baseline_logits, model.tokenizer, top_k, position=-1)
 
     return {
         "steered": steered_text,
