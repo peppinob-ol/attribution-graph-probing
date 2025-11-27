@@ -37,21 +37,21 @@ get_activations:
   backend: local
   local:
     chunk_by_layer: true
-    include_zero: true
+    include_zero: false  # Exclude zero-activation features (avoids "attribute"/"relationship" peaks)
     gpus: [0]  # unused when remote compute is enabled
 
 compute:
   remote:
-    enabled: true
-    host: "207.53.234.140"
-    user: "giuseppe"
+    enabled: true  # Re-enabled for activations step
+python scripts/experiments/batch/run_batch_from_yaml.py --config scripts/experiments/batch/configs/usa_states_full.yml --force    host: "nodo207"  # SSH alias (uses ~/.ssh/config for auth)
+    user: ""         # Not needed - alias handles user
     base_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe"
     repo_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/attribution-graph-probing"
     logs_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/logs"
     env_activate_cmd: "source /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/env.sh"
     gpu_selection: auto
-    max_gpus: 3            # respect shared-node etiquette
-    batch_size: 8          # ~30–35 min per batch @ ~6 min/seed/GPU
+    max_gpus: 6            # respect shared-node etiquette
+    batch_size: 4          # Reduced to avoid SSH timeouts
     max_retries: 1         # automatically requeue failed batches once
     persist_sae_cache: true
 
@@ -77,14 +77,14 @@ grouping:
     overwrite_id: ""
 
 steps:
-  graph_generation: true
-  feature_export: true
-  probe_prompts: true
-  activations: true
-  grouping: true
+  graph_generation: false   # Keep existing graphs
+  feature_export: false     # Keep existing features
+  probe_prompts: true       # Regenerate with proper entity substitution
+  activations: true         # Regenerate for new prompts (remote)
+  grouping: true            # Run with BOS fix
   upload_subgraph: true
   dry_run: false
-  force: false
+  force: true               # Overwrite existing files
 
 graph_generation:
   enabled: true

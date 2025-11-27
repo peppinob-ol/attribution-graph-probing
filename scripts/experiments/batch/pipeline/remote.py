@@ -58,7 +58,8 @@ class RemoteExecutor:
         password_env = self.remote_config.get('password_env')
         self.password = os.environ.get(password_env) if password_env else None
         
-        self.ssh_target = f"{self.user}@{self.host}"
+        # Support SSH aliases: if user is empty, just use host (e.g., "nodo207")
+        self.ssh_target = f"{self.user}@{self.host}" if self.user else self.host
     
     def ssh_run(self, cmd: str, timeout: int = 3600, capture_output: bool = True) -> Tuple[int, str, str]:
         """
@@ -817,7 +818,10 @@ class RemoteExecutor:
             slug = state['seed']['slug']
             paths = state['paths']
             remote_seed_dir = f"{remote_batch_dir}/{slug}"
-            self.ssh_run(f'mkdir -p "{remote_seed_dir}"', timeout=5, capture_output=False)
+            rc, _, stderr = self.ssh_run(f'mkdir -p "{remote_seed_dir}"', timeout=10, capture_output=True)
+            if rc != 0:
+                print(f"ERROR: Failed to create remote seed directory {remote_seed_dir}: {stderr}")
+                return False, {}, {}
 
             local_prompts = paths['prompts_json']
             local_features = paths['selected_features_json']
