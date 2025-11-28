@@ -766,10 +766,14 @@ class RemoteExecutor:
         return True, gpu_id, remote_log
 
     def run_remote_batch(self, config: Dict[str, Any], batch_states: List[Dict[str, Any]],
-                         batch_id: str, verbose: bool = True) -> Tuple[bool, Dict[str, Any], Dict[str, Any]]:
+                         batch_id: str, verbose: bool = True,
+                         batch_index: int = 0) -> Tuple[bool, Dict[str, Any], Dict[str, Any]]:
         """
         Run a batch of seeds on the remote node using remote_batch_runner.py.
         Returns (success, metadata, per_seed_results).
+        
+        Args:
+            batch_index: Used for round-robin GPU assignment (0-based)
         """
         if not batch_states:
             return True, {}, {}
@@ -864,13 +868,29 @@ class RemoteExecutor:
         if not upload_ok:
             return False, {}, {}
 
-        # Select GPU
-        gpu_id = self.get_free_gpu()
-        if gpu_id is None:
-            print("ERROR: No free GPU found for batch")
+        # Select GPU using round-robin based on batch_index
+        # Query available GPUs
+        cmd = 'nvidia-smi --query-gpu=index --format=csv,noheader,nounits'
+        rc, stdout, stderr = self.ssh_run(cmd, timeout=10)
+        if rc != 0:
+            print(f"ERROR: Failed to query GPUs: {stderr}")
             return False, {}, {}
+        
+        available_gpus = []
+        for line in stdout.strip().split('\n'):
+            try:
+                available_gpus.append(int(line.strip()))
+            except ValueError:
+                continue
+        
+        if not available_gpus:
+            print("ERROR: No GPUs found on remote")
+            return False, {}, {}
+        
+        # Round-robin assignment
+        gpu_id = available_gpus[batch_index % len(available_gpus)]
         if verbose:
-            print(f"  [REMOTE] Batch {batch_id} assigned GPU {gpu_id}")
+            print(f"  [REMOTE] Batch {batch_id} assigned GPU {gpu_id} (round-robin)")
 
         import platform
         lock_acquired = False
@@ -1062,10 +1082,14 @@ def process_remote_activation_step(config: Dict[str, Any], seed: Dict[str, Any],
 
 
 def process_remote_activation_batch(config: Dict[str, Any], batch_states: List[Dict[str, Any]],
-                                    batch_id: str, verbose: bool = True) -> Tuple[bool, Dict[str, Any], Dict[str, Any]]:
+                                    batch_id: str, verbose: bool = True,
+                                    batch_index: int = 0) -> Tuple[bool, Dict[str, Any], Dict[str, Any]]:
     """
     Process a batch of seeds using the remote GPU node.
     Returns (success, metadata, per_seed_results).
+    
+    Args:
+        batch_index: Used for round-robin GPU assignment (0-based)
     """
     remote_config = config.get('compute', {}).get('remote', {})
     if not remote_config.get('enabled'):
@@ -1081,7 +1105,9 @@ def process_remote_activation_batch(config: Dict[str, Any], batch_states: List[D
         print("WARNING: sshpass not available; password auth may fail")
 
     executor = RemoteExecutor(config)
-    success, metadata, per_seed = executor.run_remote_batch(config, batch_states, batch_id, verbose=verbose)
+    success, metadata, per_seed = executor.run_remote_batch(
+        config, batch_states, batch_id, verbose=verbose, batch_index=batch_index
+    )
     metadata.update({'remote_host': f"{executor.user}@{executor.host}"})
     return success, metadata, per_seed
 

@@ -43,14 +43,14 @@ get_activations:
 compute:
   remote:
     enabled: true  # Re-enabled for activations step
-python scripts/experiments/batch/run_batch_from_yaml.py --config scripts/experiments/batch/configs/usa_states_full.yml --force    host: "nodo207"  # SSH alias (uses ~/.ssh/config for auth)
+    host: "nodo207"  # SSH alias (uses ~/.ssh/config for auth)
     user: ""         # Not needed - alias handles user
     base_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe"
     repo_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/attribution-graph-probing"
     logs_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/logs"
     env_activate_cmd: "source /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/env.sh"
     gpu_selection: auto
-    max_gpus: 6            # respect shared-node etiquette
+    max_gpus: 6            # Now using round-robin GPU assignment
     batch_size: 4          # Reduced to avoid SSH timeouts
     max_retries: 1         # automatically requeue failed batches once
     persist_sae_cache: true

@@ -252,7 +252,8 @@ def run_batch(config_path: str, dry_run: bool = False, force: bool = False, verb
                             config,
                             batch_states,
                             batch_id,
-                            verbose
+                            verbose,
+                            batch_index - 1  # 0-based index for round-robin GPU assignment
                         )
                         futures[future] = (batch_id, batch_states)
 
