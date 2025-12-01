@@ -2,10 +2,12 @@
 Tiered classification for swap experiment results.
 
 Classifies steering outcomes into success tiers based on geographic accuracy.
-Uses embedded US cities database for fast offline classification.
+Supports both rule-based (US cities database) and LLM-based classification.
 """
 from __future__ import annotations
 
+import json
+import os
 import re
 from dataclasses import dataclass
 from enum import IntEnum
@@ -348,12 +350,13 @@ def classify_swap(
     )
 
 
-def classify_swap_result(result: Dict[str, Any]) -> ClassificationResult:
+def classify_swap_result(result: Dict[str, Any], use_llm: bool = False) -> ClassificationResult:
     """
     Classify a swap result dict (from JSON file).
     
     Args:
         result: Swap result dict with 'source', 'target', 'evaluation' keys
+        use_llm: If True, use LLM-based classification instead of rule-based
     
     Returns:
         ClassificationResult
@@ -362,6 +365,15 @@ def classify_swap_result(result: Dict[str, Any]) -> ClassificationResult:
     source = result.get('source', {})
     target = result.get('target', {})
     
+    if use_llm:
+        return classify_swap_with_llm(
+            steered_output=steered_output,
+            source_state=source.get('state', ''),
+            source_capital=source.get('capital', ''),
+            target_state=target.get('state', ''),
+            target_capital=target.get('capital', ''),
+        )
+    
     return classify_swap(
         steered_output=steered_output,
         source_state=source.get('state', ''),
@@ -369,4 +381,139 @@ def classify_swap_result(result: Dict[str, Any]) -> ClassificationResult:
         target_state=target.get('state', ''),
         target_capital=target.get('capital', ''),
     )
+
+
+# ============================================================================
+# LLM-based classification
+# ============================================================================
+
+LLM_CLASSIFICATION_PROMPT = """You are classifying the output of a language model steering experiment.
+
+The model was given a prompt about a US state capital, and we tried to "steer" its output from one state to another.
+
+**Source state:** {source_state} (capital: {source_capital})
+**Target state:** {target_state} (capital: {target_capital})
+
+**Steered output:**
+"{steered_output}"
+
+Classify this output into ONE of these tiers:
+
+5 - PERFECT: The target capital ({target_capital}) appears in the output
+4 - TARGET_STATE_CITY: A city/place in {target_state} appears (but not the capital)
+3 - TARGET_STATE_ONLY: {target_state} is mentioned but no specific city/place from there
+2 - SUPPRESSED_ONLY: Source info is gone, but output is garbled/nonsense/no geographic content
+1 - SOURCE_PERSISTS: Cities/places from {source_state} still appear in output
+0 - WRONG_STATE: Cities/places from a third state (neither source nor target) appear
+
+Consider ALL geographic references - cities, parks, landmarks, counties, etc.
+
+Respond with ONLY valid JSON (no markdown):
+{{"tier": <0-5>, "tier_name": "<name>", "places_found": ["<place1>", ...], "notes": "<brief explanation>"}}"""
+
+
+def classify_swap_with_llm(
+    steered_output: str,
+    source_state: str,
+    source_capital: str,
+    target_state: str,
+    target_capital: str,
+    model: str = "gpt-4o-mini",
+) -> ClassificationResult:
+    """
+    Classify a swap result using an LLM.
+    
+    Requires OPENAI_API_KEY environment variable.
+    
+    Args:
+        steered_output: The steered model output text
+        source_state: Source state name
+        source_capital: Source capital
+        target_state: Target state name
+        target_capital: Target capital
+        model: OpenAI model to use (default: gpt-4o-mini)
+    
+    Returns:
+        ClassificationResult with tier and details
+    """
+    try:
+        import openai
+    except ImportError:
+        raise ImportError("openai package required for LLM classification. Install with: pip install openai")
+    
+    api_key = os.environ.get('OPENAI_API_KEY')
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable required for LLM classification")
+    
+    client = openai.OpenAI(api_key=api_key)
+    
+    prompt = LLM_CLASSIFICATION_PROMPT.format(
+        source_state=source_state,
+        source_capital=source_capital,
+        target_state=target_state,
+        target_capital=target_capital,
+        steered_output=steered_output[:500],  # Truncate long outputs
+    )
+    
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+            max_tokens=200,
+        )
+        
+        content = response.choices[0].message.content.strip()
+        
+        # Parse JSON response
+        result = json.loads(content)
+        tier_value = result.get('tier', 2)
+        tier = SwapTier(tier_value)
+        
+        return ClassificationResult(
+            tier=tier,
+            cities_found=result.get('places_found', []),
+            states_found=[],
+            notes=result.get('notes', 'LLM classification'),
+        )
+        
+    except (json.JSONDecodeError, KeyError, ValueError) as e:
+        # Fallback to rule-based if LLM fails
+        print(f"  Warning: LLM classification failed ({e}), falling back to rule-based")
+        return classify_swap(
+            steered_output=steered_output,
+            source_state=source_state,
+            source_capital=source_capital,
+            target_state=target_state,
+            target_capital=target_capital,
+        )
+
+
+def classify_batch_with_llm(
+    results: List[Dict[str, Any]],
+    model: str = "gpt-4o-mini",
+    show_progress: bool = True,
+) -> List[ClassificationResult]:
+    """
+    Classify multiple swap results using LLM.
+    
+    Args:
+        results: List of swap result dicts
+        model: OpenAI model to use
+        show_progress: Print progress updates
+    
+    Returns:
+        List of ClassificationResult objects
+    """
+    classifications = []
+    total = len(results)
+    
+    for i, result in enumerate(results):
+        if show_progress and (i + 1) % 10 == 0:
+            print(f"  Classified {i + 1}/{total}...")
+        
+        classification = classify_swap_result(result, use_llm=True)
+        classifications.append(classification)
+    
+    return classifications
 

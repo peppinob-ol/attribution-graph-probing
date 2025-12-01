@@ -28,6 +28,7 @@ from pipeline.swap_classifier import (
     SwapTier,
     ClassificationResult,
     classify_swap_result,
+    classify_swap_with_llm,
 )
 
 
@@ -64,21 +65,27 @@ def load_all_swap_results(swaps_dir: Path) -> List[Dict[str, Any]]:
 
 
 def classify_all_results(
-    results: List[Dict[str, Any]]
+    results: List[Dict[str, Any]],
+    use_llm: bool = False,
 ) -> List[Dict[str, Any]]:
     """
     Classify all results and add tier information.
     
     Args:
         results: List of swap result dicts
+        use_llm: Use LLM-based classification (requires OPENAI_API_KEY)
     
     Returns:
         List of results with added 'classification' key
     """
     classified = []
+    total = len(results)
     
-    for result in results:
-        classification = classify_swap_result(result)
+    for i, result in enumerate(results):
+        if use_llm and (i + 1) % 10 == 0:
+            print(f"    LLM classified {i + 1}/{total}...")
+        
+        classification = classify_swap_result(result, use_llm=use_llm)
         result['classification'] = classification.to_dict()
         classified.append(result)
     
@@ -258,6 +265,17 @@ def main():
         action='store_true',
         help='Skip heatmap generation'
     )
+    parser.add_argument(
+        '--use-llm',
+        action='store_true',
+        help='Use LLM-based classification (requires OPENAI_API_KEY env var)'
+    )
+    parser.add_argument(
+        '--llm-model',
+        type=str,
+        default='gpt-4o-mini',
+        help='OpenAI model for LLM classification (default: gpt-4o-mini)'
+    )
     
     args = parser.parse_args()
     
@@ -294,8 +312,11 @@ def main():
         return 1
     
     # Classify all results
-    print("\n[2/4] Classifying results...")
-    classified = classify_all_results(results)
+    if args.use_llm:
+        print(f"\n[2/4] Classifying results with LLM ({args.llm_model})...")
+    else:
+        print("\n[2/4] Classifying results (rule-based)...")
+    classified = classify_all_results(results, use_llm=args.use_llm)
     
     # Print tier distribution
     tier_dist = defaultdict(int)
