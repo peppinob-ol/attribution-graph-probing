@@ -40,7 +40,7 @@ def process_graph_step(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict
     Process graph generation step for a seed.
     
     If seed has graph_json (precomputed), verify it exists.
-    Otherwise, generate via Neuronpedia API.
+    Otherwise, generate via Neuronpedia API (unless graph already exists and graph_generation is disabled).
     
     Then compute metrics and select features.
     
@@ -50,6 +50,10 @@ def process_graph_step(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict
     graph_dir.mkdir(parents=True, exist_ok=True)
     
     graph_json_path = paths['graph_json']
+    
+    # Check if graph_generation step is enabled
+    steps = config.get('steps', {})
+    graph_generation_enabled = steps.get('graph_generation', False)
     
     # Step 1: Get or verify graph.json
     if 'graph_json' in seed:
@@ -65,6 +69,11 @@ def process_graph_step(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict
                 print(f"  Copying graph: {source_graph} -> {graph_json_path}")
             import shutil
             shutil.copy2(source_graph, graph_json_path)
+    
+    elif graph_json_path.exists() and not graph_generation_enabled:
+        # Graph already exists and graph_generation is disabled - reuse existing
+        if verbose:
+            print(f"  [REUSE] Using existing graph: {graph_json_path}")
     
     elif 'prompt' in seed:
         # Generate via API
@@ -206,7 +215,9 @@ def process_graph_step(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict
                     influence_val = node.get('influence')
                     if influence_val is None:
                         continue
-                    if influence_val >= node_threshold_value:
+                    # Keep features with low cumulative influence (high priority)
+                    # Lower influence = selected earlier = more important
+                    if influence_val <= node_threshold_value:
                         allowed_pairs.add((layer_val, feature_val))
 
                 before_filter = len(unique_features)
@@ -215,7 +226,7 @@ def process_graph_step(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict
                     if (feat['layer'], feat['index']) in allowed_pairs
                 ]
                 if verbose:
-                    print(f"    Applied node_threshold {node_threshold_value:.3f}: kept {len(unique_features)} of {before_filter}")
+                    print(f"    Applied node_threshold <= {node_threshold_value:.3f}: kept {len(unique_features)} of {before_filter}")
             
             if verbose:
                 print(f"    Selected {len(unique_features)} features at threshold {threshold}")

@@ -1,0 +1,86 @@
+# Minimal test to verify SAE device fix
+# Run: python scripts/experiments/batch/run_batch_from_yaml.py --config scripts/experiments/batch/configs/test_activations_fix.yml --force
+
+version: "0.1"
+experiment_name: test_activations_fix
+
+paths:
+  outputs_root: output/usa_states_batch
+
+model:
+  id: gemma-2-2b
+  source_set: clt-hp
+
+features:
+  selection: cumulative_influence
+  threshold: 0.95
+  post_filter:
+    node_threshold: 70
+
+probes:
+  mode: templated
+  templated:
+    templates:
+      - id: probe_city
+        text: "entity: A major city in {state}, USA is {city}"
+
+get_activations:
+  backend: local
+  local:
+    chunk_by_layer: true
+    include_zero: false
+    gpus: [0]
+
+compute:
+  remote:
+    enabled: true
+    host: "nodo207"
+    user: ""
+    base_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe"
+    repo_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/attribution-graph-probing"
+    logs_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/logs"
+    env_activate_cmd: "source /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/env.sh"
+    batch_size: 2
+    max_gpus: 1
+    persist_sae_cache: false
+    max_retries: 0
+
+grouping:
+  enabled: false
+  window: 7
+  blacklist: ""
+  blacklist_tokens:
+    - "<bos>"
+  thresholds:
+    dict_peak_consistency_min: 0.8
+    dict_n_distinct_peaks_max: 1
+    sayx_func_vs_sem_min: 50.0
+    sayx_layer_min: 7
+    rel_sparsity_max: 0.45
+    sem_layer_max: 3
+    sem_conf_s_min: 0.50
+    sem_func_vs_sem_max: 50.0
+
+# Only run activations step (the one that was broken)
+steps:
+  graph_generation: false
+  feature_export: false
+  probe_prompts: false
+  activations: true
+  grouping: false
+  upload_subgraph: false
+  dry_run: false
+  force: true
+
+graph_generation:
+  enabled: false
+  seeds_mode: templated
+  api_key_env: NEURONPEDIA_API_KEY
+  templated:
+    seed_prompt: "The capital of the state containing {city} is"
+    slug_template: "{slug}"
+    entities:
+      items:
+        - { slug: "alabama_birmingham", city: "Birmingham", state: "Alabama", capital: "Montgomery" }
+        - { slug: "alaska_anchorage", city: "Anchorage", state: "Alaska", capital: "Juneau" }
+

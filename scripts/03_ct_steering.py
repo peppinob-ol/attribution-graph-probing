@@ -108,6 +108,10 @@ def extract_ct_supernode(
     Extract every feature whose supernode name contains ``concept`` (case-insensitive).
 
     Similar to extract_concept_supernode but returns CTFeatureRef with position info.
+    
+    For multi-word concepts (e.g., "new york"), tries:
+    1. Full concept match first
+    2. If no match, tries each word separately and combines results
     """
     if not concept.strip():
         raise ValueError("Concept string must be non-empty.")
@@ -118,7 +122,20 @@ def extract_ct_supernode(
 
     # Prepare lowercase view for matching
     names = grouping_df[supernode_col].astype(str).str.lower()
+    
+    # First try full concept match
     matches = grouping_df[names.str.contains(concept_lc, na=False, regex=False)]
+
+    # If no matches and concept has multiple words, try each word
+    if matches.empty and ' ' in concept_lc:
+        words = concept_lc.split()
+        all_matches = []
+        for word in words:
+            if len(word) >= 3:  # Skip short words like "of", "the", etc.
+                word_matches = grouping_df[names.str.contains(word, na=False, regex=False)]
+                all_matches.append(word_matches)
+        if all_matches:
+            matches = pd.concat(all_matches).drop_duplicates()
 
     if matches.empty:
         raise ValueError(

@@ -104,26 +104,35 @@ def run_remote_ct_steering(
         print("ERROR: Failed to upload features.json")
         return False, -1, ""
     
-    # Find free GPU
-    if verbose:
-        print("  [REMOTE-CT] Finding free GPU...")
-    gpu_id = executor.get_free_gpu()
-    if gpu_id is None:
-        print("ERROR: No free GPU available for CT steering")
-        return False, -1, ""
-    if verbose:
-        print(f"  [REMOTE-CT] Using GPU {gpu_id}")
-    
-    # Acquire GPU lock (skip on Windows)
-    import platform
+    # Find and lock a free GPU with retry logic for parallel execution
+    # With 8 GPUs and many parallel workers, need enough retries to wait for a free GPU
+    max_gpu_retries = 30  # ~2 minutes of retries at worst case
+    gpu_id = None
     lock_acquired = False
-    if platform.system() != "Windows":
+    
+    for retry in range(max_gpu_retries):
+        if verbose and retry > 0 and retry % 5 == 0:
+            print(f"  [REMOTE-CT] Retry {retry}/{max_gpu_retries} - waiting for GPU...")
+        
+        gpu_id = executor.get_free_gpu()
+        if gpu_id is None:
+            # No GPU appears free, wait and retry
+            time.sleep(3 + (retry % 5))  # 3-7 second waits
+            continue
+        
+        # Try to acquire lock
         lock_acquired = executor.acquire_gpu_lock(gpu_id)
-        if not lock_acquired:
-            print(f"ERROR: GPU {gpu_id} already locked")
-            return False, -1, ""
-    elif verbose:
-        print("  [REMOTE-CT] Skipping GPU lock on Windows")
+        if lock_acquired:
+            if verbose:
+                print(f"  [REMOTE-CT] Using GPU {gpu_id} (locked)")
+            break
+        else:
+            # Another worker got this GPU first, short wait then retry
+            time.sleep(1 + (retry % 3))  # 1-3 second waits
+    
+    if not lock_acquired or gpu_id is None:
+        print(f"ERROR: Could not acquire any GPU after {max_gpu_retries} retries (~2 min)")
+        return False, -1, ""
     
     # Build paths and environment
     remote_out = f"{remote_exp_dir}/steering_dump.json"

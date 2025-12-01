@@ -2,33 +2,65 @@
 
 Automated pipeline for running attribution graph experiments at scale from YAML configs.
 
+This directory contains two runners:
+1. **`run_batch_from_yaml.py`** - Graph generation, activations, and grouping
+2. **`run_batch_swaps.py`** - CT steering swap experiments (requires graphs from step 1)
+
 ## Quick Start
+
+### Graph Generation & Activations
 
 ```bash
 # Validate config (dry run)
-python run_batch_from_yaml.py --config configs/usa_capitals_swap_full.yml --dry-run
+python run_batch_from_yaml.py --config configs/usa_states_full.yml --dry-run
 
 # Run batch experiment
-python run_batch_from_yaml.py --config configs/usa_capitals_swap_full.yml
+python run_batch_from_yaml.py --config configs/usa_states_full.yml
 
 # Force overwrite existing outputs
-python run_batch_from_yaml.py --config configs/usa_capitals_swap_full.yml --force
+python run_batch_from_yaml.py --config configs/usa_states_full.yml --force
+```
+
+### CT Steering Swaps (after graphs are generated)
+
+```bash
+# Validate swap config (dry run)
+python run_batch_swaps.py --config configs/usa_states_swap.yml --dry-run
+
+# Run single swap pair (test)
+python run_batch_swaps.py --config configs/usa_states_swap.yml --pair texas_dallas:california_oakland
+
+# Run full 50x50 matrix (2500 experiments)
+python run_batch_swaps.py --config configs/usa_states_swap.yml
+
+# Force re-run all
+python run_batch_swaps.py --config configs/usa_states_swap.yml --force
 ```
 
 ## Directory Structure
 
 ```
 scripts/experiments/batch/
-├── configs/                          # YAML experiment configs
-│   └── usa_capitals_swap_full.yml   # Example config
-├── pipeline/                         # Pipeline modules
-│   ├── loader.py                    # Config loading and validation
-│   ├── graph.py                     # Graph generation and feature selection
-│   ├── probes.py                    # Probe prompts handling
-│   ├── activations_local.py         # Local activations processing
-│   └── manifest.py                  # Experiment manifest generation
-├── run_batch_from_yaml.py           # Main CLI runner
-└── README.md                        # This file
+|-- configs/                          # YAML experiment configs
+|   |-- usa_states_full.yml          # Graph generation config (50 states)
+|   |-- usa_states_swap.yml          # CT steering swap config
+|
+|-- pipeline/                         # Pipeline modules
+|   |-- loader.py                    # Config loading and validation
+|   |-- graph.py                     # Graph generation and feature selection
+|   |-- probes.py                    # Probe prompts handling
+|   |-- activations_local.py         # Local activations processing
+|   |-- manifest.py                  # Experiment manifest generation
+|   |-- remote.py                    # Remote GPU execution (SSH/rsync)
+|   |-- steering_remote_ct.py        # Remote CT steering execution
+|   |-- graph_loader.py              # Shared graph data loading
+|   |-- swap_loader.py               # Swap pair resolution
+|   |-- swap_evaluator.py            # Swap result evaluation
+|
+|-- run_batch_from_yaml.py           # Main CLI runner (graphs/activations)
+|-- run_batch_swaps.py               # CT steering swap runner
+|-- README.md                        # This file
+|-- TESTING.md                       # Testing guide
 ```
 
 ## Per-Seed Output Structure
@@ -37,17 +69,45 @@ Each seed produces a standardized folder structure:
 
 ```
 outputs_root/{slug}/
-├── manifest.json                    # Run metadata (timestamp, git commit, status)
-├── 00 Graph Generation/
-│   ├── graph.json                   # Attribution graph from Neuronpedia
-│   ├── graph_feature_static_metrics.csv
-│   └── selected_features_with_nodes.json
-├── 01 Prompt Probing/
-│   ├── prompts.json                 # Probe prompts
-│   └── activations_dump.json        # Feature activations
-└── 02 Node Grouping/                # (future)
-    └── node_grouping.csv
+|-- manifest.json                    # Run metadata (timestamp, git commit, status)
+|-- 00 Graph Generation/
+|   |-- graph.json                   # Attribution graph from Neuronpedia
+|   |-- graph_feature_static_metrics.csv
+|   |-- selected_features_with_nodes.json
+|-- 01 Prompt Probing/
+|   |-- prompts.json                 # Probe prompts
+|   |-- activations_dump.json        # Feature activations
+|-- 02 Node Grouping/
+    |-- node_grouping.csv            # Feature-to-supernode mapping
 ```
+
+## Swap Experiment Output Structure
+
+When running `run_batch_swaps.py`, results are stored in a `_swaps/` subdirectory:
+
+```
+outputs_root/
+|-- _swaps/                          # All swap experiment results
+|   |-- _summary.json                # Aggregate statistics
+|   |-- _matrix.csv                  # 50x50 success rate matrix
+|   |-- by_source/                   # Results organized by source prompt
+|   |   |-- texas_dallas/
+|   |   |   |-- to_california_oakland.json
+|   |   |   |-- to_florida_miami.json
+|   |   |   |-- to_texas_dallas.json  # Identity baseline
+|   |   |-- california_oakland/
+|   |       |-- to_texas_dallas.json
+|   |-- work/                        # Temporary work files per swap
+|
+|-- texas_dallas/                    # Source graph data (unchanged)
+|-- california_oakland/              # Source graph data (unchanged)
+```
+
+Each swap result file contains:
+- Source/target entity info (state, capital, city)
+- Intervention counts (ablate + amplify features)
+- Evaluation metrics (exact match, suppression, topk probabilities)
+- Raw outputs for post-hoc analysis
 
 ## Config Overview
 
@@ -156,6 +216,47 @@ probes:
         text: "entity: The capital city of {state} is {capital}"
 ```
 
+### Swap Config (for run_batch_swaps.py)
+
+The swap runner uses a separate config that references the source config:
+
+```yaml
+version: 0.1
+experiment_name: usa_states_swap
+
+inputs:
+  # Reference the original config for entities (no duplication!)
+  source_config: configs/usa_states_full.yml
+  graphs_root: output/usa_states_batch
+
+swap:
+  mode: matrix              # Full NxN combinations (50x50 = 2500)
+  include_identity: true    # Include Texas->Texas as baseline
+  # Or use explicit pairs:
+  # mode: defined_pairs
+  # pairs:
+  #   - [texas_dallas, california_oakland]
+  #   - [new_york_new_york_city, florida_miami]
+
+ct_steering:
+  model_id: google/gemma-2-2b
+  transcoder_set: mntss/clt-gemma-2-2b-2.5M
+  M_ablate: 0.0             # Ablation multiplier (0 = full ablate)
+  M_amplify: 2.0            # Amplification multiplier
+  temperature: 0.3
+  n_tokens: 6
+  seed: 42
+
+compute:
+  inherit_from_source: true # Use same remote settings as source_config
+```
+
+Key features:
+- **No entity duplication**: Imports entities from `source_config`
+- **Concept extraction**: Uses `entity['state'].lower()` for concept matching
+- **Flexible modes**: Full matrix or explicit pairs
+- **Inherited compute**: Reuses remote execution settings from source
+
 ## Environment Variables
 
 For local activation runs, the following env vars are set automatically:
@@ -200,10 +301,18 @@ For gated models (e.g., Gemma):
 - Node grouping step (classification + naming)
 - Activations dump to CSV conversion
 
+### CT Steering Swaps (Implemented)
+- Full 50x50 swap matrix via `run_batch_swaps.py`
+- Dual-graph steering: ablate source concept, amplify target concept
+- Stored activations from graph.json (no redundant forward pass)
+- Result evaluation with exact match + topk probability metrics
+- Aggregation to summary statistics and success matrix
+
 ### Not Yet Implemented
 - Subgraph upload to Neuronpedia
 - API backend for activations
 - Per-seed probe prompts mode (per_seed_file)
+- Local CT steering execution (remote only for now)
 
 ## Remote Execution (Implemented)
 
@@ -318,35 +427,61 @@ python scripts/experiments/batch/run_batch_from_yaml.py --config ...
 
 ## Examples
 
-### Dry Run (Validate Only)
+### Graph Generation & Activations
+
 ```bash
+# Dry run (validate only)
 python run_batch_from_yaml.py \
-  --config configs/usa_capitals_swap_full.yml \
+  --config configs/usa_states_full.yml \
   --dry-run
-```
 
-### Run with Precomputed Graphs
-```bash
-# 1. Generate graphs via Streamlit (00 Graph Generation page)
-# 2. Update config with graph_json paths
-# 3. Run batch
+# Run full pipeline (50 states)
 python run_batch_from_yaml.py \
-  --config configs/usa_capitals_swap_full.yml
-```
+  --config configs/usa_states_full.yml
 
-### Entity Swap Experiment
-```bash
-# Config with templated seeds and probes
+# Force rerun (overwrite existing)
 python run_batch_from_yaml.py \
-  --config configs/entity_swap_states.yml
-```
-
-### Force Rerun
-```bash
-# Overwrite existing outputs
-python run_batch_from_yaml.py \
-  --config configs/usa_capitals_swap_full.yml \
+  --config configs/usa_states_full.yml \
   --force
+```
+
+### CT Steering Swaps
+
+```bash
+# Dry run (validate and show plan)
+python run_batch_swaps.py \
+  --config configs/usa_states_swap.yml \
+  --dry-run
+
+# Run single pair (for testing)
+python run_batch_swaps.py \
+  --config configs/usa_states_swap.yml \
+  --pair texas_dallas:california_oakland
+
+# Run full 50x50 matrix (2500 experiments)
+python run_batch_swaps.py \
+  --config configs/usa_states_swap.yml
+
+# Force rerun all swaps
+python run_batch_swaps.py \
+  --config configs/usa_states_swap.yml \
+  --force
+```
+
+### Two-Phase Workflow
+
+The typical workflow is:
+
+```bash
+# Phase 1: Generate graphs (run once)
+python run_batch_from_yaml.py --config configs/usa_states_full.yml
+
+# Phase 2: Run swap experiments (can run multiple times with different params)
+python run_batch_swaps.py --config configs/usa_states_swap.yml
+
+# Re-run with different M values
+# Edit usa_states_swap.yml: M_amplify: 5.0
+python run_batch_swaps.py --config configs/usa_states_swap.yml --force
 ```
 
 ## Contributing

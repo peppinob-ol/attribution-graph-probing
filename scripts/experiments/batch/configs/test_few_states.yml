@@ -1,0 +1,110 @@
+version: 0.1
+experiment_name: test_few_states
+
+# TEST: 3 states only (Texas, California, New York)
+# Same config as usa_states_full.yml but for quick testing of fixed pipeline
+
+paths:
+  # Use absolute path to avoid relative path issues when running from different directories
+  outputs_root: C:/Github/circuit_tracer-prompt_rover/output/usa_states_batch
+
+model:
+  id: gemma-2-2b
+  source_set: clt-hp
+
+features:
+  selection: cumulative_influence
+  threshold: 0.95
+  post_filter:
+    node_threshold: 95   # keep features with cumulative influence <= 0.95 (includes California concept features)
+
+probes:
+  mode: templated
+  templated:
+    templates:
+      - id: probe_city
+        text: "entity: A major city in {state}, USA is {city}"
+      - id: probe_capital
+        text: "entity: The capital city of {state} is {capital}"
+      - id: probe_state
+        text: "entity: A state in the United States is {state}"
+      - id: probe_capital_concept
+        text: "attribute: The primary city serving as the seat of government for a state is the capital city"
+      - id: probe_relationship
+        text: "relationship: the state in which a city is located is the state containing"
+
+get_activations:
+  backend: local
+  local:
+    chunk_by_layer: true
+    include_zero: false
+    gpus: [0]
+
+compute:
+  remote:
+    enabled: true
+    host: "nodo207"
+    user: ""
+    base_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe"
+    repo_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/attribution-graph-probing"
+    logs_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/logs"
+    env_activate_cmd: "source /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/env.sh"
+    gpu_selection: auto
+    max_gpus: 8
+    batch_size: 3          # All 3 seeds in one batch
+    max_retries: 1
+    persist_sae_cache: true
+
+grouping:
+  enabled: true
+  window: 7
+  blacklist: ""
+  blacklist_tokens:
+    - "<bos>"
+  thresholds:
+    dict_peak_consistency_min: 0.8
+    dict_n_distinct_peaks_max: 1
+    sayx_func_vs_sem_min: 50.0
+    sayx_layer_min: 7
+    rel_sparsity_max: 0.45
+    sem_layer_max: 3
+    sem_conf_s_min: 0.50
+    sem_func_vs_sem_max: 50.0
+  upload:
+    enabled: true
+    api_key_env: NEURONPEDIA_API_KEY
+    display_name_template: "{slug} (auto-grouped)"
+    overwrite_id: ""
+
+steps:
+  graph_generation: false   # Keep existing graphs
+  feature_export: true      # Re-run feature selection with fixed node_threshold logic (<=)
+  probe_prompts: true
+  activations: true
+  grouping: true
+  upload_subgraph: true
+  dry_run: false
+  force: true
+
+graph_generation:
+  enabled: true
+  seeds_mode: templated
+  api_key_env: NEURONPEDIA_API_KEY
+  api_params:
+    modelId: gemma-2-2b
+    sourceSetName: gemmascope-transcoder-16k
+    maxNLogits: 10
+    desiredLogitProb: 0.95
+    nodeThreshold: 0.80
+    edgeThreshold: 0.85
+    maxFeatureNodes: 5000
+  templated:
+    seed_prompt: "The capital of the state containing {city} is"
+    slug_template: "{slug}"
+    entities:
+      items:
+        # Just 3 states for testing (includes swap pair)
+        - { slug: "texas_dallas", city: "Dallas", state: "Texas", capital: "Austin" }
+        - { slug: "california_oakland", city: "Oakland", state: "California", capital: "Sacramento" }
+        - { slug: "new_york_new_york_city", city: "New York City", state: "New York", capital: "Albany" }
+

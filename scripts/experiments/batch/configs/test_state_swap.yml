@@ -1,0 +1,44 @@
+version: 0.1
+experiment_name: test_state_swap
+
+# Minimal swap config for local testing.
+# Runs a single pair (Texas -> California) using precomputed graphs.
+
+inputs:
+  source_config: configs/usa_states_full.yml
+  graphs_root: output/usa_states_batch
+
+swap:
+  mode: defined_pairs
+  include_identity: false
+  pairs:
+    - [texas_dallas, california_oakland]      # Texas -> California (Austin -> Sacramento)
+    - [texas_dallas, new_york_new_york_city]  # Texas -> New York (Austin -> Albany)
+    - [california_oakland, texas_dallas]      # California -> Texas (Sacramento -> Austin)
+    - [new_york_new_york_city, texas_dallas]  # New York -> Texas (Albany -> Austin)
+
+ct_steering:
+  model_id: google/gemma-2-2b
+  transcoder_set: mntss/clt-gemma-2-2b-2.5M
+  M_ablate: -2
+  M_amplify: 20
+  temperature: 0.3
+  n_tokens: 10
+  freq_penalty: 2.0
+  seed: 42
+  top_k: 5
+  freeze_attention: false
+  steer_generated_tokens: false
+
+compute:
+  inherit_from_source: true
+  remote:
+    batch_size: 1
+    max_gpus: 1
+
+steps:
+  validate_inputs: true
+  prepare_features: true
+  run_steering: true
+  aggregate_results: true
+

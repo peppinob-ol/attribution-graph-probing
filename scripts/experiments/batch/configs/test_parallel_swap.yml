@@ -1,0 +1,67 @@
+version: 0.1
+experiment_name: test_parallel_swap
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Parallel Swap Test - 10 States Matrix
+# ═══════════════════════════════════════════════════════════════════════════════
+# 
+# Tests parallel execution with 10 states (single-word only).
+# Matrix: 10×10 - 10 identity = 90 swaps
+# Expected time: ~15-20 minutes with 8 parallel workers
+#
+# Benchmarking results (from 4-state test):
+#   - Avg swap time: ~85s
+#   - Parallel speedup: ~6x (vs sequential)
+#   - Throughput: ~4.2 swaps/min
+#
+# Usage:
+#   python run_batch_swaps.py --config configs/test_parallel_swap.yml --parallel --force
+#
+
+inputs:
+  source_config: configs/usa_states_full.yml
+  graphs_root: output/usa_states_batch
+
+swap:
+  mode: matrix
+  include_identity: false  # Skip identity swaps
+  
+  # 10 states = 90 swaps (10×10 - 10 identity skipped)
+  subset:
+    - texas_dallas
+    - california_oakland
+    - florida_miami
+    - ohio_cleveland
+    - michigan_detroit
+    - georgia_savannah
+    - arizona_tucson
+    - colorado_colorado_springs
+    - oregon_portland
+    - nevada_las_vegas
+
+ct_steering:
+  model_id: google/gemma-2-2b
+  transcoder_set: mntss/clt-gemma-2-2b-2.5M
+  M_ablate: -2
+  M_amplify: 20
+  temperature: 0.3
+  n_tokens: 10
+  freq_penalty: 2.0
+  seed: 42
+  top_k: 5
+  freeze_attention: false
+  steer_generated_tokens: false
+
+compute:
+  inherit_from_source: true
+  remote:
+    enabled: true
+    batch_size: 1
+    max_gpus: 8
+
+steps:
+  validate_inputs: true
+  prepare_features: true
+  run_steering: true
+  aggregate_results: true
+

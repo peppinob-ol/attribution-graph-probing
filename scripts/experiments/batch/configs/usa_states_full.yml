@@ -2,11 +2,15 @@ version: 0.1
 experiment_name: usa_states_full_batch
 
 # Full US-states entity-swap run (50 seeds)
-# - Generate graphs & probes locally, run activations remotely (8×A40 node)
-# - Applies node-influence post-filtering and BOS blacklist automatically
+# - Generate graphs & probes locally, run activations remotely (8xA40 node)
+# - Applies cumulative-influence post-filtering and BOS blacklist automatically
+#
+# NOTE: node_threshold filter uses <= (keep top features with LOW cumulative influence)
+# This matches the frontend behavior in eda/pages/00_Graph_Generation.py
 
 paths:
-  outputs_root: output/usa_states_batch
+  # Use absolute path to avoid relative path issues when running from different directories
+  outputs_root: C:/Github/circuit_tracer-prompt_rover/output/usa_states_batch
 
 model:
   id: gemma-2-2b
@@ -16,7 +20,7 @@ features:
   selection: cumulative_influence
   threshold: 0.95
   post_filter:
-    node_threshold: 70   # keep features whose Neuronpedia node influence >= 0.70 (percent)
+    node_threshold: 95   # keep features with cumulative influence <= 0.95 (includes concept features for swaps)
 
 probes:
   mode: templated
@@ -50,8 +54,8 @@ compute:
     logs_dir: "/mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/logs"
     env_activate_cmd: "source /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/env.sh"
     gpu_selection: auto
-    max_gpus: 6            # Now using round-robin GPU assignment
-    batch_size: 4          # Reduced to avoid SSH timeouts
+    max_gpus: 8            # Use all 8 GPUs with round-robin
+    batch_size: 8          # Seeds per batch 
     max_retries: 1         # automatically requeue failed batches once
     persist_sae_cache: true
 
@@ -78,10 +82,10 @@ grouping:
 
 steps:
   graph_generation: false   # Keep existing graphs
-  feature_export: false     # Keep existing features
-  probe_prompts: true       # Regenerate with proper entity substitution
-  activations: true         # Regenerate for new prompts (remote)
-  grouping: true            # Run with BOS fix
+  feature_export: true      # Re-run feature selection with fixed node_threshold logic (<=)
+  probe_prompts: true       # Regenerate prompts
+  activations: true         # Regenerate activations for new features
+  grouping: true            # Re-run grouping with correct features
   upload_subgraph: true
   dry_run: false
   force: true               # Overwrite existing files

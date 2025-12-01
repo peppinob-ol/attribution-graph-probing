@@ -1,0 +1,102 @@
+version: 0.1
+experiment_name: usa_states_swap
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# USA States Swap Experiment
+# ═══════════════════════════════════════════════════════════════════════════════
+# 
+# This config runs CT steering experiments that swap state concepts.
+# For each source prompt (e.g., "The capital of the state containing Dallas is"),
+# we ablate the source state features and amplify target state features.
+#
+# Prerequisites:
+#   - Run usa_states_full.yml first to generate graphs
+#   - All 50 states must have: graph.json, node_grouping.csv, metrics.csv
+#
+# Usage:
+#   python run_batch_swaps.py --config configs/usa_states_swap.yml --dry-run
+#   python run_batch_swaps.py --config configs/usa_states_swap.yml
+#   python run_batch_swaps.py --config configs/usa_states_swap.yml --pair texas_dallas:california_oakland
+#
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# INPUTS
+# ─────────────────────────────────────────────────────────────────────────────────
+inputs:
+  # Reference the original config for entities (no duplication!)
+  source_config: configs/usa_states_full.yml
+  
+  # Where the pre-computed graphs are stored
+  graphs_root: output/usa_states_batch
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# SWAP MODE
+# ─────────────────────────────────────────────────────────────────────────────────
+swap:
+  # 'matrix': Full NxN combinations (50x50 = 2500 experiments)
+  # 'defined_pairs': Only run explicitly listed pairs
+  mode: matrix
+  
+  # Include identity swaps (Texas->Texas) as baselines?
+  include_identity: true
+  
+  # For mode: defined_pairs, list pairs here:
+  # pairs:
+  #   - [texas_dallas, california_oakland]
+  #   - [new_york_new_york_city, florida_miami]
+  #   - {from: texas_dallas, to: california_oakland}
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# CT STEERING PARAMETERS
+# ─────────────────────────────────────────────────────────────────────────────────
+ct_steering:
+  # Model and transcoder (must match what was used to generate graphs)
+  model_id: google/gemma-2-2b
+  transcoder_set: mntss/clt-gemma-2-2b-2.5M
+  
+  # Intervention strengths
+  # M_ablate: Multiplier for source concept features
+  #   0.0  = Full ablation (zero out)
+  #   -1.0 = Reverse direction
+  #   -2.0 = Double and reverse (tested, works well)
+  M_ablate: -2
+  
+  # M_amplify: Multiplier for target concept features
+  #   2.0  = Double the activation
+  #   20.0 = Strong amplification (tested, works well)
+  M_amplify: 20
+  
+  # Generation parameters
+  temperature: 0.3
+  n_tokens: 10
+  freq_penalty: 2.0
+  seed: 42
+  top_k: 5
+  
+  # CT-specific options
+  freeze_attention: false       # If true, freeze attention patterns during intervention
+  steer_generated_tokens: false # If true, apply steering to all generated tokens
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# COMPUTE
+# ─────────────────────────────────────────────────────────────────────────────────
+compute:
+  # Inherit remote settings from source_config (recommended)
+  inherit_from_source: true
+  
+  # Override specific settings if needed:
+  remote:
+    enabled: true
+    # Reduce batch_size for steering (more memory intensive)
+    batch_size: 4
+    max_gpus: 8
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# STEPS
+# ─────────────────────────────────────────────────────────────────────────────────
+steps:
+  validate_inputs: true     # Check all required files exist
+  prepare_features: true    # Generate features.json for each pair
+  run_steering: true        # Execute CT steering
+  aggregate_results: true   # Create summary and matrix
+

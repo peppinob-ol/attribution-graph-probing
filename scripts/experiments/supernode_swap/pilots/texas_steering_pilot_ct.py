@@ -43,6 +43,7 @@ OUTPUT_DIR = EXPERIMENT_DIR / "output" / "ct_results"
 
 # Remote execution support
 from experiments.batch.pipeline.steering_remote_ct import process_remote_ct_steering_step
+from experiments.batch.pipeline.graph_loader import load_graph_data
 
 
 def _load_ct_steering_module():
@@ -91,82 +92,7 @@ DEFAULT_CONFIG = {
 # -------------------------------------------------------------------
 # Data loading helpers
 # -------------------------------------------------------------------
-
-
-def load_graph_data(graph_dir: Path) -> Dict[str, Any]:
-    """Load all data from a graph directory.
-    
-    Supports two directory structures:
-    1. Batch pipeline structure:
-       - {graph_dir}/02 Node Grouping/node_grouping.csv
-       - {graph_dir}/00 Graph Generation/graph_feature_static_metrics.csv
-       - {graph_dir}/00 Graph Generation/graph.json
-    2. Flat structure:
-       - {graph_dir}/node_grouping.csv
-       - {graph_dir}/graph_feature_static_metrics.csv
-       - {graph_dir}/graph.json
-    
-    Returns:
-        Dict with 'grouping', 'metrics' DataFrames and 'prompt' string from graph.json
-    """
-    # Try batch pipeline structure first
-    grouping_path = graph_dir / "02 Node Grouping" / "node_grouping.csv"
-    metrics_path = graph_dir / "00 Graph Generation" / "graph_feature_static_metrics.csv"
-    graph_json_path = graph_dir / "00 Graph Generation" / "graph.json"
-    
-    # Fall back to flat structure
-    if not grouping_path.exists():
-        grouping_path = graph_dir / "node_grouping.csv"
-    if not metrics_path.exists():
-        metrics_path = graph_dir / "graph_feature_static_metrics.csv"
-    if not graph_json_path.exists():
-        graph_json_path = graph_dir / "graph.json"
-    
-    if not grouping_path.exists():
-        raise FileNotFoundError(f"Node grouping not found: {grouping_path}")
-    if not metrics_path.exists():
-        raise FileNotFoundError(f"Feature metrics not found: {metrics_path}")
-    
-    # Load prompt and activations from graph.json
-    prompt = None
-    activations_map = {}  # {(layer, feature, position): activation_value}
-    
-    if graph_json_path.exists():
-        with open(graph_json_path, "r", encoding="utf-8") as f:
-            graph_data = json.load(f)
-        
-        # Extract prompt
-        prompt = graph_data.get("metadata", {}).get("prompt")
-        if prompt:
-            print(f"  [PROMPT] Loaded from graph.json: {prompt[:60]}...")
-        
-        # Extract activations from nodes by parsing node_id
-        # node_id format: "{layer}_{feature}_{position}" e.g., "0_1861_7"
-        nodes = graph_data.get("nodes", [])
-        for node in nodes:
-            node_id = node.get("node_id", "")
-            activation = node.get("activation")
-            if node_id and activation is not None:
-                parts = node_id.split("_")
-                if len(parts) >= 3:
-                    try:
-                        layer = int(parts[0])
-                        feature = int(parts[1])
-                        position = int(parts[2])
-                        activations_map[(layer, feature, position)] = float(activation)
-                    except (ValueError, IndexError):
-                        pass  # Skip malformed node_ids
-        
-        if activations_map:
-            print(f"  [ACTIVATIONS] Loaded {len(activations_map)} stored activations from graph.json")
-    
-    return {
-        "grouping": pd.read_csv(grouping_path),
-        "metrics": pd.read_csv(metrics_path),
-        "prompt": prompt,
-        "activations_map": activations_map,  # Stored activations from graph
-        "graph_dir": graph_dir,
-    }
+# load_graph_data() imported from experiments.batch.pipeline.graph_loader
 
 
 def load_prompts(prompt_file: Path) -> List[Dict[str, str]]:

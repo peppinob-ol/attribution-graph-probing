@@ -3,6 +3,9 @@
 This directory contains pilot scripts for validating supernode-level interventions
 using **Circuit Tracer's ReplacementModel** before scaling to full experiments.
 
+> **For batch experiments (50x50 matrix)**: Use `scripts/experiments/batch/run_batch_swaps.py`
+> instead of these pilot scripts. See `scripts/experiments/batch/README.md` for details.
+
 ### Files
 
 - `texas_steering_pilot_ct.py`
@@ -11,10 +14,25 @@ using **Circuit Tracer's ReplacementModel** before scaling to full experiments.
   - **Dual-graph support**: Ablate concept from one graph, amplify concept from another graph.
   - **Stored activations**: Uses activations from `graph.json` (no redundant forward pass).
   - Supports both local execution (with GPU) and remote execution via ELEUTHERAI_NODE.
+  - **Note**: For single-pair experiments and debugging. For batch runs, use `run_batch_swaps.py`.
 
 ---
 
-## Quick Start: Texas -> California Swap
+## Batch Swap Experiments
+
+For running the full 50-state swap matrix (2500 experiments):
+
+```bash
+# From scripts/experiments/batch/
+python run_batch_swaps.py --config configs/usa_states_swap.yml --dry-run
+python run_batch_swaps.py --config configs/usa_states_swap.yml
+```
+
+See `scripts/experiments/batch/README.md` for full documentation.
+
+---
+
+## Quick Start: Texas -> California Swap (Single Pair)
 
 ```bash
 # Ablate "texas" features, amplify "california" features
