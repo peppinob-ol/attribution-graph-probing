@@ -30,11 +30,28 @@ python run_batch_swaps.py --config configs/usa_states_swap.yml --dry-run
 # Run single swap pair (test)
 python run_batch_swaps.py --config configs/usa_states_swap.yml --pair texas_dallas:california_oakland
 
-# Run full 50x50 matrix (2500 experiments)
+# Run full 50x50 matrix in PARALLEL (recommended for large runs)
+python run_batch_swaps.py --config configs/usa_states_swap.yml --parallel
+
+# Run full 50x50 matrix (sequential, slower)
 python run_batch_swaps.py --config configs/usa_states_swap.yml
 
-# Force re-run all
+# Force re-run all (WARNING: overwrites existing results)
 python run_batch_swaps.py --config configs/usa_states_swap.yml --force
+```
+
+### Swap Analysis (after swaps are completed)
+
+```bash
+# Analyze swap results with tiered classification
+python analyze_swaps.py --output-dir _analysis_v3
+
+# Browse individual results interactively
+python browse_swaps.py --from california --to texas
+
+# Generate visualizations
+python ../../../visualization/swap_heatmap.py
+python ../../../visualization/swap_factor_analysis.py
 ```
 
 ## Directory Structure
@@ -56,9 +73,15 @@ scripts/experiments/batch/
 |   |-- graph_loader.py              # Shared graph data loading
 |   |-- swap_loader.py               # Swap pair resolution
 |   |-- swap_evaluator.py            # Swap result evaluation
+|   |-- swap_classifier.py           # Tiered classification (0-5 tiers)
 |
 |-- run_batch_from_yaml.py           # Main CLI runner (graphs/activations)
 |-- run_batch_swaps.py               # CT steering swap runner
+|-- analyze_swaps.py                 # Post-hoc swap analysis & classification
+|-- browse_swaps.py                  # Interactive result browser (colored)
+|-- explore_swap_factors.py          # Factor correlation analysis
+|-- army_parade.py                   # Pre-run state overview
+|-- SWAP_STRATEGIES.md               # Strategies for improving swap success
 |-- README.md                        # This file
 |-- TESTING.md                       # Testing guide
 ```
@@ -97,6 +120,13 @@ outputs_root/
 |   |   |   |-- to_texas_dallas.json  # Identity baseline
 |   |   |-- california_oakland/
 |   |       |-- to_texas_dallas.json
+|   |-- _analysis_v3/                # Analysis output (from analyze_swaps.py)
+|   |   |-- tier_summary.json        # Tiered success rates
+|   |   |-- tier_matrix.csv          # 50x50 tier matrix
+|   |   |-- detailed_results.csv     # Per-swap classification
+|   |   |-- tier_heatmap.png         # Heatmap visualization
+|   |   |-- swap_factor_analysis.png # Factor correlation plots
+|   |   |-- swap_factor_summary.json # Correlation statistics
 |   |-- work/                        # Temporary work files per swap
 |
 |-- texas_dallas/                    # Source graph data (unchanged)
@@ -108,6 +138,89 @@ Each swap result file contains:
 - Intervention counts (ablate + amplify features)
 - Evaluation metrics (exact match, suppression, topk probabilities)
 - Raw outputs for post-hoc analysis
+
+## Swap Analysis Tools
+
+After running swaps, use these tools to analyze results:
+
+### Tiered Classification System
+
+The `analyze_swaps.py` script classifies each swap into a 0-5 tier:
+
+| Tier | Name | Description |
+|------|------|-------------|
+| 5 | PERFECT | Target capital found in output |
+| 4 | TARGET_STATE_CITY | Target state city found (not capital) |
+| 3 | TARGET_STATE_ONLY | Target state reference found |
+| 2 | SUPPRESSED_ONLY | Source suppressed, no target info |
+| 1 | SOURCE_PERSISTS | Source capital still in output |
+| 0 | WRONG_STATE | Wrong state entirely |
+
+```bash
+# Run classification analysis
+python analyze_swaps.py --output-dir _analysis_v3
+
+# Output files:
+#   tier_summary.json    - Aggregate statistics by tier
+#   tier_matrix.csv      - 50x50 tier matrix
+#   detailed_results.csv - Per-swap classification
+```
+
+### Interactive Browser
+
+Browse individual swap results with colored tier display:
+
+```bash
+# Browse all results
+python browse_swaps.py
+
+# Filter by source/target
+python browse_swaps.py --from california --to texas
+
+# Filter by tier
+python browse_swaps.py --tier 5  # Only PERFECT swaps
+
+# Commands in browser:
+#   [number] - Show detailed result
+#   n/p      - Next/previous page
+#   m        - Add note to current result
+#   notes    - Review all notes
+#   save     - Export notes to JSON
+#   q        - Quit
+```
+
+### Visualizations
+
+```bash
+# Generate heatmap from tier matrix
+python ../../../visualization/swap_heatmap.py
+
+# Generate factor analysis (native prob, supernodes, etc.)
+python ../../../visualization/swap_factor_analysis.py
+```
+
+### Factor Analysis
+
+The `explore_swap_factors.py` and `swap_factor_analysis.py` scripts analyze correlations between swap success and graph characteristics:
+
+**Key findings from 50-state analysis:**
+
+| Factor | vs Source Tier | vs Target Tier |
+|--------|----------------|----------------|
+| State supernode features | r = -0.92 | r = +0.06 |
+| Native logit probability | r = -0.61 | r = +0.27 |
+| Total supernode count | r = -0.75 | r = -0.09 |
+
+**Interpretation:**
+- **State features**: More features in state supernode = harder to steer FROM (strong defense)
+- **Native probability**: Higher native prob = harder to escape, easier to land on
+- **Supernodes**: More supernodes = harder to steer FROM
+
+**State Archetypes:**
+- **Exchangers** (CA, OH): Good bidirectional steering
+- **Magnets** (CO): Easy to steer TO, hard to steer FROM
+- **Escape Routes** (GA, OR): Easy to steer FROM, hard to steer TO
+- **Traps** (NY): Hard to steer in either direction
 
 ## Config Overview
 
@@ -307,6 +420,11 @@ For gated models (e.g., Gemma):
 - Stored activations from graph.json (no redundant forward pass)
 - Result evaluation with exact match + topk probability metrics
 - Aggregation to summary statistics and success matrix
+- **Parallel execution** with `--parallel` flag (uses multiple GPUs)
+- **Resume capability**: Skips already-completed pairs automatically
+- **Tiered classification** with 6-level success metrics
+- **Analysis tools**: `analyze_swaps.py`, `browse_swaps.py`
+- **Visualizations**: Heatmaps, factor analysis plots
 
 ### Not Yet Implemented
 - Subgraph upload to Neuronpedia
@@ -378,13 +496,50 @@ Operational checklist:
 After these steps you can launch both batch runs and steering pilots from your
 local machine without touching the pod configuration again.
 
+## Parallel Execution & Resume
+
+### Parallel Mode (Recommended for Large Runs)
+
+```bash
+# Run with 8 parallel workers (default)
+python run_batch_swaps.py --config configs/usa_states_swap.yml --parallel
+
+# Custom worker count
+python run_batch_swaps.py --config configs/usa_states_swap.yml --parallel --max-workers 4
+```
+
+**Performance benchmarks (8x A40 GPUs):**
+- Sequential: ~85s per swap
+- Parallel: ~10-11 swaps/minute
+- 50x50 matrix (2450 swaps): ~4 hours
+
+### Resume Behavior
+
+The swap runner **automatically skips completed pairs**:
+
+```
+[SKIP] 93 pairs already completed (use --force to re-run)
+```
+
+**If interrupted:**
+1. Each swap saves results immediately to `by_source/{from}/to_{to}.json`
+2. Completed swaps are preserved
+3. Re-run the same command to auto-resume
+4. Summary/matrix regenerated at end
+
+**To force re-run:**
+```bash
+python run_batch_swaps.py --config configs/usa_states_swap.yml --force
+```
+
+**WARNING:** `--force` overwrites ALL existing results!
+
 ## Future Work
 
-### Parallel Seed Processing
+### Additional Improvements
 Improve scheduler and resume capabilities:
 
 - Smarter queueing/priorities beyond fixed batch_size
-- Resume partial batches (skip seeds that already completed)
 - Dynamic scaling when more GPUs become available mid-run
 
 ### Additional Features
@@ -477,12 +632,40 @@ The typical workflow is:
 python run_batch_from_yaml.py --config configs/usa_states_full.yml
 
 # Phase 2: Run swap experiments (can run multiple times with different params)
-python run_batch_swaps.py --config configs/usa_states_swap.yml
+python run_batch_swaps.py --config configs/usa_states_swap.yml --parallel
 
 # Re-run with different M values
 # Edit usa_states_swap.yml: M_amplify: 5.0
 python run_batch_swaps.py --config configs/usa_states_swap.yml --force
 ```
+
+### Full 50x50 Run Checklist
+
+Before running a large swap matrix:
+
+```bash
+# 1. Preview all states (army parade)
+python army_parade.py
+
+# 2. Dry run to validate config
+python run_batch_swaps.py --config configs/usa_states_swap.yml --dry-run --parallel
+
+# 3. Check how many pairs will be skipped (already done)
+# Output will show: "[SKIP] N pairs already completed"
+
+# 4. Run with parallel execution (NO --force to preserve existing!)
+python run_batch_swaps.py --config configs/usa_states_swap.yml --parallel
+
+# 5. After completion, run analysis
+python analyze_swaps.py --output-dir _analysis_50x50
+python ../../../visualization/swap_heatmap.py
+python ../../../visualization/swap_factor_analysis.py
+```
+
+**Time estimate for 50x50:**
+- ~2,450 swap pairs
+- ~10 swaps/minute with 8 GPUs
+- **~4 hours total**
 
 ## Contributing
 

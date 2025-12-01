@@ -2,6 +2,7 @@
 Remote execution module for running activations on GPU nodes via SSH.
 Handles rsync, GPU selection, locking, and remote command execution.
 """
+import atexit
 import json
 import os
 import shutil
@@ -9,21 +10,162 @@ import subprocess
 import tempfile
 import time
 import traceback
+import uuid
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, List, Set
+
+
+class SSHControlMaster:
+    """
+    Manages a persistent SSH ControlMaster socket for connection multiplexing.
+    
+    This allows multiple SSH/SCP operations to share a single TCP connection,
+    avoiding SSH server connection limits (MaxSessions) when running parallel jobs.
+    
+    Usage:
+        master = SSHControlMaster("user@host", port=22)
+        if master.start():
+            # All SSH/SCP can now use master.socket_path
+            executor = RemoteExecutor(config, control_socket=master.socket_path)
+            # ... do work ...
+        master.close()
+    """
+    
+    def __init__(self, ssh_target: str, port: Optional[str] = None):
+        """
+        Initialize ControlMaster (does not start connection yet).
+        
+        Args:
+            ssh_target: SSH target in format "user@host" or just "host"
+            port: Optional SSH port
+        """
+        self.ssh_target = ssh_target
+        self.port = port
+        self.socket_path: Optional[str] = None
+        self._started = False
+        
+    def start(self, timeout: int = 30) -> bool:
+        """
+        Start the ControlMaster connection.
+        
+        Returns:
+            True if master started successfully, False otherwise
+        """
+        if self._started:
+            return True
+        
+        # ControlMaster uses Unix domain sockets - not supported on Windows
+        import platform
+        if platform.system() == 'Windows':
+            print("  [SSH] ControlMaster not supported on Windows (Unix sockets required)")
+            return False
+            
+        # Create unique socket path in temp directory
+        socket_dir = Path(tempfile.gettempdir()) / "ssh_control"
+        socket_dir.mkdir(exist_ok=True)
+        socket_name = f"cm_{uuid.uuid4().hex[:8]}"
+        self.socket_path = str(socket_dir / socket_name)
+        
+        # Build ControlMaster command
+        # -M: Start master mode
+        # -N: No remote command (just open connection)
+        # -f: Go to background after authentication
+        # -o ControlPersist=yes: Keep master alive even after first client exits
+        cmd = [
+            'ssh',
+            '-o', 'StrictHostKeyChecking=no',
+            '-o', 'ControlMaster=yes',
+            '-o', 'ControlPersist=600',  # Keep alive for 10 minutes of inactivity
+            '-S', self.socket_path,
+            '-M', '-N', '-f',
+        ]
+        if self.port:
+            cmd.extend(['-p', self.port])
+        cmd.append(self.ssh_target)
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=timeout
+            )
+            
+            if result.returncode == 0:
+                self._started = True
+                # Register cleanup on exit
+                atexit.register(self.close)
+                return True
+            else:
+                print(f"WARNING: ControlMaster failed to start: {result.stderr}")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            print(f"WARNING: ControlMaster connection timed out after {timeout}s")
+            return False
+        except FileNotFoundError:
+            print("WARNING: SSH not found in PATH")
+            return False
+        except Exception as e:
+            print(f"WARNING: ControlMaster error: {e}")
+            return False
+    
+    def is_ready(self) -> bool:
+        """Check if ControlMaster is active."""
+        if not self._started or not self.socket_path:
+            return False
+            
+        # Check socket status
+        cmd = ['ssh', '-S', self.socket_path, '-O', 'check', self.ssh_target]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            return result.returncode == 0
+        except Exception:
+            return False
+    
+    def close(self):
+        """Close the ControlMaster connection and clean up socket."""
+        if not self._started or not self.socket_path:
+            return
+            
+        # Send exit command to master
+        cmd = ['ssh', '-S', self.socket_path, '-O', 'exit', self.ssh_target]
+        try:
+            subprocess.run(cmd, capture_output=True, timeout=5)
+        except Exception:
+            pass
+        
+        # Clean up socket file
+        try:
+            socket_file = Path(self.socket_path)
+            if socket_file.exists():
+                socket_file.unlink()
+        except Exception:
+            pass
+            
+        self._started = False
+        self.socket_path = None
+        
+        # Unregister atexit handler
+        try:
+            atexit.unregister(self.close)
+        except Exception:
+            pass
 
 
 class RemoteExecutor:
     """Handles SSH/rsync operations for remote GPU node."""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], control_socket: Optional[str] = None):
         """
         Initialize remote executor from config.
         
         Args:
             config: Full experiment config with compute.remote section
+            control_socket: Optional path to SSH ControlMaster socket for connection reuse
         """
         self.remote_config = config.get('compute', {}).get('remote', {})
+        self.control_socket = control_socket  # For SSH connection multiplexing
         
         if not self.remote_config.get('enabled'):
             raise ValueError("Remote execution not enabled in config")
@@ -81,6 +223,9 @@ class RemoteExecutor:
         # Use list form (works on all platforms)
         # Pass command as single argument to SSH
         ssh_cmd = ['ssh', '-o', 'StrictHostKeyChecking=no']
+        # Use ControlMaster socket if available (for connection reuse)
+        if self.control_socket:
+            ssh_cmd.extend(['-S', self.control_socket])
         if self.port:
             ssh_cmd.extend(['-p', self.port])
         ssh_cmd.extend([self.ssh_target, cmd])
@@ -126,6 +271,9 @@ class RemoteExecutor:
         # Use scp (more widely available than rsync on Windows)
         # On Windows, assume SSH key-based auth (no sshpass)
         scp_cmd = ['scp', '-o', 'StrictHostKeyChecking=no']
+        # Use ControlMaster socket if available (for connection reuse)
+        if self.control_socket:
+            scp_cmd.extend(['-o', f'ControlPath={self.control_socket}'])
         if self.port:
             scp_cmd.extend(['-P', self.port])
         scp_cmd.extend(['-r', str(local_path), remote_target])
@@ -167,6 +315,9 @@ class RemoteExecutor:
         
         # On Windows, assume SSH key-based auth (no sshpass)
         scp_cmd = ['scp', '-o', 'StrictHostKeyChecking=no']
+        # Use ControlMaster socket if available (for connection reuse)
+        if self.control_socket:
+            scp_cmd.extend(['-o', f'ControlPath={self.control_socket}'])
         if self.port:
             scp_cmd.extend(['-P', self.port])
         scp_cmd.extend(['-r', remote_target, str(local_path)])
@@ -1030,8 +1181,63 @@ def check_sshpass_available() -> bool:
         return False
 
 
+def create_control_master_from_config(config: Dict[str, Any], verbose: bool = True) -> Optional[SSHControlMaster]:
+    """
+    Create and start an SSH ControlMaster from experiment config.
+    
+    Args:
+        config: Full experiment config with compute.remote section
+        verbose: Print progress
+    
+    Returns:
+        Started SSHControlMaster instance, or None if failed/not needed
+    """
+    remote_config = config.get('compute', {}).get('remote', {})
+    if not remote_config.get('enabled'):
+        return None
+    
+    # Get SSH target
+    host_value = remote_config.get('host')
+    host_env = remote_config.get('host_env')
+    if host_env:
+        env_value = os.environ.get(host_env)
+        if env_value:
+            host_value = env_value
+    
+    if not host_value:
+        return None
+    
+    user = remote_config.get('user', '')
+    ssh_target = f"{user}@{host_value}" if user else host_value
+    
+    # Get port
+    port_value = remote_config.get('port')
+    port_env = remote_config.get('port_env')
+    if port_env:
+        env_port = os.environ.get(port_env)
+        if env_port:
+            port_value = env_port
+    port = str(port_value) if port_value else None
+    
+    # Create and start master
+    master = SSHControlMaster(ssh_target, port)
+    
+    if verbose:
+        print(f"  [SSH] Starting ControlMaster connection to {ssh_target}...")
+    
+    if master.start():
+        if verbose:
+            print(f"  [SSH] ControlMaster ready (socket: {master.socket_path})")
+        return master
+    else:
+        if verbose:
+            print("  [SSH] ControlMaster failed, will use direct connections")
+        return None
+
+
 def process_remote_activation_step(config: Dict[str, Any], seed: Dict[str, Any], 
-                                   paths: Dict[str, Path], verbose: bool = True) -> Tuple[bool, Dict[str, Any]]:
+                                   paths: Dict[str, Path], verbose: bool = True,
+                                   control_socket: Optional[str] = None) -> Tuple[bool, Dict[str, Any]]:
     """
     Process activations step using remote GPU node.
     
@@ -1040,6 +1246,7 @@ def process_remote_activation_step(config: Dict[str, Any], seed: Dict[str, Any],
         seed: Seed config
         paths: Local paths dict
         verbose: Print progress
+        control_socket: Optional SSH ControlMaster socket path for connection reuse
     
     Returns:
         Tuple of (success: bool, metadata: dict with gpu_id, log_path, etc.)
@@ -1063,7 +1270,7 @@ def process_remote_activation_step(config: Dict[str, Any], seed: Dict[str, Any],
     
     # Initialize executor
     try:
-        executor = RemoteExecutor(config)
+        executor = RemoteExecutor(config, control_socket=control_socket)
     except Exception as e:
         print(f"ERROR: Failed to initialize remote executor: {e}")
         return False, {}
@@ -1083,13 +1290,15 @@ def process_remote_activation_step(config: Dict[str, Any], seed: Dict[str, Any],
 
 def process_remote_activation_batch(config: Dict[str, Any], batch_states: List[Dict[str, Any]],
                                     batch_id: str, verbose: bool = True,
-                                    batch_index: int = 0) -> Tuple[bool, Dict[str, Any], Dict[str, Any]]:
+                                    batch_index: int = 0,
+                                    control_socket: Optional[str] = None) -> Tuple[bool, Dict[str, Any], Dict[str, Any]]:
     """
     Process a batch of seeds using the remote GPU node.
     Returns (success, metadata, per_seed_results).
     
     Args:
         batch_index: Used for round-robin GPU assignment (0-based)
+        control_socket: Optional SSH ControlMaster socket path for connection reuse
     """
     remote_config = config.get('compute', {}).get('remote', {})
     if not remote_config.get('enabled'):
@@ -1104,7 +1313,7 @@ def process_remote_activation_batch(config: Dict[str, Any], batch_states: List[D
     if password_env and not check_sshpass_available():
         print("WARNING: sshpass not available; password auth may fail")
 
-    executor = RemoteExecutor(config)
+    executor = RemoteExecutor(config, control_socket=control_socket)
     success, metadata, per_seed = executor.run_remote_batch(
         config, batch_states, batch_id, verbose=verbose, batch_index=batch_index
     )
@@ -1112,16 +1321,22 @@ def process_remote_activation_batch(config: Dict[str, Any], batch_states: List[D
     return success, metadata, per_seed
 
 
-def verify_remote_connection(config: Dict[str, Any], verbose: bool = True) -> bool:
+def verify_remote_connection(config: Dict[str, Any], verbose: bool = True,
+                             control_socket: Optional[str] = None) -> bool:
     """
     Run a quick SSH + directory check before kicking off remote work.
+    
+    Args:
+        config: Full experiment config
+        verbose: Print progress
+        control_socket: Optional SSH ControlMaster socket path for connection reuse
     """
     remote_config = config.get('compute', {}).get('remote', {})
     if not remote_config.get('enabled'):
         return True
     
     try:
-        executor = RemoteExecutor(config)
+        executor = RemoteExecutor(config, control_socket=control_socket)
     except Exception as exc:
         print(f"ERROR: Failed to initialize remote executor: {exc}")
         return False

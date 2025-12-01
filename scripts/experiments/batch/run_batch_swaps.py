@@ -57,6 +57,7 @@ from pipeline.swap_evaluator import (
     aggregate_results_to_matrix,
 )
 from pipeline.steering_remote_ct import process_remote_ct_steering_step
+from pipeline.remote import create_control_master_from_config, SSHControlMaster
 
 
 def _load_ct_steering_module():
@@ -159,6 +160,7 @@ def run_single_swap(
     config: Dict[str, Any],
     pair: SwapPair,
     verbose: bool = True,
+    control_socket: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Run a single swap experiment.
@@ -168,6 +170,7 @@ def run_single_swap(
         config: Swap configuration
         pair: The swap pair to run
         verbose: Print progress
+        control_socket: Optional SSH ControlMaster socket for connection reuse
     
     Returns:
         Complete result dict, or None if failed
@@ -257,7 +260,8 @@ def run_single_swap(
         seed = {'slug': pair.swap_id}
         
         success, metadata = process_remote_ct_steering_step(
-            remote_exec_config, seed, local_paths, verbose=verbose
+            remote_exec_config, seed, local_paths, verbose=verbose,
+            control_socket=control_socket
         )
         
         if not success:
@@ -317,6 +321,7 @@ def run_swaps_parallel(
     pairs: List[SwapPair],
     max_workers: int = 8,
     verbose: bool = True,
+    control_socket: Optional[str] = None,
 ) -> Tuple[List[Dict[str, Any]], List[SwapPair]]:
     """
     Run multiple swaps in parallel using ThreadPoolExecutor.
@@ -327,6 +332,7 @@ def run_swaps_parallel(
         pairs: List of swap pairs to run
         max_workers: Maximum concurrent workers (default: 8 for 8 GPUs)
         verbose: Print progress
+        control_socket: Optional SSH ControlMaster socket for connection reuse
     
     Returns:
         Tuple of (results list, failed pairs list)
@@ -337,11 +343,26 @@ def run_swaps_parallel(
     completed = 0
     start_time = time.time()
     
+    # Track worker index for staggered starts (Windows workaround)
+    import threading
+    worker_counter = [0]
+    counter_lock = threading.Lock()
+    
     def run_swap_worker(pair: SwapPair) -> Tuple[SwapPair, Optional[Dict[str, Any]], Optional[str], float]:
         """Worker function for a single swap."""
+        # Stagger worker starts to avoid SSH connection storms (especially on Windows)
+        with counter_lock:
+            worker_idx = worker_counter[0]
+            worker_counter[0] += 1
+        
+        # Small delay for first few workers to avoid simultaneous SSH connections
+        if worker_idx < max_workers and not control_socket:
+            time.sleep(worker_idx * 0.5)  # 0, 0.5, 1.0, 1.5s delays
+        
         swap_start = time.time()
         try:
-            result = run_single_swap(ct_steering, config, pair, verbose=False)
+            result = run_single_swap(ct_steering, config, pair, verbose=False,
+                                     control_socket=control_socket)
             return (pair, result, None, time.time() - swap_start)
         except Exception as e:
             return (pair, None, str(e), time.time() - swap_start)
@@ -490,11 +511,33 @@ def run_batch_swaps(
     print_banner(f"Running {len(pending_pairs)} Swaps")
     
     if parallel:
-        # Parallel execution using ThreadPoolExecutor
-        results, failed = run_swaps_parallel(
-            ct_steering, config, pending_pairs, 
-            max_workers=max_workers, verbose=verbose
-        )
+        # Start SSH ControlMaster for connection reuse (avoids SSH throttling)
+        print("  [SSH] Starting ControlMaster for parallel execution...")
+        control_master = create_control_master_from_config(config, verbose=verbose)
+        control_socket = control_master.socket_path if control_master else None
+        
+        if control_socket:
+            print(f"  [SSH] Connection multiplexing enabled")
+        else:
+            # Without ControlMaster, limit workers to avoid SSH throttling
+            # 4 workers with staggered starts should stay under typical MaxStartups=10
+            fallback_workers = min(max_workers, 4)
+            if fallback_workers < max_workers:
+                print(f"  [SSH] WARNING: ControlMaster unavailable, reducing workers to {fallback_workers}")
+                max_workers = fallback_workers
+        
+        try:
+            # Parallel execution using ThreadPoolExecutor
+            results, failed = run_swaps_parallel(
+                ct_steering, config, pending_pairs, 
+                max_workers=max_workers, verbose=verbose,
+                control_socket=control_socket
+            )
+        finally:
+            # Clean up ControlMaster
+            if control_master:
+                control_master.close()
+                print("  [SSH] ControlMaster closed")
     else:
         # Sequential execution (original behavior)
         results = []

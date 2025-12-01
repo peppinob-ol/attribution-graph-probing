@@ -5,7 +5,7 @@ Runs scripts/neuronpedia_steering/batch_steering_ct.py on the GPU node via SSH.
 Uses circuit_tracer's ReplacementModel.feature_intervention_generate().
 """
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 import time
 
 from .remote import RemoteExecutor
@@ -225,6 +225,7 @@ def process_remote_ct_steering_step(
     seed: Dict[str, Any],
     paths: Dict[str, Path],
     verbose: bool = True,
+    control_socket: Optional[str] = None,
 ) -> Tuple[bool, Dict[str, Any]]:
     """
     Execute Circuit Tracer steering for a single seed on the remote GPU node.
@@ -238,6 +239,7 @@ def process_remote_ct_steering_step(
             - 'steering_dump_json'
             - 'base' (output directory base)
         verbose: Print progress.
+        control_socket: Optional SSH ControlMaster socket path for connection reuse.
     
     Returns:
         (success, metadata) tuple.
@@ -247,7 +249,7 @@ def process_remote_ct_steering_step(
         print("ERROR: Remote execution not enabled in config")
         return False, {}
     
-    executor = RemoteExecutor(config)
+    executor = RemoteExecutor(config, control_socket=control_socket)
     success, gpu_id, remote_log = run_remote_ct_steering(
         executor, config, seed, paths, verbose=verbose
     )

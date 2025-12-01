@@ -34,7 +34,8 @@ from pipeline.activations_local import process_activations_step
 from pipeline.remote import (
     process_remote_activation_step,
     process_remote_activation_batch,
-    verify_remote_connection
+    verify_remote_connection,
+    create_control_master_from_config,
 )
 from pipeline.grouping import process_grouping_step
 from pipeline.manifest import create_manifest, write_manifest
@@ -235,27 +236,40 @@ def run_batch(config_path: str, dry_run: bool = False, force: bool = False, verb
             print_banner(f"Remote Activations ({len(pending_remote)} seed(s))")
             from concurrent.futures import ThreadPoolExecutor, as_completed
 
-            attempt_index = 0
-            while pending_remote:
-                attempt_index += 1
-                batches = plan_batches(pending_remote, remote_batch_size)
-                print(f"  Attempt {attempt_index}: {len(batches)} batch(es) "
-                      f"(batch_size={remote_batch_size}, max_gpus={remote_max_gpus})")
+            # Start SSH ControlMaster for connection reuse (avoids SSH throttling)
+            control_master = create_control_master_from_config(config, verbose=verbose)
+            control_socket = control_master.socket_path if control_master else None
+            
+            if control_socket:
+                print(f"  [SSH] Connection multiplexing enabled")
+            elif remote_max_gpus > 4:
+                # Without ControlMaster, limit workers to avoid SSH throttling
+                print(f"  [SSH] WARNING: ControlMaster unavailable, reducing max_gpus to 4")
+                remote_max_gpus = 4
 
-                failures: List[Dict[str, Any]] = []
-                with ThreadPoolExecutor(max_workers=remote_max_gpus) as executor:
-                    futures = {}
-                    for batch_index, batch_states in enumerate(batches, 1):
-                        batch_id = f"batch_{batch_index:03d}"
-                        future = executor.submit(
-                            process_remote_activation_batch,
-                            config,
-                            batch_states,
-                            batch_id,
-                            verbose,
-                            batch_index - 1  # 0-based index for round-robin GPU assignment
-                        )
-                        futures[future] = (batch_id, batch_states)
+            attempt_index = 0
+            try:
+                while pending_remote:
+                    attempt_index += 1
+                    batches = plan_batches(pending_remote, remote_batch_size)
+                    print(f"  Attempt {attempt_index}: {len(batches)} batch(es) "
+                          f"(batch_size={remote_batch_size}, max_gpus={remote_max_gpus})")
+
+                    failures: List[Dict[str, Any]] = []
+                    with ThreadPoolExecutor(max_workers=remote_max_gpus) as executor:
+                        futures = {}
+                        for batch_index, batch_states in enumerate(batches, 1):
+                            batch_id = f"batch_{batch_index:03d}"
+                            future = executor.submit(
+                                process_remote_activation_batch,
+                                config,
+                                batch_states,
+                                batch_id,
+                                verbose,
+                                batch_index - 1,  # 0-based index for round-robin GPU assignment
+                                control_socket,   # SSH ControlMaster socket for connection reuse
+                            )
+                            futures[future] = (batch_id, batch_states)
 
                     for future in as_completed(futures):
                         batch_id, batch_states = futures[future]
@@ -321,6 +335,12 @@ def run_batch(config_path: str, dry_run: bool = False, force: bool = False, verb
 
                 total_remote_requeues += len(next_attempt)
                 pending_remote = next_attempt
+            finally:
+                # Clean up SSH ControlMaster
+                if control_master:
+                    control_master.close()
+                    if verbose:
+                        print("  [SSH] ControlMaster closed")
     
     # Grouping pass for seeds whose activations completed after remote batching
     for state in seed_states:
