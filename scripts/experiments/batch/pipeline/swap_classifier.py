@@ -43,17 +43,19 @@ class ClassificationResult:
 
 
 # Embedded US cities database - major cities per state
-# This covers capitals and major cities for classification
+# This covers capitals, major cities, and notable landmarks for classification
 US_CITIES: Dict[str, List[str]] = {
     "Alabama": ["Montgomery", "Birmingham", "Huntsville", "Mobile", "Tuscaloosa"],
     "Alaska": ["Juneau", "Anchorage", "Fairbanks", "Sitka", "Ketchikan"],
     "Arizona": ["Phoenix", "Tucson", "Mesa", "Chandler", "Scottsdale", "Glendale", "Tempe", "Flagstaff"],
     "Arkansas": ["Little Rock", "Fort Smith", "Fayetteville", "Springdale", "Jonesboro"],
     "California": ["Sacramento", "Los Angeles", "San Francisco", "San Diego", "San Jose", "Oakland", "Fresno", "Long Beach", "Bakersfield", "Anaheim", "Santa Ana", "Riverside", "Stockton", "Irvine", "Chula Vista", "Fremont", "Santa Clara", "Pasadena", "Berkeley", "Modesto"],
-    "Colorado": ["Denver", "Colorado Springs", "Aurora", "Fort Collins", "Lakewood", "Boulder", "Pueblo"],
+    # Colorado: added "Springs" as standalone match, and "Pikes Peak" landmark
+    "Colorado": ["Denver", "Colorado Springs", "Springs", "Aurora", "Fort Collins", "Lakewood", "Boulder", "Pueblo", "Pikes Peak"],
     "Connecticut": ["Hartford", "Bridgeport", "New Haven", "Stamford", "Waterbury", "Norwalk"],
     "Delaware": ["Dover", "Wilmington", "Newark", "Middletown", "Smyrna"],
-    "Florida": ["Tallahassee", "Miami", "Jacksonville", "Tampa", "Orlando", "St. Petersburg", "Hialeah", "Fort Lauderdale", "Port St. Lucie", "Cape Coral", "Pembroke Pines", "Hollywood", "Gainesville", "Coral Springs"],
+    # Florida: added "Keiser" (Keiser University), "Keys" (Florida Keys), "Everglades"
+    "Florida": ["Tallahassee", "Miami", "Jacksonville", "Tampa", "Orlando", "St. Petersburg", "Hialeah", "Fort Lauderdale", "Port St. Lucie", "Cape Coral", "Pembroke Pines", "Hollywood", "Gainesville", "Coral Springs", "Keiser", "Keys", "Everglades"],
     "Georgia": ["Atlanta", "Augusta", "Columbus", "Savannah", "Athens", "Macon", "Roswell", "Albany"],
     "Hawaii": ["Honolulu", "Hilo", "Kailua", "Kapolei", "Pearl City", "Waipahu"],
     "Idaho": ["Boise", "Meridian", "Nampa", "Idaho Falls", "Pocatello", "Caldwell", "Twin Falls"],
@@ -70,7 +72,8 @@ US_CITIES: Dict[str, List[str]] = {
     "Minnesota": ["Saint Paul", "St. Paul", "Minneapolis", "Rochester", "Duluth", "Bloomington", "Brooklyn Park", "Plymouth"],
     "Mississippi": ["Jackson", "Gulfport", "Southaven", "Hattiesburg", "Biloxi", "Meridian", "Tupelo"],
     "Missouri": ["Jefferson City", "Kansas City", "St. Louis", "Springfield", "Columbia", "Independence", "Lee's Summit"],
-    "Montana": ["Helena", "Billings", "Missoula", "Great Falls", "Bozeman", "Butte"],
+    # Montana: added "Hi-Line" region
+    "Montana": ["Helena", "Billings", "Missoula", "Great Falls", "Bozeman", "Butte", "Hi-Line"],
     "Nebraska": ["Lincoln", "Omaha", "Bellevue", "Grand Island", "Kearney", "Fremont"],
     "Nevada": ["Carson City", "Las Vegas", "Henderson", "Reno", "North Las Vegas", "Sparks", "Elko"],
     "New Hampshire": ["Concord", "Manchester", "Nashua", "Derry", "Dover", "Rochester"],
@@ -244,6 +247,7 @@ def classify_swap(
     source_capital: str,
     target_state: str,
     target_capital: str,
+    prompt_city: Optional[str] = None,
 ) -> ClassificationResult:
     """
     Classify a swap result into a success tier.
@@ -254,6 +258,7 @@ def classify_swap(
         source_capital: Source capital (e.g., "Sacramento")
         target_state: Target state name (e.g., "Texas")
         target_capital: Target capital (e.g., "Austin")
+        prompt_city: City mentioned in the prompt (e.g., "Oakland") - excluded from source check
     
     Returns:
         ClassificationResult with tier and details
@@ -264,9 +269,13 @@ def classify_swap(
     city_names = [c[0] for c in cities_found]
     
     # Helper to check if any city is in a specific state
-    def has_city_in_state(state: str) -> Optional[str]:
+    # Optionally excludes the prompt_city to avoid false SOURCE_PERSISTS
+    def has_city_in_state(state: str, exclude_prompt: bool = False) -> Optional[str]:
         for city, city_states in cities_found:
             if state in city_states:
+                # Skip if this is the prompt city and we're checking source
+                if exclude_prompt and prompt_city and city.lower() == prompt_city.lower():
+                    continue
                 return city
         return None
     
@@ -298,7 +307,7 @@ def classify_swap(
             notes=f"Target state '{target_state}' mentioned but no valid city found",
         )
     
-    # Check if source capital/city persists (SOURCE_PERSISTS)
+    # Check if source capital appears (SOURCE_PERSISTS)
     if source_capital.lower() in steered_output.lower():
         return ClassificationResult(
             tier=SwapTier.SOURCE_PERSISTS,
@@ -307,24 +316,37 @@ def classify_swap(
             notes=f"Source capital '{source_capital}' still in output",
         )
     
-    source_city = has_city_in_state(source_state)
+    # Check for source cities (excluding the prompt city)
+    source_city = has_city_in_state(source_state, exclude_prompt=True)
     if source_city:
         return ClassificationResult(
             tier=SwapTier.SOURCE_PERSISTS,
             cities_found=city_names,
             states_found=states_found,
-            notes=f"Found '{source_city}' which is still in source state {source_state}",
+            notes=f"Found '{source_city}' from source state {source_state}",
         )
     
     # Check for cities in third states (WRONG_STATE)
     third_state_cities = []
     for city, city_states in cities_found:
+        # Skip prompt city
+        if prompt_city and city.lower() == prompt_city.lower():
+            continue
         for s in city_states:
             if s != source_state and s != target_state:
                 third_state_cities.append((city, s))
     
     if third_state_cities:
         city, state = third_state_cities[0]
+        # Handle ambiguous Keyser case (WV city but also Keiser University in FL)
+        city_lower = city.lower()
+        if city_lower in ['keyser', 'keiser'] and target_state == 'Florida':
+            return ClassificationResult(
+                tier=SwapTier.TARGET_STATE_ONLY,
+                cities_found=city_names,
+                states_found=states_found,
+                notes=f"Found '{city}' (ambiguous - could be FL university or WV city)",
+            )
         return ClassificationResult(
             tier=SwapTier.WRONG_STATE,
             cities_found=city_names,
@@ -332,7 +354,7 @@ def classify_swap(
             notes=f"Found '{city}' which is in {state} (neither source nor target)",
         )
     
-    # Check for nonsense (SUPPRESSED_ONLY)
+    # Check for nonsense
     if is_nonsense_output(steered_output):
         return ClassificationResult(
             tier=SwapTier.SUPPRESSED_ONLY,
@@ -365,6 +387,9 @@ def classify_swap_result(result: Dict[str, Any], use_llm: bool = False) -> Class
     source = result.get('source', {})
     target = result.get('target', {})
     
+    # Get the prompt city (the city mentioned in the prompt, not the capital)
+    prompt_city = source.get('city', '')
+    
     if use_llm:
         return classify_swap_with_llm(
             steered_output=steered_output,
@@ -380,6 +405,7 @@ def classify_swap_result(result: Dict[str, Any], use_llm: bool = False) -> Class
         source_capital=source.get('capital', ''),
         target_state=target.get('state', ''),
         target_capital=target.get('capital', ''),
+        prompt_city=prompt_city,
     )
 
 

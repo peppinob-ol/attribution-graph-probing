@@ -30,3 +30,4 @@ class SaeLensSAE(BaseSAE):
         return loaded_sae, loaded_sae.cfg.metadata.hook_name
 
 
+
