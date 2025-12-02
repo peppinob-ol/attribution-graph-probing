@@ -1,0 +1,111 @@
+{
+  "swap_id": "oklahoma_tulsa__to__iowa_cedar_rapids",
+  "source": {
+    "slug": "oklahoma_tulsa",
+    "prompt": "<bos>The capital of the state containing Tulsa is",
+    "concept": "oklahoma",
+    "state": "Oklahoma",
+    "capital": "Oklahoma City",
+    "city": "Tulsa"
+  },
+  "target": {
+    "slug": "iowa_cedar_rapids",
+    "concept": "iowa",
+    "state": "Iowa",
+    "capital": "Des Moines",
+    "city": "Cedar Rapids"
+  },
+  "interventions": {
+    "ablate_count": 55,
+    "amplify_count": 10,
+    "total_count": 65
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Oklahoma",
+      "from_capital": "Oklahoma City",
+      "from_city": "Tulsa",
+      "to_state": "Iowa",
+      "to_capital": "Des Moines",
+      "to_city": "Cedar Rapids"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Oklahoma",
+      "default_prob": 0.34765625,
+      "steered": " Iowa",
+      "steered_prob": 0.44140625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Tulsa is Oklahoma City.\n\nThe state of Oklahoma is located",
+      "steered_output": "<bos><bos>The capital of the state containing Tulsa is Iowa is Des Moines.\n\nThe city of Tulsa,",
+      "default_topk": [
+        {
+          "token": " Oklahoma",
+          "prob": 0.34765625
+        },
+        {
+          "token": " the",
+          "prob": 0.087890625
+        },
+        {
+          "token": " ",
+          "prob": 0.07763671875
+        },
+        {
+          "token": " Tulsa",
+          "prob": 0.068359375
+        },
+        {
+          "token": ":",
+          "prob": 0.060302734375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Iowa",
+          "prob": 0.44140625
+        },
+        {
+          "token": " well",
+          "prob": 0.111328125
+        },
+        {
+          "token": " in",
+          "prob": 0.07666015625
+        },
+        {
+          "token": ",",
+          "prob": 0.0673828125
+        },
+        {
+          "token": " a",
+          "prob": 0.041015625
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-02T02:19:55.338047",
+    "duration_ms": 106592.68188476562,
+    "is_identity": false
+  }
+}

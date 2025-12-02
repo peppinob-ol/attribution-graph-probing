@@ -1,0 +1,111 @@
+{
+  "swap_id": "wyoming_casper__to__delaware_wilmington",
+  "source": {
+    "slug": "wyoming_casper",
+    "prompt": "<bos>The capital of the state containing Casper is",
+    "concept": "wyoming",
+    "state": "Wyoming",
+    "capital": "Cheyenne",
+    "city": "Casper"
+  },
+  "target": {
+    "slug": "delaware_wilmington",
+    "concept": "delaware",
+    "state": "Delaware",
+    "capital": "Dover",
+    "city": "Wilmington"
+  },
+  "interventions": {
+    "ablate_count": 16,
+    "amplify_count": 11,
+    "total_count": 27
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Wyoming",
+      "from_capital": "Cheyenne",
+      "from_city": "Casper",
+      "to_state": "Delaware",
+      "to_capital": "Dover",
+      "to_city": "Wilmington"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": true,
+      "from_suppressed": false
+    },
+    "first_token": {
+      "default": " Cheyenne",
+      "default_prob": 0.314453125,
+      "steered": " County",
+      "steered_prob": 0.1962890625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.314453125,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Casper is Cheyenne.\n\nThe capital of Wyoming is Cheyenne.",
+      "steered_output": "<bos><bos>The capital of the state containing Casper is County, Wyoming, is Cheyenne. The city is located",
+      "default_topk": [
+        {
+          "token": " Cheyenne",
+          "prob": 0.314453125
+        },
+        {
+          "token": " Casper",
+          "prob": 0.16796875
+        },
+        {
+          "token": " ",
+          "prob": 0.061767578125
+        },
+        {
+          "token": " the",
+          "prob": 0.061767578125
+        },
+        {
+          "token": " Laramie",
+          "prob": 0.0546875
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " County",
+          "prob": 0.1962890625
+        },
+        {
+          "token": " Valley",
+          "prob": 0.119140625
+        },
+        {
+          "token": " State",
+          "prob": 0.119140625
+        },
+        {
+          "token": "’",
+          "prob": 0.0927734375
+        },
+        {
+          "token": " Brand",
+          "prob": 0.043701171875
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-02T04:17:53.758234",
+    "duration_ms": 79715.67726135254,
+    "is_identity": false
+  }
+}

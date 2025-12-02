@@ -1,0 +1,111 @@
+{
+  "swap_id": "utah_provo__to__alabama_birmingham",
+  "source": {
+    "slug": "utah_provo",
+    "prompt": "<bos>The capital of the state containing Provo is",
+    "concept": "utah",
+    "state": "Utah",
+    "capital": "Salt Lake City",
+    "city": "Provo"
+  },
+  "target": {
+    "slug": "alabama_birmingham",
+    "concept": "alabama",
+    "state": "Alabama",
+    "capital": "Montgomery",
+    "city": "Birmingham"
+  },
+  "interventions": {
+    "ablate_count": 15,
+    "amplify_count": 10,
+    "total_count": 25
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Utah",
+      "from_capital": "Salt Lake City",
+      "from_city": "Provo",
+      "to_state": "Alabama",
+      "to_capital": "Montgomery",
+      "to_city": "Birmingham"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": true,
+      "from_suppressed": false
+    },
+    "first_token": {
+      "default": " Salt",
+      "default_prob": 0.26171875,
+      "steered": "’",
+      "steered_prob": 0.51171875
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Provo is Salt Lake City.\n\nThe state of Utah is",
+      "steered_output": "<bos><bos>The capital of the state containing Provo is’s largest city, Salt Lake City, is the",
+      "default_topk": [
+        {
+          "token": " Salt",
+          "prob": 0.26171875
+        },
+        {
+          "token": " Provo",
+          "prob": 0.10888671875
+        },
+        {
+          "token": " the",
+          "prob": 0.0849609375
+        },
+        {
+          "token": " Utah",
+          "prob": 0.07470703125
+        },
+        {
+          "token": ":",
+          "prob": 0.058349609375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "’",
+          "prob": 0.51171875
+        },
+        {
+          "token": "'",
+          "prob": 0.2412109375
+        },
+        {
+          "token": ",",
+          "prob": 0.037109375
+        },
+        {
+          "token": " is",
+          "prob": 0.037109375
+        },
+        {
+          "token": " and",
+          "prob": 0.0198974609375
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-02T03:23:51.069352",
+    "duration_ms": 66217.32878684998,
+    "is_identity": false
+  }
+}

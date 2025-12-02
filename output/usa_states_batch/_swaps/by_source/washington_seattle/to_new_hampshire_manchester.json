@@ -1,0 +1,111 @@
+{
+  "swap_id": "washington_seattle__to__new_hampshire_manchester",
+  "source": {
+    "slug": "washington_seattle",
+    "prompt": "<bos>The capital of the state containing Seattle is",
+    "concept": "washington",
+    "state": "Washington",
+    "capital": "Olympia",
+    "city": "Seattle"
+  },
+  "target": {
+    "slug": "new_hampshire_manchester",
+    "concept": "new hampshire",
+    "state": "New Hampshire",
+    "capital": "Concord",
+    "city": "Manchester"
+  },
+  "interventions": {
+    "ablate_count": 5,
+    "amplify_count": 4,
+    "total_count": 9
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Washington",
+      "from_capital": "Olympia",
+      "from_city": "Seattle",
+      "to_state": "New Hampshire",
+      "to_capital": "Concord",
+      "to_city": "Manchester"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": true,
+      "from_suppressed": false
+    },
+    "first_token": {
+      "default": " Olympia",
+      "default_prob": 0.50390625,
+      "steered": ":",
+      "steered_prob": 0.173828125
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.50390625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Seattle is Olympia.\n\nThe capital of the state containing Seattle",
+      "steered_output": "<bos><bos>The capital of the state containing Seattle is:\n\nThe capital of the state of Washington is Olympia",
+      "default_topk": [
+        {
+          "token": " Olympia",
+          "prob": 0.50390625
+        },
+        {
+          "token": " the",
+          "prob": 0.06787109375
+        },
+        {
+          "token": " ",
+          "prob": 0.06005859375
+        },
+        {
+          "token": " Seattle",
+          "prob": 0.046875
+        },
+        {
+          "token": " Washington",
+          "prob": 0.041259765625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": ":",
+          "prob": 0.173828125
+        },
+        {
+          "token": ".",
+          "prob": 0.09326171875
+        },
+        {
+          "token": ",",
+          "prob": 0.07275390625
+        },
+        {
+          "token": " is",
+          "prob": 0.0498046875
+        },
+        {
+          "token": " and",
+          "prob": 0.0498046875
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-02T03:54:43.874731",
+    "duration_ms": 67825.21176338196,
+    "is_identity": false
+  }
+}

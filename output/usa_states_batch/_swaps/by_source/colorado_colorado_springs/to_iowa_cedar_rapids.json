@@ -1,0 +1,111 @@
+{
+  "swap_id": "colorado_colorado_springs__to__iowa_cedar_rapids",
+  "source": {
+    "slug": "colorado_colorado_springs",
+    "prompt": "<bos>The capital of the state containing Colorado Springs is",
+    "concept": "colorado",
+    "state": "Colorado",
+    "capital": "Denver",
+    "city": "Colorado Springs"
+  },
+  "target": {
+    "slug": "iowa_cedar_rapids",
+    "concept": "iowa",
+    "state": "Iowa",
+    "capital": "Des Moines",
+    "city": "Cedar Rapids"
+  },
+  "interventions": {
+    "ablate_count": 35,
+    "amplify_count": 10,
+    "total_count": 45
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Colorado",
+      "from_capital": "Denver",
+      "from_city": "Colorado Springs",
+      "to_state": "Iowa",
+      "to_capital": "Des Moines",
+      "to_city": "Cedar Rapids"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Denver",
+      "default_prob": 0.3671875,
+      "steered": " Iowa",
+      "steered_prob": 0.416015625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.3671875,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Colorado Springs is Denver.\n\nThe capital of the state containing Colorado",
+      "steered_output": "<bos><bos>The capital of the state containing Colorado Springs is Iowa, Des Moines.\n\nThe city of Des Moines",
+      "default_topk": [
+        {
+          "token": " Denver",
+          "prob": 0.3671875
+        },
+        {
+          "token": " Colorado",
+          "prob": 0.134765625
+        },
+        {
+          "token": " the",
+          "prob": 0.08154296875
+        },
+        {
+          "token": ":",
+          "prob": 0.05615234375
+        },
+        {
+          "token": " ",
+          "prob": 0.049560546875
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Iowa",
+          "prob": 0.416015625
+        },
+        {
+          "token": " well",
+          "prob": 0.10498046875
+        },
+        {
+          "token": " in",
+          "prob": 0.10498046875
+        },
+        {
+          "token": ",",
+          "prob": 0.0927734375
+        },
+        {
+          "token": " a",
+          "prob": 0.026611328125
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-01T22:09:48.422000",
+    "duration_ms": 65172.26219177246,
+    "is_identity": false
+  }
+}

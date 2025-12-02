@@ -1,0 +1,111 @@
+{
+  "swap_id": "kansas_wichita__to__pennsylvania_philadelphia",
+  "source": {
+    "slug": "kansas_wichita",
+    "prompt": "<bos>The capital of the state containing Wichita is",
+    "concept": "kansas",
+    "state": "Kansas",
+    "capital": "Topeka",
+    "city": "Wichita"
+  },
+  "target": {
+    "slug": "pennsylvania_philadelphia",
+    "concept": "pennsylvania",
+    "state": "Pennsylvania",
+    "capital": "Harrisburg",
+    "city": "Philadelphia"
+  },
+  "interventions": {
+    "ablate_count": 20,
+    "amplify_count": 13,
+    "total_count": 33
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Kansas",
+      "from_capital": "Topeka",
+      "from_city": "Wichita",
+      "to_state": "Pennsylvania",
+      "to_capital": "Harrisburg",
+      "to_city": "Philadelphia"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Topeka",
+      "default_prob": 0.1455078125,
+      "steered": "’",
+      "steered_prob": 0.357421875
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.1455078125,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Wichita is Topeka.\n\nThe capital of the state containing Kansas",
+      "steered_output": "<bos><bos>The capital of the state containing Wichita is’s largest city, Harrisburg was founded in 1",
+      "default_topk": [
+        {
+          "token": " Topeka",
+          "prob": 0.1455078125
+        },
+        {
+          "token": " Wichita",
+          "prob": 0.11328125
+        },
+        {
+          "token": " Kansas",
+          "prob": 0.10009765625
+        },
+        {
+          "token": " the",
+          "prob": 0.10009765625
+        },
+        {
+          "token": ":",
+          "prob": 0.07763671875
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "’",
+          "prob": 0.357421875
+        },
+        {
+          "token": "'",
+          "prob": 0.1318359375
+        },
+        {
+          "token": " State",
+          "prob": 0.1318359375
+        },
+        {
+          "token": ",",
+          "prob": 0.1318359375
+        },
+        {
+          "token": " Township",
+          "prob": 0.0546875
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-01T23:37:08.614529",
+    "duration_ms": 72771.56138420105,
+    "is_identity": false
+  }
+}

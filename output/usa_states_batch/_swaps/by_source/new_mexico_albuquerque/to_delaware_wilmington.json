@@ -1,0 +1,111 @@
+{
+  "swap_id": "new_mexico_albuquerque__to__delaware_wilmington",
+  "source": {
+    "slug": "new_mexico_albuquerque",
+    "prompt": "<bos>The capital of the state containing Albuquerque is",
+    "concept": "new mexico",
+    "state": "New Mexico",
+    "capital": "Santa Fe",
+    "city": "Albuquerque"
+  },
+  "target": {
+    "slug": "delaware_wilmington",
+    "concept": "delaware",
+    "state": "Delaware",
+    "capital": "Dover",
+    "city": "Wilmington"
+  },
+  "interventions": {
+    "ablate_count": 12,
+    "amplify_count": 11,
+    "total_count": 23
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "New Mexico",
+      "from_capital": "Santa Fe",
+      "from_city": "Albuquerque",
+      "to_state": "Delaware",
+      "to_capital": "Dover",
+      "to_city": "Wilmington"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Santa",
+      "default_prob": 0.259765625,
+      "steered": " County",
+      "steered_prob": 0.228515625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Albuquerque is Santa Fe. The city has a population of ",
+      "steered_output": "<bos><bos>The capital of the state containing Albuquerque is County, New Mexico, is <strong>Albuquerque</strong>",
+      "default_topk": [
+        {
+          "token": " Santa",
+          "prob": 0.259765625
+        },
+        {
+          "token": " Albuquerque",
+          "prob": 0.10791015625
+        },
+        {
+          "token": " New",
+          "prob": 0.09521484375
+        },
+        {
+          "token": " the",
+          "prob": 0.09521484375
+        },
+        {
+          "token": " ",
+          "prob": 0.0654296875
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " County",
+          "prob": 0.228515625
+        },
+        {
+          "token": " State",
+          "prob": 0.1572265625
+        },
+        {
+          "token": " Valley",
+          "prob": 0.07421875
+        },
+        {
+          "token": "’",
+          "prob": 0.0654296875
+        },
+        {
+          "token": " Brand",
+          "prob": 0.057861328125
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-02T01:37:22.919819",
+    "duration_ms": 65154.1166305542,
+    "is_identity": false
+  }
+}

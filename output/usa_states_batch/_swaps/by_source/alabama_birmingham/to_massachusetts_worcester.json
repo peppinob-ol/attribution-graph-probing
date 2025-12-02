@@ -1,0 +1,111 @@
+{
+  "swap_id": "alabama_birmingham__to__massachusetts_worcester",
+  "source": {
+    "slug": "alabama_birmingham",
+    "prompt": "<bos>The capital of the state containing Birmingham is",
+    "concept": "alabama",
+    "state": "Alabama",
+    "capital": "Montgomery",
+    "city": "Birmingham"
+  },
+  "target": {
+    "slug": "massachusetts_worcester",
+    "concept": "massachusetts",
+    "state": "Massachusetts",
+    "capital": "Boston",
+    "city": "Worcester"
+  },
+  "interventions": {
+    "ablate_count": 10,
+    "amplify_count": 13,
+    "total_count": 23
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Alabama",
+      "from_capital": "Montgomery",
+      "from_city": "Birmingham",
+      "to_state": "Massachusetts",
+      "to_capital": "Boston",
+      "to_city": "Worcester"
+    },
+    "exact_match": {
+      "default_has_from_capital": false,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " the",
+      "default_prob": 0.134765625,
+      "steered": ":",
+      "steered_prob": 0.283203125
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.0634765625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Birmingham is <strong>Birmingham</strong>.\n\n<h3>What is Birmingham",
+      "steered_output": "<bos><bos>The capital of the state containing Birmingham is:\n\nThe capital of the state containing Boston:\n\n",
+      "default_topk": [
+        {
+          "token": " the",
+          "prob": 0.134765625
+        },
+        {
+          "token": " ",
+          "prob": 0.08154296875
+        },
+        {
+          "token": " Alabama",
+          "prob": 0.08154296875
+        },
+        {
+          "token": " Birmingham",
+          "prob": 0.08154296875
+        },
+        {
+          "token": " Montgomery",
+          "prob": 0.0634765625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": ":",
+          "prob": 0.283203125
+        },
+        {
+          "token": ",",
+          "prob": 0.1943359375
+        },
+        {
+          "token": ".",
+          "prob": 0.1513671875
+        },
+        {
+          "token": " is",
+          "prob": 0.0712890625
+        },
+        {
+          "token": "'",
+          "prob": 0.038330078125
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-01T21:22:49.070802",
+    "duration_ms": 62455.8322429657,
+    "is_identity": false
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "swap_id": "alabama_birmingham__to__oklahoma_tulsa",
+  "source": {
+    "slug": "alabama_birmingham",
+    "prompt": "<bos>The capital of the state containing Birmingham is",
+    "concept": "alabama",
+    "state": "Alabama",
+    "capital": "Montgomery",
+    "city": "Birmingham"
+  },
+  "target": {
+    "slug": "oklahoma_tulsa",
+    "concept": "oklahoma",
+    "state": "Oklahoma",
+    "capital": "Oklahoma City",
+    "city": "Tulsa"
+  },
+  "interventions": {
+    "ablate_count": 10,
+    "amplify_count": 55,
+    "total_count": 65
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Alabama",
+      "from_capital": "Montgomery",
+      "from_city": "Birmingham",
+      "to_state": "Oklahoma",
+      "to_capital": "Oklahoma City",
+      "to_city": "Tulsa"
+    },
+    "exact_match": {
+      "default_has_from_capital": false,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " the",
+      "default_prob": 0.134765625,
+      "steered": "AddTagHelper",
+      "steered_prob": 0.50390625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.0634765625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Birmingham is <strong>Birmingham</strong>.\n\n<h3>What is Birmingham",
+      "steered_output": "<bos><bos>The capital of the state containing Birmingham isAddTagHelper.\n\nThe capital of the state containing Tulsa and",
+      "default_topk": [
+        {
+          "token": " the",
+          "prob": 0.134765625
+        },
+        {
+          "token": " ",
+          "prob": 0.08154296875
+        },
+        {
+          "token": " Alabama",
+          "prob": 0.08154296875
+        },
+        {
+          "token": " Birmingham",
+          "prob": 0.08154296875
+        },
+        {
+          "token": " Montgomery",
+          "prob": 0.0634765625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "AddTagHelper",
+          "prob": 0.50390625
+        },
+        {
+          "token": "expandindo",
+          "prob": 0.09912109375
+        },
+        {
+          "token": " gyhoeddwyd",
+          "prob": 0.052978515625
+        },
+        {
+          "token": "Viitteet",
+          "prob": 0.041259765625
+        },
+        {
+          "token": " City",
+          "prob": 0.041259765625
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-01T21:34:56.727228",
+    "duration_ms": 97334.29312705994,
+    "is_identity": false
+  }
+}

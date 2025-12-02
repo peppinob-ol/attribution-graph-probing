@@ -1,0 +1,111 @@
+{
+  "swap_id": "louisiana_new_orleans__to__mississippi_gulfport",
+  "source": {
+    "slug": "louisiana_new_orleans",
+    "prompt": "<bos>The capital of the state containing New Orleans is",
+    "concept": "louisiana",
+    "state": "Louisiana",
+    "capital": "Baton Rouge",
+    "city": "New Orleans"
+  },
+  "target": {
+    "slug": "mississippi_gulfport",
+    "concept": "mississippi",
+    "state": "Mississippi",
+    "capital": "Jackson",
+    "city": "Gulfport"
+  },
+  "interventions": {
+    "ablate_count": 15,
+    "amplify_count": 7,
+    "total_count": 22
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Louisiana",
+      "from_capital": "Baton Rouge",
+      "from_city": "New Orleans",
+      "to_state": "Mississippi",
+      "to_capital": "Jackson",
+      "to_city": "Gulfport"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": true,
+      "from_suppressed": false
+    },
+    "first_token": {
+      "default": " Baton",
+      "default_prob": 0.345703125,
+      "steered": " in",
+      "steered_prob": 0.2236328125
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing New Orleans is Baton Rouge.\n\nThe city of New Orleans is",
+      "steered_output": "<bos><bos>The capital of the state containing New Orleans is in Baton Rouge.\n\nThe state of Louisiana is located",
+      "default_topk": [
+        {
+          "token": " Baton",
+          "prob": 0.345703125
+        },
+        {
+          "token": " Louisiana",
+          "prob": 0.08740234375
+        },
+        {
+          "token": " the",
+          "prob": 0.0771484375
+        },
+        {
+          "token": " ",
+          "prob": 0.06787109375
+        },
+        {
+          "token": "\n\n",
+          "prob": 0.06787109375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " in",
+          "prob": 0.2236328125
+        },
+        {
+          "token": " is",
+          "prob": 0.197265625
+        },
+        {
+          "token": " has",
+          "prob": 0.06396484375
+        },
+        {
+          "token": " IN",
+          "prob": 0.050048828125
+        },
+        {
+          "token": " on",
+          "prob": 0.044189453125
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-01T23:52:23.208669",
+    "duration_ms": 79908.48088264465,
+    "is_identity": false
+  }
+}

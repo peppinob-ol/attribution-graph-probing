@@ -1,0 +1,111 @@
+{
+  "swap_id": "new_hampshire_manchester__to__delaware_wilmington",
+  "source": {
+    "slug": "new_hampshire_manchester",
+    "prompt": "<bos>The capital of the state containing Manchester is",
+    "concept": "new hampshire",
+    "state": "New Hampshire",
+    "capital": "Concord",
+    "city": "Manchester"
+  },
+  "target": {
+    "slug": "delaware_wilmington",
+    "concept": "delaware",
+    "state": "Delaware",
+    "capital": "Dover",
+    "city": "Wilmington"
+  },
+  "interventions": {
+    "ablate_count": 4,
+    "amplify_count": 11,
+    "total_count": 15
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "New Hampshire",
+      "from_capital": "Concord",
+      "from_city": "Manchester",
+      "to_state": "Delaware",
+      "to_capital": "Dover",
+      "to_city": "Wilmington"
+    },
+    "exact_match": {
+      "default_has_from_capital": false,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": true,
+      "from_suppressed": false
+    },
+    "first_token": {
+      "default": " Manchester",
+      "default_prob": 0.18359375,
+      "steered": " County",
+      "steered_prob": 0.2333984375
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Manchester is Manchester.\n\nThe capital of the state containing Manchester",
+      "steered_output": "<bos><bos>The capital of the state containing Manchester is County, New Hampshire, is Concord.\n\nThe city",
+      "default_topk": [
+        {
+          "token": " Manchester",
+          "prob": 0.18359375
+        },
+        {
+          "token": " the",
+          "prob": 0.0869140625
+        },
+        {
+          "token": " ",
+          "prob": 0.06787109375
+        },
+        {
+          "token": ":",
+          "prob": 0.052734375
+        },
+        {
+          "token": " Hartford",
+          "prob": 0.046630859375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " County",
+          "prob": 0.2333984375
+        },
+        {
+          "token": " State",
+          "prob": 0.1416015625
+        },
+        {
+          "token": "’",
+          "prob": 0.07568359375
+        },
+        {
+          "token": " Brand",
+          "prob": 0.05908203125
+        },
+        {
+          "token": " Valley",
+          "prob": 0.052001953125
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-02T01:20:24.614147",
+    "duration_ms": 70967.78178215027,
+    "is_identity": false
+  }
+}

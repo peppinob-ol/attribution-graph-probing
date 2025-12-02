@@ -1,0 +1,111 @@
+{
+  "swap_id": "connecticut_bridgeport__to__minnesota_minneapolis",
+  "source": {
+    "slug": "connecticut_bridgeport",
+    "prompt": "<bos>The capital of the state containing Bridgeport is",
+    "concept": "connecticut",
+    "state": "Connecticut",
+    "capital": "Hartford",
+    "city": "Bridgeport"
+  },
+  "target": {
+    "slug": "minnesota_minneapolis",
+    "concept": "minnesota",
+    "state": "Minnesota",
+    "capital": "Saint Paul",
+    "city": "Minneapolis"
+  },
+  "interventions": {
+    "ablate_count": 13,
+    "amplify_count": 15,
+    "total_count": 28
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Connecticut",
+      "from_capital": "Hartford",
+      "from_city": "Bridgeport",
+      "to_state": "Minnesota",
+      "to_capital": "Saint Paul",
+      "to_city": "Minneapolis"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Hartford",
+      "default_prob": 0.166015625,
+      "steered": "'",
+      "steered_prob": 0.255859375
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.166015625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Bridgeport is Hartford.\n\nConnecticut has a population of 3",
+      "steered_output": "<bos><bos>The capital of the state containing Bridgeport is’s largest city, St. Paul is a city",
+      "default_topk": [
+        {
+          "token": " Hartford",
+          "prob": 0.166015625
+        },
+        {
+          "token": " ",
+          "prob": 0.078125
+        },
+        {
+          "token": " the",
+          "prob": 0.078125
+        },
+        {
+          "token": " Bridgeport",
+          "prob": 0.06884765625
+        },
+        {
+          "token": ":",
+          "prob": 0.04736328125
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "'",
+          "prob": 0.255859375
+        },
+        {
+          "token": "’",
+          "prob": 0.1552734375
+        },
+        {
+          "token": ",",
+          "prob": 0.13671875
+        },
+        {
+          "token": " State",
+          "prob": 0.0830078125
+        },
+        {
+          "token": " is",
+          "prob": 0.05029296875
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-01T22:18:44.217087",
+    "duration_ms": 63824.870109558105,
+    "is_identity": false
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "swap_id": "hawaii_hilo__to__oklahoma_tulsa",
+  "source": {
+    "slug": "hawaii_hilo",
+    "prompt": "<bos>The capital of the state containing Hilo is",
+    "concept": "hawaii",
+    "state": "Hawaii",
+    "capital": "Honolulu",
+    "city": "Hilo"
+  },
+  "target": {
+    "slug": "oklahoma_tulsa",
+    "concept": "oklahoma",
+    "state": "Oklahoma",
+    "capital": "Oklahoma City",
+    "city": "Tulsa"
+  },
+  "interventions": {
+    "ablate_count": 12,
+    "amplify_count": 55,
+    "total_count": 67
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Hawaii",
+      "from_capital": "Honolulu",
+      "from_city": "Hilo",
+      "to_state": "Oklahoma",
+      "to_capital": "Oklahoma City",
+      "to_city": "Tulsa"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Hilo",
+      "default_prob": 0.2490234375,
+      "steered": "AddTagHelper",
+      "steered_prob": 0.5546875
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.1513671875,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Hilo is Honolulu.\n\nThe capital of the state containing Hilo",
+      "steered_output": "<bos><bos>The capital of the state containing Hilo isAddTagHelper, Oklahoma, is Tulsa.\n\nThe capital of",
+      "default_topk": [
+        {
+          "token": " Hilo",
+          "prob": 0.2490234375
+        },
+        {
+          "token": " Honolulu",
+          "prob": 0.1513671875
+        },
+        {
+          "token": " the",
+          "prob": 0.10400390625
+        },
+        {
+          "token": ":",
+          "prob": 0.049072265625
+        },
+        {
+          "token": " ",
+          "prob": 0.049072265625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "AddTagHelper",
+          "prob": 0.5546875
+        },
+        {
+          "token": "expandindo",
+          "prob": 0.1240234375
+        },
+        {
+          "token": " gyhoeddwyd",
+          "prob": 0.040283203125
+        },
+        {
+          "token": "Viitteet",
+          "prob": 0.03564453125
+        },
+        {
+          "token": " City",
+          "prob": 0.0277099609375
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-01T22:52:25.769929",
+    "duration_ms": 80366.286277771,
+    "is_identity": false
+  }
+}

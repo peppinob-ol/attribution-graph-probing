@@ -1,0 +1,111 @@
+{
+  "swap_id": "connecticut_bridgeport__to__california_oakland",
+  "source": {
+    "slug": "connecticut_bridgeport",
+    "prompt": "<bos>The capital of the state containing Bridgeport is",
+    "concept": "connecticut",
+    "state": "Connecticut",
+    "capital": "Hartford",
+    "city": "Bridgeport"
+  },
+  "target": {
+    "slug": "california_oakland",
+    "concept": "california",
+    "state": "California",
+    "capital": "Sacramento",
+    "city": "Oakland"
+  },
+  "interventions": {
+    "ablate_count": 13,
+    "amplify_count": 10,
+    "total_count": 23
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Connecticut",
+      "from_capital": "Hartford",
+      "from_city": "Bridgeport",
+      "to_state": "California",
+      "to_capital": "Sacramento",
+      "to_city": "Oakland"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Hartford",
+      "default_prob": 0.166015625,
+      "steered": "’",
+      "steered_prob": 0.265625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.166015625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Bridgeport is Hartford.\n\nConnecticut has a population of 3",
+      "steered_output": "<bos><bos>The capital of the state containing Bridgeport is’s population is <strong>Sacramento</strong>.\n\nThe",
+      "default_topk": [
+        {
+          "token": " Hartford",
+          "prob": 0.166015625
+        },
+        {
+          "token": " ",
+          "prob": 0.078125
+        },
+        {
+          "token": " the",
+          "prob": 0.078125
+        },
+        {
+          "token": " Bridgeport",
+          "prob": 0.06884765625
+        },
+        {
+          "token": ":",
+          "prob": 0.04736328125
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "’",
+          "prob": 0.265625
+        },
+        {
+          "token": ",",
+          "prob": 0.1826171875
+        },
+        {
+          "token": "?",
+          "prob": 0.09765625
+        },
+        {
+          "token": "'",
+          "prob": 0.09765625
+        },
+        {
+          "token": ":",
+          "prob": 0.09765625
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-01T22:15:44.396833",
+    "duration_ms": 74237.40482330322,
+    "is_identity": false
+  }
+}

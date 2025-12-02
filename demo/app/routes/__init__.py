@@ -1,0 +1,4 @@
+"""
+FastHTML route handlers
+"""
+

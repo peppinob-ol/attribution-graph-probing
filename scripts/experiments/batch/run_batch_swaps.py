@@ -369,9 +369,11 @@ def run_swaps_parallel(
     
     print(f"  Starting {total} swaps with {max_workers} parallel workers...")
     print(f"  Start time: {datetime.now().strftime('%H:%M:%S')}")
+    print(f"  (Press Ctrl+C to stop - may take a few seconds)")
     
     swap_times = []
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    executor = ThreadPoolExecutor(max_workers=max_workers)
+    try:
         # Submit all tasks
         future_to_pair = {executor.submit(run_swap_worker, pair): pair for pair in pairs}
         
@@ -399,6 +401,25 @@ def run_swaps_parallel(
             if verbose:
                 print(f"  [{completed}/{total}] {pair.from_slug} -> {pair.to_slug}: {status} "
                       f"({swap_time:.1f}s, ETA: {eta.strftime('%H:%M:%S')})")
+    
+    except KeyboardInterrupt:
+        print("\n\n  [INTERRUPT] Ctrl+C received - shutting down workers...")
+        executor.shutdown(wait=False, cancel_futures=True)
+        print("  [INTERRUPT] Cleaning up - please wait...")
+        # Clear any stuck GPU locks on remote
+        try:
+            import subprocess
+            subprocess.run(
+                ['ssh', 'nodo207', 
+                 'rmdir /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/.locks/gpu* 2>/dev/null; echo done'],
+                capture_output=True, timeout=10
+            )
+            print("  [INTERRUPT] GPU locks cleared on remote")
+        except Exception:
+            print("  [INTERRUPT] Warning: Could not clear remote GPU locks")
+        raise
+    finally:
+        executor.shutdown(wait=True)
     
     # Print timing summary
     total_time = time.time() - start_time
@@ -520,11 +541,24 @@ def run_batch_swaps(
             print(f"  [SSH] Connection multiplexing enabled")
         else:
             # Without ControlMaster, limit workers to avoid SSH throttling
-            # 4 workers with staggered starts should stay under typical MaxStartups=10
-            fallback_workers = min(max_workers, 4)
-            if fallback_workers < max_workers:
-                print(f"  [SSH] WARNING: ControlMaster unavailable, reducing workers to {fallback_workers}")
-                max_workers = fallback_workers
+            # But allow user-specified count (they know their setup)
+            if max_workers > 8:
+                print(f"  [SSH] WARNING: ControlMaster unavailable, capping workers to 8")
+                max_workers = 8
+        
+        # Clean up any stale GPU locks from previous failed runs
+        print(f"  [SSH] Clearing stale GPU locks...")
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['ssh', 'nodo207', 
+                 'rmdir /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/.locks/gpu* 2>/dev/null; echo cleared'],
+                capture_output=True, text=True, timeout=10
+            )
+            if 'cleared' in result.stdout:
+                print(f"  [SSH] Stale locks cleared")
+        except Exception as e:
+            print(f"  [SSH] Warning: Could not clear stale locks: {e}")
         
         try:
             # Parallel execution using ThreadPoolExecutor

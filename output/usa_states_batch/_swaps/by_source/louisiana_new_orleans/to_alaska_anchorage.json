@@ -1,0 +1,117 @@
+{
+  "swap_id": "louisiana_new_orleans__to__alaska_anchorage",
+  "source": {
+    "slug": "louisiana_new_orleans",
+    "prompt": "<bos>The capital of the state containing New Orleans is",
+    "concept": "louisiana",
+    "state": "Louisiana",
+    "capital": "Baton Rouge",
+    "city": "New Orleans"
+  },
+  "target": {
+    "slug": "alaska_anchorage",
+    "concept": "alaska",
+    "state": "Alaska",
+    "capital": "Juneau",
+    "city": "Anchorage"
+  },
+  "interventions": {
+    "ablate_count": 15,
+    "amplify_count": 17,
+    "total_count": 32
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Louisiana",
+      "from_capital": "Baton Rouge",
+      "from_city": "New Orleans",
+      "to_state": "Alaska",
+      "to_capital": "Juneau",
+      "to_city": "Anchorage"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Baton",
+      "default_prob": 0.345703125,
+      "steered": " Borough",
+      "steered_prob": 0.2041015625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing New Orleans is Baton Rouge.\n\nThe city of New Orleans is",
+      "steered_output": "<bos><bos>The capital of the state containing New Orleans is Boroughs\n\n[User 0001]",
+      "default_topk": [
+        {
+          "token": " Baton",
+          "prob": 0.345703125
+        },
+        {
+          "token": " Louisiana",
+          "prob": 0.08740234375
+        },
+        {
+          "token": " the",
+          "prob": 0.0771484375
+        },
+        {
+          "token": " ",
+          "prob": 0.06787109375
+        },
+        {
+          "token": "\n\n",
+          "prob": 0.06787109375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Borough",
+          "prob": 0.2041015625
+        },
+        {
+          "token": "'",
+          "prob": 0.1591796875
+        },
+        {
+          "token": "’",
+          "prob": 0.0244140625
+        },
+        {
+          "token": " Ale",
+          "prob": 0.0244140625
+        },
+        {
+          "token": "June",
+          "prob": 0.0216064453125
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-01T23:48:41.847971",
+    "duration_ms": 95307.43050575256,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 3,
+    "notes": "In Alaska, a borough is an administrative division similar to a county in other U.S. states",
+    "manually_edited": true,
+    "batch_rule": "alaska_borough"
+  }
+}

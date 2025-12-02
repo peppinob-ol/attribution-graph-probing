@@ -1,0 +1,111 @@
+{
+  "swap_id": "texas_dallas__to__new_jersey_newark",
+  "source": {
+    "slug": "texas_dallas",
+    "prompt": "<bos>The capital of the state containing Dallas is",
+    "concept": "texas",
+    "state": "Texas",
+    "capital": "Austin",
+    "city": "Dallas"
+  },
+  "target": {
+    "slug": "new_jersey_newark",
+    "concept": "new jersey",
+    "state": "New Jersey",
+    "capital": "Trenton",
+    "city": "Newark"
+  },
+  "interventions": {
+    "ablate_count": 16,
+    "amplify_count": 36,
+    "total_count": 52
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Texas",
+      "from_capital": "Austin",
+      "from_city": "Dallas",
+      "to_state": "New Jersey",
+      "to_capital": "Trenton",
+      "to_city": "Newark"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Austin",
+      "default_prob": 0.302734375,
+      "steered": "SequentialGroup",
+      "steered_prob": 0.1796875
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.302734375,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Dallas is Austin.\n\nThe capital of the state containing Austin",
+      "steered_output": "<bos><bos>The capital of the state containing Dallas isSequentialGroup.\n\nThe capital of the state containing Dallas and",
+      "default_topk": [
+        {
+          "token": " Austin",
+          "prob": 0.302734375
+        },
+        {
+          "token": " the",
+          "prob": 0.0986328125
+        },
+        {
+          "token": " ",
+          "prob": 0.07666015625
+        },
+        {
+          "token": ":",
+          "prob": 0.052734375
+        },
+        {
+          "token": "\n\n",
+          "prob": 0.041015625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "SequentialGroup",
+          "prob": 0.1796875
+        },
+        {
+          "token": " Liberty",
+          "prob": 0.1396484375
+        },
+        {
+          "token": " River",
+          "prob": 0.10888671875
+        },
+        {
+          "token": " Valley",
+          "prob": 0.051513671875
+        },
+        {
+          "token": " Trust",
+          "prob": 0.035400390625
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-02T03:20:49.851819",
+    "duration_ms": 71006.39915466309,
+    "is_identity": false
+  }
+}

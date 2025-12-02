@@ -1,0 +1,111 @@
+{
+  "swap_id": "texas_dallas__to__oklahoma_tulsa",
+  "source": {
+    "slug": "texas_dallas",
+    "prompt": "<bos>The capital of the state containing Dallas is",
+    "concept": "texas",
+    "state": "Texas",
+    "capital": "Austin",
+    "city": "Dallas"
+  },
+  "target": {
+    "slug": "oklahoma_tulsa",
+    "concept": "oklahoma",
+    "state": "Oklahoma",
+    "capital": "Oklahoma City",
+    "city": "Tulsa"
+  },
+  "interventions": {
+    "ablate_count": 16,
+    "amplify_count": 55,
+    "total_count": 71
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Texas",
+      "from_capital": "Austin",
+      "from_city": "Dallas",
+      "to_state": "Oklahoma",
+      "to_capital": "Oklahoma City",
+      "to_city": "Tulsa"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Austin",
+      "default_prob": 0.302734375,
+      "steered": "AddTagHelper",
+      "steered_prob": 0.59375
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.302734375,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Dallas is Austin.\n\nThe capital of the state containing Austin",
+      "steered_output": "<bos><bos>The capital of the state containing Dallas isAddTagHelper, Oklahoma, is Tulsa.\n\nThe capital of",
+      "default_topk": [
+        {
+          "token": " Austin",
+          "prob": 0.302734375
+        },
+        {
+          "token": " the",
+          "prob": 0.0986328125
+        },
+        {
+          "token": " ",
+          "prob": 0.07666015625
+        },
+        {
+          "token": ":",
+          "prob": 0.052734375
+        },
+        {
+          "token": "\n\n",
+          "prob": 0.041015625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "AddTagHelper",
+          "prob": 0.59375
+        },
+        {
+          "token": "expandindo",
+          "prob": 0.1328125
+        },
+        {
+          "token": " gyhoeddwyd",
+          "prob": 0.03369140625
+        },
+        {
+          "token": "Viitteet",
+          "prob": 0.0296630859375
+        },
+        {
+          "token": " City",
+          "prob": 0.026123046875
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-02T03:21:50.799691",
+    "duration_ms": 88859.24530029297,
+    "is_identity": false
+  }
+}

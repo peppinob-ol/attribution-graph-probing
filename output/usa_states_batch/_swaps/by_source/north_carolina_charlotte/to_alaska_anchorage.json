@@ -1,0 +1,117 @@
+{
+  "swap_id": "north_carolina_charlotte__to__alaska_anchorage",
+  "source": {
+    "slug": "north_carolina_charlotte",
+    "prompt": "<bos>The capital of the state containing Charlotte is",
+    "concept": "north carolina",
+    "state": "North Carolina",
+    "capital": "Raleigh",
+    "city": "Charlotte"
+  },
+  "target": {
+    "slug": "alaska_anchorage",
+    "concept": "alaska",
+    "state": "Alaska",
+    "capital": "Juneau",
+    "city": "Anchorage"
+  },
+  "interventions": {
+    "ablate_count": 17,
+    "amplify_count": 17,
+    "total_count": 34
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "North Carolina",
+      "from_capital": "Raleigh",
+      "from_city": "Charlotte",
+      "to_state": "Alaska",
+      "to_capital": "Juneau",
+      "to_city": "Anchorage"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Raleigh",
+      "default_prob": 0.34765625,
+      "steered": " Borough",
+      "steered_prob": 0.2021484375
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.34765625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Charlotte is Raleigh.\n\nThe capital of North Carolina is Raleigh",
+      "steered_output": "<bos><bos>The capital of the state containing Charlotte is Borough, New Jersey, is <strong>Newark</strong>.",
+      "default_topk": [
+        {
+          "token": " Raleigh",
+          "prob": 0.34765625
+        },
+        {
+          "token": " Charlotte",
+          "prob": 0.07763671875
+        },
+        {
+          "token": " ",
+          "prob": 0.068359375
+        },
+        {
+          "token": " the",
+          "prob": 0.068359375
+        },
+        {
+          "token": " North",
+          "prob": 0.04150390625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Borough",
+          "prob": 0.2021484375
+        },
+        {
+          "token": "'",
+          "prob": 0.1396484375
+        },
+        {
+          "token": "I",
+          "prob": 0.03515625
+        },
+        {
+          "token": "Inside",
+          "prob": 0.0274658203125
+        },
+        {
+          "token": "Den",
+          "prob": 0.0274658203125
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-02T01:53:24.732398",
+    "duration_ms": 94326.5016078949,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 3,
+    "notes": "In Alaska, a borough is an administrative division similar to a county in other U.S. states",
+    "manually_edited": true,
+    "batch_rule": "alaska_borough"
+  }
+}

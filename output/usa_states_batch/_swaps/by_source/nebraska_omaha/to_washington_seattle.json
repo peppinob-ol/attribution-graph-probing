@@ -1,0 +1,111 @@
+{
+  "swap_id": "nebraska_omaha__to__washington_seattle",
+  "source": {
+    "slug": "nebraska_omaha",
+    "prompt": "<bos>The capital of the state containing Omaha is",
+    "concept": "nebraska",
+    "state": "Nebraska",
+    "capital": "Lincoln",
+    "city": "Omaha"
+  },
+  "target": {
+    "slug": "washington_seattle",
+    "concept": "washington",
+    "state": "Washington",
+    "capital": "Olympia",
+    "city": "Seattle"
+  },
+  "interventions": {
+    "ablate_count": 20,
+    "amplify_count": 5,
+    "total_count": 25
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Nebraska",
+      "from_capital": "Lincoln",
+      "from_city": "Omaha",
+      "to_state": "Washington",
+      "to_capital": "Olympia",
+      "to_city": "Seattle"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Lincoln",
+      "default_prob": 0.34375,
+      "steered": " the",
+      "steered_prob": 0.1328125
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.34375,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Omaha is Lincoln.\n\nThe state's nickname is Corn",
+      "steered_output": "<bos><bos>The capital of the state containing Omaha is the second largest city in Nebraska. The population is ",
+      "default_topk": [
+        {
+          "token": " Lincoln",
+          "prob": 0.34375
+        },
+        {
+          "token": " the",
+          "prob": 0.0986328125
+        },
+        {
+          "token": " Nebraska",
+          "prob": 0.0869140625
+        },
+        {
+          "token": " ",
+          "prob": 0.06787109375
+        },
+        {
+          "token": " Omaha",
+          "prob": 0.06787109375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " the",
+          "prob": 0.1328125
+        },
+        {
+          "token": " Illinois",
+          "prob": 0.0908203125
+        },
+        {
+          "token": " Iowa",
+          "prob": 0.07080078125
+        },
+        {
+          "token": " Wisconsin",
+          "prob": 0.05517578125
+        },
+        {
+          "token": " Michigan",
+          "prob": 0.048583984375
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-02T01:12:11.445912",
+    "duration_ms": 131590.69108963013,
+    "is_identity": false
+  }
+}

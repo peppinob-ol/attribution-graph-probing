@@ -1,0 +1,111 @@
+{
+  "swap_id": "connecticut_bridgeport__to__wisconsin_milwaukee",
+  "source": {
+    "slug": "connecticut_bridgeport",
+    "prompt": "<bos>The capital of the state containing Bridgeport is",
+    "concept": "connecticut",
+    "state": "Connecticut",
+    "capital": "Hartford",
+    "city": "Bridgeport"
+  },
+  "target": {
+    "slug": "wisconsin_milwaukee",
+    "concept": "wisconsin",
+    "state": "Wisconsin",
+    "capital": "Madison",
+    "city": "Milwaukee"
+  },
+  "interventions": {
+    "ablate_count": 13,
+    "amplify_count": 17,
+    "total_count": 30
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Connecticut",
+      "from_capital": "Hartford",
+      "from_city": "Bridgeport",
+      "to_state": "Wisconsin",
+      "to_capital": "Madison",
+      "to_city": "Milwaukee"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Hartford",
+      "default_prob": 0.166015625,
+      "steered": "’",
+      "steered_prob": 0.236328125
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.166015625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Bridgeport is Hartford.\n\nConnecticut has a population of 3",
+      "steered_output": "<bos><bos>The capital of the state containing Bridgeport is’s largest city, Madison is a great place to",
+      "default_topk": [
+        {
+          "token": " Hartford",
+          "prob": 0.166015625
+        },
+        {
+          "token": " ",
+          "prob": 0.078125
+        },
+        {
+          "token": " the",
+          "prob": 0.078125
+        },
+        {
+          "token": " Bridgeport",
+          "prob": 0.06884765625
+        },
+        {
+          "token": ":",
+          "prob": 0.04736328125
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "’",
+          "prob": 0.236328125
+        },
+        {
+          "token": "'",
+          "prob": 0.09814453125
+        },
+        {
+          "token": " County",
+          "prob": 0.09814453125
+        },
+        {
+          "token": " Rapids",
+          "prob": 0.07666015625
+        },
+        {
+          "token": " State",
+          "prob": 0.0673828125
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-01T22:23:31.456298",
+    "duration_ms": 74306.89930915833,
+    "is_identity": false
+  }
+}

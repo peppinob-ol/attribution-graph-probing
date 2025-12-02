@@ -1,0 +1,117 @@
+{
+  "swap_id": "hawaii_hilo__to__alaska_anchorage",
+  "source": {
+    "slug": "hawaii_hilo",
+    "prompt": "<bos>The capital of the state containing Hilo is",
+    "concept": "hawaii",
+    "state": "Hawaii",
+    "capital": "Honolulu",
+    "city": "Hilo"
+  },
+  "target": {
+    "slug": "alaska_anchorage",
+    "concept": "alaska",
+    "state": "Alaska",
+    "capital": "Juneau",
+    "city": "Anchorage"
+  },
+  "interventions": {
+    "ablate_count": 12,
+    "amplify_count": 17,
+    "total_count": 29
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Hawaii",
+      "from_capital": "Honolulu",
+      "from_city": "Hilo",
+      "to_state": "Alaska",
+      "to_capital": "Juneau",
+      "to_city": "Anchorage"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Hilo",
+      "default_prob": 0.2490234375,
+      "steered": " Borough",
+      "steered_prob": 0.26953125
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.1513671875,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Hilo is Honolulu.\n\nThe capital of the state containing Hilo",
+      "steered_output": "<bos><bos>The capital of the state containing Hilo is Borough, Hawaii, is Hilo. The city is located",
+      "default_topk": [
+        {
+          "token": " Hilo",
+          "prob": 0.2490234375
+        },
+        {
+          "token": " Honolulu",
+          "prob": 0.1513671875
+        },
+        {
+          "token": " the",
+          "prob": 0.10400390625
+        },
+        {
+          "token": ":",
+          "prob": 0.049072265625
+        },
+        {
+          "token": " ",
+          "prob": 0.049072265625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Borough",
+          "prob": 0.26953125
+        },
+        {
+          "token": "'",
+          "prob": 0.09912109375
+        },
+        {
+          "token": "Den",
+          "prob": 0.0250244140625
+        },
+        {
+          "token": "’",
+          "prob": 0.0220947265625
+        },
+        {
+          "token": "June",
+          "prob": 0.01953125
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-01T22:46:18.178146",
+    "duration_ms": 71238.00873756409,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 3,
+    "notes": "In Alaska, a borough is an administrative division similar to a county in other U.S. states",
+    "manually_edited": true,
+    "batch_rule": "alaska_borough"
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "swap_id": "new_mexico_albuquerque__to__alaska_anchorage",
+  "source": {
+    "slug": "new_mexico_albuquerque",
+    "prompt": "<bos>The capital of the state containing Albuquerque is",
+    "concept": "new mexico",
+    "state": "New Mexico",
+    "capital": "Santa Fe",
+    "city": "Albuquerque"
+  },
+  "target": {
+    "slug": "alaska_anchorage",
+    "concept": "alaska",
+    "state": "Alaska",
+    "capital": "Juneau",
+    "city": "Anchorage"
+  },
+  "interventions": {
+    "ablate_count": 12,
+    "amplify_count": 17,
+    "total_count": 29
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "New Mexico",
+      "from_capital": "Santa Fe",
+      "from_city": "Albuquerque",
+      "to_state": "Alaska",
+      "to_capital": "Juneau",
+      "to_city": "Anchorage"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Santa",
+      "default_prob": 0.259765625,
+      "steered": " Borough",
+      "steered_prob": 0.1884765625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Albuquerque is Santa Fe. The city has a population of ",
+      "steered_output": "<bos><bos>The capital of the state containing Albuquerque is Borough, New Mexico, is <strong>Albuquerque</strong>",
+      "default_topk": [
+        {
+          "token": " Santa",
+          "prob": 0.259765625
+        },
+        {
+          "token": " Albuquerque",
+          "prob": 0.10791015625
+        },
+        {
+          "token": " New",
+          "prob": 0.09521484375
+        },
+        {
+          "token": " the",
+          "prob": 0.09521484375
+        },
+        {
+          "token": " ",
+          "prob": 0.0654296875
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Borough",
+          "prob": 0.1884765625
+        },
+        {
+          "token": "'",
+          "prob": 0.12890625
+        },
+        {
+          "token": "’",
+          "prob": 0.02880859375
+        },
+        {
+          "token": " Ale",
+          "prob": 0.02880859375
+        },
+        {
+          "token": "Den",
+          "prob": 0.0224609375
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-02T01:36:36.432971",
+    "duration_ms": 65595.18504142761,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 3,
+    "notes": "In Alaska, a borough is an administrative division similar to a county in other U.S. states",
+    "manually_edited": true,
+    "batch_rule": "alaska_borough"
+  }
+}

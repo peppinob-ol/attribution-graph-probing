@@ -1,0 +1,111 @@
+{
+  "swap_id": "iowa_cedar_rapids__to__maine_portland",
+  "source": {
+    "slug": "iowa_cedar_rapids",
+    "prompt": "<bos>The capital of the state containing Cedar Rapids is",
+    "concept": "iowa",
+    "state": "Iowa",
+    "capital": "Des Moines",
+    "city": "Cedar Rapids"
+  },
+  "target": {
+    "slug": "maine_portland",
+    "concept": "maine",
+    "state": "Maine",
+    "capital": "Augusta",
+    "city": "Portland"
+  },
+  "interventions": {
+    "ablate_count": 10,
+    "amplify_count": 10,
+    "total_count": 20
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Iowa",
+      "from_capital": "Des Moines",
+      "from_city": "Cedar Rapids",
+      "to_state": "Maine",
+      "to_capital": "Augusta",
+      "to_city": "Portland"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Iowa",
+      "default_prob": 0.2177734375,
+      "steered": " is",
+      "steered_prob": 0.13671875
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Cedar Rapids is Des Moines.\n\nThe state of Iowa is located",
+      "steered_output": "<bos><bos>The capital of the state containing Cedar Rapids isAnd Iowa City, Iowa City is a great place to",
+      "default_topk": [
+        {
+          "token": " Iowa",
+          "prob": 0.2177734375
+        },
+        {
+          "token": " Des",
+          "prob": 0.2177734375
+        },
+        {
+          "token": " Cedar",
+          "prob": 0.080078125
+        },
+        {
+          "token": ":",
+          "prob": 0.062255859375
+        },
+        {
+          "token": " the",
+          "prob": 0.048583984375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " is",
+          "prob": 0.13671875
+        },
+        {
+          "token": "'",
+          "prob": 0.1064453125
+        },
+        {
+          "token": " And",
+          "prob": 0.1064453125
+        },
+        {
+          "token": ":",
+          "prob": 0.09423828125
+        },
+        {
+          "token": " and",
+          "prob": 0.0830078125
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-01T23:24:43.265191",
+    "duration_ms": 64024.022340774536,
+    "is_identity": false
+  }
+}

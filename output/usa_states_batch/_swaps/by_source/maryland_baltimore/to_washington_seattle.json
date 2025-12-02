@@ -1,0 +1,111 @@
+{
+  "swap_id": "maryland_baltimore__to__washington_seattle",
+  "source": {
+    "slug": "maryland_baltimore",
+    "prompt": "<bos>The capital of the state containing Baltimore is",
+    "concept": "maryland",
+    "state": "Maryland",
+    "capital": "Annapolis",
+    "city": "Baltimore"
+  },
+  "target": {
+    "slug": "washington_seattle",
+    "concept": "washington",
+    "state": "Washington",
+    "capital": "Olympia",
+    "city": "Seattle"
+  },
+  "interventions": {
+    "ablate_count": 13,
+    "amplify_count": 5,
+    "total_count": 18
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Maryland",
+      "from_capital": "Annapolis",
+      "from_city": "Baltimore",
+      "to_state": "Washington",
+      "to_capital": "Olympia",
+      "to_city": "Seattle"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Annapolis",
+      "default_prob": 0.31640625,
+      "steered": " Maryland",
+      "steered_prob": 0.08740234375
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.31640625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Baltimore is Annapolis.\n\nThe capital of the state containing Baltimore",
+      "steered_output": "<bos><bos>The capital of the state containing Baltimore is Massachusetts, New Hampshire, and Rhode Island.\n\nThe",
+      "default_topk": [
+        {
+          "token": " Annapolis",
+          "prob": 0.31640625
+        },
+        {
+          "token": " Baltimore",
+          "prob": 0.1025390625
+        },
+        {
+          "token": " the",
+          "prob": 0.080078125
+        },
+        {
+          "token": " ",
+          "prob": 0.0703125
+        },
+        {
+          "token": " Maryland",
+          "prob": 0.054931640625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Maryland",
+          "prob": 0.08740234375
+        },
+        {
+          "token": " the",
+          "prob": 0.0771484375
+        },
+        {
+          "token": " Ohio",
+          "prob": 0.059814453125
+        },
+        {
+          "token": " Kentucky",
+          "prob": 0.052978515625
+        },
+        {
+          "token": " North",
+          "prob": 0.052978515625
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2025-12-02T00:12:48.358402",
+    "duration_ms": 67529.33883666992,
+    "is_identity": false
+  }
+}

@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom tier colors */
+@layer utilities {
+  .tier-5 { @apply bg-emerald-500; }
+  .tier-4 { @apply bg-lime-500; }
+  .tier-3 { @apply bg-yellow-500; }
+  .tier-2 { @apply bg-orange-400; }
+  .tier-1 { @apply bg-red-500; }
+  .tier-0 { @apply bg-slate-600; }
+  
+  .tier-5-text { @apply text-emerald-400; }
+  .tier-4-text { @apply text-lime-400; }
+  .tier-3-text { @apply text-yellow-400; }
+  .tier-2-text { @apply text-orange-400; }
+  .tier-1-text { @apply text-red-400; }
+  .tier-0-text { @apply text-slate-400; }
+}
+
+/* Matrix cell animations */
+@layer components {
+  .matrix-cell {
+    @apply transition-all duration-100 cursor-pointer;
+  }
+  
+  .matrix-cell:hover {
+    @apply scale-150 z-10 ring-2 ring-white/50;
+  }
+  
+  .matrix-cell.selected {
+    @apply ring-2 ring-cyan-400;
+  }
+}
+
+/* Slide-in panel */
+@layer components {
+  .detail-panel {
+    @apply fixed right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-slate-700;
+    @apply shadow-2xl overflow-y-auto transform transition-transform duration-300;
+  }
+  
+  .detail-panel.hidden {
+    @apply translate-x-full;
+  }
+  
+  .detail-panel.visible {
+    @apply translate-x-0;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-900;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-700 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-600;
+}
+
+/* Typography */
+body {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
