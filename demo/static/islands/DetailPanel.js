@@ -16,16 +16,42 @@ class DetailPanelIsland {
     this.noteInputActive = false;
     this.saving = false;
     
-    this.tierInfo = {
-      5: { name: 'PERFECT', color: '#10b981', desc: 'Target capital found in output' },
-      4: { name: 'STATE + CITY', color: '#84cc16', desc: 'Target state city found (not capital)' },
-      3: { name: 'STATE ONLY', color: '#eab308', desc: 'Target state referred only' },
-      2.5: { name: 'WRONG STATE', color: '#f97316', desc: 'Source suppressed, different state appears' },
-      2: { name: 'SUPPRESSED', color: '#fb923c', desc: 'Source suppressed, no target content' },
-      1: { name: 'SOURCE PERSISTS', color: '#ef4444', desc: 'Source capital still in output' },
+    // Default colors
+    this.defaultTierInfo = {
+      5:   { name: 'PERFECT',        color: '#0A4FFF', desc: 'Target capital found in output' },
+      4:   { name: 'STATE + CITY',   color: '#3D7DFF', desc: 'Target state city found (not capital)' },
+      3:   { name: 'STATE ONLY',     color: '#AFCBFF', desc: 'Target state referred only' },
+      2.5: { name: 'WRONG STATE',    color: '#FFE8E8', desc: 'Source suppressed, different state appears' },
+      2:   { name: 'SUPPRESSED',     color: '#FF7373', desc: 'Source suppressed, no target content' },
+      1:   { name: 'SOURCE PERSISTS', color: '#C00000', desc: 'Source capital still in output' },
     };
     
+    // Colorblind-friendly colors
+    this.colorblindTierInfo = {
+      5:   { name: 'PERFECT',        color: '#0077BB', desc: 'Target capital found in output' },
+      4:   { name: 'STATE + CITY',   color: '#33BBEE', desc: 'Target state city found (not capital)' },
+      3:   { name: 'STATE ONLY',     color: '#EE7733', desc: 'Target state referred only' },
+      2.5: { name: 'WRONG STATE',    color: '#CCBB44', desc: 'Source suppressed, different state appears' },
+      2:   { name: 'SUPPRESSED',     color: '#EE3377', desc: 'Source suppressed, no target content' },
+      1:   { name: 'SOURCE PERSISTS', color: '#AA3377', desc: 'Source capital still in output' },
+    };
+    
+    this.updateColorMode();
+    
+    // Listen for colorblind mode changes from Matrix
+    document.addEventListener('colorblind-mode-changed', () => {
+      this.updateColorMode();
+      if (this.visible && this.data) {
+        this.renderContent();
+      }
+    });
+    
     this.init();
+  }
+  
+  updateColorMode() {
+    const colorblindMode = localStorage.getItem('colorblindMode') === 'true';
+    this.tierInfo = colorblindMode ? this.colorblindTierInfo : this.defaultTierInfo;
   }
   
   async init() {

@@ -42,21 +42,196 @@ RULES: List[AnnotationRule] = [
         note="In Alaska, a borough is an administrative division similar to a county in other U.S. states"
     ),
     
-    # Add more rules here as needed:
-    # 
-    # Example: Set tier 2.5 (WRONG STATE) for specific patterns
-    # AnnotationRule(
-    #     name="wrong_state_example",
-    #     description="Example of setting WRONG STATE tier",
-    #     condition=lambda swap: (
-    #         # Your condition here
-    #         swap.get('classification', {}).get('tier', 0) < 3 and
-    #         # Check if a different state appears in steered output
-    #         'some_other_state' in swap.get('evaluation', {}).get('raw', {}).get('steered_output', '').lower()
-    #     ),
-    #     new_tier=2.5,  # WRONG STATE
-    #     note="Reason for this classification"
-    # ),
+    # Rule 2: Target city found -> T4
+    AnnotationRule(
+        name="target_city_found",
+        description="Steered output contains target city -> tier 4",
+        condition=lambda swap: (
+            swap.get('target', {}).get('city', '') and
+            swap.get('target', {}).get('city', '').lower() in 
+                swap.get('evaluation', {}).get('raw', {}).get('steered_output', '').lower() and
+            swap.get('classification', {}).get('tier', 0) < 4  # Don't downgrade T5
+        ),
+        new_tier=4,
+        note="Target city found in steered output"
+    ),
+    
+    # Rule 3: Florida + Keyser/Keys reference
+    AnnotationRule(
+        name="florida_keiser_keys",
+        description="Florida target + 'Keyser' or 'Keys' in steered output + tier < 3 -> tier 3",
+        condition=lambda swap: (
+            swap.get('target', {}).get('state', '').lower() == 'florida' and
+            ('keyser' in swap.get('evaluation', {}).get('raw', {}).get('steered_output', '').lower() or
+             'keys' in swap.get('evaluation', {}).get('raw', {}).get('steered_output', '').lower()) and
+            swap.get('classification', {}).get('tier', 0) < 3
+        ),
+        new_tier=3,
+        note="Reference to Keiser, a private not-for-profit university in Florida (AND city in West Virginia)"
+    ),
+    
+    # Rule 4: Hawaii + hale reference
+    AnnotationRule(
+        name="hawaii_hale",
+        description="Hawaii target + 'hale' in steered output + tier < 3 -> tier 3",
+        condition=lambda swap: (
+            swap.get('target', {}).get('state', '').lower() == 'hawaii' and
+            'hale' in swap.get('evaluation', {}).get('raw', {}).get('steered_output', '').lower() and
+            swap.get('classification', {}).get('tier', 0) < 3
+        ),
+        new_tier=3,
+        note="Hawaiian hale is a traditional house or building that translates to 'home' or 'host' in the Hawaiian language."
+    ),
+    
+    # Rule 5: Minnesota + St. Paul (capital)
+    AnnotationRule(
+        name="minnesota_st_paul",
+        description="Minnesota target + 'St. Paul' in steered output -> tier 5",
+        condition=lambda swap: (
+            swap.get('target', {}).get('state', '').lower() == 'minnesota' and
+            'st. paul' in swap.get('evaluation', {}).get('raw', {}).get('steered_output', '').lower() and
+            swap.get('classification', {}).get('tier', 0) < 5
+        ),
+        new_tier=5,
+        note=None  # No note needed - capital found
+    ),
+    
+    # Rule 6: Montana + Hi-Line region
+    AnnotationRule(
+        name="montana_hiline",
+        description="Montana target + 'Hi-Line' in steered output -> tier 4",
+        condition=lambda swap: (
+            swap.get('target', {}).get('state', '').lower() == 'montana' and
+            'hi-line' in swap.get('evaluation', {}).get('raw', {}).get('steered_output', '').lower() and
+            swap.get('classification', {}).get('tier', 0) < 4
+        ),
+        new_tier=4,
+        note=None
+    ),
+    
+    # Rule 7: Cebuano language reference
+    AnnotationRule(
+        name="nahilalakip_cebuano",
+        description="'nahilalakip' in steered output -> add note (no tier change)",
+        condition=lambda swap: (
+            'nahilalakip' in swap.get('evaluation', {}).get('raw', {}).get('steered_output', '').lower()
+        ),
+        new_tier=None,  # No tier change
+        note="nahilalakip means 'attached' in Cebuano language"
+    ),
+    
+    # Rule 8: New Jersey + River reference (Toms River)
+    # Only apply if capital (Trenton) is NOT already found
+    AnnotationRule(
+        name="new_jersey_river",
+        description="New Jersey target + 'River, New Jersey' in steered output + no capital + tier < 3 -> tier 4",
+        condition=lambda swap: (
+            swap.get('target', {}).get('state', '').lower() == 'new jersey' and
+            'river, new jersey' in swap.get('evaluation', {}).get('raw', {}).get('steered_output', '').lower() and
+            not swap.get('evaluation', {}).get('exact_match', {}).get('steered_has_to_capital', False) and
+            swap.get('classification', {}).get('tier', 0) < 3
+        ),
+        new_tier=4,
+        note="Toms River is a township in New Jersey"
+    ),
+    
+    # Rule 9: South Carolina + Edisto Island
+    AnnotationRule(
+        name="south_carolina_edisto",
+        description="South Carolina target + 'Edisto' in steered output -> tier 4",
+        condition=lambda swap: (
+            swap.get('target', {}).get('state', '').lower() == 'south carolina' and
+            'edisto' in swap.get('evaluation', {}).get('raw', {}).get('steered_output', '').lower() and
+            not swap.get('evaluation', {}).get('exact_match', {}).get('steered_has_to_capital', False) and
+            swap.get('classification', {}).get('tier', 0) < 4
+        ),
+        new_tier=4,
+        note="Edisto Island is one of South Carolina's Sea Islands"
+    ),
+    
+    # Rule 10: South Dakota + Columbia
+    AnnotationRule(
+        name="south_dakota_columbia",
+        description="South Dakota target + 'Columbia' in steered output -> tier 4",
+        condition=lambda swap: (
+            swap.get('target', {}).get('state', '').lower() == 'south dakota' and
+            'columbia' in swap.get('evaluation', {}).get('raw', {}).get('steered_output', '').lower() and
+            not swap.get('evaluation', {}).get('exact_match', {}).get('steered_has_to_capital', False) and
+            swap.get('classification', {}).get('tier', 0) < 4
+        ),
+        new_tier=4,
+        note="Columbia is a city on the James River in Brown County, South Dakota"
+    ),
+    
+    # Rule 11: Texas + "Texas" in output (state name only)
+    AnnotationRule(
+        name="texas_state_mention",
+        description="Texas target + 'Texas' in steered output -> tier 3",
+        condition=lambda swap: (
+            swap.get('target', {}).get('state', '').lower() == 'texas' and
+            'texas' in swap.get('evaluation', {}).get('raw', {}).get('steered_output', '').lower() and
+            not swap.get('evaluation', {}).get('exact_match', {}).get('steered_has_to_capital', False) and
+            swap.get('classification', {}).get('tier', 0) < 3
+        ),
+        new_tier=3,
+        note=None
+    ),
+    
+    # Rule 12: Utah + Tooele
+    AnnotationRule(
+        name="utah_tooele",
+        description="Utah target + 'Tooele' in steered output -> tier 3",
+        condition=lambda swap: (
+            swap.get('target', {}).get('state', '').lower() == 'utah' and
+            'tooele' in swap.get('evaluation', {}).get('raw', {}).get('steered_output', '').lower() and
+            not swap.get('evaluation', {}).get('exact_match', {}).get('steered_has_to_capital', False) and
+            swap.get('classification', {}).get('tier', 0) < 3
+        ),
+        new_tier=3,
+        note="Tooele County, Utah"
+    ),
+    
+    # Rule 13: Vermont + Shelburne
+    AnnotationRule(
+        name="vermont_shelburne",
+        description="Vermont target + 'Shelburne' in steered output -> tier 4",
+        condition=lambda swap: (
+            swap.get('target', {}).get('state', '').lower() == 'vermont' and
+            'shelburne' in swap.get('evaluation', {}).get('raw', {}).get('steered_output', '').lower() and
+            not swap.get('evaluation', {}).get('exact_match', {}).get('steered_has_to_capital', False) and
+            swap.get('classification', {}).get('tier', 0) < 4
+        ),
+        new_tier=4,
+        note="Shelburne is a town in Chittenden County, Vermont"
+    ),
+    
+    # Rule 14: Virginia + Norfolk
+    AnnotationRule(
+        name="virginia_norfolk",
+        description="Virginia target + 'Norfolk' in steered output -> tier 4",
+        condition=lambda swap: (
+            swap.get('target', {}).get('state', '').lower() == 'virginia' and
+            'norfolk' in swap.get('evaluation', {}).get('raw', {}).get('steered_output', '').lower() and
+            not swap.get('evaluation', {}).get('exact_match', {}).get('steered_has_to_capital', False) and
+            swap.get('classification', {}).get('tier', 0) < 4
+        ),
+        new_tier=4,
+        note="Norfolk is a waterfront city in southeastern Virginia."
+    ),
+    
+    # Rule 15: West Virginia + Putnam
+    AnnotationRule(
+        name="west_virginia_putnam",
+        description="West Virginia target + 'Putnam' in steered output -> tier 3",
+        condition=lambda swap: (
+            swap.get('target', {}).get('state', '').lower() == 'west virginia' and
+            'putnam' in swap.get('evaluation', {}).get('raw', {}).get('steered_output', '').lower() and
+            not swap.get('evaluation', {}).get('exact_match', {}).get('steered_has_to_capital', False) and
+            swap.get('classification', {}).get('tier', 0) < 3
+        ),
+        new_tier=3,
+        note="Putnam County is a county in the U.S. state of West Virginia."
+    ),
 ]
 
 # ============================================================================

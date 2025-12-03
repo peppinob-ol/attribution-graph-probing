@@ -12,19 +12,47 @@ class MatrixIsland {
     this.selected = null;
     this.hoveredCell = null;
     this.sortBy = 'alpha';
+    this.colorblindMode = localStorage.getItem('colorblindMode') === 'true';
     
-    this.tierColors = {
-      5: { bg: '#10b981', hover: '#34d399' },    // PERFECT - emerald
-      4: { bg: '#84cc16', hover: '#a3e635' },    // STATE+CITY - lime
-      3: { bg: '#eab308', hover: '#facc15' },    // STATE ONLY - yellow
-      2.5: { bg: '#f97316', hover: '#fb923c' },  // WRONG STATE - orange (darker)
-      2: { bg: '#fb923c', hover: '#fdba74' },    // SUPPRESSED - orange (lighter)
-      1: { bg: '#ef4444', hover: '#f87171' },    // SOURCE PERSISTS - red
+    // Default color palette (blue to red)
+    this.defaultColors = {
+      5: { bg: '#0A4FFF', hover: '#3D7DFF' },    // PERFECT - deep blue
+      4: { bg: '#3D7DFF', hover: '#6B9FFF' },    // STATE+CITY - medium blue
+      3: { bg: '#AFCBFF', hover: '#C7DAFF' },    // STATE ONLY - light blue
+      2.5: { bg: '#FFE8E8', hover: '#FFF0F0' },  // WRONG STATE - very light red
+      2: { bg: '#FF7373', hover: '#FF9999' },    // SUPPRESSED - medium red
+      1: { bg: '#C00000', hover: '#E00000' },    // SOURCE PERSISTS - deep red
       0: { bg: '#475569', hover: '#64748b' },
       null: { bg: '#1e293b', hover: '#334155' },
     };
     
+    // Colorblind-friendly palette (blue-orange, distinct shapes)
+    this.colorblindColors = {
+      5: { bg: '#0077BB', hover: '#33A0DD' },    // PERFECT - dark blue
+      4: { bg: '#33BBEE', hover: '#66CCFF' },    // STATE+CITY - cyan
+      3: { bg: '#EE7733', hover: '#FF9955' },    // STATE ONLY - orange
+      2.5: { bg: '#CCBB44', hover: '#DDCC66' },  // WRONG STATE - yellow
+      2: { bg: '#EE3377', hover: '#FF5599' },    // SUPPRESSED - magenta
+      1: { bg: '#AA3377', hover: '#CC5599' },    // SOURCE PERSISTS - purple
+      0: { bg: '#475569', hover: '#64748b' },
+      null: { bg: '#1e293b', hover: '#334155' },
+    };
+    
+    this.tierColors = this.colorblindMode ? this.colorblindColors : this.defaultColors;
+    
     this.init();
+  }
+  
+  toggleColorblindMode() {
+    this.colorblindMode = !this.colorblindMode;
+    localStorage.setItem('colorblindMode', this.colorblindMode);
+    this.tierColors = this.colorblindMode ? this.colorblindColors : this.defaultColors;
+    this.renderMatrix();
+    
+    // Notify other components (like DetailPanel)
+    document.dispatchEvent(new CustomEvent('colorblind-mode-changed', {
+      detail: { colorblindMode: this.colorblindMode },
+    }));
   }
   
   async init() {
@@ -225,16 +253,31 @@ class MatrixIsland {
     
     let html = `
       <div class="matrix-wrapper">
-        <!-- Sort controls -->
-        <div class="flex items-center gap-4 mb-4">
-          <span class="text-xs text-slate-500">Sort by:</span>
-          <div class="flex gap-2" id="sort-buttons">
-            ${sortOptions.map(opt => `
-              <button
-                class="px-2 py-1 text-xs rounded transition-colors ${this.sortBy === opt.value ? 'bg-cyan-900/50 text-cyan-400' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}"
-                data-sort="${opt.value}"
-              >${opt.label}</button>
-            `).join('')}
+        <!-- Controls -->
+        <div class="flex items-center justify-between gap-4 mb-4">
+          <div class="flex items-center gap-4">
+            <span class="text-xs text-slate-500">Sort by:</span>
+            <div class="flex gap-2" id="sort-buttons">
+              ${sortOptions.map(opt => `
+                <button
+                  class="px-2 py-1 text-xs rounded transition-colors ${this.sortBy === opt.value ? 'bg-cyan-900/50 text-cyan-400' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}"
+                  data-sort="${opt.value}"
+                >${opt.label}</button>
+              `).join('')}
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              id="colorblind-toggle"
+              class="px-3 py-1 text-xs rounded transition-colors flex items-center gap-2 ${this.colorblindMode ? 'bg-amber-900/50 text-amber-400' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}"
+              title="Toggle colorblind-friendly palette"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+              ${this.colorblindMode ? 'Colorblind: ON' : 'Colorblind: OFF'}
+            </button>
           </div>
         </div>
         
@@ -307,6 +350,14 @@ class MatrixIsland {
         this.renderMatrix();
       });
     });
+    
+    // Colorblind toggle
+    const colorblindToggle = this.container.querySelector('#colorblind-toggle');
+    if (colorblindToggle) {
+      colorblindToggle.addEventListener('click', () => {
+        this.toggleColorblindMode();
+      });
+    }
     
     // Matrix cells
     const cells = this.container.querySelectorAll('.matrix-cell');
