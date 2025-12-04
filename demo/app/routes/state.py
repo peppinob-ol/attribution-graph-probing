@@ -75,22 +75,28 @@ def state_routes(app, rt, data_loader):
                 Main(cls="max-w-5xl mx-auto px-4 py-8")(
                     # State header
                     Div(cls="mb-8")(
-                        Div(cls="flex items-center gap-4 mb-4")(
-                            Span(cls="text-5xl font-bold")(state['abbr']),
-                            Div()(
-                                H1(cls="text-3xl font-bold")(state['state']),
-                                P(cls="text-slate-400")(f"City: {state['city']}"),
+                        Div(cls="flex items-center justify-between mb-4")(
+                            Div(cls="flex items-center gap-4")(
+                                Span(cls="text-5xl font-bold")(state['abbr']),
+                                Div()(
+                                    H1(cls="text-3xl font-bold")(state['state']),
+                                    P(cls="text-slate-400")(f"City: {state['city']}"),
+                                ),
                             ),
+                            # Neuronpedia subgraph button on the right
+                            Button(
+                                id="subgraph-btn",
+                                cls="px-4 py-2 rounded-lg bg-cyan-900/30 hover:bg-cyan-900/50 text-cyan-400 text-sm transition-colors border border-cyan-800/50 flex items-center gap-2",
+                                **{"data-slug": slug}
+                            )(
+                                Span()("Neuronpedia"),
+                                Span(cls="text-cyan-600")("->"),
+                            ) if state.get('neuronpedia_url') else None,
                         ),
                         Div(cls="flex items-center gap-3")(
                             Span(cls=f"px-3 py-1 rounded-full bg-slate-800 text-sm {archetype_colors.get(state['archetype'], '')}")(
                                 f"Archetype: {state['archetype']}"
                             ),
-                            A(
-                                href=state.get('neuronpedia_url', '#'),
-                                target="_blank",
-                                cls="px-3 py-1 rounded-full bg-cyan-900/50 text-cyan-400 text-sm hover:bg-cyan-800/50 transition-colors"
-                            )("View Subgraph on Neuronpedia") if state.get('neuronpedia_url') else None,
                         ),
                     ),
                     
@@ -133,6 +139,35 @@ def state_routes(app, rt, data_loader):
                         _swaps_table("Swaps as Target", as_target, slug, states, "from"),
                     ),
                 ),
+                
+                # Inline script for subgraph button
+                Script("""
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const btn = document.getElementById('subgraph-btn');
+                        if (btn) {
+                            btn.addEventListener('click', async function() {
+                                const slug = this.dataset.slug;
+                                const originalText = this.textContent;
+                                this.textContent = 'Loading...';
+                                this.disabled = true;
+                                
+                                try {
+                                    const res = await fetch('/api/state/' + slug + '/subgraph-url?max_features=100');
+                                    if (!res.ok) throw new Error('Failed');
+                                    const data = await res.json();
+                                    if (data.url) {
+                                        window.open(data.url, '_blank');
+                                    }
+                                } catch (e) {
+                                    alert('Could not generate subgraph URL');
+                                } finally {
+                                    this.textContent = originalText;
+                                    this.disabled = false;
+                                }
+                            });
+                        }
+                    });
+                """),
             ),
         )
 

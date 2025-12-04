@@ -714,25 +714,10 @@ class DetailPanelIsland {
           </div>
         ` : ''}
         
-        <!-- Neuronpedia Links -->
+        <!-- Neuronpedia Subgraphs -->
         <div class="mb-2 p-3 rounded-lg" style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgb(51, 65, 85);">
-          <div class="text-xs text-slate-500 uppercase mb-3">Neuronpedia Links</div>
+          <div class="text-xs text-slate-500 uppercase mb-3">Neuronpedia Subgraphs</div>
           
-          <!-- Full graph links -->
-          <div class="flex gap-2 mb-3">
-            ${source.neuronpedia_url ? `
-              <a href="${source.neuronpedia_url}" target="_blank" class="flex-1 py-2 px-3 rounded bg-slate-700/50 hover:bg-slate-700 text-center text-xs text-slate-300 hover:text-white transition-colors">
-                Source Graph (full)
-              </a>
-            ` : ''}
-            ${target.neuronpedia_url ? `
-              <a href="${target.neuronpedia_url}" target="_blank" class="flex-1 py-2 px-3 rounded bg-slate-700/50 hover:bg-slate-700 text-center text-xs text-slate-300 hover:text-white transition-colors">
-                Target Graph (full)
-              </a>
-            ` : ''}
-          </div>
-          
-          <!-- Simplified subgraph links (with pinned nodes) -->
           <div class="flex gap-2">
             <button 
               class="subgraph-btn flex-1 py-2 px-3 rounded bg-cyan-900/30 hover:bg-cyan-900/50 text-center text-xs text-cyan-400 hover:text-cyan-300 transition-colors border border-cyan-800/50"
@@ -746,11 +731,8 @@ class DetailPanelIsland {
             </button>
           </div>
           
-          <div class="flex items-center gap-1 text-xs text-slate-600 mt-2">
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>Subgraph: embeddings + logits + top features by influence, with supernodes.</span>
+          <div class="text-xs text-slate-600 mt-2 text-center">
+            Embeddings + top logit + features by influence, with supernodes.
           </div>
         </div>
       </div>

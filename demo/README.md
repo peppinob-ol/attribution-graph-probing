@@ -121,15 +121,41 @@ npx tailwindcss -i ./static/css/input.css -o ./static/css/tailwind.css --watch
 
 ### Hugging Face Spaces
 
-1. Add to `requirements_hf.txt`:
-   ```
-   python-fasthtml>=0.6.0
-   pandas>=2.0.0
+The live demo is deployed at: https://huggingface.co/spaces/Peppinob/state-swap-steering-explorer
+
+**HF Spaces repo location:** `C:\Github\state-swap-steering-explorer`
+
+#### To deploy updates:
+
+1. **Sync files from demo to HF repo:**
+   ```powershell
+   # Copy all source files
+   Copy-Item -Path "C:\Github\circuit_tracer-prompt_rover\demo\main.py" -Destination "C:\Github\state-swap-steering-explorer\main.py" -Force
+   Copy-Item -Path "C:\Github\circuit_tracer-prompt_rover\demo\Dockerfile" -Destination "C:\Github\state-swap-steering-explorer\Dockerfile" -Force
+   Copy-Item -Path "C:\Github\circuit_tracer-prompt_rover\demo\requirements.txt" -Destination "C:\Github\state-swap-steering-explorer\requirements.txt" -Force
+   Copy-Item -Path "C:\Github\circuit_tracer-prompt_rover\demo\README_HF.md" -Destination "C:\Github\state-swap-steering-explorer\README.md" -Force
+   Copy-Item -Path "C:\Github\circuit_tracer-prompt_rover\demo\app\*" -Destination "C:\Github\state-swap-steering-explorer\app\" -Recurse -Force
+   Copy-Item -Path "C:\Github\circuit_tracer-prompt_rover\demo\static\*" -Destination "C:\Github\state-swap-steering-explorer\static\" -Recurse -Force
    ```
 
-2. Create Dockerfile or use Python runtime
+2. **Commit and push:**
+   ```powershell
+   cd C:\Github\state-swap-steering-explorer
+   git add .
+   git commit -m "Sync updates from demo"
+   git push
+   ```
 
-3. Set entry point to `demo/main.py`
+#### Important Notes:
+
+- **README.md frontmatter colors:** HF Spaces only accepts these values for `colorFrom`/`colorTo`:
+  `red`, `yellow`, `green`, `blue`, `indigo`, `purple`, `pink`, `gray`
+  
+  Do NOT use `emerald`, `amber`, etc. - they will cause push rejection.
+
+- **Don't commit `__pycache__`** - already in `.gitignore`
+
+- The HF Spaces repo contains the `data/` folder with experiment results (not in this demo folder)
 
 ### Vercel / Railway
 

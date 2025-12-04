@@ -1,8 +1,8 @@
 ---
 title: State Swap Explorer
 emoji: 🗺️
-colorFrom: emerald
-colorTo: amber
+colorFrom: green
+colorTo: yellow
 sdk: docker
 app_port: 7860
 pinned: false
@@ -63,5 +63,6 @@ This visualization shows results from 2,450 swap experiments (50 source states x
 **Version**: 1.0.0  
 **Model**: Gemma-2-2B  
 **License**: GPL-3.0
+
 
 

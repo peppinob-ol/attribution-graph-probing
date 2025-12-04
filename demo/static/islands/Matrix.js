@@ -611,7 +611,15 @@ class MatrixIsland {
           </svg>
         </button>
         <div class="flex-1 text-center">
-          <h2 class="text-xl font-bold text-white">${d.state}</h2>
+          <div class="text-center leading-tight">
+            <h2 class="text-xl font-bold text-white mb-0">${d.state}</h2>
+            ${d.neuronpedia_url ? `
+              <button class="subgraph-btn px-2 py-0 rounded text-xs bg-cyan-900/40 hover:bg-cyan-900/60 text-cyan-400 border border-cyan-700/60 transition-colors"
+                      data-slug="${d.slug}" title="View subgraph on Neuronpedia">
+                view subgraph&#128279;
+              </button>
+            ` : ''}
+          </div>
           <div class="text-sm text-slate-400">
             <span>Capital: <span class="text-emerald-400">${d.capital || '?'}</span></span>
             <span class="mx-2 text-slate-600">|</span>
@@ -734,11 +742,15 @@ class MatrixIsland {
         </div>
       </div>
       
-      <!-- Neuronpedia link -->
+      <!-- Neuronpedia Subgraph -->
       ${d.neuronpedia_url ? `
-        <a href="${d.neuronpedia_url}" target="_blank" class="block w-full py-2 px-4 rounded bg-cyan-900/30 hover:bg-cyan-900/50 text-center text-sm text-cyan-400 transition-colors">
-          View on Neuronpedia ->
-        </a>
+        <div class="mb-4">
+          <button class="subgraph-btn w-full py-2 px-4 rounded bg-cyan-900/30 hover:bg-cyan-900/50 text-center text-sm text-cyan-400 hover:text-cyan-300 transition-colors border border-cyan-800/50"
+                  data-slug="${d.slug}">
+            View Subgraph on Neuronpedia
+          </button>
+          <div class="text-xs text-slate-600 mt-2 text-center">Embeddings + top logit + features by influence, with supernodes.</div>
+        </div>
       ` : ''}
       
       <div class="mt-3 text-center text-xs text-slate-600">
@@ -792,6 +804,37 @@ class MatrixIsland {
         const slug = btn.dataset.slug;
         if (slug) {
           this.showStateCard(slug);
+        }
+      });
+    });
+    
+    // Subgraph button
+    container.querySelectorAll('.subgraph-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const slug = btn.dataset.slug;
+        if (!slug) return;
+        
+        const originalText = btn.textContent;
+        btn.textContent = 'Loading...';
+        btn.disabled = true;
+        
+        try {
+          const res = await fetch(`/api/state/${slug}/subgraph-url?max_features=100`);
+          if (!res.ok) throw new Error('Failed to generate subgraph URL');
+          
+          const data = await res.json();
+          if (data.url) {
+            window.open(data.url, '_blank');
+          } else {
+            throw new Error('No URL returned');
+          }
+        } catch (err) {
+          console.error('Subgraph error:', err);
+          alert('Could not generate subgraph URL');
+        } finally {
+          btn.textContent = originalText;
+          btn.disabled = false;
         }
       });
     });
