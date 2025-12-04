@@ -384,6 +384,263 @@ class DataLoader:
         self._stats_cache = stats
         return stats
     
+    def get_swap_features(self, from_slug: str, to_slug: str) -> Optional[Dict]:
+        """
+        Get intervention features for a swap.
+        
+        Loads from _swaps/work/{from_slug}__to__{to_slug}/features.json
+        Returns structured data with ablated/amplified features grouped by layer.
+        """
+        swap_id = f"{from_slug}__to__{to_slug}"
+        features_path = self.swaps_dir / "work" / swap_id / "features.json"
+        
+        if not features_path.exists():
+            return None
+        
+        try:
+            with open(features_path, 'r', encoding='utf-8') as f:
+                raw_features = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return None
+        
+        # Group features by type and layer
+        ablated = []  # M < 0
+        amplified = []  # M > 0
+        layer_counts = {'ablated': {}, 'amplified': {}}
+        
+        for feat in raw_features:
+            layer = feat.get('layer', 0)
+            index = feat.get('index', 0)
+            M = feat.get('M', 0)
+            stored_activation = feat.get('stored_activation')
+            
+            # Build Neuronpedia link
+            np_url = f"https://www.neuronpedia.org/gemma-2-2b/{layer}-clt-hp/{index}"
+            
+            feature_info = {
+                'layer': layer,
+                'index': index,
+                'M': M,
+                'stored_activation': stored_activation,
+                'neuronpedia_url': np_url,
+            }
+            
+            if M < 0:
+                ablated.append(feature_info)
+                layer_counts['ablated'][layer] = layer_counts['ablated'].get(layer, 0) + 1
+            else:
+                amplified.append(feature_info)
+                layer_counts['amplified'][layer] = layer_counts['amplified'].get(layer, 0) + 1
+        
+        # Sort by layer
+        ablated.sort(key=lambda x: (x['layer'], x['index']))
+        amplified.sort(key=lambda x: (x['layer'], x['index']))
+        
+        return {
+            'swap_id': swap_id,
+            'ablated': ablated,
+            'amplified': amplified,
+            'layer_counts': layer_counts,
+            'summary': {
+                'ablate_count': len(ablated),
+                'amplify_count': len(amplified),
+                'total_count': len(ablated) + len(amplified),
+            }
+        }
+    
+    def get_state_profile(self, slug: str) -> Optional[Dict]:
+        """
+        Get comprehensive state profile with stats.
+        
+        Includes:
+        - Native probability (target logit prob from graph)
+        - Supernode/pinned feature counts
+        - Feature count by layer
+        - Attack score (avg tier when target - others steer to this state)
+        - Defense score (avg tier when source - this state's prompt)
+        - Wrong state rate
+        - Capital city
+        """
+        # Find state directory
+        state_dir = self._find_state_dir(slug)
+        if not state_dir:
+            return None
+        
+        state_name = self._slug_to_state_name(slug)
+        profile = {
+            'slug': slug,
+            'state': state_name,
+            'city': self._slug_to_city(slug),
+            'capital': self._get_state_capital(state_name),
+        }
+        
+        # Load manifest for Neuronpedia data
+        manifest = self._load_manifest(state_dir)
+        if manifest:
+            np_data = manifest.get('neuronpedia', {})
+            profile['supernodes'] = np_data.get('supernodes', 0)
+            profile['pinned_nodes'] = np_data.get('pinned_nodes', 0)
+            profile['neuronpedia_url'] = np_data.get('url', '')
+        
+        # Load native probability from graph.json
+        graph_path = state_dir / "00 Graph Generation" / "graph.json"
+        if graph_path.exists():
+            try:
+                with open(graph_path, 'r', encoding='utf-8') as f:
+                    graph = json.load(f)
+                for node in graph.get('nodes', []):
+                    if node.get('is_target_logit'):
+                        profile['native_prob'] = node.get('token_prob', 0)
+                        profile['target_token'] = node.get('clerp', '')
+                        break
+            except (json.JSONDecodeError, IOError):
+                pass
+        
+        # Load feature layer distribution
+        features_path = state_dir / "00 Graph Generation" / "selected_features_with_nodes.json"
+        if features_path.exists():
+            try:
+                with open(features_path, 'r', encoding='utf-8') as f:
+                    features_data = json.load(f)
+                features = features_data.get('features', [])
+                profile['total_features'] = len(features)
+                
+                # Count by layer
+                layer_counts = {}
+                for feat in features:
+                    layer = feat.get('layer', 0)
+                    layer_counts[layer] = layer_counts.get(layer, 0) + 1
+                profile['feature_layers'] = layer_counts
+            except (json.JSONDecodeError, IOError):
+                pass
+        
+        # Load state supernode features from node_grouping.csv
+        grouping_path = state_dir / "02 Node Grouping" / "node_grouping.csv"
+        if grouping_path.exists():
+            try:
+                state_concept = self._slug_to_state_name(slug).lower()
+                supernode_features = []
+                supernode_layer_counts = {}
+                
+                with open(grouping_path, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        supernode_name = row.get('supernode_name', '').lower()
+                        # Match state name in supernode (e.g., "california", "texas")
+                        if state_concept in supernode_name or supernode_name in state_concept:
+                            layer = int(row.get('layer', 0))
+                            supernode_features.append({
+                                'layer': layer,
+                                'feature': row.get('feature', ''),
+                                'supernode_name': row.get('supernode_name', ''),
+                            })
+                            supernode_layer_counts[layer] = supernode_layer_counts.get(layer, 0) + 1
+                
+                profile['supernode_features'] = supernode_features
+                profile['supernode_feature_count'] = len(supernode_features)
+                profile['supernode_layer_counts'] = supernode_layer_counts
+            except (IOError, ValueError):
+                pass
+        
+        # Calculate attack/defense scores from matrix
+        matrix = self.get_matrix()
+        
+        # Attack score: avg tier when this state is source
+        attack_tiers = []
+        if slug in matrix:
+            for to_slug, tier in matrix[slug].items():
+                if tier is not None and to_slug != slug:
+                    attack_tiers.append(tier)
+        profile['attack_avg'] = sum(attack_tiers) / len(attack_tiers) if attack_tiers else 0
+        profile['attack_count'] = len(attack_tiers)
+        
+        # Defense score: avg tier when this state is target (others attacking this state)
+        defense_tiers = []
+        wrong_state_count = 0
+        for from_slug, targets in matrix.items():
+            if from_slug != slug and slug in targets and targets[slug] is not None:
+                tier = targets[slug]
+                defense_tiers.append(tier)
+                if tier == 2.5:
+                    wrong_state_count += 1
+        profile['defense_avg'] = sum(defense_tiers) / len(defense_tiers) if defense_tiers else 0
+        profile['defense_count'] = len(defense_tiers)
+        
+        # Wrong state rate (T2.5) as target
+        profile['wrong_state_rate'] = wrong_state_count / len(defense_tiers) if defense_tiers else 0
+        profile['wrong_state_count'] = wrong_state_count
+        
+        # Token overlap flag
+        overlap_slugs = [
+            'colorado_colorado_springs', 'new_york_new_york_city',
+            'virginia_virginia_beach', 'idaho_idaho_falls',
+            'missouri_kansas_city', 'indiana_fort_wayne'
+        ]
+        profile['has_token_overlap'] = slug in overlap_slugs
+        
+        # Get swap summaries (just tier and basic info, not full outputs)
+        profile['swaps_as_target'] = self._get_swap_summaries_as_target(slug)
+        profile['swaps_as_source'] = self._get_swap_summaries_as_source(slug)
+        
+        return profile
+    
+    def _get_swap_summaries_as_target(self, slug: str) -> List[Dict]:
+        """Get summary of swaps where this state is target (being attacked)."""
+        matrix = self.get_matrix()
+        states = self.get_states()
+        state_map = {s['slug']: s for s in states}
+        
+        summaries = []
+        for from_slug, targets in matrix.items():
+            if from_slug != slug and slug in targets and targets[slug] is not None:
+                tier = targets[slug]
+                from_state = state_map.get(from_slug, {})
+                summaries.append({
+                    'from_slug': from_slug,
+                    'from_state': from_state.get('state', from_slug),
+                    'from_city': from_state.get('city', ''),
+                    'tier': tier,
+                })
+        
+        # Sort by tier descending (best results first)
+        summaries.sort(key=lambda x: -x['tier'])
+        return summaries
+    
+    def _get_swap_summaries_as_source(self, slug: str) -> List[Dict]:
+        """Get summary of swaps where this state is source (defending)."""
+        matrix = self.get_matrix()
+        states = self.get_states()
+        state_map = {s['slug']: s for s in states}
+        
+        summaries = []
+        if slug in matrix:
+            for to_slug, tier in matrix[slug].items():
+                if to_slug != slug and tier is not None:
+                    to_state = state_map.get(to_slug, {})
+                    summaries.append({
+                        'to_slug': to_slug,
+                        'to_state': to_state.get('state', to_slug),
+                        'to_city': to_state.get('city', ''),
+                        'tier': tier,
+                    })
+        
+        # Sort by tier descending (best results first)
+        summaries.sort(key=lambda x: -x['tier'])
+        return summaries
+    
+    def _find_state_dir(self, slug: str) -> Optional[Path]:
+        """Find the state directory, handling case variations."""
+        state_dir = self.data_dir / slug
+        if state_dir.exists():
+            return state_dir
+        
+        # Try case variations
+        for candidate in self.data_dir.iterdir():
+            if candidate.is_dir() and candidate.name.lower().replace(' ', '_') == slug.lower():
+                return candidate
+        
+        return None
+    
     def _load_manifest(self, state_dir: Path) -> Optional[Dict]:
         """Load manifest.json from state directory."""
         manifest_path = state_dir / "manifest.json"
@@ -453,4 +710,141 @@ class DataLoader:
             'Wisconsin': 'WI', 'Wyoming': 'WY'
         }
         return abbrs.get(state_name, state_name[:2].upper())
+    
+    def _get_state_capital(self, state_name: str) -> str:
+        """Get the capital city for a state."""
+        capitals = {
+            'Alabama': 'Montgomery', 'Alaska': 'Juneau', 'Arizona': 'Phoenix', 'Arkansas': 'Little Rock',
+            'California': 'Sacramento', 'Colorado': 'Denver', 'Connecticut': 'Hartford', 'Delaware': 'Dover',
+            'Florida': 'Tallahassee', 'Georgia': 'Atlanta', 'Hawaii': 'Honolulu', 'Idaho': 'Boise',
+            'Illinois': 'Springfield', 'Indiana': 'Indianapolis', 'Iowa': 'Des Moines', 'Kansas': 'Topeka',
+            'Kentucky': 'Frankfort', 'Louisiana': 'Baton Rouge', 'Maine': 'Augusta', 'Maryland': 'Annapolis',
+            'Massachusetts': 'Boston', 'Michigan': 'Lansing', 'Minnesota': 'Saint Paul', 'Mississippi': 'Jackson',
+            'Missouri': 'Jefferson City', 'Montana': 'Helena', 'Nebraska': 'Lincoln', 'Nevada': 'Carson City',
+            'New Hampshire': 'Concord', 'New Jersey': 'Trenton', 'New Mexico': 'Santa Fe', 'New York': 'Albany',
+            'North Carolina': 'Raleigh', 'North Dakota': 'Bismarck', 'Ohio': 'Columbus', 'Oklahoma': 'Oklahoma City',
+            'Oregon': 'Salem', 'Pennsylvania': 'Harrisburg', 'Rhode Island': 'Providence', 'South Carolina': 'Columbia',
+            'South Dakota': 'Pierre', 'Tennessee': 'Nashville', 'Texas': 'Austin', 'Utah': 'Salt Lake City',
+            'Vermont': 'Montpelier', 'Virginia': 'Richmond', 'Washington': 'Olympia', 'West Virginia': 'Charleston',
+            'Wisconsin': 'Madison', 'Wyoming': 'Cheyenne'
+        }
+        return capitals.get(state_name, '')
+    
+    def get_simplified_subgraph_url(self, slug: str, max_features: int = 40, 
+                                     include_functional: bool = False) -> Optional[Dict]:
+        """
+        Generate a simplified subgraph URL with a subset of important features.
+        
+        This keeps the URL within practical limits (~2000 chars) by selecting
+        only the most semantically meaningful features.
+        
+        Args:
+            slug: State slug (e.g., 'alabama_Birmingham')
+            max_features: Maximum number of features to include (default 40)
+            include_functional: Whether to include functional tokens (is, the, of, etc.)
+            
+        Returns:
+            Dict with 'url', 'feature_count', 'supernode_count', 'url_length'
+            or None if data not found
+        """
+        import csv
+        from urllib.parse import quote
+        
+        state_dir = self._find_state_dir(slug)
+        if not state_dir:
+            return None
+        
+        # Load manifest for base URL
+        manifest = self._load_manifest(state_dir)
+        if not manifest or 'neuronpedia' not in manifest:
+            return None
+        
+        base_url = manifest['neuronpedia'].get('url', '')
+        if not base_url:
+            return None
+        
+        # Load node grouping data
+        grouping_path = state_dir / "02 Node Grouping" / "node_grouping.csv"
+        if not grouping_path.exists():
+            return None
+        
+        # Functional/noise supernodes to exclude (unless include_functional=True)
+        excluded_supernodes = {
+            'punctuation', 'is', 'the', 'of', 'in', 'which', 'The', 'a', 'an'
+        }
+        
+        # Read and parse node grouping
+        nodes = []
+        try:
+            with open(grouping_path, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    supernode = row.get('supernode_name', '')
+                    
+                    # Skip excluded supernodes unless requested
+                    if not include_functional and supernode in excluded_supernodes:
+                        continue
+                    
+                    # Parse activation for sorting
+                    try:
+                        activation = float(row.get('activation_max', 0))
+                    except (ValueError, TypeError):
+                        activation = 0
+                    
+                    nodes.append({
+                        'layer': row.get('layer', '0'),
+                        'feature': row.get('feature', '0'),
+                        'token_idx': row.get('peak_token_idx', '0'),
+                        'supernode': supernode,
+                        'activation': activation,
+                    })
+        except (IOError, csv.Error):
+            return None
+        
+        if not nodes:
+            return None
+        
+        # Sort by activation (highest first) and take top N
+        nodes.sort(key=lambda x: -x['activation'])
+        selected_nodes = nodes[:max_features]
+        
+        # Build pinnedIds: format is {layer}_{feature}_{tokenIdx}
+        pinned_ids = []
+        supernode_groups = {}  # supernode_name -> list of node_ids
+        
+        for node in selected_nodes:
+            node_id = f"{node['layer']}_{node['feature']}_{node['token_idx']}"
+            pinned_ids.append(node_id)
+            
+            supernode = node['supernode']
+            if supernode:
+                if supernode not in supernode_groups:
+                    supernode_groups[supernode] = []
+                supernode_groups[supernode].append(node_id)
+        
+        # Build supernodes JSON array: [["name", "id1", "id2", ...], ...]
+        supernodes_array = []
+        for name, ids in sorted(supernode_groups.items()):
+            supernodes_array.append([name] + ids)
+        
+        # Encode parameters
+        pinned_param = ','.join(pinned_ids)
+        supernodes_json = json.dumps(supernodes_array, separators=(',', ':'))
+        
+        # Build full URL
+        # Check if base_url already has query params
+        separator = '&' if '?' in base_url else '?'
+        
+        # URL encode the parameters
+        full_url = f"{base_url}{separator}pinnedIds={quote(pinned_param)}&supernodes={quote(supernodes_json)}"
+        
+        return {
+            'url': full_url,
+            'base_url': base_url,
+            'feature_count': len(selected_nodes),
+            'supernode_count': len(supernode_groups),
+            'url_length': len(full_url),
+            'is_truncated': len(nodes) > max_features,
+            'total_available': len(nodes),
+        }
 

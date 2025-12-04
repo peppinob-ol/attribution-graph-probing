@@ -11,7 +11,11 @@ Usage:
     python main.py --annotate   # Annotation mode (allows editing tiers/notes)
 
 Then open http://localhost:8000
+
+Environment Variables:
+    DATA_DIR - Path to usa_states_batch data (for HF Spaces deployment)
 """
+import os
 import sys
 from pathlib import Path
 
@@ -26,7 +30,16 @@ from app.data.loader import DataLoader
 # Paths
 DEMO_DIR = Path(__file__).parent
 STATIC_DIR = DEMO_DIR / "static"
-DATA_DIR = DEMO_DIR.parent / "output" / "usa_states_batch"
+
+# Data directory: check env var first (for HF Spaces), then local paths
+if os.environ.get("DATA_DIR"):
+    DATA_DIR = Path(os.environ["DATA_DIR"])
+elif (DEMO_DIR / "data").exists():
+    # HF Spaces: data bundled in demo/data/
+    DATA_DIR = DEMO_DIR / "data"
+else:
+    # Local development: data in ../output/usa_states_batch/
+    DATA_DIR = DEMO_DIR.parent / "output" / "usa_states_batch"
 
 # Check for --annotate flag
 ANNOTATE_MODE = "--annotate" in sys.argv

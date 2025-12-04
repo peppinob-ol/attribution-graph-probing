@@ -13,6 +13,8 @@ class MatrixIsland {
     this.hoveredCell = null;
     this.sortBy = 'alpha';
     this.colorblindMode = localStorage.getItem('colorblindMode') === 'true';
+    this.stateCardVisible = false;
+    this.stateCardData = null;
     
     // Default color palette (blue to red)
     this.defaultColors = {
@@ -90,6 +92,11 @@ class MatrixIsland {
       // Listen for annotation saves to update cells and stats
       document.addEventListener('annotation-saved', (e) => {
         this.handleAnnotationSaved(e.detail);
+      });
+      
+      // Listen for state card requests from DetailPanel
+      document.addEventListener('show-state-card', (e) => {
+        this.showStateCard(e.detail.slug);
       });
     } catch (e) {
       this.render(`<div class="py-20 text-center text-red-400">Error: ${e.message}</div>`);
@@ -193,15 +200,14 @@ class MatrixIsland {
       const toState = this.states.find(s => s.slug === toSlug);
       const tier = this.getTier(fromSlug, toSlug);
       
-      if (fromState && toState) {
-        hoverInfo.style.display = 'block';
+      if (fromState && toState && hoverInfo) {
         hoverInfo.innerHTML = `
-          <span class="text-slate-400">${fromState.state}</span>
-          <span class="text-slate-600 mx-2">-></span>
-          <span class="text-slate-400">${toState.state}</span>
+          <span class="text-slate-300 font-medium">${fromState.state}</span>
+          <span class="text-slate-500 mx-2">-></span>
+          <span class="text-slate-300 font-medium">${toState.state}</span>
           ${tier !== null ? `
-            <span class="ml-3 px-2 py-0.5 rounded text-xs font-bold" style="background: ${this.getTierColor(tier).bg}20; color: ${this.getTierColor(tier).bg};">
-              T${tier}
+            <span class="ml-3 px-2 py-0.5 rounded text-xs font-bold" style="background: ${this.getTierColor(tier).bg}; color: ${this.getTierTextColor(tier)};">
+              T${tier === 2.5 ? 'W' : tier}
             </span>
           ` : '<span class="ml-3 text-slate-600">No data</span>'}
         `;
@@ -233,6 +239,13 @@ class MatrixIsland {
   
   getTierColor(tier) {
     return this.tierColors[tier] || this.tierColors[null];
+  }
+  
+  // Get contrasting text color for tier labels in colorblind mode
+  getTierTextColor(tier) {
+    // Light backgrounds need dark text, dark backgrounds need light text
+    const darkTextTiers = [3, 2.5]; // Light blue, light pink/yellow need dark text
+    return darkTextTiers.includes(tier) ? '#1e293b' : '#ffffff';
   }
   
   renderMatrix() {
@@ -281,6 +294,11 @@ class MatrixIsland {
           </div>
         </div>
         
+        <!-- Hover info (above matrix) -->
+        <div id="hover-info" class="mb-1 px-3 py-2 bg-slate-800/50 rounded-lg text-sm flex items-center" style="min-height: 32px;">
+          <span class="text-slate-500 text-xs">Hover over a cell to see details</span>
+        </div>
+        
         <div class="overflow-x-auto">
           <div class="inline-block">
             <!-- Header row -->
@@ -288,9 +306,13 @@ class MatrixIsland {
               <div style="width: 64px; height: 64px; flex-shrink: 0;"></div>
               ${sortedStates.map(state => `
                 <div style="width: 16px; height: 64px; flex-shrink: 0; position: relative;" title="${state.state} (${state.city})">
-                  <span style="position: absolute; bottom: 0; left: 50%; transform: translateX(-50%) rotate(-45deg); transform-origin: bottom left; font-size: 10px; color: #64748b; white-space: nowrap;">
+                  <button 
+                    class="state-label-col"
+                    data-slug="${state.slug}"
+                    style="position: absolute; bottom: 0; left: 50%; transform: translateX(-50%) rotate(-45deg); transform-origin: bottom left; font-size: 10px; color: #64748b; white-space: nowrap; background: none; border: none; cursor: pointer; padding: 0;"
+                  >
                     ${state.abbr}
-                  </span>
+                  </button>
                 </div>
               `).join('')}
             </div>
@@ -299,9 +321,9 @@ class MatrixIsland {
             ${sortedStates.map(rowState => `
               <div style="display: flex;">
                 <div style="width: 64px; height: 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px;" title="${rowState.state} (${rowState.city})">
-                  <a href="/state/${rowState.slug}" style="font-size: 10px; color: #64748b; text-decoration: none;" class="hover:text-cyan-400">
+                  <button class="state-label-row hover:text-cyan-400" data-slug="${rowState.slug}" style="font-size: 10px; color: #64748b; background: none; border: none; cursor: pointer; padding: 0;">
                     ${rowState.abbr}
-                  </a>
+                  </button>
                 </div>
                 ${sortedStates.map(colState => {
                   const tier = this.getTier(rowState.slug, colState.slug);
@@ -314,25 +336,25 @@ class MatrixIsland {
                   const annotatedIndicator = isAnnotated ? 
                     '<span class="edited-indicator" style="position: absolute; top: 1px; right: 1px; width: 4px; height: 4px; background: #fbbf24; border-radius: 50%;"></span>' : '';
                   
+                  // Tier label for colorblind mode (show number in cell)
+                  const tierLabel = this.colorblindMode && tier !== null && !isIdentity ? 
+                    `<span style="font-size: 8px; font-weight: bold; color: ${this.getTierTextColor(tier)}; pointer-events: none;">${tier === 2.5 ? 'W' : tier}</span>` : '';
+                  
                   return `
                     <button
                       class="matrix-cell ${isSelected ? 'selected' : ''}"
-                      style="width: 16px; height: 16px; flex-shrink: 0; border-radius: 2px; border: none; cursor: ${isIdentity || tier === null ? 'default' : 'pointer'}; background-color: ${isIdentity ? '#0f172a' : colors.bg}; transition: all 100ms ease; position: relative;"
+                      style="width: 16px; height: 16px; flex-shrink: 0; border-radius: 2px; border: none; cursor: ${isIdentity || tier === null ? 'default' : 'pointer'}; background-color: ${isIdentity ? '#0f172a' : colors.bg}; transition: all 100ms ease; position: relative; display: flex; align-items: center; justify-content: center;"
                       data-from="${rowState.slug}"
                       data-to="${colState.slug}"
                       data-tier="${tier}"
                       ${isIdentity || tier === null ? 'disabled' : ''}
                       title="${isIdentity ? 'Identity' : tier !== null ? `${rowState.abbr} -> ${colState.abbr}: Tier ${tier}${isAnnotated ? ' (edited)' : ''}` : 'No data'}"
-                    >${annotatedIndicator}</button>
+                    >${tierLabel}${annotatedIndicator}</button>
                   `;
                 }).join('')}
               </div>
             `).join('')}
           </div>
-        </div>
-        
-        <!-- Hover info -->
-        <div id="hover-info" class="mt-4 p-3 bg-slate-800/50 rounded-lg text-sm" style="display: none;">
         </div>
       </div>
     `;
@@ -389,14 +411,14 @@ class MatrixIsland {
         const toState = this.states.find(s => s.slug === to);
         
         if (hoverInfo && fromState && toState) {
-          hoverInfo.style.display = 'block';
+          const tierNum = tier === 'null' ? null : parseFloat(tier);
           hoverInfo.innerHTML = `
-            <span class="text-slate-400">${fromState.state}</span>
-            <span class="text-slate-600 mx-2">-></span>
-            <span class="text-slate-400">${toState.state}</span>
-            ${tier !== 'null' ? `
-              <span class="ml-3 px-2 py-0.5 rounded text-xs font-bold" style="background: ${this.getTierColor(parseInt(tier)).bg}20; color: ${this.getTierColor(parseInt(tier)).bg};">
-                T${tier}
+            <span class="text-slate-300 font-medium">${fromState.state}</span>
+            <span class="text-slate-500 mx-2">-></span>
+            <span class="text-slate-300 font-medium">${toState.state}</span>
+            ${tierNum !== null ? `
+              <span class="ml-3 px-2 py-0.5 rounded text-xs font-bold" style="background: ${this.getTierColor(tierNum).bg}; color: ${this.getTierTextColor(tierNum)};">
+                T${tierNum === 2.5 ? 'W' : tierNum}
               </span>
             ` : '<span class="ml-3 text-slate-600">No data</span>'}
           `;
@@ -412,7 +434,7 @@ class MatrixIsland {
       
       cell.addEventListener('mouseleave', () => {
         if (hoverInfo) {
-          hoverInfo.style.display = 'none';
+          hoverInfo.innerHTML = '<span class="text-slate-500 text-xs">Hover over a cell to see details</span>';
         }
         
         // Only reset styles if NOT the selected cell
@@ -424,6 +446,430 @@ class MatrixIsland {
           cell.style.transform = '';
           cell.style.zIndex = '';
         }
+      });
+    });
+    
+    // State label click handlers (show state card)
+    const stateLabels = this.container.querySelectorAll('.state-label-row, .state-label-col');
+    stateLabels.forEach(label => {
+      label.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.showStateCard(label.dataset.slug);
+      });
+      
+      label.addEventListener('mouseenter', () => {
+        label.style.color = '#22d3ee';
+      });
+      
+      label.addEventListener('mouseleave', () => {
+        label.style.color = '#64748b';
+      });
+    });
+  }
+  
+  async showStateCard(slug) {
+    // Close any existing card
+    this.closeStateCard();
+    
+    // Create card container
+    const card = document.createElement('div');
+    card.id = 'state-card';
+    card.className = 'fixed inset-0 z-50 flex items-center justify-center';
+    card.innerHTML = `
+      <div class="state-card-backdrop absolute inset-0 bg-black/60" onclick="this.parentElement.remove()"></div>
+      <div class="state-card-content relative bg-slate-900 rounded-xl shadow-2xl border border-slate-700 p-6 max-w-lg w-full mx-4" style="max-height: 90vh; overflow-y: auto;">
+        <div class="text-center py-8 text-slate-500 animate-pulse">Loading state profile...</div>
+      </div>
+    `;
+    document.body.appendChild(card);
+    this.stateCardVisible = true;
+    
+    // Fetch profile data
+    try {
+      const res = await fetch(`/api/state/${slug}/profile`);
+      if (!res.ok) throw new Error('Failed to load profile');
+      
+      this.stateCardData = await res.json();
+      this.renderStateCard(card.querySelector('.state-card-content'));
+    } catch (e) {
+      card.querySelector('.state-card-content').innerHTML = `
+        <div class="text-center py-8 text-red-400">Error: ${e.message}</div>
+        <button onclick="this.closest('#state-card').remove()" class="mt-4 w-full py-2 bg-slate-800 hover:bg-slate-700 rounded text-sm text-slate-400">Close</button>
+      `;
+    }
+  }
+  
+  closeStateCard() {
+    const existing = document.getElementById('state-card');
+    if (existing) existing.remove();
+    this.stateCardVisible = false;
+    this.stateCardData = null;
+  }
+  
+  renderStateCard(container) {
+    const d = this.stateCardData;
+    if (!d) return;
+    
+    // Build stacked feature layer histogram (layer 22 at top, layer 0 at bottom)
+    // Blue = state supernode features, Gray = other features
+    let histogramHTML = '';
+    const layerCounts = d.feature_layers || {};
+    const supernodeLayerCounts = d.supernode_layer_counts || {};
+    const maxCount = Math.max(...Object.values(layerCounts), 1);
+    
+    for (let layer = 22; layer >= 0; layer--) {
+      const total = layerCounts[layer] || 0;
+      const supernode = supernodeLayerCounts[layer] || 0;
+      const other = total - supernode;
+      
+      if (total === 0) continue;
+      
+      const supernodeWidth = (supernode / maxCount) * 100;
+      const otherWidth = (other / maxCount) * 100;
+      
+      histogramHTML += `
+        <div class="flex items-center gap-1 text-xs">
+          <div class="w-4 text-slate-500 text-right">${layer}</div>
+          <div class="flex-1 h-3 flex rounded overflow-hidden bg-slate-700/50">
+            <div style="width: ${supernodeWidth}%; background: #22d3ee;" title="${supernode} state supernode"></div>
+            <div style="width: ${otherWidth}%; background: #475569;" title="${other} other"></div>
+          </div>
+          <div class="w-6 text-slate-500 text-right">${total}</div>
+        </div>
+      `;
+    }
+    
+    // Overlap warning
+    const overlapWarning = d.has_token_overlap ? `
+      <div class="mt-3 px-3 py-2 bg-amber-900/30 border border-amber-700/50 rounded text-xs text-amber-400">
+        Token overlap: city name contains state name
+      </div>
+    ` : '';
+    
+    // Build swap summary tables
+    const swapsAsTarget = d.swaps_as_target || [];
+    const swapsAsSource = d.swaps_as_source || [];
+    
+    container.innerHTML = `
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <h2 class="text-xl font-bold text-white">${d.state}</h2>
+          <div class="text-sm text-slate-400">
+            <span>Capital: <span class="text-emerald-400">${d.capital || '?'}</span></span>
+            <span class="mx-2 text-slate-600">|</span>
+            <span>City: ${d.city}</span>
+          </div>
+        </div>
+        <button onclick="this.closest('#state-card').remove()" class="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-white">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      
+      <!-- Key metrics -->
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div class="p-3 rounded-lg bg-slate-800/50">
+          <div class="text-xs text-slate-500 uppercase mb-1">Native Prob</div>
+          <div class="text-lg font-bold ${(d.native_prob || 0) < 0.2 ? 'text-amber-400' : (d.native_prob || 0) > 0.5 ? 'text-emerald-400' : 'text-slate-300'}">
+            ${((d.native_prob || 0) * 100).toFixed(1)}%
+          </div>
+        </div>
+        <div class="p-3 rounded-lg bg-slate-800/50">
+          <div class="text-xs text-slate-500 uppercase mb-1">State Features</div>
+          <div class="text-lg font-bold text-cyan-400">${d.supernode_feature_count || 0}</div>
+          <div class="text-xs text-slate-600">${d.pinned_nodes || 0} pinned features / ${d.supernodes || 0} supernodes</div>
+        </div>
+      </div>
+      
+      <!-- Attack (as target) / Defense (as source) -->
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div class="p-3 rounded-lg bg-slate-800/50 border-l-4" style="border-color: #3D7DFF;">
+          <div class="text-xs text-slate-500 uppercase mb-1">Attack (as target)</div>
+          <div class="text-lg font-bold" style="color: #3D7DFF;">${(d.defense_avg || 0).toFixed(2)}</div>
+          <div class="text-xs text-slate-500">${d.defense_count || 0} swaps</div>
+        </div>
+        <div class="p-3 rounded-lg bg-slate-800/50 border-l-4" style="border-color: #f87171;">
+          <div class="text-xs text-slate-500 uppercase mb-1">Defense (as source)</div>
+          <div class="text-lg font-bold" style="color: #f87171;">${(d.attack_avg || 0).toFixed(2)}</div>
+          <div class="text-xs text-slate-500">${d.attack_count || 0} swaps</div>
+        </div>
+      </div>
+      
+      <!-- Wrong State Rate -->
+      ${d.wrong_state_rate !== undefined && d.wrong_state_rate > 0 ? `
+        <div class="p-3 rounded-lg bg-slate-800/50 mb-4">
+          <div class="flex items-center justify-between">
+            <div class="text-xs text-slate-500 uppercase">Wrong State Rate (T2.5)</div>
+            <div class="text-sm font-bold" style="color: #FFE8E8;">${(d.wrong_state_rate * 100).toFixed(1)}%</div>
+          </div>
+        </div>
+      ` : ''}
+      
+      <!-- Feature distribution with legend -->
+      ${histogramHTML ? `
+        <div class="p-3 rounded-lg bg-slate-800/50 mb-4">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-xs text-slate-500 uppercase">Features by Layer</div>
+            <div class="flex items-center gap-3 text-xs">
+              <span class="flex items-center gap-1">
+                <span class="w-2 h-2 rounded" style="background: #22d3ee;"></span>
+                <span class="text-slate-500">State (${d.supernode_feature_count || 0})</span>
+              </span>
+              <span class="flex items-center gap-1">
+                <span class="w-2 h-2 rounded" style="background: #475569;"></span>
+                <span class="text-slate-500">Other (${(d.total_features || 0) - (d.supernode_feature_count || 0)})</span>
+              </span>
+            </div>
+          </div>
+          <div class="space-y-0.5">
+            ${histogramHTML}
+          </div>
+        </div>
+      ` : ''}
+      
+      ${overlapWarning}
+      
+      <!-- Swap results as target (others attacking this state) -->
+      <div class="p-3 rounded-lg bg-slate-800/50 mb-4">
+        <div class="flex items-center justify-between mb-2">
+          <div class="text-xs text-slate-500 uppercase">Swaps as Target (${swapsAsTarget.length})</div>
+          <button class="swap-table-toggle text-xs text-cyan-400 hover:text-cyan-300" data-target="swaps-target" data-type="target" data-loaded="false">
+            Load Outputs
+          </button>
+        </div>
+        <div id="swaps-target" class="hidden">
+          <div class="swap-list max-h-60 overflow-y-auto space-y-2">
+            <div class="text-xs text-slate-500 text-center py-2">Click "Load Outputs" to fetch steered outputs...</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Swap results as source (this state defending) -->
+      <div class="p-3 rounded-lg bg-slate-800/50 mb-4">
+        <div class="flex items-center justify-between mb-2">
+          <div class="text-xs text-slate-500 uppercase">Swaps as Source (${swapsAsSource.length})</div>
+          <button class="swap-table-toggle text-xs text-cyan-400 hover:text-cyan-300" data-target="swaps-source" data-type="source" data-loaded="false">
+            Load Outputs
+          </button>
+        </div>
+        <div id="swaps-source" class="hidden">
+          <div class="swap-list max-h-60 overflow-y-auto space-y-2">
+            <div class="text-xs text-slate-500 text-center py-2">Click "Load Outputs" to fetch steered outputs...</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Neuronpedia link -->
+      ${d.neuronpedia_url ? `
+        <a href="${d.neuronpedia_url}" target="_blank" class="block w-full py-2 px-4 rounded bg-cyan-900/30 hover:bg-cyan-900/50 text-center text-sm text-cyan-400 transition-colors">
+          View on Neuronpedia ->
+        </a>
+      ` : ''}
+    `;
+    
+    // Attach event handlers for swap tables
+    this.attachStateCardHandlers(container);
+  }
+  
+  attachStateCardHandlers(container) {
+    // Toggle buttons for swap tables - now with lazy loading
+    container.querySelectorAll('.swap-table-toggle').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const targetId = btn.dataset.target;
+        const type = btn.dataset.type;
+        const loaded = btn.dataset.loaded === 'true';
+        const target = container.querySelector(`#${targetId}`);
+        
+        if (!target) return;
+        
+        // If hidden, show it
+        if (target.classList.contains('hidden')) {
+          target.classList.remove('hidden');
+          
+          // Load outputs if not already loaded
+          if (!loaded) {
+            btn.textContent = 'Loading...';
+            btn.disabled = true;
+            await this.loadSwapOutputs(container, type);
+            btn.dataset.loaded = 'true';
+            btn.textContent = 'Hide';
+            btn.disabled = false;
+          } else {
+            btn.textContent = 'Hide';
+          }
+        } else {
+          target.classList.add('hidden');
+          btn.textContent = loaded ? 'Show' : 'Load Outputs';
+        }
+      });
+    });
+  }
+  
+  async loadSwapOutputs(container, type) {
+    const swaps = type === 'target' ? this.stateCardData.swaps_as_target : this.stateCardData.swaps_as_source;
+    const listContainer = container.querySelector(`#swaps-${type} .swap-list`);
+    
+    if (!listContainer || !swaps.length) return;
+    
+    // Clear placeholder
+    listContainer.innerHTML = '<div class="text-xs text-slate-500 text-center py-2 animate-pulse">Fetching steered outputs...</div>';
+    
+    // Fetch first 10 swap details in parallel
+    const batchSize = 10;
+    const batch = swaps.slice(0, batchSize);
+    
+    try {
+      const results = await Promise.all(batch.map(async (s) => {
+        const from = type === 'target' ? s.from_slug : this.stateCardData.slug;
+        const to = type === 'target' ? this.stateCardData.slug : s.to_slug;
+        
+        try {
+          const res = await fetch(`/api/swap/${from}/${to}`);
+          if (!res.ok) return { ...s, steered_output: null };
+          const data = await res.json();
+          return {
+            ...s,
+            from_slug: from,
+            to_slug: to,
+            steered_output: data.evaluation?.raw?.steered_output || null,
+          };
+        } catch {
+          return { ...s, steered_output: null };
+        }
+      }));
+      
+      // Render results
+      listContainer.innerHTML = results.map(s => this.renderSwapOutputRow(s, type)).join('');
+      
+      // Add "load more" if needed
+      if (swaps.length > batchSize) {
+        const loadMoreBtn = document.createElement('button');
+        loadMoreBtn.className = 'load-more-outputs w-full py-2 text-xs text-cyan-400 hover:text-cyan-300 border-t border-slate-700 mt-2';
+        loadMoreBtn.textContent = `Load ${swaps.length - batchSize} more...`;
+        loadMoreBtn.dataset.type = type;
+        loadMoreBtn.dataset.offset = batchSize;
+        loadMoreBtn.addEventListener('click', () => this.loadMoreOutputs(container, type, batchSize, loadMoreBtn));
+        listContainer.appendChild(loadMoreBtn);
+      }
+      
+      // Attach click handlers
+      this.attachSwapRowHandlers(listContainer);
+      
+    } catch (e) {
+      listContainer.innerHTML = `<div class="text-xs text-red-400 text-center py-2">Error loading outputs: ${e.message}</div>`;
+    }
+  }
+  
+  async loadMoreOutputs(container, type, offset, btn) {
+    const swaps = type === 'target' ? this.stateCardData.swaps_as_target : this.stateCardData.swaps_as_source;
+    const listContainer = container.querySelector(`#swaps-${type} .swap-list`);
+    const batchSize = 10;
+    const batch = swaps.slice(offset, offset + batchSize);
+    
+    btn.textContent = 'Loading...';
+    btn.disabled = true;
+    
+    try {
+      const results = await Promise.all(batch.map(async (s) => {
+        const from = type === 'target' ? s.from_slug : this.stateCardData.slug;
+        const to = type === 'target' ? this.stateCardData.slug : s.to_slug;
+        
+        try {
+          const res = await fetch(`/api/swap/${from}/${to}`);
+          if (!res.ok) return { ...s, steered_output: null };
+          const data = await res.json();
+          return {
+            ...s,
+            from_slug: from,
+            to_slug: to,
+            steered_output: data.evaluation?.raw?.steered_output || null,
+          };
+        } catch {
+          return { ...s, steered_output: null };
+        }
+      }));
+      
+      // Remove load more button and add results
+      btn.remove();
+      
+      const fragment = document.createDocumentFragment();
+      results.forEach(s => {
+        const div = document.createElement('div');
+        div.innerHTML = this.renderSwapOutputRow(s, type);
+        fragment.appendChild(div.firstElementChild);
+      });
+      listContainer.appendChild(fragment);
+      
+      // Add new "load more" if needed
+      const newOffset = offset + batchSize;
+      if (swaps.length > newOffset) {
+        const loadMoreBtn = document.createElement('button');
+        loadMoreBtn.className = 'load-more-outputs w-full py-2 text-xs text-cyan-400 hover:text-cyan-300 border-t border-slate-700 mt-2';
+        loadMoreBtn.textContent = `Load ${swaps.length - newOffset} more...`;
+        loadMoreBtn.dataset.type = type;
+        loadMoreBtn.dataset.offset = newOffset;
+        loadMoreBtn.addEventListener('click', () => this.loadMoreOutputs(container, type, newOffset, loadMoreBtn));
+        listContainer.appendChild(loadMoreBtn);
+      }
+      
+      // Attach click handlers to new rows
+      this.attachSwapRowHandlers(listContainer);
+      
+    } catch (e) {
+      btn.textContent = 'Error - retry';
+      btn.disabled = false;
+    }
+  }
+  
+  renderSwapOutputRow(s, type) {
+    const tierColor = this.getTierColor(s.tier);
+    const tierLabel = s.tier === 2.5 ? 'W' : s.tier;
+    const stateName = type === 'target' ? s.from_state : s.to_state;
+    const arrow = type === 'target' ? '' : '-> ';
+    
+    // Truncate steered output
+    let output = s.steered_output || 'N/A';
+    if (output.length > 120) output = output.slice(0, 120) + '...';
+    
+    return `
+      <div class="swap-output-row rounded bg-slate-800/30 hover:bg-slate-700/50 transition-colors cursor-pointer"
+           data-from="${s.from_slug}" data-to="${s.to_slug}">
+        <div class="flex items-center justify-between px-2 py-1 border-b border-slate-700/50">
+          <span class="text-xs text-slate-400">${arrow}${stateName}</span>
+          <span class="px-1.5 py-0.5 rounded text-white text-xs font-bold" style="background: ${tierColor.bg};">
+            T${tierLabel}
+          </span>
+        </div>
+        <div class="px-2 py-1.5 text-xs font-mono text-slate-500 leading-relaxed" style="word-break: break-all;">
+          ${this.escapeHtml(output)}
+        </div>
+      </div>
+    `;
+  }
+  
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
+  attachSwapRowHandlers(container) {
+    container.querySelectorAll('.swap-output-row').forEach(row => {
+      if (row.dataset.handlerAttached) return;
+      row.dataset.handlerAttached = 'true';
+      
+      row.addEventListener('click', () => {
+        const from = row.dataset.from;
+        const to = row.dataset.to;
+        
+        this.closeStateCard();
+        document.dispatchEvent(new CustomEvent('cell-selected', {
+          detail: { from, to },
+          bubbles: true,
+        }));
+        this.updateSelection(from, to);
       });
     });
   }

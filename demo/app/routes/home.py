@@ -49,7 +49,10 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                 Header(cls="border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-50")(
                     Div(cls="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between")(
                         Div(cls="flex items-center gap-4")(
-                            H1(cls="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent")(
+                            H1(
+                                cls="text-2xl font-bold bg-clip-text text-transparent",
+                                style="background-image: linear-gradient(to right, #0A4FFF, #3D7DFF);"
+                            )(
                                 "State Swap Explorer"
                             ),
                             Span(cls="text-xs px-2 py-1 bg-slate-800 rounded-full text-slate-400")(
@@ -104,11 +107,12 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                             Div(cls="bg-slate-900/50 rounded-xl border border-slate-800 p-4")(
                                 H3(cls="text-sm font-semibold text-slate-400 mb-3")("TIER LEGEND"),
                                 Div(cls="space-y-2")(
-                                    _legend_item("T5", "PERFECT", "bg-emerald-500"),
-                                    _legend_item("T4", "State + City", "bg-lime-500"),
-                                    _legend_item("T3", "State Only", "bg-yellow-500"),
-                                    _legend_item("T2", "Suppressed", "bg-orange-400"),
-                                    _legend_item("T1", "Source Persists", "bg-red-500"),
+                                    _legend_item("T5", "PERFECT", "#0A4FFF"),
+                                    _legend_item("T4", "State + City", "#3D7DFF"),
+                                    _legend_item("T3", "State Only", "#AFCBFF"),
+                                    _legend_item("W", "Wrong State", "#FFE8E8"),
+                                    _legend_item("T2", "Suppressed", "#FF7373"),
+                                    _legend_item("T1", "Source Persists", "#C00000"),
                                 ),
                             ),
                             
@@ -155,10 +159,10 @@ def _stat_card(title: str, value: str, subtitle: str):
     )
 
 
-def _legend_item(tier: str, label: str, color_class: str):
-    """Render a legend item."""
+def _legend_item(tier: str, label: str, color: str):
+    """Render a legend item with hex color."""
     return Div(cls="flex items-center gap-2")(
-        Div(cls=f"w-4 h-4 rounded {color_class}"),
+        Div(cls="w-4 h-4 rounded", style=f"background-color: {color};"),
         Span(cls="text-xs text-slate-300")(f"{tier}: {label}"),
     )
 

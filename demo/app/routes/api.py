@@ -89,6 +89,26 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False):
             media_type="application/json"
         )
     
+    @rt("/api/state/{slug}/profile")
+    def api_state_profile(slug: str):
+        """
+        Return comprehensive state profile with stats.
+        
+        Includes native probability, supernode count, feature layers,
+        attack/defense scores, and token overlap flag.
+        """
+        profile = data_loader.get_state_profile(slug)
+        if profile is None:
+            return Response(
+                content=json.dumps({"error": "State not found"}),
+                media_type="application/json",
+                status_code=404
+            )
+        return Response(
+            content=json.dumps(profile),
+            media_type="application/json"
+        )
+    
     @rt("/api/analysis")
     def api_analysis():
         """Return full analysis data."""
@@ -179,6 +199,69 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False):
         annotated = data_loader.get_annotated_swaps()
         return Response(
             content=json.dumps(annotated),
+            media_type="application/json"
+        )
+    
+    @rt("/api/swap/{from_slug}/{to_slug}/features")
+    def api_swap_features(from_slug: str, to_slug: str):
+        """
+        Return intervention features for a swap.
+        
+        Returns list of features grouped by type (ablate/amplify) and layer.
+        Each feature includes Neuronpedia link.
+        """
+        features = data_loader.get_swap_features(from_slug, to_slug)
+        if features is None:
+            return Response(
+                content=json.dumps({"error": "Features not found", "features": []}),
+                media_type="application/json",
+                status_code=404
+            )
+        return Response(
+            content=json.dumps(features),
+            media_type="application/json"
+        )
+    
+    @rt("/api/state/{slug}/subgraph-url")
+    def api_subgraph_url(slug: str, request: Request):
+        """
+        Generate a simplified subgraph URL for a state.
+        
+        Query params:
+            max_features: int (default 40) - max features to include
+            include_functional: bool (default false) - include functional tokens
+            
+        Returns URL that fits within browser limits with the most important features.
+        """
+        # Parse query params
+        max_features = 40
+        include_functional = False
+        
+        try:
+            if 'max_features' in request.query_params:
+                max_features = int(request.query_params['max_features'])
+                max_features = min(max(max_features, 10), 100)  # Clamp 10-100
+        except (ValueError, TypeError):
+            pass
+        
+        if request.query_params.get('include_functional', '').lower() in ('true', '1', 'yes'):
+            include_functional = True
+        
+        result = data_loader.get_simplified_subgraph_url(
+            slug, 
+            max_features=max_features,
+            include_functional=include_functional
+        )
+        
+        if result is None:
+            return Response(
+                content=json.dumps({"error": "Subgraph data not found"}),
+                media_type="application/json",
+                status_code=404
+            )
+        
+        return Response(
+            content=json.dumps(result),
             media_type="application/json"
         )
 

@@ -8,6 +8,7 @@ class DetailPanelIsland {
   constructor() {
     this.visible = false;
     this.data = null;
+    this.features = null;  // Feature intervention data
     this.fromSlug = null;
     this.toSlug = null;
     this.states = [];
@@ -15,6 +16,7 @@ class DetailPanelIsland {
     this.annotateMode = false;
     this.noteInputActive = false;
     this.saving = false;
+    this.featuresExpanded = false;  // Collapsible state
     
     // Default colors
     this.defaultTierInfo = {
@@ -382,14 +384,27 @@ class DetailPanelIsland {
   async loadSwapData(from, to) {
     this.fromSlug = from;
     this.toSlug = to;
+    this.features = null;  // Reset features
+    this.featuresExpanded = false;
     this.renderLoading();
     
     try {
-      const res = await fetch(`/api/swap/${from}/${to}`);
-      if (!res.ok) {
+      // Fetch swap data and features in parallel
+      const [swapRes, featuresRes] = await Promise.all([
+        fetch(`/api/swap/${from}/${to}`),
+        fetch(`/api/swap/${from}/${to}/features`).catch(() => null),
+      ]);
+      
+      if (!swapRes.ok) {
         throw new Error('Swap data not found');
       }
-      this.data = await res.json();
+      this.data = await swapRes.json();
+      
+      // Features are optional - don't fail if missing
+      if (featuresRes && featuresRes.ok) {
+        this.features = await featuresRes.json();
+      }
+      
       this.renderContent();
     } catch (e) {
       this.renderError(e.message);
@@ -603,21 +618,25 @@ class DetailPanelIsland {
           ${tierButtons}
         </div>
         
-        <!-- State cards -->
+        <!-- State cards (clickable to open state card) -->
         <div class="grid grid-cols-2 gap-4 mb-6">
-          <div class="p-3 rounded-lg" style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgb(51, 65, 85);">
+          <div class="state-card-trigger p-3 rounded-lg cursor-pointer transition-colors hover:bg-slate-700/50" 
+               style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgb(51, 65, 85);"
+               data-slug="${this.fromSlug}" data-type="source">
             <div class="text-xs text-slate-500 uppercase mb-2">Source</div>
             <div class="text-sm font-semibold">${source.state}</div>
             <div class="text-xs text-slate-400">Capital: <span style="color: #facc15;">${source.capital}</span></div>
             <div class="text-xs text-slate-400">City: ${source.city}</div>
-            ${source.neuronpedia_url ? `<a href="${source.neuronpedia_url}" target="_blank" class="inline-block mt-2 text-xs text-cyan-400 hover:underline">Neuronpedia -></a>` : ''}
+            <div class="mt-2 text-xs text-cyan-400">Click for state profile</div>
           </div>
-          <div class="p-3 rounded-lg" style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgb(51, 65, 85);">
+          <div class="state-card-trigger p-3 rounded-lg cursor-pointer transition-colors hover:bg-slate-700/50" 
+               style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgb(51, 65, 85);"
+               data-slug="${this.toSlug}" data-type="target">
             <div class="text-xs text-slate-500 uppercase mb-2">Target</div>
             <div class="text-sm font-semibold">${target.state}</div>
             <div class="text-xs text-slate-400">Capital: <span style="color: #34d399;">${target.capital}</span></div>
             <div class="text-xs text-slate-400">City: ${target.city}</div>
-            ${target.neuronpedia_url ? `<a href="${target.neuronpedia_url}" target="_blank" class="inline-block mt-2 text-xs text-cyan-400 hover:underline">Neuronpedia -></a>` : ''}
+            <div class="mt-2 text-xs text-cyan-400">Click for state profile</div>
           </div>
         </div>
         
@@ -683,42 +702,127 @@ class DetailPanelIsland {
         <!-- Interventions -->
         ${interventions.total_count ? `
           <div class="p-4 rounded-lg mb-6" style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgb(51, 65, 85);">
-            <div class="text-xs text-slate-500 uppercase mb-3">Interventions</div>
-            <div class="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <div class="text-lg font-bold" style="color: #f87171;">${interventions.ablate_count || 0}</div>
-                <div class="text-xs text-slate-500">Ablated</div>
-              </div>
-              <div>
-                <div class="text-lg font-bold" style="color: #34d399;">${interventions.amplify_count || 0}</div>
-                <div class="text-xs text-slate-500">Amplified</div>
-              </div>
-              <div>
-                <div class="text-lg font-bold text-slate-400">${interventions.total_count || 0}</div>
-                <div class="text-xs text-slate-500">Total</div>
+            <div class="flex items-center justify-between mb-4">
+              <div class="text-xs text-slate-500 uppercase">Interventions</div>
+              <div class="flex items-center gap-4 text-sm">
+                <span><span class="font-bold" style="color: #f87171;">${interventions.ablate_count || 0}</span> <span class="text-slate-500">ablated</span></span>
+                <span><span class="font-bold" style="color: #34d399;">${interventions.amplify_count || 0}</span> <span class="text-slate-500">amplified</span></span>
+                <span><span class="font-bold text-slate-400">${interventions.total_count || 0}</span> <span class="text-slate-500">total</span></span>
               </div>
             </div>
+            ${this.renderFeatureStats()}
           </div>
         ` : ''}
         
-        <!-- Links -->
-        <div class="flex gap-2">
-          ${source.neuronpedia_url ? `
-            <a href="${source.neuronpedia_url}" target="_blank" class="flex-1 py-2 px-4 rounded bg-slate-800 hover:bg-slate-700 text-center text-sm text-cyan-400 transition-colors">
-              Source Subgraph
-            </a>
-          ` : ''}
-          ${target.neuronpedia_url ? `
-            <a href="${target.neuronpedia_url}" target="_blank" class="flex-1 py-2 px-4 rounded bg-slate-800 hover:bg-slate-700 text-center text-sm text-cyan-400 transition-colors">
-              Target Subgraph
-            </a>
-          ` : ''}
+        <!-- Neuronpedia Links -->
+        <div class="mb-2 p-3 rounded-lg" style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgb(51, 65, 85);">
+          <div class="text-xs text-slate-500 uppercase mb-3">Neuronpedia Links</div>
+          
+          <!-- Full graph links -->
+          <div class="flex gap-2 mb-3">
+            ${source.neuronpedia_url ? `
+              <a href="${source.neuronpedia_url}" target="_blank" class="flex-1 py-2 px-3 rounded bg-slate-700/50 hover:bg-slate-700 text-center text-xs text-slate-300 hover:text-white transition-colors">
+                Source Graph (full)
+              </a>
+            ` : ''}
+            ${target.neuronpedia_url ? `
+              <a href="${target.neuronpedia_url}" target="_blank" class="flex-1 py-2 px-3 rounded bg-slate-700/50 hover:bg-slate-700 text-center text-xs text-slate-300 hover:text-white transition-colors">
+                Target Graph (full)
+              </a>
+            ` : ''}
+          </div>
+          
+          <!-- Simplified subgraph links (with pinned nodes) -->
+          <div class="flex gap-2">
+            <button 
+              class="subgraph-btn flex-1 py-2 px-3 rounded bg-cyan-900/30 hover:bg-cyan-900/50 text-center text-xs text-cyan-400 hover:text-cyan-300 transition-colors border border-cyan-800/50"
+              data-slug="${this.fromSlug}" data-type="source">
+              Source Subgraph (top 40)
+            </button>
+            <button 
+              class="subgraph-btn flex-1 py-2 px-3 rounded bg-cyan-900/30 hover:bg-cyan-900/50 text-center text-xs text-cyan-400 hover:text-cyan-300 transition-colors border border-cyan-800/50"
+              data-slug="${this.toSlug}" data-type="target">
+              Target Subgraph (top 40)
+            </button>
+          </div>
+          
+          <div class="flex items-center gap-1 text-xs text-slate-600 mt-2">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>Subgraph buttons generate URLs with top 40 semantic features pinned.</span>
+          </div>
         </div>
       </div>
     `;
     
     this.attachCloseHandler();
     this.attachTierButtonHandlers();
+    this.attachFeatureExpandHandler();
+    this.attachStateCardTriggers();
+    this.attachSubgraphButtons();
+  }
+  
+  attachSubgraphButtons() {
+    const buttons = this.panel.querySelectorAll('.subgraph-btn');
+    buttons.forEach(btn => {
+      btn.onclick = async () => {
+        const slug = btn.dataset.slug;
+        const type = btn.dataset.type;
+        
+        if (!slug) return;
+        
+        // Show loading state
+        const originalText = btn.textContent;
+        btn.textContent = 'Loading...';
+        btn.disabled = true;
+        
+        try {
+          const res = await fetch(`/api/state/${slug}/subgraph-url?max_features=40`);
+          if (!res.ok) {
+            throw new Error('Failed to generate subgraph URL');
+          }
+          
+          const data = await res.json();
+          
+          if (data.url) {
+            // Open in new tab
+            window.open(data.url, '_blank');
+            
+            // Show info toast
+            const info = `Opened ${type} subgraph: ${data.feature_count} features, ${data.supernode_count} supernodes`;
+            this.showSaveSuccess(info);
+          } else {
+            throw new Error('No URL returned');
+          }
+        } catch (e) {
+          console.error('Failed to load subgraph URL:', e);
+          this.showSaveError('Could not generate subgraph URL');
+        } finally {
+          btn.textContent = originalText;
+          btn.disabled = false;
+        }
+      };
+    });
+  }
+  
+  attachStateCardTriggers() {
+    const triggers = this.panel.querySelectorAll('.state-card-trigger');
+    triggers.forEach(trigger => {
+      trigger.onclick = (e) => {
+        // Prevent if clicking on a link inside
+        if (e.target.tagName === 'A') return;
+        
+        const slug = trigger.dataset.slug;
+        if (slug) {
+          // Dispatch event to Matrix to show state card
+          document.dispatchEvent(new CustomEvent('show-state-card', {
+            detail: { slug },
+            bubbles: true,
+          }));
+        }
+      };
+    });
   }
   
   attachCloseHandler() {
@@ -732,10 +836,131 @@ class DetailPanelIsland {
     const tierBtns = this.panel.querySelectorAll('.tier-btn');
     tierBtns.forEach(btn => {
       btn.onclick = () => {
-        const newTier = parseInt(btn.dataset.tier);
+        const newTier = parseFloat(btn.dataset.tier);
         this.setTier(newTier);
       };
     });
+  }
+  
+  renderFeatureStats() {
+    if (!this.features || !this.features.layer_counts) {
+      return '';
+    }
+    
+    const { ablated, amplified, layer_counts, summary } = this.features;
+    
+    // Find max count for scaling bars
+    const allCounts = [];
+    for (let layer = 0; layer <= 22; layer++) {
+      const abl = layer_counts.ablated[layer] || 0;
+      const amp = layer_counts.amplified[layer] || 0;
+      if (abl + amp > 0) allCounts.push(abl + amp);
+    }
+    const maxCount = Math.max(...allCounts, 1);
+    
+    // Build layer histogram (layer 22 at top, layer 0 at bottom)
+    let histogramHTML = '';
+    for (let layer = 22; layer >= 0; layer--) {
+      const ablCount = layer_counts.ablated[layer] || 0;
+      const ampCount = layer_counts.amplified[layer] || 0;
+      const total = ablCount + ampCount;
+      
+      if (total === 0) continue;
+      
+      const ablWidth = (ablCount / maxCount) * 100;
+      const ampWidth = (ampCount / maxCount) * 100;
+      
+      histogramHTML += `
+        <div class="flex items-center gap-2 text-xs">
+          <div class="w-6 text-slate-500 text-right">${layer}</div>
+          <div class="flex-1 h-4 flex rounded overflow-hidden bg-slate-700/50">
+            <div style="width: ${ablWidth}%; background: #f87171;" title="${ablCount} ablated"></div>
+            <div style="width: ${ampWidth}%; background: #34d399;" title="${ampCount} amplified"></div>
+          </div>
+          <div class="w-6 text-slate-500">${total}</div>
+        </div>
+      `;
+    }
+    
+    // Build feature list (collapsible)
+    const featureListId = 'feature-list-' + Date.now();
+    
+    return `
+      <div class="mt-4 pt-4 border-t border-slate-700">
+        <div class="text-xs text-slate-500 uppercase mb-2">Features by Layer</div>
+        <div class="space-y-1 mb-4">
+          ${histogramHTML}
+        </div>
+        <div class="flex items-center gap-4 text-xs mb-2">
+          <span class="flex items-center gap-1">
+            <span class="w-3 h-3 rounded" style="background: #f87171;"></span>
+            <span class="text-slate-500">Ablated (source)</span>
+          </span>
+          <span class="flex items-center gap-1">
+            <span class="w-3 h-3 rounded" style="background: #34d399;"></span>
+            <span class="text-slate-500">Amplified (target)</span>
+          </span>
+        </div>
+        
+        <button 
+          class="feature-expand-btn w-full py-2 px-3 mt-2 rounded bg-slate-700/50 hover:bg-slate-700 text-xs text-slate-400 hover:text-white transition-colors flex items-center justify-between"
+          data-target="${featureListId}"
+        >
+          <span>View ${summary.total_count} feature links</span>
+          <svg class="w-4 h-4 transition-transform ${this.featuresExpanded ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        
+        <div id="${featureListId}" class="feature-list ${this.featuresExpanded ? '' : 'hidden'} mt-2 max-h-60 overflow-y-auto space-y-1">
+          ${ablated.length > 0 ? `
+            <div class="text-xs text-slate-500 uppercase mt-2 mb-1">Ablated (${ablated.length})</div>
+            ${ablated.map(f => `
+              <a href="${f.neuronpedia_url}" target="_blank" 
+                 class="flex items-center justify-between px-2 py-1 rounded text-xs hover:bg-slate-700/50 transition-colors group">
+                <span class="text-slate-400 group-hover:text-white">
+                  L${f.layer} #${f.index}
+                </span>
+                <span class="text-slate-600 group-hover:text-cyan-400">-></span>
+              </a>
+            `).join('')}
+          ` : ''}
+          
+          ${amplified.length > 0 ? `
+            <div class="text-xs text-slate-500 uppercase mt-3 mb-1">Amplified (${amplified.length})</div>
+            ${amplified.map(f => `
+              <a href="${f.neuronpedia_url}" target="_blank" 
+                 class="flex items-center justify-between px-2 py-1 rounded text-xs hover:bg-slate-700/50 transition-colors group">
+                <span class="text-slate-400 group-hover:text-white">
+                  L${f.layer} #${f.index}
+                </span>
+                <span class="text-slate-600 text-[10px]">act: ${f.stored_activation?.toFixed(2) || '-'}</span>
+                <span class="text-slate-600 group-hover:text-cyan-400">-></span>
+              </a>
+            `).join('')}
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }
+  
+  attachFeatureExpandHandler() {
+    const btn = this.panel.querySelector('.feature-expand-btn');
+    if (btn) {
+      btn.onclick = () => {
+        this.featuresExpanded = !this.featuresExpanded;
+        const targetId = btn.dataset.target;
+        const list = this.panel.querySelector(`#${targetId}`);
+        const icon = btn.querySelector('svg');
+        
+        if (list) {
+          list.classList.toggle('hidden');
+        }
+        if (icon) {
+          icon.classList.toggle('rotate-180');
+        }
+      };
+    }
   }
 }
 
