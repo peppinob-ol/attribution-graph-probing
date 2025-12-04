@@ -737,12 +737,12 @@ class DetailPanelIsland {
             <button 
               class="subgraph-btn flex-1 py-2 px-3 rounded bg-cyan-900/30 hover:bg-cyan-900/50 text-center text-xs text-cyan-400 hover:text-cyan-300 transition-colors border border-cyan-800/50"
               data-slug="${this.fromSlug}" data-type="source">
-              Source Subgraph (top 40)
+              Source Subgraph
             </button>
             <button 
               class="subgraph-btn flex-1 py-2 px-3 rounded bg-cyan-900/30 hover:bg-cyan-900/50 text-center text-xs text-cyan-400 hover:text-cyan-300 transition-colors border border-cyan-800/50"
               data-slug="${this.toSlug}" data-type="target">
-              Target Subgraph (top 40)
+              Target Subgraph
             </button>
           </div>
           
@@ -750,7 +750,7 @@ class DetailPanelIsland {
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span>Subgraph buttons generate URLs with top 40 semantic features pinned.</span>
+            <span>Subgraph: embeddings + logits + top features by influence, with supernodes.</span>
           </div>
         </div>
       </div>
@@ -778,7 +778,7 @@ class DetailPanelIsland {
         btn.disabled = true;
         
         try {
-          const res = await fetch(`/api/state/${slug}/subgraph-url?max_features=40`);
+          const res = await fetch(`/api/state/${slug}/subgraph-url?max_features=100`);
           if (!res.ok) {
             throw new Error('Failed to generate subgraph URL');
           }

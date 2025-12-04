@@ -228,29 +228,34 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False):
         Generate a simplified subgraph URL for a state.
         
         Query params:
-            max_features: int (default 40) - max features to include
-            include_functional: bool (default false) - include functional tokens
+            max_features: int (default 100) - max features to include
+            max_url_length: int (default 4000) - max URL length before truncation
             
-        Returns URL that fits within browser limits with the most important features.
+        Returns URL with:
+        - All embeddings (input tokens)
+        - Output logits (capital prediction)
+        - State/city/capital related features (priority)
+        - Top features by node_influence
+        - Supernode groupings
         """
         # Parse query params
-        max_features = 40
-        include_functional = False
+        max_features = 100
+        max_url_length = 4000
         
         try:
             if 'max_features' in request.query_params:
                 max_features = int(request.query_params['max_features'])
-                max_features = min(max(max_features, 10), 100)  # Clamp 10-100
+                max_features = min(max(max_features, 20), 200)  # Clamp 20-200
+            if 'max_url_length' in request.query_params:
+                max_url_length = int(request.query_params['max_url_length'])
+                max_url_length = min(max(max_url_length, 2000), 8000)  # Clamp 2000-8000
         except (ValueError, TypeError):
             pass
-        
-        if request.query_params.get('include_functional', '').lower() in ('true', '1', 'yes'):
-            include_functional = True
         
         result = data_loader.get_simplified_subgraph_url(
             slug, 
             max_features=max_features,
-            include_functional=include_functional
+            max_url_length=max_url_length
         )
         
         if result is None:

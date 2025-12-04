@@ -36,3 +36,4 @@ HEALTHCHECK CMD curl --fail http://localhost:7860/ || exit 1
 # Run FastHTML app
 CMD ["python", "main.py", "--port", "7860"]
 
+

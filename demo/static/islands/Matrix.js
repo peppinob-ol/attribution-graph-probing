@@ -98,6 +98,22 @@ class MatrixIsland {
       document.addEventListener('show-state-card', (e) => {
         this.showStateCard(e.detail.slug);
       });
+      
+      // Keyboard navigation for state card
+      document.addEventListener('keydown', (e) => {
+        if (this.stateCardVisible) {
+          if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            this.navigateStateCard('prev');
+          } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            this.navigateStateCard('next');
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            this.closeStateCard();
+          }
+        }
+      });
     } catch (e) {
       this.render(`<div class="py-20 text-center text-red-400">Error: ${e.message}</div>`);
     }
@@ -551,19 +567,69 @@ class MatrixIsland {
     const swapsAsTarget = d.swaps_as_target || [];
     const swapsAsSource = d.swaps_as_source || [];
     
+    // Build warning badges with alert icon
+    const warnings = [];
+    const warnIcon = `<svg class="inline-block w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>`;
+    
+    if ((d.native_prob || 0) < 0.20 && (d.native_prob || 0) > 0) {
+      warnings.push({ text: 'Low native prob', color: '#fbbf24' });
+    }
+    if ((d.native_prob || 0) > 0.50) {
+      warnings.push({ text: 'High native prob', color: '#fbbf24' });
+    }
+    if ((d.supernodes || 0) > 280) {
+      warnings.push({ text: 'High supernode count', color: '#fbbf24' });
+    }
+    if (d.capital_is_top_logit === false && d.capital_in_logits === true) {
+      warnings.push({ text: 'Capital not top logit', color: '#f87171' });
+    }
+    if (d.capital_in_logits === false) {
+      warnings.push({ text: 'Capital absent from logits', color: '#f87171' });
+    }
+    if (d.has_token_overlap) {
+      warnings.push({ text: 'Token overlap (city has state name)', color: '#f87171' });
+    }
+    
+    const warningsHTML = warnings.length > 0 ? `
+      <div class="flex flex-wrap gap-1 mt-2 justify-center">
+        ${warnings.map(w => `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium" style="background: ${w.color}22; color: ${w.color};">${warnIcon}${w.text}</span>`).join('')}
+      </div>
+    ` : '';
+    
+    // Get current state index for navigation
+    const sortedStates = this.getSortedStates();
+    const currentIndex = sortedStates.findIndex(s => s.slug === d.slug);
+    const prevState = currentIndex > 0 ? sortedStates[currentIndex - 1] : null;
+    const nextState = currentIndex < sortedStates.length - 1 ? sortedStates[currentIndex + 1] : null;
+    
     container.innerHTML = `
-      <div class="flex items-start justify-between mb-4">
-        <div>
+      <!-- Close button - absolute top right -->
+      <button onclick="this.closest('#state-card').remove()" class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-white z-10" title="Close (Esc)">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      
+      <div class="flex items-center justify-between mb-4 pr-10">
+        <button class="state-nav-btn prev-state w-8 h-8 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-white ${prevState ? '' : 'opacity-30 cursor-not-allowed'}" 
+                data-slug="${prevState?.slug || ''}" ${prevState ? '' : 'disabled'} title="${prevState ? prevState.state : 'No previous state'}">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <div class="flex-1 text-center">
           <h2 class="text-xl font-bold text-white">${d.state}</h2>
           <div class="text-sm text-slate-400">
             <span>Capital: <span class="text-emerald-400">${d.capital || '?'}</span></span>
             <span class="mx-2 text-slate-600">|</span>
             <span>City: ${d.city}</span>
           </div>
+          ${warningsHTML}
         </div>
-        <button onclick="this.closest('#state-card').remove()" class="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-white">
+        <button class="state-nav-btn next-state w-8 h-8 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-white ${nextState ? '' : 'opacity-30 cursor-not-allowed'}"
+                data-slug="${nextState?.slug || ''}" ${nextState ? '' : 'disabled'} title="${nextState ? nextState.state : 'No next state'}">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
           </svg>
         </button>
       </div>
@@ -575,6 +641,11 @@ class MatrixIsland {
           <div class="text-lg font-bold ${(d.native_prob || 0) < 0.2 ? 'text-amber-400' : (d.native_prob || 0) > 0.5 ? 'text-emerald-400' : 'text-slate-300'}">
             ${((d.native_prob || 0) * 100).toFixed(1)}%
           </div>
+          ${d.logits && d.logits.length > 0 ? `
+            <div class="mt-2 pt-2 border-t border-slate-700/50 text-xs leading-relaxed">
+              ${d.logits.map((l, i) => `<span class="${l.is_target ? 'text-emerald-400' : 'text-slate-400'}">${l.token}</span> <span class="text-slate-500 tabular-nums">${(l.prob * 100).toFixed(0)}%</span>${i < d.logits.length - 1 ? ' <span class="text-slate-600">|</span> ' : ''}`).join('')}
+            </div>
+          ` : ''}
         </div>
         <div class="p-3 rounded-lg bg-slate-800/50">
           <div class="text-xs text-slate-500 uppercase mb-1">State Features</div>
@@ -587,12 +658,18 @@ class MatrixIsland {
       <div class="grid grid-cols-2 gap-3 mb-4">
         <div class="p-3 rounded-lg bg-slate-800/50 border-l-4" style="border-color: #3D7DFF;">
           <div class="text-xs text-slate-500 uppercase mb-1">Attack (as target)</div>
-          <div class="text-lg font-bold" style="color: #3D7DFF;">${(d.defense_avg || 0).toFixed(2)}</div>
+          <div class="flex items-baseline gap-2">
+            <div class="text-lg font-bold tabular-nums" style="color: #3D7DFF; min-width: 2.5rem;">${(d.defense_avg || 0).toFixed(2)}</div>
+            <div class="text-sm text-emerald-400">${((d.defense_success_rate || 0) * 100).toFixed(0)}% T3+</div>
+          </div>
           <div class="text-xs text-slate-500">${d.defense_count || 0} swaps</div>
         </div>
         <div class="p-3 rounded-lg bg-slate-800/50 border-l-4" style="border-color: #f87171;">
           <div class="text-xs text-slate-500 uppercase mb-1">Defense (as source)</div>
-          <div class="text-lg font-bold" style="color: #f87171;">${(d.attack_avg || 0).toFixed(2)}</div>
+          <div class="flex items-baseline gap-2">
+            <div class="text-lg font-bold tabular-nums" style="color: #f87171; min-width: 2.5rem;">${(d.attack_avg || 0).toFixed(2)}</div>
+            <div class="text-sm text-emerald-400">${((d.attack_success_rate || 0) * 100).toFixed(0)}% T3+</div>
+          </div>
           <div class="text-xs text-slate-500">${d.attack_count || 0} swaps</div>
         </div>
       </div>
@@ -633,30 +710,28 @@ class MatrixIsland {
       
       <!-- Swap results as target (others attacking this state) -->
       <div class="p-3 rounded-lg bg-slate-800/50 mb-4">
-        <div class="flex items-center justify-between mb-2">
+        <div class="swap-section-header flex items-center justify-between cursor-pointer hover:bg-slate-700/30 -mx-3 -mt-3 px-3 pt-3 pb-2 rounded-t-lg transition-colors"
+             data-target="swaps-target" data-type="target" data-loaded="false">
           <div class="text-xs text-slate-500 uppercase">Swaps as Target (${swapsAsTarget.length})</div>
-          <button class="swap-table-toggle text-xs text-cyan-400 hover:text-cyan-300" data-target="swaps-target" data-type="target" data-loaded="false">
-            Load Outputs
-          </button>
+          <span class="swap-toggle-label text-xs text-cyan-400">Load Outputs</span>
         </div>
         <div id="swaps-target" class="hidden">
           <div class="swap-list max-h-60 overflow-y-auto space-y-2">
-            <div class="text-xs text-slate-500 text-center py-2">Click "Load Outputs" to fetch steered outputs...</div>
+            <div class="text-xs text-slate-500 text-center py-2">Loading...</div>
           </div>
         </div>
       </div>
       
       <!-- Swap results as source (this state defending) -->
       <div class="p-3 rounded-lg bg-slate-800/50 mb-4">
-        <div class="flex items-center justify-between mb-2">
+        <div class="swap-section-header flex items-center justify-between cursor-pointer hover:bg-slate-700/30 -mx-3 -mt-3 px-3 pt-3 pb-2 rounded-t-lg transition-colors"
+             data-target="swaps-source" data-type="source" data-loaded="false">
           <div class="text-xs text-slate-500 uppercase">Swaps as Source (${swapsAsSource.length})</div>
-          <button class="swap-table-toggle text-xs text-cyan-400 hover:text-cyan-300" data-target="swaps-source" data-type="source" data-loaded="false">
-            Load Outputs
-          </button>
+          <span class="swap-toggle-label text-xs text-cyan-400">Load Outputs</span>
         </div>
         <div id="swaps-source" class="hidden">
           <div class="swap-list max-h-60 overflow-y-auto space-y-2">
-            <div class="text-xs text-slate-500 text-center py-2">Click "Load Outputs" to fetch steered outputs...</div>
+            <div class="text-xs text-slate-500 text-center py-2">Loading...</div>
           </div>
         </div>
       </div>
@@ -667,6 +742,13 @@ class MatrixIsland {
           View on Neuronpedia ->
         </a>
       ` : ''}
+      
+      <div class="mt-3 text-center text-xs text-slate-600">
+        <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-500">&#8592;</kbd>
+        <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-500">&#8594;</kbd>
+        navigate states |
+        <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-500">Esc</kbd> close
+      </div>
     `;
     
     // Attach event handlers for swap tables
@@ -674,15 +756,16 @@ class MatrixIsland {
   }
   
   attachStateCardHandlers(container) {
-    // Toggle buttons for swap tables - now with lazy loading
-    container.querySelectorAll('.swap-table-toggle').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const targetId = btn.dataset.target;
-        const type = btn.dataset.type;
-        const loaded = btn.dataset.loaded === 'true';
+    // Toggle headers for swap tables - now with lazy loading (entire bar clickable)
+    container.querySelectorAll('.swap-section-header').forEach(header => {
+      header.addEventListener('click', async () => {
+        const targetId = header.dataset.target;
+        const type = header.dataset.type;
+        const loaded = header.dataset.loaded === 'true';
         const target = container.querySelector(`#${targetId}`);
+        const label = header.querySelector('.swap-toggle-label');
         
-        if (!target) return;
+        if (!target || !label) return;
         
         // If hidden, show it
         if (target.classList.contains('hidden')) {
@@ -690,21 +773,62 @@ class MatrixIsland {
           
           // Load outputs if not already loaded
           if (!loaded) {
-            btn.textContent = 'Loading...';
-            btn.disabled = true;
+            label.textContent = 'Loading...';
             await this.loadSwapOutputs(container, type);
-            btn.dataset.loaded = 'true';
-            btn.textContent = 'Hide';
-            btn.disabled = false;
+            header.dataset.loaded = 'true';
+            label.textContent = 'Hide';
           } else {
-            btn.textContent = 'Hide';
+            label.textContent = 'Hide';
           }
         } else {
           target.classList.add('hidden');
-          btn.textContent = loaded ? 'Show' : 'Load Outputs';
+          label.textContent = loaded ? 'Show' : 'Load Outputs';
         }
       });
     });
+    
+    // Navigation buttons
+    container.querySelectorAll('.state-nav-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const slug = btn.dataset.slug;
+        if (slug) {
+          this.showStateCard(slug);
+        }
+      });
+    });
+  }
+  
+  getSortedStates() {
+    // Return states sorted according to current sort mode
+    const sorted = [...this.states];
+    if (this.sortBy === 'alpha') {
+      sorted.sort((a, b) => a.state.localeCompare(b.state));
+    } else if (this.sortBy === 'native_prob') {
+      sorted.sort((a, b) => (b.native_prob || 0) - (a.native_prob || 0));
+    } else if (this.sortBy === 'supernodes') {
+      sorted.sort((a, b) => (b.supernodes || 0) - (a.supernodes || 0));
+    }
+    return sorted;
+  }
+  
+  navigateStateCard(direction) {
+    if (!this.stateCardVisible || !this.stateCardData) return;
+    
+    const sortedStates = this.getSortedStates();
+    const currentIndex = sortedStates.findIndex(s => s.slug === this.stateCardData.slug);
+    
+    let newIndex;
+    if (direction === 'prev') {
+      newIndex = currentIndex > 0 ? currentIndex - 1 : sortedStates.length - 1;
+    } else {
+      newIndex = currentIndex < sortedStates.length - 1 ? currentIndex + 1 : 0;
+    }
+    
+    const newState = sortedStates[newIndex];
+    if (newState) {
+      this.showStateCard(newState.slug);
+    }
   }
   
   async loadSwapOutputs(container, type) {
@@ -827,7 +951,7 @@ class MatrixIsland {
     const tierColor = this.getTierColor(s.tier);
     const tierLabel = s.tier === 2.5 ? 'W' : s.tier;
     const stateName = type === 'target' ? s.from_state : s.to_state;
-    const arrow = type === 'target' ? '' : '-> ';
+    const arrow = type === 'target' ? '<- ' : '-> ';
     
     // Truncate steered output
     let output = s.steered_output || 'N/A';
@@ -836,8 +960,9 @@ class MatrixIsland {
     return `
       <div class="swap-output-row rounded bg-slate-800/30 hover:bg-slate-700/50 transition-colors cursor-pointer"
            data-from="${s.from_slug}" data-to="${s.to_slug}">
-        <div class="flex items-center justify-between px-2 py-1 border-b border-slate-700/50">
-          <span class="text-xs text-slate-400">${arrow}${stateName}</span>
+        <div class="flex items-center gap-2 px-2 py-1 border-b border-slate-700/50">
+          <span class="text-xs text-slate-500">${arrow}</span>
+          <span class="text-xs text-slate-300 font-medium">${stateName}</span>
           <span class="px-1.5 py-0.5 rounded text-white text-xs font-bold" style="background: ${tierColor.bg};">
             T${tierLabel}
           </span>

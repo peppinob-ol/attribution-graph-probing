@@ -482,17 +482,60 @@ class DataLoader:
             profile['pinned_nodes'] = np_data.get('pinned_nodes', 0)
             profile['neuronpedia_url'] = np_data.get('url', '')
         
-        # Load native probability from graph.json
+        # Load native probability and logits from graph.json
         graph_path = state_dir / "00 Graph Generation" / "graph.json"
+        capital = profile.get('capital', '')
         if graph_path.exists():
             try:
                 with open(graph_path, 'r', encoding='utf-8') as f:
                     graph = json.load(f)
+                
+                # Collect all logit nodes with probabilities
+                # Clerp format: 'Output " Baton" (p=0.398)' - extract token between quotes
+                import re
+                logits = []
+                for node in graph.get('nodes', []):
+                    clerp = node.get('clerp', '')
+                    prob = node.get('token_prob')
+                    if clerp and prob is not None and clerp.startswith('Output '):
+                        # Extract token from format: Output " Baton" (p=0.398)
+                        match = re.search(r'Output\s+"([^"]*)"', clerp)
+                        if match:
+                            token = match.group(1).strip()
+                            if token:  # Skip empty tokens
+                                logits.append({
+                                    'token': token,
+                                    'prob': prob,
+                                    'is_target': node.get('is_target_logit', False),
+                                })
+                
+                # Sort by probability descending, take top 5
+                logits.sort(key=lambda x: x['prob'], reverse=True)
+                profile['logits'] = logits[:5]
+                
+                # Get the target logit (highest prob or marked as target)
                 for node in graph.get('nodes', []):
                     if node.get('is_target_logit'):
                         profile['native_prob'] = node.get('token_prob', 0)
-                        profile['target_token'] = node.get('clerp', '')
+                        clerp = node.get('clerp', '')
+                        # Extract token from format: Output " Baton" (p=0.398)
+                        match = re.search(r'Output\s+"([^"]*)"', clerp)
+                        target_token = match.group(1).strip() if match else clerp.strip().strip("'")
+                        profile['target_token'] = target_token
+                        # Check if capital contains the top logit token
+                        profile['capital_is_top_logit'] = target_token.lower() in capital.lower() if capital and target_token else False
                         break
+                
+                # Check if any logit token appears in the capital name
+                # e.g., "Baton" in "Baton Rouge" = True
+                capital_in_logits = False
+                capital_lower = capital.lower() if capital else ''
+                for logit in profile.get('logits', []):
+                    token = logit.get('token', '')
+                    if token and len(token) > 1 and token.lower() in capital_lower:
+                        capital_in_logits = True
+                        break
+                profile['capital_in_logits'] = capital_in_logits
             except (json.JSONDecodeError, IOError):
                 pass
         
@@ -545,7 +588,7 @@ class DataLoader:
         # Calculate attack/defense scores from matrix
         matrix = self.get_matrix()
         
-        # Attack score: avg tier when this state is source
+        # Attack score: avg tier when this state is source (this state attacking others)
         attack_tiers = []
         if slug in matrix:
             for to_slug, tier in matrix[slug].items():
@@ -553,6 +596,9 @@ class DataLoader:
                     attack_tiers.append(tier)
         profile['attack_avg'] = sum(attack_tiers) / len(attack_tiers) if attack_tiers else 0
         profile['attack_count'] = len(attack_tiers)
+        # Success rate (T3+) when attacking
+        attack_success = len([t for t in attack_tiers if t >= 3])
+        profile['attack_success_rate'] = attack_success / len(attack_tiers) if attack_tiers else 0
         
         # Defense score: avg tier when this state is target (others attacking this state)
         defense_tiers = []
@@ -565,6 +611,9 @@ class DataLoader:
                     wrong_state_count += 1
         profile['defense_avg'] = sum(defense_tiers) / len(defense_tiers) if defense_tiers else 0
         profile['defense_count'] = len(defense_tiers)
+        # Success rate (T3+) when being attacked (defense = others succeeded attacking this)
+        defense_success = len([t for t in defense_tiers if t >= 3])
+        profile['defense_success_rate'] = defense_success / len(defense_tiers) if defense_tiers else 0
         
         # Wrong state rate (T2.5) as target
         profile['wrong_state_rate'] = wrong_state_count / len(defense_tiers) if defense_tiers else 0
@@ -730,18 +779,21 @@ class DataLoader:
         }
         return capitals.get(state_name, '')
     
-    def get_simplified_subgraph_url(self, slug: str, max_features: int = 40, 
-                                     include_functional: bool = False) -> Optional[Dict]:
+    def get_simplified_subgraph_url(self, slug: str, max_features: int = 80,
+                                     max_url_length: int = 4000) -> Optional[Dict]:
         """
-        Generate a simplified subgraph URL with a subset of important features.
+        Generate a simplified subgraph URL with important features pinned.
         
-        This keeps the URL within practical limits (~2000 chars) by selecting
-        only the most semantically meaningful features.
+        Priority order for pinning:
+        1. Capital logit (layer 27) - always included
+        2. City embedding (layer -1, city token) - always included  
+        3. State-related features - always included if space
+        4. Remaining features sorted by node_influence
         
         Args:
             slug: State slug (e.g., 'alabama_Birmingham')
-            max_features: Maximum number of features to include (default 40)
-            include_functional: Whether to include functional tokens (is, the, of, etc.)
+            max_features: Maximum features to include (default 80)
+            max_url_length: Maximum URL length (default 4000 chars)
             
         Returns:
             Dict with 'url', 'feature_count', 'supernode_count', 'url_length'
@@ -763,88 +815,260 @@ class DataLoader:
         if not base_url:
             return None
         
-        # Load node grouping data
-        grouping_path = state_dir / "02 Node Grouping" / "node_grouping.csv"
-        if not grouping_path.exists():
+        # Extract state and city from slug for priority matching
+        state_name = self._slug_to_state_name(slug)
+        city_name = self._slug_to_city(slug)
+        
+        # Load graph.json to get the TOP logit by probability
+        # The metrics CSV has incomplete/empty data for layer 27
+        graph_path = state_dir / "00 Graph Generation" / "graph.json"
+        top_logit_node = None  # Will store the full node dict for the top logit
+        top_logit_prob = 0
+        if graph_path.exists():
+            try:
+                with open(graph_path, 'r', encoding='utf-8') as f:
+                    graph_data = json.load(f)
+                for node in graph_data.get('nodes', []):
+                    clerp = node.get('clerp', '')
+                    prob = node.get('token_prob', 0)
+                    node_id = node.get('node_id', '')
+                    # Output logits have format: "Output \" Token\" (p=0.123)"
+                    if clerp.startswith('Output ') and prob and prob > top_logit_prob:
+                        top_logit_prob = prob
+                        # Build a node dict matching our format
+                        top_logit_node = {
+                            'node_id': node_id,  # Use node_id directly from graph.json
+                            'layer': '27',
+                            'feature_id': node_id.split('_')[1] if '_' in node_id else '',
+                            'ctx_idx': '8',
+                            'token': clerp,
+                            'influence': prob,  # Use prob as influence
+                            'supernode': 'output_logit',
+                        }
+            except (json.JSONDecodeError, IOError):
+                pass
+        
+        # Load graph metrics (has node_influence)
+        metrics_path = state_dir / "00 Graph Generation" / "graph_feature_static_metrics.csv"
+        if not metrics_path.exists():
             return None
         
-        # Functional/noise supernodes to exclude (unless include_functional=True)
-        excluded_supernodes = {
-            'punctuation', 'is', 'the', 'of', 'in', 'which', 'The', 'a', 'an'
-        }
+        # Load node grouping for supernode assignments
+        # Key on {layer}_{feature} only, since a feature can appear at multiple positions
+        # in the metrics file but node_grouping only has the peak position
+        grouping_path = state_dir / "02 Node Grouping" / "node_grouping.csv"
+        supernode_map = {}  # {layer}_{feature} -> supernode_name
+        if grouping_path.exists():
+            try:
+                with open(grouping_path, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        layer = row.get('layer', '0')
+                        feature = row.get('feature', '0')
+                        key = f"{layer}_{feature}"
+                        supernode_map[key] = row.get('supernode_name', '')
+            except (IOError, csv.Error):
+                pass
         
-        # Read and parse node grouping
-        nodes = []
+        # Parse metrics file
+        embeddings = []      # Layer -1 (priority)
+        output_logits = []   # Layer 27 (priority)
+        priority_nodes = []  # State/city related
+        other_nodes = []     # Everything else
+        
         try:
-            with open(grouping_path, 'r', encoding='utf-8') as f:
+            with open(metrics_path, 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    supernode = row.get('supernode_name', '')
+                    layer = row.get('layer', '0')
+                    feature = row.get('feature', '0')
+                    ctx_idx = row.get('ctx_idx', '0')
+                    token = row.get('token', '').strip()
+                    feature_id = row.get('id', feature)  # For embeddings
                     
-                    # Skip excluded supernodes unless requested
-                    if not include_functional and supernode in excluded_supernodes:
+                    # Skip residual connections (feature=-1 in layers > -1)
+                    if feature == '-1' and layer != '-1':
                         continue
                     
-                    # Parse activation for sorting
+                    # Parse node_influence for sorting
                     try:
-                        activation = float(row.get('activation_max', 0))
+                        influence = float(row.get('node_influence', 0) or 0)
                     except (ValueError, TypeError):
-                        activation = 0
+                        influence = 0
                     
-                    nodes.append({
-                        'layer': row.get('layer', '0'),
-                        'feature': row.get('feature', '0'),
-                        'token_idx': row.get('peak_token_idx', '0'),
+                    # Build node_id based on layer type
+                    # IMPORTANT: Use feature_id (the 'id' column) for ALL node IDs
+                    # The 'feature' column contains internal IDs that Neuronpedia doesn't recognize
+                    if layer == '-1':
+                        # Embedding: E_{id}_{ctx_idx}
+                        node_id = f"E_{feature_id}_{ctx_idx}"
+                    else:
+                        # Regular feature: {layer}_{id}_{ctx_idx}
+                        node_id = f"{layer}_{feature_id}_{ctx_idx}"
+                    
+                    # Get supernode from grouping or infer from token
+                    # Key on {layer}_{feature_id} without position to match all occurrences
+                    grouping_key = f"{layer}_{feature_id}"
+                    supernode = supernode_map.get(grouping_key, '')
+                    
+                    # For embeddings (layer -1), infer supernode from token
+                    if layer == '-1' and not supernode:
+                        clean_token = token.strip()
+                        if clean_token:
+                            # Use cleaned token as supernode name
+                            supernode = clean_token.replace('<', '').replace('>', '')
+                    
+                    # For output logits (layer 27), assign to output group
+                    if layer == '27' and not supernode:
+                        supernode = 'output_logit'
+                    
+                    node = {
+                        'node_id': node_id,
+                        'layer': layer,
+                        'feature': feature,
+                        'feature_id': feature_id,
+                        'ctx_idx': ctx_idx,
+                        'token': token,
+                        'influence': influence,
                         'supernode': supernode,
-                        'activation': activation,
-                    })
-        except (IOError, csv.Error):
+                    }
+                    
+                    # Categorize by priority
+                    if layer == '-1':
+                        # Exclude functional embeddings (bos, The, of, the, etc.)
+                        excluded_embeddings = {'bos', 'The', 'the', 'of', 'a', 'an', 'is'}
+                        clean_token = token.strip()
+                        if clean_token in excluded_embeddings or clean_token.replace('<', '').replace('>', '') in excluded_embeddings:
+                            continue  # Skip this embedding
+                        
+                        embeddings.append(node)
+                        # Check if this is city or state embedding
+                        if city_name.lower() in token.lower():
+                            node['priority'] = 'city'
+                        elif state_name.lower() in token.lower():
+                            node['priority'] = 'state'
+                    elif layer == '27':
+                        output_logits.append(node)
+                    elif (city_name.lower() in token.lower() or 
+                          state_name.lower() in token.lower() or
+                          'capital' in supernode.lower() or
+                          state_name.lower() in supernode.lower() or
+                          city_name.lower() in supernode.lower()):
+                        priority_nodes.append(node)
+                    else:
+                        other_nodes.append(node)
+                        
+        except (IOError, csv.Error) as e:
             return None
         
-        if not nodes:
-            return None
+        # Sort each category by node_influence (descending)
+        embeddings.sort(key=lambda x: -x['influence'])
+        priority_nodes.sort(key=lambda x: -x['influence'])
+        other_nodes.sort(key=lambda x: -x['influence'])
         
-        # Sort by activation (highest first) and take top N
-        nodes.sort(key=lambda x: -x['activation'])
-        selected_nodes = nodes[:max_features]
+        # Use the top logit from graph.json (highest probability)
+        # This is more reliable than the metrics CSV which has incomplete layer 27 data
+        top_logit = top_logit_node
         
-        # Build pinnedIds: format is {layer}_{feature}_{tokenIdx}
-        pinned_ids = []
-        supernode_groups = {}  # supernode_name -> list of node_ids
+        # Build candidate nodes list
+        # 1. Semantic embeddings (layer -1) - always included
+        # 2. Top output logit (layer 27) - always included
+        # 3. Priority nodes (state/city/capital related)
+        # 4. Fill remaining with other high-influence nodes
+        candidates = []
         
-        for node in selected_nodes:
-            node_id = f"{node['layer']}_{node['feature']}_{node['token_idx']}"
-            pinned_ids.append(node_id)
-            
+        # Priority and other nodes as candidates for grouping
+        candidates.extend(priority_nodes)
+        remaining_slots = max_features - len(embeddings) - (1 if top_logit else 0) - len(priority_nodes)
+        if remaining_slots > 0:
+            candidates.extend(other_nodes[:remaining_slots])
+        
+        # First pass: build supernode groups to see which have 2+ members
+        temp_supernode_groups = {}
+        for node in candidates:
             supernode = node['supernode']
             if supernode:
+                if supernode not in temp_supernode_groups:
+                    temp_supernode_groups[supernode] = []
+                temp_supernode_groups[supernode].append(node)
+        
+        # Filter to only nodes that are part of 2+ member supernodes
+        valid_supernodes = {k for k, v in temp_supernode_groups.items() if len(v) >= 2}
+        
+        # Build final selected list
+        selected = []
+        
+        # Add embeddings (pinned but not grouped)
+        selected.extend(embeddings)
+        
+        # Add top logit (pinned but not grouped)
+        if top_logit:
+            selected.append(top_logit)
+        
+        # Add only nodes that belong to valid (2+) supernodes
+        for node in candidates:
+            if node['supernode'] in valid_supernodes:
+                selected.append(node)
+        
+        # Build pinnedIds and supernodes
+        pinned_ids = []
+        supernode_groups = {}
+        
+        for node in selected:
+            pinned_ids.append(node['node_id'])
+            
+            # Embeddings (layer -1) and output logits (layer 27) are pinned but NOT grouped
+            if node['layer'] in ('-1', '27'):
+                continue
+            
+            supernode = node['supernode']
+            if supernode and supernode in valid_supernodes:
                 if supernode not in supernode_groups:
                     supernode_groups[supernode] = []
-                supernode_groups[supernode].append(node_id)
+                supernode_groups[supernode].append(node['node_id'])
         
-        # Build supernodes JSON array: [["name", "id1", "id2", ...], ...]
+        # Build supernodes JSON array
         supernodes_array = []
         for name, ids in sorted(supernode_groups.items()):
             supernodes_array.append([name] + ids)
         
-        # Encode parameters
+        # Encode and build URL
         pinned_param = ','.join(pinned_ids)
         supernodes_json = json.dumps(supernodes_array, separators=(',', ':'))
         
-        # Build full URL
-        # Check if base_url already has query params
         separator = '&' if '?' in base_url else '?'
-        
-        # URL encode the parameters
         full_url = f"{base_url}{separator}pinnedIds={quote(pinned_param)}&supernodes={quote(supernodes_json)}"
+        
+        # If URL too long, reduce features
+        while len(full_url) > max_url_length and len(selected) > 20:
+            # Remove lowest influence non-priority nodes
+            selected = selected[:-5]
+            pinned_ids = [n['node_id'] for n in selected]
+            supernode_groups = {}
+            for node in selected:
+                # Skip embeddings and logits for grouping
+                if node['layer'] in ('-1', '27'):
+                    continue
+                if node['supernode']:
+                    if node['supernode'] not in supernode_groups:
+                        supernode_groups[node['supernode']] = []
+                    supernode_groups[node['supernode']].append(node['node_id'])
+            
+            # Filter to 2+ node groups only
+            supernode_groups = {k: v for k, v in supernode_groups.items() if len(v) >= 2}
+            supernodes_array = [[name] + ids for name, ids in sorted(supernode_groups.items())]
+            pinned_param = ','.join(pinned_ids)
+            supernodes_json = json.dumps(supernodes_array, separators=(',', ':'))
+            full_url = f"{base_url}{separator}pinnedIds={quote(pinned_param)}&supernodes={quote(supernodes_json)}"
         
         return {
             'url': full_url,
             'base_url': base_url,
-            'feature_count': len(selected_nodes),
+            'feature_count': len(selected),
             'supernode_count': len(supernode_groups),
             'url_length': len(full_url),
-            'is_truncated': len(nodes) > max_features,
-            'total_available': len(nodes),
+            'embeddings_count': len([n for n in selected if n['layer'] == '-1']),
+            'logits_count': len([n for n in selected if n['layer'] == '27']),
+            'priority_count': len([n for n in selected if n in priority_nodes]),
         }
 
