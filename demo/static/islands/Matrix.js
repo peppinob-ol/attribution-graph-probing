@@ -603,14 +603,7 @@ class MatrixIsland {
     const nextState = currentIndex < sortedStates.length - 1 ? sortedStates[currentIndex + 1] : null;
     
     container.innerHTML = `
-      <!-- Close button - absolute top right -->
-      <button onclick="this.closest('#state-card').remove()" class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-white z-10" title="Close (Esc)">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-      
-      <div class="flex items-center justify-between mb-4 pr-10">
+      <div class="flex items-center justify-between mb-4">
         <button class="state-nav-btn prev-state w-8 h-8 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-white ${prevState ? '' : 'opacity-30 cursor-not-allowed'}" 
                 data-slug="${prevState?.slug || ''}" ${prevState ? '' : 'disabled'} title="${prevState ? prevState.state : 'No previous state'}">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -630,6 +623,11 @@ class MatrixIsland {
                 data-slug="${nextState?.slug || ''}" ${nextState ? '' : 'disabled'} title="${nextState ? nextState.state : 'No next state'}">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+        <button onclick="this.closest('#state-card').remove()" class="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-white ml-2" title="Close (Esc)">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
@@ -654,9 +652,9 @@ class MatrixIsland {
         </div>
       </div>
       
-      <!-- Attack (as target) / Defense (as source) -->
+      <!-- Attack (as target) / Drift (as source) -->
       <div class="grid grid-cols-2 gap-3 mb-4">
-        <div class="p-3 rounded-lg bg-slate-800/50 border-l-4" style="border-color: #3D7DFF;">
+        <div class="p-3 rounded-lg bg-slate-800/50 border-l-4" style="border-color: #3D7DFF;" title="Measures how strongly this state features pulls other prompts toward itself when its features are amplified.">
           <div class="text-xs text-slate-500 uppercase mb-1">Attack (as target)</div>
           <div class="flex items-baseline gap-2">
             <div class="text-lg font-bold tabular-nums" style="color: #3D7DFF; min-width: 2.5rem;">${(d.defense_avg || 0).toFixed(2)}</div>
@@ -664,8 +662,8 @@ class MatrixIsland {
           </div>
           <div class="text-xs text-slate-500">${d.defense_count || 0} swaps</div>
         </div>
-        <div class="p-3 rounded-lg bg-slate-800/50 border-l-4" style="border-color: #f87171;">
-          <div class="text-xs text-slate-500 uppercase mb-1">Defense (as source)</div>
+        <div class="p-3 rounded-lg bg-slate-800/50 border-l-4" style="border-color: #f87171;" title="Measures how easily this state prompt gets pulled away from its default identity when targeted by another state.">
+          <div class="text-xs text-slate-500 uppercase mb-1">Drift (as source)</div>
           <div class="flex items-baseline gap-2">
             <div class="text-lg font-bold tabular-nums" style="color: #f87171; min-width: 2.5rem;">${(d.attack_avg || 0).toFixed(2)}</div>
             <div class="text-sm text-emerald-400">${((d.attack_success_rate || 0) * 100).toFixed(0)}% T3+</div>
