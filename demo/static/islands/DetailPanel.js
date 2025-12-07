@@ -478,7 +478,7 @@ class DetailPanelIsland {
     ` : '';
     
     return `
-      <div class="mt-2 flex items-center gap-1 text-xs text-slate-500 flex-wrap">
+      <div class="keyboard-hint mt-2 flex items-center gap-1 text-xs text-slate-500 flex-wrap">
         ${baseHints}
         ${annotateHints}
       </div>

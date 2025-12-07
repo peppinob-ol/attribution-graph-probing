@@ -114,8 +114,46 @@ class MatrixIsland {
           }
         }
       });
+      
+      // Click outside matrix to deselect cells
+      document.addEventListener('click', (e) => {
+        // Don't deselect if clicking inside matrix, detail panel, or state card
+        const matrixWrapper = this.container.querySelector('.matrix-wrapper');
+        const detailPanel = document.querySelector('.detail-panel');
+        const stateCard = document.getElementById('state-card');
+        
+        const clickedInMatrix = matrixWrapper && matrixWrapper.contains(e.target);
+        const clickedInDetail = detailPanel && detailPanel.contains(e.target);
+        const clickedInStateCard = stateCard && stateCard.contains(e.target);
+        
+        if (!clickedInMatrix && !clickedInDetail && !clickedInStateCard) {
+          this.resetSelection();
+        }
+      });
     } catch (e) {
       this.render(`<div class="py-20 text-center text-red-400">Error: ${e.message}</div>`);
+    }
+  }
+  
+  resetSelection() {
+    // Clear internal selection state
+    this.selected = null;
+    
+    // Reset all cell styles
+    const cells = this.container.querySelectorAll('.matrix-cell');
+    cells.forEach(cell => {
+      cell.style.transform = '';
+      cell.style.zIndex = '';
+      cell.style.boxShadow = '';
+      cell.style.outline = '';
+      cell.style.outlineOffset = '';
+      cell.classList.remove('selected');
+    });
+    
+    // Reset hover info
+    const hoverInfo = this.container.querySelector('#hover-info');
+    if (hoverInfo) {
+      hoverInfo.innerHTML = '<span class="text-slate-500 text-xs">Hover over a cell to see details</span>';
     }
   }
   
@@ -283,10 +321,10 @@ class MatrixIsland {
     let html = `
       <div class="matrix-wrapper">
         <!-- Controls -->
-        <div class="flex items-center justify-between gap-4 mb-4">
-          <div class="flex items-center gap-4">
-            <span class="text-xs text-slate-500">Sort by:</span>
-            <div class="flex gap-2" id="sort-buttons">
+        <div class="matrix-controls flex items-center justify-between gap-4 mb-4">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs text-slate-500">Sort:</span>
+            <div class="sort-buttons flex gap-1 flex-wrap" id="sort-buttons">
               ${sortOptions.map(opt => `
                 <button
                   class="px-2 py-1 text-xs rounded transition-colors ${this.sortBy === opt.value ? 'bg-cyan-900/50 text-cyan-400' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}"
@@ -295,17 +333,17 @@ class MatrixIsland {
               `).join('')}
             </div>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-shrink-0">
             <button
               id="colorblind-toggle"
-              class="px-3 py-1 text-xs rounded transition-colors flex items-center gap-2 ${this.colorblindMode ? 'bg-amber-900/50 text-amber-400' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}"
+              class="px-2 py-1 text-xs rounded transition-colors flex items-center gap-1 ${this.colorblindMode ? 'bg-amber-900/50 text-amber-400' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}"
               title="Toggle colorblind-friendly palette"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
               </svg>
-              ${this.colorblindMode ? 'Colorblind: ON' : 'Colorblind: OFF'}
+              <span class="colorblind-label">${this.colorblindMode ? 'CB: ON' : 'CB'}</span>
             </button>
           </div>
         </div>

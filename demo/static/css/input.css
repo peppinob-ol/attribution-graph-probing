@@ -37,8 +37,10 @@
 /* Slide-in panel */
 @layer components {
   .detail-panel {
-    @apply fixed right-0 top-0 h-full w-[450px] bg-slate-900 border-l border-slate-700;
+    @apply fixed right-0 top-0 h-full bg-slate-900 border-l border-slate-700;
     @apply shadow-2xl overflow-y-auto transform transition-transform duration-300;
+    width: 100%;
+    max-width: 450px;
   }
   
   .detail-panel.hidden {
@@ -47,6 +49,54 @@
   
   .detail-panel.visible {
     @apply translate-x-0;
+  }
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 480px) {
+  .detail-panel {
+    max-width: 100%;
+    border-left: none;
+  }
+  
+  /* Hide keyboard hints on mobile - not useful on touch devices */
+  .keyboard-hint {
+    display: none !important;
+  }
+  
+  /* More compact state header on mobile */
+  .detail-panel .text-2xl {
+    font-size: 1.25rem;
+  }
+  
+  /* Compact header on mobile */
+  .mobile-title {
+    font-size: 1.125rem !important;
+  }
+  
+  /* Smaller stat values on mobile */
+  .stat-value {
+    font-size: 1.5rem !important;
+  }
+  
+  /* Better matrix controls on mobile */
+  .matrix-controls {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .matrix-controls .sort-buttons {
+    flex-wrap: wrap;
+  }
+  
+  /* Single column for about links on very small screens */
+  .about-links {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Hide non-essential elements on mobile */
+  .hidden-mobile {
+    display: none !important;
   }
 }
 

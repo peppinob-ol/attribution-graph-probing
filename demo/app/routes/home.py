@@ -50,12 +50,12 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                     Div(cls="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between")(
                         Div(cls="flex items-center gap-4")(
                             H1(
-                                cls="text-2xl font-bold bg-clip-text text-transparent",
+                                cls="text-2xl font-bold bg-clip-text text-transparent mobile-title",
                                 style="background-image: linear-gradient(to right, #0A4FFF, #3D7DFF);"
                             )(
                                 "State Swap Explorer"
                             ),
-                            Span(cls="text-xs px-2 py-1 bg-slate-800 rounded-full text-slate-400")(
+                            Span(cls="text-xs px-2 py-1 bg-slate-800 rounded-full text-slate-400 hidden-mobile")(
                                 "Circuit Steering Demo"
                             ),
                             annotate_badge,
@@ -226,7 +226,7 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                             # Links section
                             Div(cls="space-y-4")(
                                 H3(cls="text-sm font-semibold text-slate-400 uppercase tracking-wide")("Resources"),
-                                Div(cls="grid grid-cols-2 gap-3")(
+                                Div(cls="grid grid-cols-2 gap-3 about-links")(
                                     _about_link(
                                         "arXiv Preprint",
                                         "Full paper with methods & results",
@@ -256,7 +256,7 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                             # References
                             Div(cls="space-y-4")(
                                 H3(cls="text-sm font-semibold text-slate-400 uppercase tracking-wide")("References"),
-                                Div(cls="grid grid-cols-2 gap-3")(
+                                Div(cls="grid grid-cols-2 gap-3 about-links")(
                                     _about_link(
                                         "Neuronpedia",
                                         "Interactive graph exploration",
@@ -308,8 +308,21 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                         const openBtn = document.getElementById('about-btn');
                         const closeBtn = document.getElementById('about-close');
                         
+                        function resetMatrixCells() {
+                            // Reset any selected/highlighted matrix cells
+                            document.querySelectorAll('.matrix-cell').forEach(function(cell) {
+                                cell.style.transform = '';
+                                cell.style.zIndex = '';
+                                cell.style.boxShadow = '';
+                                cell.style.outline = '';
+                                cell.style.outlineOffset = '';
+                                cell.classList.remove('selected');
+                            });
+                        }
+                        
                         if (openBtn) {
                             openBtn.onclick = function() {
+                                resetMatrixCells();
                                 modal.style.display = 'flex';
                             };
                         }
@@ -343,7 +356,7 @@ def _stat_card(title: str, value: str, subtitle: str):
     """Render a stat card."""
     return Div(cls="bg-slate-900/50 rounded-xl border border-slate-800 p-4")(
         P(cls="text-xs text-slate-500 uppercase tracking-wide")(title),
-        P(cls="text-2xl font-bold mt-1")(value),
+        P(cls="text-2xl font-bold mt-1 stat-value")(value),
         P(cls="text-xs text-slate-400 mt-1")(subtitle),
     )
 
