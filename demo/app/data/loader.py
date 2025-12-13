@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 import json
 import csv
 from functools import lru_cache
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
 class DataLoader:
@@ -700,6 +701,65 @@ class DataLoader:
             except (json.JSONDecodeError, IOError):
                 pass
         return None
+
+    @staticmethod
+    def _add_query_params(url: str, params: Dict[str, str], overwrite: bool = False) -> str:
+        """
+        Add query params to a URL, preserving existing params.
+
+        Args:
+            url: Base URL
+            params: Params to add
+            overwrite: If True, overwrite existing keys. If False, keep existing keys.
+        """
+        try:
+            parts = urlsplit(url)
+        except Exception:
+            return url
+
+        existing = parse_qsl(parts.query, keep_blank_values=True)
+        query_map = {}
+        for k, v in existing:
+            # Keep the first value for each key (Neuronpedia URLs typically do not repeat keys)
+            if k not in query_map:
+                query_map[k] = v
+
+        for k, v in (params or {}).items():
+            if k in query_map and not overwrite:
+                continue
+            query_map[k] = v
+
+        new_query = urlencode(query_map, doseq=False)
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, new_query, parts.fragment))
+
+    def get_complete_subgraph_url(self, slug: str) -> Optional[Dict[str, Any]]:
+        """
+        Return the Neuronpedia "complete subgraph" URL using the uploaded subgraph ID.
+
+        This uses neuronpedia.subgraph_id from manifest.json and appends it as the
+        `subgraph` query parameter to the manifest neuronpedia.url.
+        """
+        state_dir = self._find_state_dir(slug)
+        if not state_dir:
+            return None
+
+        manifest = self._load_manifest(state_dir)
+        if not manifest:
+            return None
+
+        np_data = manifest.get('neuronpedia', {}) or {}
+        base_url = (np_data.get('url') or '').strip()
+        subgraph_id = (np_data.get('subgraph_id') or '').strip()
+        if not base_url or not subgraph_id:
+            return None
+
+        full_url = self._add_query_params(base_url, {"subgraph": subgraph_id}, overwrite=False)
+        return {
+            "url": full_url,
+            "base_url": base_url,
+            "subgraph_id": subgraph_id,
+            "mode": "complete",
+        }
     
     def _get_neuronpedia_url(self, slug: str) -> Optional[str]:
         """Get Neuronpedia URL for a state slug."""
@@ -818,6 +878,7 @@ class DataLoader:
         # Extract state and city from slug for priority matching
         state_name = self._slug_to_state_name(slug)
         city_name = self._slug_to_city(slug)
+        capital_name = self._get_state_capital(state_name)
         
         # Load graph.json to get the TOP logit by probability
         # The metrics CSV has incomplete/empty data for layer 27
@@ -875,6 +936,7 @@ class DataLoader:
         output_logits = []   # Layer 27 (priority)
         priority_nodes = []  # State/city related
         other_nodes = []     # Everything else
+        all_supernode_nodes = {}  # supernode_name -> list[node] (features only; excludes embeddings/logits)
         
         try:
             with open(metrics_path, 'r', encoding='utf-8') as f:
@@ -932,6 +994,12 @@ class DataLoader:
                         'influence': influence,
                         'supernode': supernode,
                     }
+
+                    # Track full membership for each supernode (features only)
+                    if supernode and layer not in ('-1', '27'):
+                        if supernode not in all_supernode_nodes:
+                            all_supernode_nodes[supernode] = []
+                        all_supernode_nodes[supernode].append(node)
                     
                     # Categorize by priority
                     if layer == '-1':
@@ -949,11 +1017,13 @@ class DataLoader:
                             node['priority'] = 'state'
                     elif layer == '27':
                         output_logits.append(node)
-                    elif (city_name.lower() in token.lower() or 
+                    elif (city_name.lower() in token.lower() or
                           state_name.lower() in token.lower() or
+                          (capital_name and capital_name.lower() in token.lower()) or
                           'capital' in supernode.lower() or
                           state_name.lower() in supernode.lower() or
-                          city_name.lower() in supernode.lower()):
+                          city_name.lower() in supernode.lower() or
+                          (capital_name and capital_name.lower() in supernode.lower())):
                         priority_nodes.append(node)
                     else:
                         other_nodes.append(node)
@@ -969,46 +1039,111 @@ class DataLoader:
         # Use the top logit from graph.json (highest probability)
         # This is more reliable than the metrics CSV which has incomplete layer 27 data
         top_logit = top_logit_node
-        
-        # Build candidate nodes list
+
+        # Identify supernodes whose NAME contains the state or capital name.
+        # For these, we try to include the ENTIRE supernode group (all member nodes),
+        # as long as there is capacity (max_features).
+        import re
+
+        def _norm_name(s: str) -> str:
+            s = (s or '').lower().replace('_', ' ')
+            s = re.sub(r'[^a-z0-9 ]+', ' ', s)
+            return ' '.join(s.split())
+
+        norm_state = _norm_name(state_name)
+        norm_capital = _norm_name(capital_name)
+
+        forced_supernodes = []  # [(priority, -max_influence, name)]
+        if norm_state or norm_capital:
+            for name, nodes in (all_supernode_nodes or {}).items():
+                if not name or len(nodes) < 2:
+                    continue
+                norm_group = _norm_name(name)
+                match_capital = bool(norm_capital) and (norm_capital in norm_group)
+                match_state = bool(norm_state) and (norm_state in norm_group)
+                if not (match_capital or match_state):
+                    continue
+
+                max_inf = 0
+                try:
+                    max_inf = max((n.get('influence') or 0) for n in nodes)
+                except ValueError:
+                    max_inf = 0
+
+                forced_priority = 0 if match_capital else 1
+                forced_supernodes.append((forced_priority, -max_inf, name))
+
+        forced_supernodes.sort()
+
+        # Build forced nodes (include whole matching supernode groups if they fit)
+        forced_nodes = []
+        forced_included = 0
+        forced_omitted = 0
+        forced_node_ids = set()
+
+        reserved = len(embeddings) + (1 if top_logit else 0)
+        remaining_forced = max_features - reserved
+        if remaining_forced > 0 and forced_supernodes:
+            for _, __, name in forced_supernodes:
+                group_nodes = all_supernode_nodes.get(name, [])
+                group_nodes_sorted = sorted(group_nodes, key=lambda x: -(x.get('influence') or 0))
+                unique_group = [n for n in group_nodes_sorted if n.get('node_id') and n['node_id'] not in forced_node_ids]
+                if len(unique_group) <= remaining_forced:
+                    forced_nodes.extend(unique_group)
+                    forced_node_ids.update(n['node_id'] for n in unique_group)
+                    forced_included += 1
+                    remaining_forced -= len(unique_group)
+                else:
+                    forced_omitted += 1
+
+        # Build candidate nodes list (after reserving space for forced groups)
         # 1. Semantic embeddings (layer -1) - always included
         # 2. Top output logit (layer 27) - always included
-        # 3. Priority nodes (state/city/capital related)
-        # 4. Fill remaining with other high-influence nodes
+        # 3. Forced groups (state/capital-named supernodes) - include whole group if it fits
+        # 4. Priority nodes (state/city/capital related)
+        # 5. Fill remaining with other high-influence nodes
         candidates = []
-        
-        # Priority and other nodes as candidates for grouping
         candidates.extend(priority_nodes)
-        remaining_slots = max_features - len(embeddings) - (1 if top_logit else 0) - len(priority_nodes)
+        remaining_slots = max_features - len(embeddings) - (1 if top_logit else 0) - len(forced_nodes) - len(priority_nodes)
         if remaining_slots > 0:
             candidates.extend(other_nodes[:remaining_slots])
-        
-        # First pass: build supernode groups to see which have 2+ members
+
+        # First pass: only keep candidates that belong to supernodes with 2+ members
         temp_supernode_groups = {}
         for node in candidates:
-            supernode = node['supernode']
-            if supernode:
-                if supernode not in temp_supernode_groups:
-                    temp_supernode_groups[supernode] = []
-                temp_supernode_groups[supernode].append(node)
-        
-        # Filter to only nodes that are part of 2+ member supernodes
+            supernode = node.get('supernode', '')
+            if not supernode:
+                continue
+            if supernode not in temp_supernode_groups:
+                temp_supernode_groups[supernode] = []
+            temp_supernode_groups[supernode].append(node)
         valid_supernodes = {k for k, v in temp_supernode_groups.items() if len(v) >= 2}
-        
-        # Build final selected list
+
+        # Build final selected list (deduplicated by node_id, preserving priority order)
         selected = []
-        
-        # Add embeddings (pinned but not grouped)
-        selected.extend(embeddings)
-        
-        # Add top logit (pinned but not grouped)
+        seen_node_ids = set()
+
+        def _add_node(node: Dict[str, Any]) -> None:
+            node_id = node.get('node_id', '')
+            if not node_id or node_id in seen_node_ids:
+                return
+            seen_node_ids.add(node_id)
+            selected.append(node)
+
+        for node in embeddings:
+            _add_node(node)
         if top_logit:
-            selected.append(top_logit)
-        
-        # Add only nodes that belong to valid (2+) supernodes
+            _add_node(top_logit)
+        for node in forced_nodes:
+            _add_node(node)
         for node in candidates:
-            if node['supernode'] in valid_supernodes:
-                selected.append(node)
+            if node.get('supernode', '') in valid_supernodes:
+                _add_node(node)
+
+        # Enforce max_features as a hard cap (forced groups are added before candidates,
+        # so truncation only drops lower-priority tail nodes).
+        if len(selected) > max_features:
+            selected = selected[:max_features]
         
         # Build pinnedIds and supernodes
         pinned_ids = []
@@ -1022,10 +1157,13 @@ class DataLoader:
                 continue
             
             supernode = node['supernode']
-            if supernode and supernode in valid_supernodes:
+            if supernode:
                 if supernode not in supernode_groups:
                     supernode_groups[supernode] = []
                 supernode_groups[supernode].append(node['node_id'])
+
+        # Filter supernodes to only groups with 2+ members
+        supernode_groups = {k: v for k, v in supernode_groups.items() if len(v) >= 2}
         
         # Build supernodes JSON array
         supernodes_array = []
@@ -1070,5 +1208,7 @@ class DataLoader:
             'embeddings_count': len([n for n in selected if n['layer'] == '-1']),
             'logits_count': len([n for n in selected if n['layer'] == '27']),
             'priority_count': len([n for n in selected if n in priority_nodes]),
+            'forced_supernodes_included': forced_included,
+            'forced_supernodes_omitted': forced_omitted,
         }
 

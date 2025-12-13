@@ -94,6 +94,14 @@ The app reads from `../output/usa_states_batch/`:
 - `_swaps/by_source/*/to_*.json` - Individual swap results
 - `*/manifest.json` - Neuronpedia URLs and metadata
 
+### Neuronpedia subgraph URLs
+
+By default, the demo opens a simplified Neuronpedia graph URL by constructing `pinnedIds` and `supernodes`.
+
+If you want to open the uploaded Neuronpedia subgraph (using `manifest.json -> neuronpedia.subgraph_id`), call:
+
+- `GET /api/state/{slug}/subgraph-url?mode=complete`
+
 ## Building Svelte Islands (Optional)
 
 If you want to modify the Svelte components:

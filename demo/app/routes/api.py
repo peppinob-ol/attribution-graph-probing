@@ -238,6 +238,29 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False):
         - Top features by node_influence
         - Supernode groupings
         """
+        # Mode:
+        # - auto (default): prefer complete uploaded subgraph if available, else fallback to simplified
+        # - complete: only return complete uploaded subgraph URL
+        # - simplified: only return simplified pinnedIds/supernodes URL
+        mode = (request.query_params.get("mode", "simplified") or "simplified").lower()
+        if mode not in ("auto", "complete", "simplified"):
+            mode = "simplified"
+
+        # Prefer complete subgraph URL (uploaded subgraph_id) when available
+        if mode in ("auto", "complete"):
+            complete = data_loader.get_complete_subgraph_url(slug)
+            if complete is not None:
+                return Response(
+                    content=json.dumps(complete),
+                    media_type="application/json"
+                )
+            if mode == "complete":
+                return Response(
+                    content=json.dumps({"error": "Complete subgraph data not found"}),
+                    media_type="application/json",
+                    status_code=404
+                )
+
         # Parse query params
         max_features = 100
         max_url_length = 4000
@@ -264,6 +287,9 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False):
                 media_type="application/json",
                 status_code=404
             )
+
+        # Tag response mode for callers (front-end ignores it, but it's useful for debugging)
+        result["mode"] = "simplified"
         
         return Response(
             content=json.dumps(result),

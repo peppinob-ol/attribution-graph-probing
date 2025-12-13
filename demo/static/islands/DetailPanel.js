@@ -79,6 +79,12 @@ class DetailPanelIsland {
     // Keyboard navigation and annotation
     document.addEventListener('keydown', (e) => this.handleKeydown(e));
     
+    // Check URL hash on load for shareable links
+    this.checkHashOnLoad();
+    
+    // Handle browser back/forward
+    window.addEventListener('hashchange', () => this.handleHashChange());
+    
     // Load states and matrix for navigation
     try {
       const [statesRes, matrixRes] = await Promise.all([
@@ -364,18 +370,25 @@ class DetailPanelIsland {
   }
   
   showSaveSuccess(message) {
-    const toast = this.createToast(message, 'bg-emerald-600');
+    const toast = this.createToast(message, 'bg-emerald-500');
     setTimeout(() => toast.remove(), 2000);
   }
   
   showSaveError(message) {
-    const toast = this.createToast(`Error: ${message}`, 'bg-red-600');
+    const toast = this.createToast(`Error: ${message}`, 'bg-red-500');
     setTimeout(() => toast.remove(), 3000);
   }
   
   createToast(message, bgClass) {
     const toast = document.createElement('div');
-    toast.className = `fixed bottom-4 right-4 px-4 py-2 rounded-lg text-white text-sm ${bgClass} z-[100] animate-pulse`;
+    // NOTE: This repo uses a prebuilt Tailwind bundle; arbitrary classes like `z-[100]` are not present.
+    // Use a safe, explicit z-index to ensure the toast appears above overlays/panels.
+    // Also avoid classes like `bottom-4` / `right-4` since they are not present in the prebuilt CSS.
+    toast.className = `fixed px-4 py-2 rounded-lg text-white text-sm ${bgClass} z-50 animate-pulse`;
+    toast.style.zIndex = '9999';
+    toast.style.pointerEvents = 'none';
+    toast.style.bottom = '1rem';
+    toast.style.right = '1rem';
     toast.textContent = message;
     document.body.appendChild(toast);
     return toast;
@@ -387,6 +400,7 @@ class DetailPanelIsland {
     this.features = null;  // Reset features
     this.featuresExpanded = false;
     this.renderLoading();
+    this.updateHash();
     
     try {
       // Fetch swap data and features in parallel
@@ -434,6 +448,102 @@ class DetailPanelIsland {
     this.panel.classList.remove('visible');
     this.data = null;
     this.noteInputActive = false;
+    
+    // Clear hash if it was a swap hash
+    if (window.location.hash.startsWith('#swap=')) {
+      history.pushState('', document.title, window.location.pathname + window.location.search);
+    }
+  }
+  
+  checkHashOnLoad() {
+    const hash = window.location.hash;
+    if (hash.startsWith('#swap=')) {
+      const parts = hash.replace('#swap=', '').split(',');
+      if (parts.length === 2) {
+        const [from, to] = parts;
+        // Delay to ensure Matrix has loaded
+        setTimeout(() => {
+          this.show();
+          this.loadSwapData(from, to);
+        }, 500);
+      }
+    }
+  }
+  
+  handleHashChange() {
+    const hash = window.location.hash;
+    if (hash.startsWith('#swap=')) {
+      const parts = hash.replace('#swap=', '').split(',');
+      if (parts.length === 2) {
+        const [from, to] = parts;
+        if (this.fromSlug !== from || this.toSlug !== to) {
+          this.show();
+          this.loadSwapData(from, to);
+        }
+      }
+    } else if (this.visible && !hash.startsWith('#state=')) {
+      // Hash cleared or changed to something else, close panel
+      this.close();
+    }
+  }
+  
+  updateHash() {
+    if (this.fromSlug && this.toSlug) {
+      const newHash = `#swap=${this.fromSlug},${this.toSlug}`;
+      if (window.location.hash !== newHash) {
+        history.pushState(null, '', newHash);
+      }
+    }
+  }
+  
+  copyShareUrl() {
+    if (!this.fromSlug || !this.toSlug) {
+      this.showSaveError('No swap selected');
+      return;
+    }
+    const url = `${window.location.origin}${window.location.pathname}#swap=${this.fromSlug},${this.toSlug}`;
+    
+    // Try clipboard API first, fallback to older method
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => {
+        this.showSaveSuccess('Link copied!');
+      }).catch((err) => {
+        console.error('Clipboard error:', err);
+        this.fallbackCopy(url);
+      });
+    } else {
+      this.fallbackCopy(url);
+    }
+  }
+  
+  fallbackCopy(text) {
+    // Fallback for browsers without clipboard API
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+    }
+    document.body.removeChild(textarea);
+    
+    if (ok) {
+      this.showSaveSuccess('Link copied!');
+      return;
+    }
+    
+    // Last resort: show the URL so the user can manually copy.
+    try {
+      window.prompt('Copy link:', text);
+      this.showSaveSuccess('Link ready to copy');
+    } catch {
+      this.showSaveError('Failed to copy - try manually');
+    }
   }
   
   renderLoading() {
@@ -578,11 +688,18 @@ class DetailPanelIsland {
       <div class="sticky top-0 bg-slate-900 border-b border-slate-700 p-4">
         <div class="flex items-center justify-between">
           <h2 class="text-lg font-semibold text-white">Swap Details</h2>
-          <button class="close-btn w-8 h-8 flex items-center justify-center rounded hover:bg-slate-800 transition-colors text-slate-400 hover:text-white">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div class="flex items-center gap-2">
+            <button class="share-btn w-8 h-8 flex items-center justify-center rounded hover:bg-slate-800 transition-colors text-slate-400 hover:text-cyan-400" title="Copy share link">
+              <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+            </button>
+            <button class="close-btn w-8 h-8 flex items-center justify-center rounded hover:bg-slate-800 transition-colors text-slate-400 hover:text-white" title="Close">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
         ${this.renderKeyboardHint()}
       </div>
@@ -810,7 +927,20 @@ class DetailPanelIsland {
   attachCloseHandler() {
     const closeBtn = this.panel.querySelector('.close-btn');
     if (closeBtn) {
-      closeBtn.onclick = () => this.close();
+      closeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.close();
+      });
+    }
+    
+    const shareBtn = this.panel.querySelector('.share-btn');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.copyShareUrl();
+      });
     }
   }
   

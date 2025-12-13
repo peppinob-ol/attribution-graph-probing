@@ -130,9 +130,109 @@ class MatrixIsland {
           this.resetSelection();
         }
       });
+      
+      // Check URL hash on load for shareable links
+      this.checkHashOnLoad();
+      
+      // Handle browser back/forward
+      window.addEventListener('hashchange', () => this.handleHashChange());
     } catch (e) {
       this.render(`<div class="py-20 text-center text-red-400">Error: ${e.message}</div>`);
     }
+  }
+  
+  checkHashOnLoad() {
+    const hash = window.location.hash;
+    if (hash.startsWith('#state=')) {
+      const slug = hash.replace('#state=', '');
+      if (slug) {
+        // Delay to ensure data is loaded
+        setTimeout(() => {
+          this.showStateCard(slug);
+        }, 600);
+      }
+    }
+  }
+  
+  handleHashChange() {
+    const hash = window.location.hash;
+    if (hash.startsWith('#state=')) {
+      const slug = hash.replace('#state=', '');
+      if (slug && (!this.stateCardData || this.stateCardData.slug !== slug)) {
+        this.showStateCard(slug);
+      }
+    } else if (this.stateCardVisible && !hash.startsWith('#swap=')) {
+      // Hash cleared or changed, close state card
+      this.closeStateCard();
+    }
+  }
+  
+  updateStateHash(slug) {
+    const newHash = `#state=${slug}`;
+    if (window.location.hash !== newHash) {
+      history.pushState(null, '', newHash);
+    }
+  }
+  
+  copyStateShareUrl(slug) {
+    const url = `${window.location.origin}${window.location.pathname}#state=${slug}`;
+    
+    // Try clipboard API first, fallback to older method
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => {
+        this.showToast('Link copied!', 'success');
+      }).catch((err) => {
+        console.error('Clipboard error:', err);
+        this.fallbackCopy(url);
+      });
+    } else {
+      this.fallbackCopy(url);
+    }
+  }
+  
+  fallbackCopy(text) {
+    // Fallback for browsers without clipboard API
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+    }
+    document.body.removeChild(textarea);
+    
+    if (ok) {
+      this.showToast('Link copied!', 'success');
+      return;
+    }
+    
+    // Last resort: show the URL so the user can manually copy.
+    try {
+      window.prompt('Copy link:', text);
+      this.showToast('Link ready to copy', 'success');
+    } catch {
+      this.showToast('Failed to copy', 'error');
+    }
+  }
+  
+  showToast(message, type) {
+    const bgClass = type === 'success' ? 'bg-emerald-500' : 'bg-red-500';
+    const toast = document.createElement('div');
+    // NOTE: This repo uses a prebuilt Tailwind bundle; arbitrary classes like `z-[200]` are not present.
+    // Also avoid classes like `bottom-4` / `right-4` since they are not present in the prebuilt CSS.
+    toast.className = `fixed px-4 py-2 rounded-lg text-white text-sm ${bgClass} z-50 animate-pulse`;
+    toast.style.zIndex = '9999';
+    toast.style.pointerEvents = 'none';
+    toast.style.bottom = '1rem';
+    toast.style.right = '1rem';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2000);
   }
   
   resetSelection() {
@@ -523,21 +623,34 @@ class MatrixIsland {
   }
   
   async showStateCard(slug) {
-    // Close any existing card
-    this.closeStateCard();
+    // Close any existing card (without clearing hash)
+    const existing = document.getElementById('state-card');
+    if (existing) existing.remove();
+    
+    // Update URL hash
+    this.updateStateHash(slug);
     
     // Create card container
     const card = document.createElement('div');
     card.id = 'state-card';
     card.className = 'fixed inset-0 z-50 flex items-center justify-center';
     card.innerHTML = `
-      <div class="state-card-backdrop absolute inset-0 bg-black/60" onclick="this.parentElement.remove()"></div>
+      <div class="state-card-backdrop absolute inset-0 bg-black/60"></div>
       <div class="state-card-content relative bg-slate-900 rounded-xl shadow-2xl border border-slate-700 p-6 max-w-lg w-full mx-4" style="max-height: 90vh; overflow-y: auto;">
         <div class="text-center py-8 text-slate-500 animate-pulse">Loading state profile...</div>
       </div>
     `;
     document.body.appendChild(card);
     this.stateCardVisible = true;
+    
+    // Close on backdrop click (ensures hash is cleared too)
+    const backdrop = card.querySelector('.state-card-backdrop');
+    if (backdrop) {
+      backdrop.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.closeStateCard();
+      });
+    }
     
     // Fetch profile data
     try {
@@ -547,10 +660,22 @@ class MatrixIsland {
       this.stateCardData = await res.json();
       this.renderStateCard(card.querySelector('.state-card-content'));
     } catch (e) {
-      card.querySelector('.state-card-content').innerHTML = `
+      const content = card.querySelector('.state-card-content');
+      if (!content) return;
+      
+      content.innerHTML = `
         <div class="text-center py-8 text-red-400">Error: ${e.message}</div>
-        <button onclick="this.closest('#state-card').remove()" class="mt-4 w-full py-2 bg-slate-800 hover:bg-slate-700 rounded text-sm text-slate-400">Close</button>
+        <button class="close-state-error mt-4 w-full py-2 bg-slate-800 hover:bg-slate-700 rounded text-sm text-slate-400">Close</button>
       `;
+      
+      const errClose = content.querySelector('.close-state-error');
+      if (errClose) {
+        errClose.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          this.closeStateCard();
+        });
+      }
     }
   }
   
@@ -559,6 +684,11 @@ class MatrixIsland {
     if (existing) existing.remove();
     this.stateCardVisible = false;
     this.stateCardData = null;
+    
+    // Clear hash if it was a state hash
+    if (window.location.hash.startsWith('#state=')) {
+      history.pushState('', document.title, window.location.pathname + window.location.search);
+    }
   }
   
   renderStateCard(container) {
@@ -671,7 +801,12 @@ class MatrixIsland {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
           </svg>
         </button>
-        <button onclick="this.closest('#state-card').remove()" class="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-white ml-2" title="Close (Esc)">
+        <button class="share-state-btn w-8 h-8 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-cyan-400" data-slug="${d.slug}" title="Copy share link">
+          <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+          </svg>
+        </button>
+        <button class="close-state-btn w-8 h-8 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 hover:text-white ml-1" title="Close (Esc)">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -804,6 +939,27 @@ class MatrixIsland {
   }
   
   attachStateCardHandlers(container) {
+    // Close button
+    const closeBtn = container.querySelector('.close-state-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.closeStateCard();
+      });
+    }
+    
+    // Share button
+    const shareBtn = container.querySelector('.share-state-btn');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const slug = shareBtn.dataset.slug;
+        if (slug) this.copyStateShareUrl(slug);
+      });
+    }
+    
     // Toggle headers for swap tables - now with lazy loading (entire bar clickable)
     container.querySelectorAll('.swap-section-header').forEach(header => {
       header.addEventListener('click', async () => {
