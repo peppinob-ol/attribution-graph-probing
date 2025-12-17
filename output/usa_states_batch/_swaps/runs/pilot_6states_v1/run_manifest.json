@@ -1,0 +1,95 @@
+{
+  "run_id": "pilot_6states_v1",
+  "run_dir": "C:\\Github\\circuit_tracer-prompt_rover\\output\\usa_states_batch\\_swaps\\runs\\pilot_6states_v1",
+  "status": "completed_with_failures",
+  "timestamp": "2025-12-17T06:33:22.317406",
+  "argv": [
+    "scripts/experiments/batch/run_batch_swaps.py",
+    "--config",
+    "scripts/experiments/batch/configs/test_state_swap_6states.yml",
+    "--run-id",
+    "pilot_6states_v1"
+  ],
+  "git": {
+    "commit": "6ac2298fea6703182079891412ab8e6bdbc0c0ff",
+    "branch": "interventions",
+    "dirty": true
+  },
+  "platform": {
+    "python": "3.13.3",
+    "os": "nt",
+    "platform": "win32"
+  },
+  "config": {
+    "experiment_name": "test_state_swap_6states",
+    "swap": {
+      "mode": "matrix",
+      "include_identity": true,
+      "subset": [
+        "new_york_new_york_city",
+        "texas_dallas",
+        "michigan_detroit",
+        "georgia_savannah",
+        "north_carolina_charlotte",
+        "wyoming_casper"
+      ],
+      "concept_fields": [
+        "state",
+        "capital"
+      ]
+    },
+    "ct_steering": {
+      "model_id": "google/gemma-2-2b",
+      "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",
+      "M_ablate": -2,
+      "M_amplify": 20,
+      "temperature": 0.3,
+      "n_tokens": 10,
+      "freq_penalty": 2.0,
+      "seed": 42,
+      "top_k": 5,
+      "freeze_attention": false,
+      "steer_generated_tokens": false
+    },
+    "compute": {
+      "remote": {
+        "enabled": true,
+        "host": "nodo207",
+        "user": "giuseppe",
+        "base_dir": "/home/giuseppe/ct_swap",
+        "repo_dir": "/home/giuseppe/ct_swap/attribution-graph-probing",
+        "logs_dir": "/home/giuseppe/ct_swap/logs",
+        "env_activate_cmd": "source /home/giuseppe/ct_swap/env.sh",
+        "gpu_selection": "auto",
+        "max_gpus": 1,
+        "batch_size": 1,
+        "max_retries": 1,
+        "persist_sae_cache": true
+      },
+      "inherit_from_source": true
+    },
+    "inputs": {
+      "source_config": "usa_states_full.yml",
+      "graphs_root": "C:\\Github\\circuit_tracer-prompt_rover\\output\\usa_states_batch"
+    }
+  },
+  "hashes": {
+    "combined_config_sha1": "d6ed2c04d89e860dc8bd9299ca720d4fa7ed6c58",
+    "files": {
+      "swap_config": "5a7470fed8d30ecf5e91cc0aba495c0e19c1674b",
+      "source_config": "251f955cd944dda24e0a954d26316acfd4f9bdfa"
+    }
+  },
+  "timestamp_started": "2025-12-17T05:45:25.452676",
+  "timestamp_completed": "2025-12-17T06:33:22.314912",
+  "counts": {
+    "total_pairs": 36,
+    "processed": 34,
+    "failed": 2,
+    "skipped": 0
+  },
+  "outputs": {
+    "summary_path": "C:\\Github\\circuit_tracer-prompt_rover\\output\\usa_states_batch\\_swaps\\runs\\pilot_6states_v1\\_summary.json",
+    "matrix_path": "C:\\Github\\circuit_tracer-prompt_rover\\output\\usa_states_batch\\_swaps\\runs\\pilot_6states_v1\\_matrix.csv"
+  }
+}

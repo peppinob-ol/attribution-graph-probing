@@ -36,18 +36,18 @@ python run_batch_swaps.py --config configs/usa_states_swap.yml --parallel
 # Run full 50x50 matrix (sequential, slower)
 python run_batch_swaps.py --config configs/usa_states_swap.yml
 
-# Force re-run all (WARNING: overwrites existing results)
-python run_batch_swaps.py --config configs/usa_states_swap.yml --force
+# Force re-run all within the SAME run directory (useful for reruns/debugging)
+python run_batch_swaps.py --config configs/usa_states_swap.yml --run-id my_run --force
 ```
 
 ### Swap Analysis (after swaps are completed)
 
 ```bash
 # Analyze swap results with tiered classification
-python analyze_swaps.py --output-dir _analysis_v3
+python analyze_swaps.py --swaps-dir output/usa_states_batch/_swaps/runs/<run_id> --output-dir _analysis_v3
 
 # Browse individual results interactively
-python browse_swaps.py --from california --to texas
+python browse_swaps.py --swaps-dir output/usa_states_batch/_swaps/runs/<run_id> --from california --to texas
 
 # Generate visualizations
 python ../../../visualization/swap_heatmap.py
@@ -106,28 +106,38 @@ outputs_root/{slug}/
 
 ## Swap Experiment Output Structure
 
-When running `run_batch_swaps.py`, results are stored in a `_swaps/` subdirectory:
+When running `run_batch_swaps.py`, results are stored in a per-run directory under
+`_swaps/runs/<run_id>/` to prevent overwriting and preserve traceability.
 
 ```
 outputs_root/
-|-- _swaps/                          # All swap experiment results
-|   |-- _summary.json                # Aggregate statistics
-|   |-- _matrix.csv                  # 50x50 success rate matrix
-|   |-- by_source/                   # Results organized by source prompt
-|   |   |-- texas_dallas/
-|   |   |   |-- to_california_oakland.json
-|   |   |   |-- to_florida_miami.json
-|   |   |   |-- to_texas_dallas.json  # Identity baseline
-|   |   |-- california_oakland/
-|   |       |-- to_texas_dallas.json
-|   |-- _analysis_v3/                # Analysis output (from analyze_swaps.py)
-|   |   |-- tier_summary.json        # Tiered success rates
-|   |   |-- tier_matrix.csv          # 50x50 tier matrix
-|   |   |-- detailed_results.csv     # Per-swap classification
-|   |   |-- tier_heatmap.png         # Heatmap visualization
-|   |   |-- swap_factor_analysis.png # Factor correlation plots
-|   |   |-- swap_factor_summary.json # Correlation statistics
-|   |-- work/                        # Temporary work files per swap
+|-- _swaps/
+|   |-- _latest_run.txt              # Last run_id written (best-effort)
+|   |-- _runs_index.jsonl            # Append-only run index (best-effort)
+|   |-- runs/
+|       |-- <run_id>/
+|           |-- run_manifest.json    # Run metadata (timestamps, git info, hashes, CLI args)
+|           |-- config_swap.yml      # Snapshot of swap config used
+|           |-- config_source.yml    # Snapshot of source config (if any)
+|           |-- config_resolved.json # Resolved config (includes entities, abs paths)
+|           |-- notes.txt            # Lightweight experiment diary (fill in manually)
+|           |-- _summary.json        # Aggregate statistics for THIS run
+|           |-- _matrix.csv          # Success matrix for THIS run
+|           |-- by_source/           # Results organized by source prompt
+|           |   |-- texas_dallas/
+|           |   |   |-- to_california_oakland.json
+|           |   |   |-- to_florida_miami.json
+|           |   |   |-- to_texas_dallas.json  # Identity baseline
+|           |   |-- california_oakland/
+|           |       |-- to_texas_dallas.json
+|           |-- _analysis_v3/        # Analysis output (from analyze_swaps.py)
+|           |   |-- tier_summary.json
+|           |   |-- tier_matrix.csv
+|           |   |-- detailed_results.csv
+|           |   |-- tier_heatmap.png
+|           |   |-- swap_factor_analysis.png
+|           |   |-- swap_factor_summary.json
+|           |-- work/                # Temporary work files per swap
 |
 |-- texas_dallas/                    # Source graph data (unchanged)
 |-- california_oakland/              # Source graph data (unchanged)
@@ -158,7 +168,7 @@ The `analyze_swaps.py` script classifies each swap into a 0-5 tier:
 
 ```bash
 # Run classification analysis
-python analyze_swaps.py --output-dir _analysis_v3
+python analyze_swaps.py --swaps-dir output/usa_states_batch/_swaps/runs/<run_id> --output-dir _analysis_v3
 
 # Output files:
 #   tier_summary.json    - Aggregate statistics by tier
@@ -172,10 +182,10 @@ Browse individual swap results with colored tier display:
 
 ```bash
 # Browse all results
-python browse_swaps.py
+python browse_swaps.py --swaps-dir output/usa_states_batch/_swaps/runs/<run_id>
 
 # Filter by source/target
-python browse_swaps.py --from california --to texas
+python browse_swaps.py --swaps-dir output/usa_states_batch/_swaps/runs/<run_id> --from california --to texas
 
 # Filter by tier
 python browse_swaps.py --tier 5  # Only PERFECT swaps
@@ -345,6 +355,11 @@ inputs:
 swap:
   mode: matrix              # Full NxN combinations (50x50 = 2500)
   include_identity: true    # Include Texas->Texas as baseline
+  # Optional: run an NxN matrix on a subset of entities (good for local testing)
+  # subset:
+  #   - texas_dallas
+  #   - california_oakland
+  #   - new_york_new_york_city
   # Or use explicit pairs:
   # mode: defined_pairs
   # pairs:
@@ -366,7 +381,7 @@ compute:
 
 Key features:
 - **No entity duplication**: Imports entities from `source_config`
-- **Concept extraction**: Uses `entity['state'].lower()` for concept matching
+- **Concept extraction**: Uses `swap.concept_fields` (default: `["state"]`) to match `supernode_name` (case-insensitive substring; multi-word falls back to per-word matching)
 - **Flexible modes**: Full matrix or explicit pairs
 - **Inherited compute**: Reuses remote execution settings from source
 
@@ -505,7 +520,7 @@ local machine without touching the pod configuration again.
 python run_batch_swaps.py --config configs/usa_states_swap.yml --parallel
 
 # Custom worker count
-python run_batch_swaps.py --config configs/usa_states_swap.yml --parallel --max-workers 4
+python run_batch_swaps.py --config configs/usa_states_swap.yml --parallel --workers 4
 ```
 
 **Performance benchmarks (8x A40 GPUs):**
@@ -515,7 +530,7 @@ python run_batch_swaps.py --config configs/usa_states_swap.yml --parallel --max-
 
 ### Resume Behavior
 
-The swap runner **automatically skips completed pairs**:
+The swap runner **automatically skips completed pairs** (within the selected run directory):
 
 ```
 [SKIP] 93 pairs already completed (use --force to re-run)
@@ -524,15 +539,15 @@ The swap runner **automatically skips completed pairs**:
 **If interrupted:**
 1. Each swap saves results immediately to `by_source/{from}/to_{to}.json`
 2. Completed swaps are preserved
-3. Re-run the same command to auto-resume
+3. Re-run with the same `--run-id` to resume
 4. Summary/matrix regenerated at end
 
 **To force re-run:**
 ```bash
-python run_batch_swaps.py --config configs/usa_states_swap.yml --force
+python run_batch_swaps.py --config configs/usa_states_swap.yml --run-id my_run --force
 ```
 
-**WARNING:** `--force` overwrites ALL existing results!
+**WARNING:** `--force` overwrites existing results within that run directory.
 
 ## Future Work
 

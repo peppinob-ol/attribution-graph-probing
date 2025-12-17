@@ -19,6 +19,8 @@ from .graph_loader import validate_graph_inputs
 # Absolute path to repo root (scripts/experiments/batch/pipeline -> parents[4])
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
+_SWAPS_DIR_CONFIG_KEY = "_swaps_dir"
+
 
 @dataclass
 class SwapPair:
@@ -307,8 +309,9 @@ def get_swap_output_path(
         Path to the output JSON file
     """
     graphs_root = Path(config.get('inputs', {}).get('graphs_root', 'output/usa_states_batch'))
+    swaps_dir = Path(config.get(_SWAPS_DIR_CONFIG_KEY) or (graphs_root / "_swaps"))
     
-    output_dir = graphs_root / "_swaps" / "by_source" / pair.from_slug
+    output_dir = swaps_dir / "by_source" / pair.from_slug
     output_file = output_dir / f"to_{pair.to_slug}.json"
     
     return output_file
@@ -364,12 +367,13 @@ def get_swap_paths(
         Dict with keys: from_graph_dir, to_graph_dir, output_file, work_dir
     """
     graphs_root = Path(config.get('inputs', {}).get('graphs_root', 'output/usa_states_batch'))
+    swaps_dir = Path(config.get(_SWAPS_DIR_CONFIG_KEY) or (graphs_root / "_swaps"))
     
     return {
         'from_graph_dir': _find_graph_dir_case_insensitive(graphs_root, pair.from_slug),
         'to_graph_dir': _find_graph_dir_case_insensitive(graphs_root, pair.to_slug),
         'output_file': get_swap_output_path(config, pair),
-        'work_dir': graphs_root / "_swaps" / "work" / pair.swap_id,
+        'work_dir': swaps_dir / "work" / pair.swap_id,
     }
 
 
