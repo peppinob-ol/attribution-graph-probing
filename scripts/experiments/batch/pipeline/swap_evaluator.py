@@ -34,6 +34,9 @@ def evaluate_swap(
             - steered_topk: List of {token, prob} for steered
             - default_topk: List of {token, prob} for default
             - intervention_count: Number of features modified
+            - logit_trajectory (optional): Full trajectory data
+            - baseline_logits (optional): Baseline logit info
+            - position_0_comparison (optional): Baseline vs steered at position 0
         entity_from: Source entity {slug, city, state, capital}
         entity_to: Target entity {slug, city, state, capital}
     
@@ -45,7 +48,7 @@ def evaluate_swap(
     default_topk = result.get('default_topk', [])
     steered_topk = result.get('steered_topk', [])
     
-    return {
+    evaluation = {
         # Ground truth from entities (for later analysis)
         'ground_truth': {
             'from_state': entity_from['state'],
@@ -88,6 +91,20 @@ def evaluate_swap(
             'steered_topk': steered_topk,
         },
     }
+    
+    # Include logit trajectory if present (fine-grained metrics)
+    if 'logit_trajectory' in result:
+        evaluation['logit_trajectory'] = result['logit_trajectory']
+    
+    # Include baseline logits comparison if present
+    if 'baseline_logits' in result:
+        evaluation['baseline_logits'] = result['baseline_logits']
+    
+    # Include position 0 comparison if present
+    if 'position_0_comparison' in result:
+        evaluation['position_0_comparison'] = result['position_0_comparison']
+    
+    return evaluation
 
 
 def _find_token_prob(topk: List[Dict[str, Any]], target: str) -> Optional[float]:

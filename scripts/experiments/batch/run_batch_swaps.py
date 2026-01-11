@@ -309,6 +309,11 @@ def run_single_swap(
             'seed': ct_config.get('seed', 42),
             'top_k': ct_config.get('top_k', 5),
             'freeze_attention': ct_config.get('freeze_attention', False),
+            # Trajectory tracking (fine-grained logit metrics)
+            'track_trajectory': ct_config.get('track_trajectory', False),
+            'target_token': pair.to_entity.get('capital', ''),  # Target capital (what we want)
+            'source_token': pair.from_entity.get('capital', ''),  # Source capital (what we suppress)
+            'control_tokens': ct_config.get('control_tokens'),  # Optional control tokens
         }
         
         # Build config for remote executor

@@ -1,0 +1,77 @@
+{
+  "run_id": "full_50states_v1",
+  "run_dir": "C:\\Github\\circuit_tracer-prompt_rover\\output\\usa_states_batch\\_swaps\\runs\\full_50states_v1",
+  "status": "started",
+  "timestamp": "2026-01-09T11:59:41.645003",
+  "argv": [
+    "scripts/experiments/batch/run_batch_swaps.py",
+    "--config",
+    "output/usa_states_batch/_swaps/runs/full_50states_v1/config_swap.yml",
+    "--run-id",
+    "full_50states_v1"
+  ],
+  "git": {
+    "commit": "d5dc94a02c26bee3ae017b9a33d6bd58f961a743",
+    "branch": "interventions",
+    "dirty": true
+  },
+  "platform": {
+    "python": "3.13.3",
+    "os": "nt",
+    "platform": "win32"
+  },
+  "config": {
+    "experiment_name": "usa_states_swap_50x50",
+    "swap": {
+      "mode": "matrix",
+      "include_identity": true,
+      "concept_fields": [
+        "state",
+        "capital"
+      ]
+    },
+    "ct_steering": {
+      "model_id": "google/gemma-2-2b",
+      "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",
+      "M_ablate": -2,
+      "M_amplify": 20,
+      "temperature": 0.3,
+      "n_tokens": 10,
+      "freq_penalty": 2.0,
+      "seed": 42,
+      "top_k": 5,
+      "freeze_attention": false,
+      "steer_generated_tokens": false,
+      "track_trajectory": true
+    },
+    "compute": {
+      "remote": {
+        "enabled": true,
+        "host": "nodo207",
+        "user": "giuseppe",
+        "base_dir": "/home/giuseppe/ct_swap",
+        "repo_dir": "/home/giuseppe/ct_swap/attribution-graph-probing",
+        "logs_dir": "/home/giuseppe/ct_swap/logs",
+        "env_activate_cmd": "source /home/giuseppe/ct_swap/env.sh",
+        "gpu_selection": "auto",
+        "max_gpus": 8,
+        "batch_size": 4,
+        "max_retries": 1,
+        "persist_sae_cache": true
+      },
+      "inherit_from_source": true
+    },
+    "inputs": {
+      "source_config": "scripts/experiments/batch/configs/usa_states_full.yml",
+      "graphs_root": "C:\\Github\\circuit_tracer-prompt_rover\\output\\usa_states_batch"
+    }
+  },
+  "hashes": {
+    "combined_config_sha1": "81f9934668430c2c6b6d3b6705288a24ee5a3419",
+    "files": {
+      "swap_config": "86b909b3744af65b7f4e58efa738058ea2a3c6fa",
+      "source_config": "251f955cd944dda24e0a954d26316acfd4f9bdfa"
+    }
+  },
+  "timestamp_started": "2026-01-09T11:59:41.643143"
+}

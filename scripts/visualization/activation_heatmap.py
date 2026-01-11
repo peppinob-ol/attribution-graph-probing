@@ -336,13 +336,6 @@ class ActivationHeatmapVisualizer:
             row = n_probes - probe_idx - 1
             tokens = probe_data['tokens']
             values = probe_data['values']
-            prompt = probe_data['prompt']
-            
-            # Draw prompt label on the left
-            prompt_label = prompt[:60] + '...' if len(prompt) > 60 else prompt
-            ax.text(-0.5, row + 0.5, prompt_label,
-                   ha='right', va='center', fontsize=self.font_size + 1,
-                   style='italic', color='gray')
             
             # Draw tokens for this probe
             for token_idx, (token, value) in enumerate(zip(tokens, values)):

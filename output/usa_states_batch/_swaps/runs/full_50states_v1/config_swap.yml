@@ -1,0 +1,81 @@
+version: 0.1
+experiment_name: usa_states_swap_50x50
+
+# Full 50x50 swap matrix run with logit trajectory tracking.
+# Scales the pilot config from 6 states (36 pairs) to all 50 states (2500 pairs).
+#
+# Features enabled:
+#   - track_trajectory: Captures logit/prob/rank evolution across generated tokens
+#   - Metrics: flip_position, gap_closure, rank_improvement, control_stability
+#
+# Estimated runtime: 5-7 hours (with trajectory tracking)
+# Output size: ~17.5 MB (2500 pairs x ~7KB each)
+#
+# Run:
+#   python run_batch_swaps.py --config output/usa_states_batch/_swaps/runs/full_50states_v1/config_swap.yml --run-id full_50states_v1
+#
+# Analyze trajectories after completion:
+#   python scripts/experiments/batch/analyze_logit_trajectory.py --swaps-dir output/usa_states_batch/_swaps/runs/full_50states_v1 --visualize --export-csv
+
+inputs:
+  # Absolute path to source config (entities definition)
+  source_config: scripts/experiments/batch/configs/usa_states_full.yml
+  graphs_root: output/usa_states_batch
+
+swap:
+  mode: matrix
+  include_identity: true
+  # No subset: runs full 50x50 = 2500 pairs
+  # Which entity fields to use as "concept strings" when matching supernode_name.
+  # This is domain-agnostic: for USA states we use state+capital.
+  concept_fields:
+    - state
+    - capital
+
+ct_steering:
+  model_id: google/gemma-2-2b
+  transcoder_set: mntss/clt-gemma-2-2b-2.5M
+  M_ablate: -2
+  M_amplify: 20
+  temperature: 0.3
+  n_tokens: 10
+  freq_penalty: 2.0
+  seed: 42
+  top_k: 5
+  freeze_attention: false
+  steer_generated_tokens: false
+  
+  # Logit trajectory tracking (new feature)
+  # Tracks target/source token logits, probs, and ranks across generated positions
+  # Captures: flip_position, gap_closure, rank_improvement, control_stability
+  # Impact: ~20% slower, ~2.3x more data per swap
+  track_trajectory: true
+  # control_tokens: [" the", " is"]  # Optional baseline tokens (defaults provided)
+
+compute:
+  inherit_from_source: true
+  remote:
+    # NOTE (new machine): override remote paths here without editing usa_states_full.yml.
+    # These must exist on nodo207 (the runner will create base_dir/logs_dir, but repo_dir/env.sh must be prepared).
+    enabled: true
+    host: "nodo207"
+    # Set your remote username explicitly (recommended on a fresh laptop without SSH alias config).
+    # If you have an SSH config alias that already encodes the user, you can set this to "".
+    user: "giuseppe"
+    # IMPORTANT: nodo207 has a non-writable folder at:
+    #   /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe  (owned by a different UID)
+    #
+    # For a "fresh install" that always works, keep everything under your home:
+    base_dir: "/home/giuseppe/ct_swap"
+    repo_dir: "/home/giuseppe/ct_swap/attribution-graph-probing"
+    logs_dir: "/home/giuseppe/ct_swap/logs"
+    env_activate_cmd: "source /home/giuseppe/ct_swap/env.sh"
+    batch_size: 4   # Increased from 1 for full run efficiency
+    max_gpus: 8     # Use all available GPUs for 2500 pairs
+
+steps:
+  validate_inputs: true
+  prepare_features: true
+  run_steering: true
+  aggregate_results: true
+

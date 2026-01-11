@@ -1,0 +1,111 @@
+{
+  "swap_id": "kansas_wichita__to__idaho_idaho_falls",
+  "source": {
+    "slug": "kansas_wichita",
+    "prompt": "<bos>The capital of the state containing Wichita is",
+    "concept": "kansas",
+    "state": "Kansas",
+    "capital": "Topeka",
+    "city": "Wichita"
+  },
+  "target": {
+    "slug": "idaho_idaho_falls",
+    "concept": "idaho",
+    "state": "Idaho",
+    "capital": "Boise",
+    "city": "Idaho Falls"
+  },
+  "interventions": {
+    "ablate_count": 63,
+    "amplify_count": 81,
+    "total_count": 144
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Kansas",
+      "from_capital": "Topeka",
+      "from_city": "Wichita",
+      "to_state": "Idaho",
+      "to_capital": "Boise",
+      "to_city": "Idaho Falls"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Topeka",
+      "default_prob": 0.1455078125,
+      "steered": " disambiguazione",
+      "steered_prob": 0.205078125
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.1455078125,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Wichita is Topeka.\n\nThe capital of the state containing Kansas",
+      "steered_output": "<bos><bos>The capital of the state containing Wichita is Payette County, Idaho, USA.\n\nThe city",
+      "default_topk": [
+        {
+          "token": " Topeka",
+          "prob": 0.1455078125
+        },
+        {
+          "token": " Wichita",
+          "prob": 0.11328125
+        },
+        {
+          "token": " Kansas",
+          "prob": 0.10009765625
+        },
+        {
+          "token": " the",
+          "prob": 0.10009765625
+        },
+        {
+          "token": ":",
+          "prob": 0.07763671875
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " disambiguazione",
+          "prob": 0.205078125
+        },
+        {
+          "token": "’",
+          "prob": 0.08544921875
+        },
+        {
+          "token": " Pay",
+          "prob": 0.08544921875
+        },
+        {
+          "token": " Falls",
+          "prob": 0.06640625
+        },
+        {
+          "token": "'",
+          "prob": 0.040283203125
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-09T17:24:14.403347",
+    "duration_ms": 204807.0421218872,
+    "is_identity": false
+  }
+}

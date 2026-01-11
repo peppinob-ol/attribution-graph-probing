@@ -40,6 +40,9 @@ Optional:
   --tokens-per-row N     Tokens per row in visualization (default: 20)
   --no-values            Hide activation values on tokens
   --combined-only        Only generate combined heatmap
+  --feature-id ID        Visualize a specific feature across all probes (stacked view)
+                         Format: "40780" or "0-clt-hp:40780"
+  --include-bos          Include BOS token in max value calculation (default: exclude)
 ```
 
 ### Examples
@@ -66,6 +69,18 @@ python scripts/visualization/activation_heatmap.py \
   "output/examples/Dallas/activations_dump (2).json" \
   --tokens-per-row 30
 ```
+
+**Stacked visualization for a specific feature across all probes:**
+```bash
+python scripts/visualization/activation_heatmap.py \
+  "output/examples/Dallas/activations_dump (2).json" \
+  --feature-id 74108 \
+  -o output/stacked_features
+```
+
+This creates a stacked view showing:
+- **Seed:** The original seed prompt (first row, highlighted in green label)
+- **Probe 1, 2, ...:** The probe prompts derived from the seed (gray labels)
 
 ## Input Format
 

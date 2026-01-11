@@ -71,6 +71,13 @@ SEED = int(os.environ.get("STEER_SEED", "42"))
 FREEZE_ATTENTION = os.environ.get("FREEZE_ATTENTION", "false").lower() in ("1", "true", "yes")
 TOP_K = int(os.environ.get("TOP_K", "5"))
 
+# Trajectory tracking (fine-grained logit metrics)
+TRACK_TRAJECTORY = os.environ.get("TRACK_TRAJECTORY", "false").lower() in ("1", "true", "yes")
+TARGET_TOKEN = os.environ.get("TARGET_TOKEN", "")
+SOURCE_TOKEN = os.environ.get("SOURCE_TOKEN", "")
+CONTROL_TOKENS_RAW = os.environ.get("CONTROL_TOKENS", "")
+CONTROL_TOKENS = [t.strip() for t in CONTROL_TOKENS_RAW.split(",") if t.strip()] if CONTROL_TOKENS_RAW else None
+
 
 # --------------------------------------------------------------------------------------
 # Data classes for parsed feature configs
@@ -452,6 +459,303 @@ def get_topk_logits(
     ]
 
 
+# =============================================================================
+# Logit Trajectory Extraction (for fine-grained swap metrics)
+# =============================================================================
+
+
+def _resolve_token_id(tokenizer, token_str: str) -> Tuple[Optional[int], Optional[str]]:
+    """
+    Resolve a token string to its single-token ID.
+    
+    Returns:
+        (token_id, resolved_token_str) or (None, None) if not found
+    """
+    variants = [
+        f" {token_str}",  # With leading space (common)
+        token_str,
+        token_str.strip(),
+        token_str.lower(),
+        f" {token_str.lower()}",
+    ]
+    
+    for variant in variants:
+        try:
+            encoded = tokenizer.encode(variant, add_special_tokens=False)
+            if len(encoded) == 1:
+                return encoded[0], variant
+        except Exception:
+            continue
+    
+    # Fallback: use first token of encoded sequence
+    try:
+        encoded = tokenizer.encode(f" {token_str}", add_special_tokens=False)
+        if encoded:
+            first_token = tokenizer.decode([encoded[0]])
+            return encoded[0], first_token
+    except Exception:
+        pass
+    
+    return None, None
+
+
+def _compute_rank(probs: torch.Tensor, token_id: int) -> int:
+    """Compute rank of token (1 = highest probability)."""
+    token_prob = probs[token_id]
+    return int((probs > token_prob).sum().item()) + 1
+
+
+def extract_logit_trajectory(
+    logits: torch.Tensor,
+    tokenizer,
+    prompt_length: int,
+    target_token: str,
+    source_token: str,
+    control_tokens: Optional[List[str]] = None,
+    generated_token_ids: Optional[List[int]] = None,
+) -> Dict[str, Any]:
+    """
+    Extract logit trajectory for target/source/control tokens from generation logits.
+    
+    This works with the logits tensor returned by feature_intervention_generate,
+    which has shape [batch, prompt+generated, vocab_size].
+    
+    Positions:
+        - logits[prompt_length-1] predicts first generated token
+        - logits[prompt_length] predicts second generated token
+        - etc.
+    
+    Args:
+        logits: Logits tensor [batch, seq_len, vocab_size]
+        tokenizer: Model tokenizer
+        prompt_length: Number of tokens in the prompt
+        target_token: Target token to track (e.g., "Atlanta")
+        source_token: Source token to track (e.g., "Austin")
+        control_tokens: Optional control tokens for specificity check
+        generated_token_ids: List of actually generated token IDs (for tracking)
+    
+    Returns:
+        Dict with trajectory data suitable for JSON serialization
+    """
+    if control_tokens is None:
+        control_tokens = [" the", " is", " a", " of"]
+    
+    # Resolve token IDs
+    target_id, target_resolved = _resolve_token_id(tokenizer, target_token)
+    source_id, source_resolved = _resolve_token_id(tokenizer, source_token)
+    control_ids: Dict[str, Tuple[int, str]] = {}
+    for ctrl in control_tokens:
+        tid, resolved = _resolve_token_id(tokenizer, ctrl)
+        if tid is not None:
+            control_ids[ctrl] = (tid, resolved)
+    
+    # Squeeze batch dimension
+    logits_squeezed = logits.squeeze()
+    if logits_squeezed.dim() == 1:
+        # Single position - wrap in list
+        logits_squeezed = logits_squeezed.unsqueeze(0)
+    
+    total_positions = logits_squeezed.shape[0]
+    # Generation starts at position (prompt_length - 1) which predicts first new token
+    first_gen_pos = prompt_length - 1
+    n_gen_positions = total_positions - first_gen_pos
+    
+    # Initialize trajectory storage
+    target_traj = {
+        "token": target_resolved or target_token,
+        "token_id": target_id,
+        "positions": [],
+        "logits": [],
+        "probs": [],
+        "ranks": [],
+    }
+    source_traj = {
+        "token": source_resolved or source_token,
+        "token_id": source_id,
+        "positions": [],
+        "logits": [],
+        "probs": [],
+        "ranks": [],
+    }
+    control_trajs = {
+        ctrl: {
+            "token": resolved,
+            "token_id": tid,
+            "positions": [],
+            "logits": [],
+            "probs": [],
+            "ranks": [],
+        }
+        for ctrl, (tid, resolved) in control_ids.items()
+    }
+    
+    # Extract trajectory at each generation position
+    with torch.inference_mode():
+        for step in range(n_gen_positions):
+            pos = first_gen_pos + step
+            if pos >= total_positions:
+                break
+            
+            pos_logits = logits_squeezed[pos]
+            probs = torch.softmax(pos_logits, dim=-1)
+            
+            # Target
+            if target_id is not None:
+                target_traj["positions"].append(step)
+                target_traj["logits"].append(round(pos_logits[target_id].item(), 4))
+                target_traj["probs"].append(round(probs[target_id].item(), 6))
+                target_traj["ranks"].append(_compute_rank(probs, target_id))
+            
+            # Source
+            if source_id is not None:
+                source_traj["positions"].append(step)
+                source_traj["logits"].append(round(pos_logits[source_id].item(), 4))
+                source_traj["probs"].append(round(probs[source_id].item(), 6))
+                source_traj["ranks"].append(_compute_rank(probs, source_id))
+            
+            # Controls
+            for ctrl, traj in control_trajs.items():
+                tid = traj["token_id"]
+                if tid is not None:
+                    traj["positions"].append(step)
+                    traj["logits"].append(round(pos_logits[tid].item(), 4))
+                    traj["probs"].append(round(probs[tid].item(), 6))
+                    traj["ranks"].append(_compute_rank(probs, tid))
+    
+    # Compute summary metrics
+    def first_below_threshold(ranks: List[int], threshold: int) -> Optional[int]:
+        for i, r in enumerate(ranks):
+            if r <= threshold:
+                return i
+        return None
+    
+    target_summary = {}
+    if target_traj["ranks"]:
+        target_summary = {
+            "first_top1_position": first_below_threshold(target_traj["ranks"], 1),
+            "first_top5_position": first_below_threshold(target_traj["ranks"], 5),
+            "first_top10_position": first_below_threshold(target_traj["ranks"], 10),
+            "max_prob": max(target_traj["probs"]) if target_traj["probs"] else None,
+            "min_rank": min(target_traj["ranks"]) if target_traj["ranks"] else None,
+            "final_rank": target_traj["ranks"][-1] if target_traj["ranks"] else None,
+            "rank_improvement": target_traj["ranks"][0] - min(target_traj["ranks"]) if target_traj["ranks"] else 0,
+        }
+    
+    source_summary = {}
+    if source_traj["ranks"]:
+        source_summary = {
+            "first_top1_position": first_below_threshold(source_traj["ranks"], 1),
+            "min_rank": min(source_traj["ranks"]) if source_traj["ranks"] else None,
+            "final_rank": source_traj["ranks"][-1] if source_traj["ranks"] else None,
+            "max_prob": max(source_traj["probs"]) if source_traj["probs"] else None,
+        }
+    
+    # Compute gap trajectory
+    gap_trajectory = []
+    if target_traj["logits"] and source_traj["logits"]:
+        for i in range(min(len(target_traj["logits"]), len(source_traj["logits"]))):
+            gap = target_traj["logits"][i] - source_traj["logits"][i]
+            gap_trajectory.append(round(gap, 4))
+    
+    # Determine flip position
+    flip_position = None
+    if target_traj["ranks"] and source_traj["ranks"]:
+        for i in range(min(len(target_traj["ranks"]), len(source_traj["ranks"]))):
+            if target_traj["ranks"][i] < source_traj["ranks"][i]:
+                flip_position = i
+                break
+    
+    # Find where target/source were actually generated
+    target_appears_at = None
+    source_appears_at = None
+    if generated_token_ids:
+        for i, tid in enumerate(generated_token_ids):
+            if target_id is not None and tid == target_id and target_appears_at is None:
+                target_appears_at = i
+            if source_id is not None and tid == source_id and source_appears_at is None:
+                source_appears_at = i
+    
+    # Control stability (mean absolute logit change from position 0)
+    control_stability_mean = None
+    control_stability_max = None
+    if control_trajs:
+        deltas = []
+        max_delta = 0.0
+        for traj in control_trajs.values():
+            if len(traj["logits"]) >= 2:
+                for logit in traj["logits"][1:]:
+                    delta = abs(logit - traj["logits"][0])
+                    deltas.append(delta)
+                    max_delta = max(max_delta, delta)
+        if deltas:
+            control_stability_mean = round(sum(deltas) / len(deltas), 4)
+            control_stability_max = round(max_delta, 4)
+    
+    # Decode generated tokens
+    generated_tokens = []
+    if generated_token_ids:
+        generated_tokens = [tokenizer.decode([tid]) for tid in generated_token_ids]
+    
+    return {
+        "tokens": {
+            "target": target_resolved or target_token,
+            "source": source_resolved or source_token,
+            "controls": list(control_ids.keys()),
+        },
+        "n_positions": n_gen_positions,
+        "generated_tokens": generated_tokens,
+        "trajectories": {
+            "target": {
+                "token": target_traj["token"],
+                "token_id": target_traj["token_id"],
+                "trajectory": {
+                    "positions": target_traj["positions"],
+                    "logits": target_traj["logits"],
+                    "probs": target_traj["probs"],
+                    "ranks": target_traj["ranks"],
+                },
+                "summary": target_summary,
+            } if target_id else None,
+            "source": {
+                "token": source_traj["token"],
+                "token_id": source_traj["token_id"],
+                "trajectory": {
+                    "positions": source_traj["positions"],
+                    "logits": source_traj["logits"],
+                    "probs": source_traj["probs"],
+                    "ranks": source_traj["ranks"],
+                },
+                "summary": source_summary,
+            } if source_id else None,
+            "controls": {
+                ctrl: {
+                    "token": traj["token"],
+                    "token_id": traj["token_id"],
+                    "trajectory": {
+                        "positions": traj["positions"],
+                        "logits": traj["logits"],
+                        "probs": traj["probs"],
+                        "ranks": traj["ranks"],
+                    },
+                }
+                for ctrl, traj in control_trajs.items()
+            },
+        },
+        "summary": {
+            "target_appears_at": target_appears_at,
+            "source_appears_at": source_appears_at,
+            "flip_position": flip_position,
+            "initial_gap": gap_trajectory[0] if gap_trajectory else None,
+            "best_gap": max(gap_trajectory) if gap_trajectory else None,
+            "final_gap": gap_trajectory[-1] if gap_trajectory else None,
+            "gap_closure": (max(gap_trajectory) - gap_trajectory[0]) if gap_trajectory else None,
+            "gap_trajectory": gap_trajectory,
+            "control_stability_mean": control_stability_mean,
+            "control_stability_max": control_stability_max,
+        },
+    }
+
+
 def run_ct_generation(
     prompt: str,
     features: List[CTInterventionFeature],
@@ -463,6 +767,11 @@ def run_ct_generation(
     max_new_tokens: int,
     freeze_attention: bool,
     top_k: int,
+    # Trajectory tracking (optional)
+    track_trajectory: bool = False,
+    target_token: Optional[str] = None,
+    source_token: Optional[str] = None,
+    control_tokens: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Run Circuit Tracer intervention and compare steered vs default generation.
@@ -477,9 +786,13 @@ def run_ct_generation(
         max_new_tokens: Number of tokens to generate
         freeze_attention: Whether to freeze attention patterns
         top_k: Number of top logits to return
+        track_trajectory: If True, extract full logit trajectory for target/source
+        target_token: Token to track as target (e.g., target capital)
+        source_token: Token to track as source (e.g., source capital)
+        control_tokens: Tokens to track for specificity check
 
     Returns:
-        Dict with steered/default outputs and logprobs
+        Dict with steered/default outputs, logprobs, and optionally trajectory
     """
     # Get sequence length
     tokens = model.tokenizer(prompt, return_tensors="pt").input_ids
@@ -573,13 +886,82 @@ def run_ct_generation(
         # Last position of prompt predicts first generated token
         default_topk = get_topk_logits(baseline_logits, model.tokenizer, top_k, position=-1)
 
-    return {
+    result = {
         "steered": steered_text,
         "default": default_text,
         "steered_topk": steered_topk,
         "default_topk": default_topk,
         "intervention_count": len(intervention_tuples),
     }
+    
+    # Extract logit trajectory if requested
+    if track_trajectory and steered_logits is not None and target_token and source_token:
+        # Get generated token IDs from the steered output
+        steered_token_ids = model.tokenizer.encode(steered_text, add_special_tokens=False)
+        # Skip prompt tokens to get just generated tokens
+        generated_token_ids = steered_token_ids[sequence_length:] if len(steered_token_ids) > sequence_length else []
+        
+        result["logit_trajectory"] = extract_logit_trajectory(
+            logits=steered_logits,
+            tokenizer=model.tokenizer,
+            prompt_length=sequence_length,
+            target_token=target_token,
+            source_token=source_token,
+            control_tokens=control_tokens,
+            generated_token_ids=generated_token_ids,
+        )
+        
+        # Also extract baseline trajectory for comparison (single position)
+        if baseline_logits is not None:
+            baseline_probs = torch.softmax(baseline_logits.squeeze()[-1], dim=-1)
+            target_id, _ = _resolve_token_id(model.tokenizer, target_token)
+            source_id, _ = _resolve_token_id(model.tokenizer, source_token)
+            
+            baseline_target_info = None
+            baseline_source_info = None
+            
+            if target_id is not None:
+                baseline_target_info = {
+                    "logit": round(baseline_logits.squeeze()[-1][target_id].item(), 4),
+                    "prob": round(baseline_probs[target_id].item(), 6),
+                    "rank": _compute_rank(baseline_probs, target_id),
+                }
+            
+            if source_id is not None:
+                baseline_source_info = {
+                    "logit": round(baseline_logits.squeeze()[-1][source_id].item(), 4),
+                    "prob": round(baseline_probs[source_id].item(), 6),
+                    "rank": _compute_rank(baseline_probs, source_id),
+                }
+            
+            result["baseline_logits"] = {
+                "target": baseline_target_info,
+                "source": baseline_source_info,
+            }
+            
+            # Compute baseline vs steered comparison (at position 0)
+            if result.get("logit_trajectory") and baseline_target_info and baseline_source_info:
+                traj = result["logit_trajectory"]
+                steered_target = traj["trajectories"]["target"]
+                steered_source = traj["trajectories"]["source"]
+                
+                if steered_target and steered_source:
+                    steered_target_logit_0 = steered_target["trajectory"]["logits"][0] if steered_target["trajectory"]["logits"] else None
+                    steered_source_logit_0 = steered_source["trajectory"]["logits"][0] if steered_source["trajectory"]["logits"] else None
+                    steered_target_rank_0 = steered_target["trajectory"]["ranks"][0] if steered_target["trajectory"]["ranks"] else None
+                    steered_source_rank_0 = steered_source["trajectory"]["ranks"][0] if steered_source["trajectory"]["ranks"] else None
+                    
+                    result["position_0_comparison"] = {
+                        "target_logit_delta": round(steered_target_logit_0 - baseline_target_info["logit"], 4) if steered_target_logit_0 else None,
+                        "source_logit_delta": round(steered_source_logit_0 - baseline_source_info["logit"], 4) if steered_source_logit_0 else None,
+                        "baseline_gap": round(baseline_target_info["logit"] - baseline_source_info["logit"], 4),
+                        "steered_gap_0": round(steered_target_logit_0 - steered_source_logit_0, 4) if (steered_target_logit_0 and steered_source_logit_0) else None,
+                        "gap_closure_0": round((steered_target_logit_0 - steered_source_logit_0) - (baseline_target_info["logit"] - baseline_source_info["logit"]), 4) if (steered_target_logit_0 and steered_source_logit_0) else None,
+                        "target_rank_improvement": baseline_target_info["rank"] - steered_target_rank_0 if steered_target_rank_0 else None,
+                        "flip_at_0": steered_target_rank_0 < steered_source_rank_0 if (steered_target_rank_0 and steered_source_rank_0) else False,
+                    }
+    
+    return result
 
 
 # --------------------------------------------------------------------------------------
@@ -604,6 +986,21 @@ def main() -> None:
     prompts = load_prompts(args.prompts)
     global_features, per_prompt = load_ct_features(args.features)
 
+    # Check for trajectory tracking from env vars
+    track_trajectory = TRACK_TRAJECTORY
+    target_token = TARGET_TOKEN or None
+    source_token = SOURCE_TOKEN or None
+    control_tokens = CONTROL_TOKENS or None
+    
+    if track_trajectory:
+        print(f"[TRAJECTORY] Tracking enabled")
+        if target_token:
+            print(f"  Target token: {target_token}")
+        if source_token:
+            print(f"  Source token: {source_token}")
+        if control_tokens:
+            print(f"  Control tokens: {control_tokens}")
+
     results = []
     for item in prompts:
         prompt_id = item["id"]
@@ -625,19 +1022,32 @@ def main() -> None:
             max_new_tokens=args.n_tokens,
             freeze_attention=args.freeze_attention,
             top_k=args.top_k,
+            # Trajectory tracking
+            track_trajectory=track_trajectory,
+            target_token=target_token,
+            source_token=source_token,
+            control_tokens=control_tokens,
         )
 
-        results.append(
-            {
-                "probe_id": prompt_id,
-                "prompt": text,
-                "steered": raw["steered"],
-                "default": raw["default"],
-                "steered_topk": raw["steered_topk"],
-                "default_topk": raw["default_topk"],
-                "intervention_count": raw["intervention_count"],
-            }
-        )
+        result_entry = {
+            "probe_id": prompt_id,
+            "prompt": text,
+            "steered": raw["steered"],
+            "default": raw["default"],
+            "steered_topk": raw["steered_topk"],
+            "default_topk": raw["default_topk"],
+            "intervention_count": raw["intervention_count"],
+        }
+        
+        # Include trajectory data if present
+        if "logit_trajectory" in raw:
+            result_entry["logit_trajectory"] = raw["logit_trajectory"]
+        if "baseline_logits" in raw:
+            result_entry["baseline_logits"] = raw["baseline_logits"]
+        if "position_0_comparison" in raw:
+            result_entry["position_0_comparison"] = raw["position_0_comparison"]
+        
+        results.append(result_entry)
 
     payload = {
         "model": args.model_id,

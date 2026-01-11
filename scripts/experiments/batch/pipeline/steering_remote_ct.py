@@ -25,6 +25,9 @@ def build_remote_ct_steering_env(
     - TRANSCODER_SET: CLT transcoder set name
     - Temperature, tokens, freq_penalty as before
     - FREEZE_ATTENTION: for constrained patching
+    - TRACK_TRAJECTORY: enable fine-grained logit trajectory tracking
+    - TARGET_TOKEN: target capital for trajectory (e.g., "Atlanta")
+    - SOURCE_TOKEN: source capital for trajectory (e.g., "Austin")
     """
     model_config = config.get("model", {})
     
@@ -44,6 +47,21 @@ def build_remote_ct_steering_env(
         "FREEZE_ATTENTION": "true" if steering_cfg.get("freeze_attention", False) else "false",
         "PYTHONIOENCODING": "utf-8",
     }
+    
+    # Trajectory tracking (fine-grained logit metrics)
+    if steering_cfg.get("track_trajectory", False):
+        env["TRACK_TRAJECTORY"] = "true"
+        if steering_cfg.get("target_token"):
+            env["TARGET_TOKEN"] = str(steering_cfg["target_token"])
+        if steering_cfg.get("source_token"):
+            env["SOURCE_TOKEN"] = str(steering_cfg["source_token"])
+        # Control tokens as comma-separated list
+        control_tokens = steering_cfg.get("control_tokens")
+        if control_tokens:
+            if isinstance(control_tokens, list):
+                env["CONTROL_TOKENS"] = ",".join(control_tokens)
+            else:
+                env["CONTROL_TOKENS"] = str(control_tokens)
     
     # CUDA memory config
     env.setdefault(

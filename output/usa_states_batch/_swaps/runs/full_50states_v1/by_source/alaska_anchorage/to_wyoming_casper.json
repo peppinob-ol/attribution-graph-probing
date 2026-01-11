@@ -1,0 +1,111 @@
+{
+  "swap_id": "alaska_anchorage__to__wyoming_casper",
+  "source": {
+    "slug": "alaska_anchorage",
+    "prompt": "<bos>The capital of the state containing Anchorage is",
+    "concept": "alaska",
+    "state": "Alaska",
+    "capital": "Juneau",
+    "city": "Anchorage"
+  },
+  "target": {
+    "slug": "wyoming_casper",
+    "concept": "wyoming",
+    "state": "Wyoming",
+    "capital": "Cheyenne",
+    "city": "Casper"
+  },
+  "interventions": {
+    "ablate_count": 50,
+    "amplify_count": 58,
+    "total_count": 108
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Alaska",
+      "from_capital": "Juneau",
+      "from_city": "Anchorage",
+      "to_state": "Wyoming",
+      "to_capital": "Cheyenne",
+      "to_city": "Casper"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Juneau",
+      "default_prob": 0.25390625,
+      "steered": "RenderAtEndOf",
+      "steered_prob": 0.2255859375
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.25390625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Anchorage is Juneau.\n\nAlaska is a state in the United",
+      "steered_output": "<bos><bos>The capital of the state containing Anchorage isRenderAtEndOf, the largest city in Alaska, is <strong>",
+      "default_topk": [
+        {
+          "token": " Juneau",
+          "prob": 0.25390625
+        },
+        {
+          "token": " Anchorage",
+          "prob": 0.1533203125
+        },
+        {
+          "token": " the",
+          "prob": 0.10546875
+        },
+        {
+          "token": " ",
+          "prob": 0.08203125
+        },
+        {
+          "token": ":",
+          "prob": 0.072265625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "RenderAtEndOf",
+          "prob": 0.2255859375
+        },
+        {
+          "token": " يتيمه",
+          "prob": 0.17578125
+        },
+        {
+          "token": "MessageTagHelper",
+          "prob": 0.064453125
+        },
+        {
+          "token": " Efq",
+          "prob": 0.03466796875
+        },
+        {
+          "token": "GeoNames",
+          "prob": 0.030517578125
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-09T11:50:45.753941",
+    "duration_ms": 139172.87492752075,
+    "is_identity": false
+  }
+}

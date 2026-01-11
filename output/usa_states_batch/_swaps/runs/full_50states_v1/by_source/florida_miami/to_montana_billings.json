@@ -1,0 +1,111 @@
+{
+  "swap_id": "florida_miami__to__montana_billings",
+  "source": {
+    "slug": "florida_miami",
+    "prompt": "<bos>The capital of the state containing Miami is",
+    "concept": "florida",
+    "state": "Florida",
+    "capital": "Tallahassee",
+    "city": "Miami"
+  },
+  "target": {
+    "slug": "montana_billings",
+    "concept": "montana",
+    "state": "Montana",
+    "capital": "Helena",
+    "city": "Billings"
+  },
+  "interventions": {
+    "ablate_count": 41,
+    "amplify_count": 53,
+    "total_count": 94
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Florida",
+      "from_capital": "Tallahassee",
+      "from_city": "Miami",
+      "to_state": "Montana",
+      "to_capital": "Helena",
+      "to_city": "Billings"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Tallahassee",
+      "default_prob": 0.318359375,
+      "steered": "expandindo",
+      "steered_prob": 0.251953125
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": 0.22265625,
+      "from_capital_in_default_topk": 0.318359375,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Miami is Tallahassee.\n\nThe capital of the state containing Miami",
+      "steered_output": "<bos><bos>The capital of the state containing Miami isexpandindo-o, the city of Miami, is located",
+      "default_topk": [
+        {
+          "token": " Tallahassee",
+          "prob": 0.318359375
+        },
+        {
+          "token": " Miami",
+          "prob": 0.09130859375
+        },
+        {
+          "token": " the",
+          "prob": 0.0625
+        },
+        {
+          "token": " ",
+          "prob": 0.05517578125
+        },
+        {
+          "token": " Jacksonville",
+          "prob": 0.033447265625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "expandindo",
+          "prob": 0.251953125
+        },
+        {
+          "token": " Helena",
+          "prob": 0.22265625
+        },
+        {
+          "token": "ftagPool",
+          "prob": 0.0498046875
+        },
+        {
+          "token": " Bo",
+          "prob": 0.038818359375
+        },
+        {
+          "token": " Browning",
+          "prob": 0.026611328125
+        }
+      ]
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-09T14:39:17.348046",
+    "duration_ms": 294114.5832538605,
+    "is_identity": false
+  }
+}
