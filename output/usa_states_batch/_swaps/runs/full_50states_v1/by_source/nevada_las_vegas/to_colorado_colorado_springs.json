@@ -1,0 +1,565 @@
+{
+  "swap_id": "nevada_las_vegas__to__colorado_colorado_springs",
+  "source": {
+    "slug": "nevada_las_vegas",
+    "prompt": "<bos>The capital of the state containing Las Vegas is",
+    "concept": "nevada",
+    "state": "Nevada",
+    "capital": "Carson City",
+    "city": "Las Vegas"
+  },
+  "target": {
+    "slug": "colorado_colorado_springs",
+    "concept": "colorado",
+    "state": "Colorado",
+    "capital": "Denver",
+    "city": "Colorado Springs"
+  },
+  "interventions": {
+    "ablate_count": 51,
+    "amplify_count": 74,
+    "total_count": 125
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Nevada",
+      "from_capital": "Carson City",
+      "from_city": "Las Vegas",
+      "to_state": "Colorado",
+      "to_capital": "Denver",
+      "to_city": "Colorado Springs"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Reno",
+      "default_prob": 0.12060546875,
+      "steered": " Springs",
+      "steered_prob": 0.2119140625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Las Vegas is <strong>Carson City</strong>.\n\n<h3>What is",
+      "steered_output": "<bos><bos>The capital of the state containing Las Vegas is Springs, Colorado, is Denver.\n\nThe capital of",
+      "default_topk": [
+        {
+          "token": " Reno",
+          "prob": 0.12060546875
+        },
+        {
+          "token": " ",
+          "prob": 0.09375
+        },
+        {
+          "token": " Nevada",
+          "prob": 0.0830078125
+        },
+        {
+          "token": " Las",
+          "prob": 0.0830078125
+        },
+        {
+          "token": " the",
+          "prob": 0.0732421875
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Springs",
+          "prob": 0.2119140625
+        },
+        {
+          "token": " River",
+          "prob": 0.10009765625
+        },
+        {
+          "token": " sauvages",
+          "prob": 0.047119140625
+        },
+        {
+          "token": " Front",
+          "prob": 0.036865234375
+        },
+        {
+          "token": " financières",
+          "prob": 0.0252685546875
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Denver",
+        "source": " Carson",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " Springs",
+        ",",
+        " Colorado",
+        ",",
+        " is",
+        " Denver",
+        ".",
+        "\n\n",
+        "The",
+        " capital",
+        " of"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Denver",
+          "token_id": 31045,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              -5.4375,
+              17.5,
+              26.125,
+              20.75,
+              25.25,
+              26.5,
+              23.5,
+              28.125,
+              21.875,
+              26.125,
+              21.25
+            ],
+            "probs": [
+              0.0,
+              6.8e-05,
+              0.050537,
+              0.000129,
+              0.010498,
+              0.201172,
+              0.001076,
+              0.089355,
+              0.000488,
+              0.029419,
+              0.000282
+            ],
+            "ranks": [
+              217785,
+              311,
+              3,
+              113,
+              10,
+              1,
+              19,
+              4,
+              104,
+              6,
+              20
+            ]
+          },
+          "summary": {
+            "first_top1_position": 5,
+            "first_top5_position": 2,
+            "first_top10_position": 2,
+            "max_prob": 0.201172,
+            "min_rank": 1,
+            "final_rank": 20,
+            "rank_improvement": 217784
+          }
+        },
+        "source": {
+          "token": " Carson",
+          "token_id": 56649,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              4.8125,
+              13.4375,
+              22.375,
+              14.3125,
+              19.375,
+              18.0,
+              10.875,
+              16.75,
+              -0.9727,
+              15.8125,
+              13.625
+            ],
+            "probs": [
+              0.0,
+              1e-06,
+              0.00119,
+              0.0,
+              2.9e-05,
+              4.1e-05,
+              0.0,
+              1e-06,
+              0.0,
+              1e-06,
+              0.0
+            ],
+            "ranks": [
+              29448,
+              2437,
+              90,
+              2833,
+              388,
+              418,
+              7853,
+              1073,
+              137088,
+              1909,
+              931
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 90,
+            "final_rank": 931,
+            "max_prob": 0.00119
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                4.1875,
+                20.375,
+                27.25,
+                21.875,
+                26.875,
+                26.25,
+                23.25,
+                20.875,
+                9.375,
+                18.25,
+                19.625
+              ],
+              "probs": [
+                0.0,
+                0.001213,
+                0.15625,
+                0.000397,
+                0.053223,
+                0.15625,
+                0.000835,
+                6.3e-05,
+                0.0,
+                1.1e-05,
+                5.6e-05
+              ],
+              "ranks": [
+                36475,
+                48,
+                1,
+                62,
+                3,
+                2,
+                22,
+                195,
+                13809,
+                661,
+                49
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                10.75,
+                26.0,
+                25.25,
+                28.25,
+                29.0,
+                20.625,
+                24.75,
+                18.625,
+                12.5625,
+                19.25,
+                26.0
+              ],
+              "probs": [
+                1.6e-05,
+                0.335938,
+                0.021118,
+                0.232422,
+                0.445312,
+                0.000565,
+                0.003754,
+                7e-06,
+                0.0,
+                3e-05,
+                0.032715
+              ],
+              "ranks": [
+                1665,
+                1,
+                10,
+                2,
+                1,
+                99,
+                9,
+                525,
+                5596,
+                451,
+                3
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                -2.8438,
+                20.625,
+                25.625,
+                20.125,
+                25.125,
+                25.375,
+                22.375,
+                18.5,
+                10.6875,
+                15.375,
+                18.0
+              ],
+              "probs": [
+                0.0,
+                0.001556,
+                0.03064,
+                6.9e-05,
+                0.009277,
+                0.06543,
+                0.000349,
+                6e-06,
+                0.0,
+                1e-06,
+                1.1e-05
+              ],
+              "ranks": [
+                173864,
+                44,
+                4,
+                153,
+                11,
+                3,
+                39,
+                541,
+                9875,
+                2287,
+                106
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                -2.625,
+                22.25,
+                21.75,
+                20.125,
+                21.0,
+                20.75,
+                21.0,
+                15.125,
+                7.4688,
+                15.5625,
+                29.25
+              ],
+              "probs": [
+                0.0,
+                0.007935,
+                0.000637,
+                6.9e-05,
+                0.00015,
+                0.000641,
+                8.8e-05,
+                0.0,
+                0.0,
+                1e-06,
+                0.839844
+              ],
+              "ranks": [
+                169171,
+                13,
+                146,
+                153,
+                143,
+                93,
+                69,
+                2097,
+                24048,
+                2056,
+                1
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 5,
+        "source_appears_at": null,
+        "flip_position": 1,
+        "initial_gap": -10.25,
+        "best_gap": 22.8477,
+        "final_gap": 7.625,
+        "gap_closure": 33.0977,
+        "gap_trajectory": [
+          -10.25,
+          4.0625,
+          3.75,
+          6.4375,
+          5.875,
+          8.5,
+          12.625,
+          11.375,
+          22.8477,
+          10.3125,
+          7.625
+        ],
+        "control_stability_mean": 18.643,
+        "control_stability_max": 31.875
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 22.0,
+        "prob": 0.00322,
+        "rank": 29
+      },
+      "source": {
+        "logit": 25.125,
+        "prob": 0.073242,
+        "rank": 5
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -27.4375,
+      "source_logit_delta": -20.3125,
+      "baseline_gap": -3.125,
+      "steered_gap_0": -10.25,
+      "gap_closure_0": -7.125,
+      "target_rank_improvement": -217756,
+      "flip_at_0": false
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T15:07:14.886962",
+    "duration_ms": 85904.66666221619,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Denver",
+      "Springs",
+      "Las Vegas"
+    ],
+    "states_found": [
+      "Colorado"
+    ],
+    "notes": "Target capital 'Denver' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

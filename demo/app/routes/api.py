@@ -16,6 +16,42 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False):
             content=json.dumps({
                 "annotate_mode": annotate_mode,
                 "version": "1.0.0",
+                "current_run": data_loader.get_current_run(),
+            }),
+            media_type="application/json"
+        )
+    
+    # ============================================================
+    # Run Management Endpoints
+    # ============================================================
+    
+    @rt("/api/runs")
+    def api_runs():
+        """List available experiment runs."""
+        runs = data_loader.list_runs()
+        return Response(
+            content=json.dumps({
+                "runs": runs,
+                "current": data_loader.get_current_run(),
+            }),
+            media_type="application/json"
+        )
+    
+    @rt("/api/runs/{run_id}", methods=["POST"])
+    def api_switch_run(run_id: str):
+        """Switch to a different experiment run."""
+        success = data_loader.set_run(run_id)
+        if not success:
+            return Response(
+                content=json.dumps({"error": f"Run not found: {run_id}"}),
+                media_type="application/json",
+                status_code=404
+            )
+        return Response(
+            content=json.dumps({
+                "status": "ok",
+                "run_id": run_id,
+                "message": f"Switched to run: {run_id}",
             }),
             media_type="application/json"
         )

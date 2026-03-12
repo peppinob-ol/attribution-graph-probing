@@ -1,0 +1,564 @@
+{
+  "swap_id": "alaska_anchorage__to__maryland_baltimore",
+  "source": {
+    "slug": "alaska_anchorage",
+    "prompt": "<bos>The capital of the state containing Anchorage is",
+    "concept": "alaska",
+    "state": "Alaska",
+    "capital": "Juneau",
+    "city": "Anchorage"
+  },
+  "target": {
+    "slug": "maryland_baltimore",
+    "concept": "maryland",
+    "state": "Maryland",
+    "capital": "Annapolis",
+    "city": "Baltimore"
+  },
+  "interventions": {
+    "ablate_count": 50,
+    "amplify_count": 50,
+    "total_count": 100
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Alaska",
+      "from_capital": "Juneau",
+      "from_city": "Anchorage",
+      "to_state": "Maryland",
+      "to_capital": "Annapolis",
+      "to_city": "Baltimore"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Juneau",
+      "default_prob": 0.25390625,
+      "steered": " College",
+      "steered_prob": 0.212890625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.25390625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Anchorage is Juneau.\n\nAlaska is a state in the United",
+      "steered_output": "<bos><bos>The capital of the state containing Anchorage is College Park, the capital of Maryland is Annapolis.\n\n",
+      "default_topk": [
+        {
+          "token": " Juneau",
+          "prob": 0.25390625
+        },
+        {
+          "token": " Anchorage",
+          "prob": 0.1533203125
+        },
+        {
+          "token": " the",
+          "prob": 0.10546875
+        },
+        {
+          "token": " ",
+          "prob": 0.08203125
+        },
+        {
+          "token": ":",
+          "prob": 0.072265625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " College",
+          "prob": 0.212890625
+        },
+        {
+          "token": " يتيمه",
+          "prob": 0.146484375
+        },
+        {
+          "token": " Ocean",
+          "prob": 0.1005859375
+        },
+        {
+          "token": " Charm",
+          "prob": 0.06103515625
+        },
+        {
+          "token": " Heights",
+          "prob": 0.0419921875
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Annapolis",
+        "source": " Juneau",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " College",
+        " Park",
+        ",",
+        " the",
+        " capital",
+        " of",
+        " Maryland",
+        " is",
+        " Annapolis",
+        ".",
+        "\n\n"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Annapolis",
+          "token_id": 149090,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              12.9375,
+              16.125,
+              19.375,
+              25.125,
+              21.0,
+              18.75,
+              23.25,
+              24.125,
+              26.5,
+              23.5,
+              28.0
+            ],
+            "probs": [
+              1.3e-05,
+              2.7e-05,
+              7.4e-05,
+              0.024536,
+              0.000292,
+              2.8e-05,
+              0.002869,
+              0.001495,
+              0.474609,
+              0.000992,
+              0.070312
+            ],
+            "ranks": [
+              1395,
+              460,
+              294,
+              9,
+              148,
+              151,
+              16,
+              30,
+              1,
+              27,
+              4
+            ]
+          },
+          "summary": {
+            "first_top1_position": 8,
+            "first_top5_position": 8,
+            "first_top10_position": 3,
+            "max_prob": 0.474609,
+            "min_rank": 1,
+            "final_rank": 4,
+            "rank_improvement": 1394
+          }
+        },
+        "source": {
+          "token": " Juneau",
+          "token_id": 219013,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              2.9688,
+              9.75,
+              12.1875,
+              17.875,
+              15.0,
+              14.4375,
+              16.625,
+              13.1875,
+              11.1875,
+              8.25,
+              14.5
+            ],
+            "probs": [
+              0.0,
+              0.0,
+              0.0,
+              1.7e-05,
+              1e-06,
+              0.0,
+              4e-06,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              90747,
+              10900,
+              9779,
+              1009,
+              3576,
+              1498,
+              728,
+              6510,
+              3691,
+              23961,
+              2924
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 728,
+            "final_rank": 2924,
+            "max_prob": 1.7e-05
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                5.375,
+                18.875,
+                21.25,
+                27.0,
+                18.25,
+                20.875,
+                28.625,
+                24.375,
+                25.125,
+                23.75,
+                21.625
+              ],
+              "probs": [
+                0.0,
+                0.000422,
+                0.000483,
+                0.160156,
+                1.9e-05,
+                0.000235,
+                0.621094,
+                0.001923,
+                0.120117,
+                0.001274,
+                0.00012
+              ],
+              "ranks": [
+                48216,
+                102,
+                97,
+                1,
+                664,
+                50,
+                1,
+                26,
+                2,
+                25,
+                146
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                11.25,
+                24.25,
+                27.375,
+                25.125,
+                18.75,
+                26.375,
+                20.125,
+                28.75,
+                19.875,
+                26.375,
+                18.125
+              ],
+              "probs": [
+                2e-06,
+                0.09082,
+                0.220703,
+                0.024536,
+                3.1e-05,
+                0.057373,
+                0.000126,
+                0.152344,
+                0.000629,
+                0.017578,
+                4e-06
+              ],
+              "ranks": [
+                4027,
+                4,
+                2,
+                9,
+                541,
+                3,
+                110,
+                2,
+                56,
+                4,
+                637
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                2.0156,
+                16.875,
+                19.875,
+                25.5,
+                16.75,
+                19.5,
+                24.375,
+                21.75,
+                24.125,
+                23.125,
+                19.75
+              ],
+              "probs": [
+                0.0,
+                5.7e-05,
+                0.000122,
+                0.035645,
+                4e-06,
+                5.9e-05,
+                0.00885,
+                0.000139,
+                0.044189,
+                0.000679,
+                1.8e-05
+              ],
+              "ranks": [
+                110446,
+                318,
+                219,
+                4,
+                1574,
+                93,
+                8,
+                97,
+                4,
+                33,
+                330
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                6.2812,
+                25.25,
+                23.125,
+                21.25,
+                15.6875,
+                28.875,
+                19.875,
+                22.75,
+                20.125,
+                23.0,
+                16.5
+              ],
+              "probs": [
+                0.0,
+                0.24707,
+                0.003143,
+                0.000507,
+                1e-06,
+                0.699219,
+                9.8e-05,
+                0.000378,
+                0.000809,
+                0.000599,
+                1e-06
+              ],
+              "ranks": [
+                36603,
+                1,
+                26,
+                164,
+                2598,
+                1,
+                130,
+                63,
+                52,
+                37,
+                1321
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 8,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 9.9687,
+        "best_gap": 15.3125,
+        "final_gap": 13.5,
+        "gap_closure": 5.3438,
+        "gap_trajectory": [
+          9.9687,
+          6.375,
+          7.1875,
+          7.25,
+          6.0,
+          4.3125,
+          6.625,
+          10.9375,
+          15.3125,
+          15.25,
+          13.5
+        ],
+        "control_stability_mean": 16.093,
+        "control_stability_max": 23.4844
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 17.75,
+        "prob": 5.1e-05,
+        "rank": 306
+      },
+      "source": {
+        "logit": 26.25,
+        "prob": 0.253906,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -4.8125,
+      "source_logit_delta": -23.2812,
+      "baseline_gap": -8.5,
+      "steered_gap_0": 9.9687,
+      "gap_closure_0": 18.4687,
+      "target_rank_improvement": -1089,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T12:10:21.991452",
+    "duration_ms": 69182.25336074829,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Anchorage",
+      "Annapolis"
+    ],
+    "states_found": [
+      "Maryland"
+    ],
+    "notes": "Target capital 'Annapolis' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

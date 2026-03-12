@@ -1030,14 +1030,14 @@ def main() -> None:
         )
 
         result_entry = {
-            "probe_id": prompt_id,
-            "prompt": text,
-            "steered": raw["steered"],
-            "default": raw["default"],
-            "steered_topk": raw["steered_topk"],
-            "default_topk": raw["default_topk"],
-            "intervention_count": raw["intervention_count"],
-        }
+                "probe_id": prompt_id,
+                "prompt": text,
+                "steered": raw["steered"],
+                "default": raw["default"],
+                "steered_topk": raw["steered_topk"],
+                "default_topk": raw["default_topk"],
+                "intervention_count": raw["intervention_count"],
+            }
         
         # Include trajectory data if present
         if "logit_trajectory" in raw:

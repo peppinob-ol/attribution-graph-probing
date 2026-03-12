@@ -1,0 +1,564 @@
+{
+  "swap_id": "california_oakland__to__new_hampshire_manchester",
+  "source": {
+    "slug": "california_oakland",
+    "prompt": "<bos>The capital of the state containing Oakland is",
+    "concept": "california",
+    "state": "California",
+    "capital": "Sacramento",
+    "city": "Oakland"
+  },
+  "target": {
+    "slug": "new_hampshire_manchester",
+    "concept": "new hampshire",
+    "state": "New Hampshire",
+    "capital": "Concord",
+    "city": "Manchester"
+  },
+  "interventions": {
+    "ablate_count": 37,
+    "amplify_count": 27,
+    "total_count": 64
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "California",
+      "from_capital": "Sacramento",
+      "from_city": "Oakland",
+      "to_state": "New Hampshire",
+      "to_capital": "Concord",
+      "to_city": "Manchester"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Sacramento",
+      "default_prob": 0.1796875,
+      "steered": " يتيمه",
+      "steered_prob": 0.2392578125
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.1796875,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Oakland is Sacramento.\n\nThe capital of the state containing Oakland",
+      "steered_output": "<bos><bos>The capital of the state containing Oakland is يتيمه, <strong>Kansas City</strong> is a great place",
+      "default_topk": [
+        {
+          "token": " Sacramento",
+          "prob": 0.1796875
+        },
+        {
+          "token": " the",
+          "prob": 0.0751953125
+        },
+        {
+          "token": " Oakland",
+          "prob": 0.06640625
+        },
+        {
+          "token": " ",
+          "prob": 0.058349609375
+        },
+        {
+          "token": " San",
+          "prob": 0.058349609375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " يتيمه",
+          "prob": 0.2392578125
+        },
+        {
+          "token": " Efq",
+          "prob": 0.07763671875
+        },
+        {
+          "token": " Washington",
+          "prob": 0.03662109375
+        },
+        {
+          "token": "曖昧さ回避",
+          "prob": 0.028564453125
+        },
+        {
+          "token": " Indianapolis",
+          "prob": 0.025146484375
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Concord",
+        "source": " Sacramento",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " يتيمه",
+        ",",
+        " ",
+        "<strong>",
+        "Kansas",
+        " City",
+        "</strong>",
+        " is",
+        " a",
+        " great",
+        " place"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Concord",
+          "token_id": 70810,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              13.75,
+              -8.5625,
+              18.125,
+              1.6797,
+              6.5,
+              7.3125,
+              9.375,
+              8.875,
+              6.5938,
+              2.8125,
+              3.0156
+            ],
+            "probs": [
+              3.3e-05,
+              0.0,
+              0.000193,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              1252,
+              43972,
+              304,
+              28468,
+              66398,
+              5390,
+              21596,
+              32728,
+              17495,
+              29048,
+              28851
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "first_top5_position": null,
+            "first_top10_position": null,
+            "max_prob": 0.000193,
+            "min_rank": 304,
+            "final_rank": 28851,
+            "rank_improvement": 948
+          }
+        },
+        "source": {
+          "token": " Sacramento",
+          "token_id": 43939,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              12.3125,
+              -10.1875,
+              11.8125,
+              -4.4062,
+              -1.6328,
+              4.5625,
+              11.75,
+              11.3125,
+              7.4688,
+              2.2188,
+              6.5625
+            ],
+            "probs": [
+              8e-06,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              3213,
+              85514,
+              15274,
+              193993,
+              214327,
+              27638,
+              6404,
+              11115,
+              13232,
+              33603,
+              10948
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 3213,
+            "final_rank": 10948,
+            "max_prob": 8e-06
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                9.875,
+                0.5781,
+                24.375,
+                5.6562,
+                13.375,
+                13.9375,
+                19.75,
+                21.875,
+                28.75,
+                16.75,
+                13.3125
+              ],
+              "probs": [
+                1e-06,
+                2e-06,
+                0.099609,
+                0.0,
+                7e-06,
+                2.6e-05,
+                0.000146,
+                0.001503,
+                0.171875,
+                3e-06,
+                0.0
+              ],
+              "ranks": [
+                10941,
+                191,
+                1,
+                1665,
+                2899,
+                43,
+                45,
+                34,
+                2,
+                800,
+                1413
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                14.75,
+                -0.5898,
+                21.125,
+                3.6719,
+                11.5,
+                17.5,
+                24.25,
+                27.25,
+                20.5,
+                15.375,
+                12.8125
+              ],
+              "probs": [
+                9.1e-05,
+                1e-06,
+                0.00386,
+                0.0,
+                1e-06,
+                0.000935,
+                0.013123,
+                0.324219,
+                4.5e-05,
+                1e-06,
+                0.0
+              ],
+              "ranks": [
+                624,
+                384,
+                47,
+                7989,
+                8267,
+                9,
+                5,
+                1,
+                213,
+                1175,
+                1704
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                2.5625,
+                -4.2188,
+                22.375,
+                1.7734,
+                10.0625,
+                12.125,
+                18.25,
+                20.75,
+                29.375,
+                18.25,
+                18.125
+              ],
+              "probs": [
+                0.0,
+                0.0,
+                0.013489,
+                0.0,
+                0.0,
+                4e-06,
+                3.2e-05,
+                0.000488,
+                0.320312,
+                1.2e-05,
+                3e-05
+              ],
+              "ranks": [
+                113589,
+                3573,
+                15,
+                27083,
+                17116,
+                145,
+                96,
+                59,
+                1,
+                459,
+                204
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                10.875,
+                -0.8438,
+                17.125,
+                1.2578,
+                9.875,
+                12.125,
+                18.375,
+                18.75,
+                21.125,
+                15.375,
+                16.625
+              ],
+              "probs": [
+                2e-06,
+                0.0,
+                7.1e-05,
+                0.0,
+                0.0,
+                4e-06,
+                3.7e-05,
+                6.6e-05,
+                8.4e-05,
+                1e-06,
+                7e-06
+              ],
+              "ranks": [
+                6787,
+                438,
+                599,
+                35615,
+                18517,
+                145,
+                90,
+                196,
+                175,
+                1175,
+                401
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": null,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 1.4375,
+        "best_gap": 8.1328,
+        "final_gap": -3.5469,
+        "gap_closure": 6.6953,
+        "gap_trajectory": [
+          1.4375,
+          1.625,
+          6.3125,
+          6.0859,
+          8.1328,
+          2.75,
+          -2.375,
+          -2.4375,
+          -0.875,
+          0.5937,
+          -3.5469
+        ],
+        "control_stability_mean": 8.946,
+        "control_stability_max": 26.8125
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 22.625,
+        "prob": 0.003296,
+        "rank": 41
+      },
+      "source": {
+        "logit": 26.625,
+        "prob": 0.179688,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -8.875,
+      "source_logit_delta": -14.3125,
+      "baseline_gap": -4.0,
+      "steered_gap_0": 1.4375,
+      "gap_closure_0": 5.4375,
+      "target_rank_improvement": -1211,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T12:29:42.012517",
+    "duration_ms": 71751.22332572937,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 0,
+    "tier_name": "WRONG_STATE",
+    "cities_found": [
+      "Oakland",
+      "Kansas City"
+    ],
+    "states_found": [
+      "Kansas"
+    ],
+    "notes": "Found city 'Kansas City' in Kansas (third state)",
+    "method": "RULE_HIGH",
+    "confidence": 0.9,
+    "manually_edited": false
+  }
+}

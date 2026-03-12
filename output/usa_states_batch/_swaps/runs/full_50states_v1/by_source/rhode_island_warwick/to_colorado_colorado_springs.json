@@ -1,0 +1,565 @@
+{
+  "swap_id": "rhode_island_warwick__to__colorado_colorado_springs",
+  "source": {
+    "slug": "rhode_island_warwick",
+    "prompt": "<bos>The capital of the state containing Warwick is",
+    "concept": "rhode island",
+    "state": "Rhode Island",
+    "capital": "Providence",
+    "city": "Warwick"
+  },
+  "target": {
+    "slug": "colorado_colorado_springs",
+    "concept": "colorado",
+    "state": "Colorado",
+    "capital": "Denver",
+    "city": "Colorado Springs"
+  },
+  "interventions": {
+    "ablate_count": 33,
+    "amplify_count": 74,
+    "total_count": 107
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Rhode Island",
+      "from_capital": "Providence",
+      "from_city": "Warwick",
+      "to_state": "Colorado",
+      "to_capital": "Denver",
+      "to_city": "Colorado Springs"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " the",
+      "default_prob": 0.1064453125,
+      "steered": " Springs",
+      "steered_prob": 0.306640625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Warwick is <strong>Providence</strong>.\n\n<h3>What is the",
+      "steered_output": "<bos><bos>The capital of the state containing Warwick is Springs, Colorado, is Denver.\n\nThe population of",
+      "default_topk": [
+        {
+          "token": " the",
+          "prob": 0.1064453125
+        },
+        {
+          "token": " ",
+          "prob": 0.056884765625
+        },
+        {
+          "token": ":",
+          "prob": 0.05029296875
+        },
+        {
+          "token": " Albany",
+          "prob": 0.05029296875
+        },
+        {
+          "token": " Harrisburg",
+          "prob": 0.0390625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Springs",
+          "prob": 0.306640625
+        },
+        {
+          "token": " River",
+          "prob": 0.07763671875
+        },
+        {
+          "token": " Front",
+          "prob": 0.04150390625
+        },
+        {
+          "token": " sauvages",
+          "prob": 0.0284423828125
+        },
+        {
+          "token": " coû",
+          "prob": 0.022216796875
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Denver",
+        "source": " Providence",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " Springs",
+        ",",
+        " Colorado",
+        ",",
+        " is",
+        " Denver",
+        ".",
+        "\n\n",
+        "The",
+        " population",
+        " of"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Denver",
+          "token_id": 31045,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              -6.2188,
+              15.375,
+              25.25,
+              18.5,
+              24.125,
+              26.75,
+              23.5,
+              28.0,
+              21.0,
+              26.25,
+              20.0
+            ],
+            "probs": [
+              0.0,
+              1e-05,
+              0.018188,
+              1.6e-05,
+              0.003357,
+              0.257812,
+              0.000984,
+              0.074219,
+              0.000208,
+              0.032959,
+              8.5e-05
+            ],
+            "ranks": [
+              227238,
+              842,
+              8,
+              326,
+              25,
+              1,
+              20,
+              4,
+              170,
+              6,
+              58
+            ]
+          },
+          "summary": {
+            "first_top1_position": 5,
+            "first_top5_position": 5,
+            "first_top10_position": 2,
+            "max_prob": 0.257812,
+            "min_rank": 1,
+            "final_rank": 58,
+            "rank_improvement": 227237
+          }
+        },
+        "source": {
+          "token": " Providence",
+          "token_id": 45100,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              4.3125,
+              15.5625,
+              19.75,
+              12.125,
+              18.125,
+              15.375,
+              11.75,
+              15.9375,
+              -2.6875,
+              16.625,
+              11.5
+            ],
+            "probs": [
+              0.0,
+              1.2e-05,
+              7.4e-05,
+              0.0,
+              8e-06,
+              3e-06,
+              0.0,
+              0.0,
+              0.0,
+              2e-06,
+              0.0
+            ],
+            "ranks": [
+              38046,
+              720,
+              625,
+              6839,
+              882,
+              1556,
+              5180,
+              1618,
+              164466,
+              1504,
+              2468
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 625,
+            "final_rank": 2468,
+            "max_prob": 7.4e-05
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                4.375,
+                19.75,
+                27.375,
+                21.875,
+                27.125,
+                26.125,
+                23.125,
+                20.75,
+                8.8125,
+                18.125,
+                20.0
+              ],
+              "probs": [
+                0.0,
+                0.000767,
+                0.152344,
+                0.000463,
+                0.067383,
+                0.137695,
+                0.000675,
+                5.3e-05,
+                0.0,
+                1e-05,
+                8.5e-05
+              ],
+              "ranks": [
+                37292,
+                72,
+                1,
+                57,
+                3,
+                2,
+                26,
+                194,
+                17232,
+                760,
+                58
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                10.9375,
+                25.625,
+                26.0,
+                27.875,
+                29.0,
+                20.25,
+                24.75,
+                18.375,
+                12.375,
+                19.125,
+                26.75
+              ],
+              "probs": [
+                1.2e-05,
+                0.273438,
+                0.03833,
+                0.186523,
+                0.439453,
+                0.000387,
+                0.003433,
+                5e-06,
+                0.0,
+                2.7e-05,
+                0.073242
+              ],
+              "ranks": [
+                1873,
+                1,
+                5,
+                3,
+                1,
+                123,
+                9,
+                586,
+                6270,
+                505,
+                2
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                -2.5469,
+                19.25,
+                26.25,
+                20.25,
+                25.25,
+                25.125,
+                22.125,
+                18.5,
+                10.125,
+                15.5,
+                18.875
+              ],
+              "probs": [
+                0.0,
+                0.000465,
+                0.049316,
+                9.1e-05,
+                0.010315,
+                0.050537,
+                0.000248,
+                6e-06,
+                0.0,
+                1e-06,
+                2.8e-05
+              ],
+              "ranks": [
+                169597,
+                99,
+                4,
+                129,
+                11,
+                3,
+                44,
+                566,
+                11859,
+                2413,
+                114
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                -2.2188,
+                21.75,
+                22.375,
+                20.625,
+                21.5,
+                20.875,
+                21.5,
+                15.5,
+                7.8438,
+                15.375,
+                29.125
+              ],
+              "probs": [
+                0.0,
+                0.005676,
+                0.001022,
+                0.000133,
+                0.000243,
+                0.000721,
+                0.000133,
+                0.0,
+                0.0,
+                1e-06,
+                0.785156
+              ],
+              "ranks": [
+                162990,
+                17,
+                93,
+                112,
+                105,
+                83,
+                57,
+                1971,
+                22605,
+                2496,
+                1
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 5,
+        "source_appears_at": null,
+        "flip_position": 2,
+        "initial_gap": -10.5313,
+        "best_gap": 23.6875,
+        "final_gap": 8.5,
+        "gap_closure": 34.2188,
+        "gap_trajectory": [
+          -10.5313,
+          -0.1875,
+          5.5,
+          6.375,
+          6.0,
+          11.375,
+          11.75,
+          12.0625,
+          23.6875,
+          9.625,
+          8.5
+        ],
+        "control_stability_mean": 18.386,
+        "control_stability_max": 31.3438
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 22.125,
+        "prob": 0.002213,
+        "rank": 63
+      },
+      "source": {
+        "logit": 24.75,
+        "prob": 0.030518,
+        "rank": 6
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -28.3438,
+      "source_logit_delta": -20.4375,
+      "baseline_gap": -2.625,
+      "steered_gap_0": -10.5313,
+      "gap_closure_0": -7.9063,
+      "target_rank_improvement": -227175,
+      "flip_at_0": false
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T16:33:06.691319",
+    "duration_ms": 69527.47535705566,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Denver",
+      "Springs",
+      "Warwick"
+    ],
+    "states_found": [
+      "Colorado"
+    ],
+    "notes": "Target capital 'Denver' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

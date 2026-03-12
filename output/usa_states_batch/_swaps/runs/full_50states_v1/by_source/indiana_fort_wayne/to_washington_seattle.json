@@ -1,0 +1,564 @@
+{
+  "swap_id": "indiana_fort_wayne__to__washington_seattle",
+  "source": {
+    "slug": "indiana_fort_wayne",
+    "prompt": "<bos>The capital of the state containing Fort Wayne is",
+    "concept": "indiana",
+    "state": "Indiana",
+    "capital": "Indianapolis",
+    "city": "Fort Wayne"
+  },
+  "target": {
+    "slug": "washington_seattle",
+    "concept": "washington",
+    "state": "Washington",
+    "capital": "Olympia",
+    "city": "Seattle"
+  },
+  "interventions": {
+    "ablate_count": 74,
+    "amplify_count": 33,
+    "total_count": 107
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Indiana",
+      "from_capital": "Indianapolis",
+      "from_city": "Fort Wayne",
+      "to_state": "Washington",
+      "to_capital": "Olympia",
+      "to_city": "Seattle"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": true,
+      "from_suppressed": false
+    },
+    "first_token": {
+      "default": " Indianapolis",
+      "default_prob": 0.267578125,
+      "steered": "expandindo",
+      "steered_prob": 0.16015625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.267578125,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Fort Wayne is Indianapolis.\n\nIndiana is a state in the Mid",
+      "steered_output": "<bos><bos>The capital of the state containing Fort Wayne isexpandindo-o, the city of Indianapolis.\n\nThe",
+      "default_topk": [
+        {
+          "token": " Indianapolis",
+          "prob": 0.267578125
+        },
+        {
+          "token": " the",
+          "prob": 0.07666015625
+        },
+        {
+          "token": ":",
+          "prob": 0.059814453125
+        },
+        {
+          "token": " ",
+          "prob": 0.059814453125
+        },
+        {
+          "token": "\n\n",
+          "prob": 0.059814453125
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "expandindo",
+          "prob": 0.16015625
+        },
+        {
+          "token": "InjectAttribute",
+          "prob": 0.09716796875
+        },
+        {
+          "token": " estekak",
+          "prob": 0.0859375
+        },
+        {
+          "token": " Seat",
+          "prob": 0.07568359375
+        },
+        {
+          "token": " незавершена",
+          "prob": 0.06689453125
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Olympia",
+        "source": " Indianapolis",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        "sex",
+        "pand",
+        "indo",
+        "-",
+        "o",
+        ",",
+        " the",
+        " city",
+        " of",
+        " Indianapolis",
+        ".",
+        "\n\n",
+        "The"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Olympia",
+          "token_id": 85687,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              21.125,
+              -6.8125,
+              -3.4375,
+              10.75,
+              19.875,
+              11.5,
+              10.125,
+              20.375,
+              10.125,
+              20.25,
+              4.7188
+            ],
+            "probs": [
+              0.052002,
+              0.0,
+              0.0,
+              0.0,
+              8.5e-05,
+              0.0,
+              0.0,
+              0.000353,
+              0.0,
+              3.3e-05,
+              0.0
+            ],
+            "ranks": [
+              6,
+              19042,
+              38938,
+              16955,
+              415,
+              18489,
+              14485,
+              222,
+              17012,
+              364,
+              99672
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "first_top5_position": null,
+            "first_top10_position": 0,
+            "max_prob": 0.052002,
+            "min_rank": 6,
+            "final_rank": 99672,
+            "rank_improvement": 0
+          }
+        },
+        "source": {
+          "token": " Indianapolis",
+          "token_id": 53097,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              15.25,
+              -4.0938,
+              0.668,
+              17.125,
+              25.625,
+              24.5,
+              21.125,
+              26.0,
+              23.75,
+              26.875,
+              15.25
+            ],
+            "probs": [
+              0.000146,
+              0.0,
+              4e-06,
+              0.000113,
+              0.026611,
+              0.005585,
+              0.000124,
+              0.097656,
+              0.000935,
+              0.024658,
+              1e-06
+            ],
+            "ranks": [
+              197,
+              2464,
+              2920,
+              257,
+              7,
+              26,
+              186,
+              2,
+              38,
+              6,
+              4270
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 2,
+            "final_rank": 4270,
+            "max_prob": 0.097656
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                13.875,
+                1.5156,
+                6.1875,
+                20.75,
+                27.25,
+                20.375,
+                22.75,
+                25.875,
+                23.375,
+                24.625,
+                19.5
+              ],
+              "probs": [
+                3.7e-05,
+                7.4e-05,
+                0.000927,
+                0.004242,
+                0.135742,
+                9e-05,
+                0.000629,
+                0.085938,
+                0.000641,
+                0.002594,
+                4.2e-05
+              ],
+              "ranks": [
+                532,
+                59,
+                57,
+                19,
+                1,
+                410,
+                71,
+                3,
+                52,
+                34,
+                508
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                12.125,
+                5.4062,
+                5.2188,
+                24.0,
+                26.125,
+                21.0,
+                28.5,
+                18.25,
+                28.375,
+                25.125,
+                14.3125
+              ],
+              "probs": [
+                6e-06,
+                0.003647,
+                0.000351,
+                0.109863,
+                0.043945,
+                0.000169,
+                0.198242,
+                4.2e-05,
+                0.095215,
+                0.004272,
+                0.0
+              ],
+              "ranks": [
+                1509,
+                6,
+                103,
+                2,
+                3,
+                298,
+                2,
+                751,
+                3,
+                24,
+                6049
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                6.875,
+                2.1875,
+                5.4062,
+                19.5,
+                26.0,
+                18.125,
+                21.75,
+                24.0,
+                22.25,
+                23.0,
+                14.4375
+              ],
+              "probs": [
+                0.0,
+                0.000146,
+                0.000423,
+                0.001221,
+                0.038818,
+                1e-05,
+                0.000232,
+                0.013184,
+                0.000208,
+                0.000511,
+                0.0
+              ],
+              "ranks": [
+                21960,
+                35,
+                87,
+                41,
+                4,
+                1421,
+                130,
+                9,
+                90,
+                102,
+                5831
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                10.375,
+                1.7422,
+                3.3281,
+                20.0,
+                22.75,
+                17.875,
+                29.0,
+                17.75,
+                22.875,
+                21.25,
+                11.4375
+              ],
+              "probs": [
+                1e-06,
+                9.3e-05,
+                5.3e-05,
+                0.002014,
+                0.001503,
+                7e-06,
+                0.326172,
+                2.6e-05,
+                0.000389,
+                8.9e-05,
+                0.0
+              ],
+              "ranks": [
+                4281,
+                50,
+                435,
+                32,
+                71,
+                1581,
+                1,
+                1067,
+                62,
+                233,
+                16095
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": null,
+        "source_appears_at": 9,
+        "flip_position": 0,
+        "initial_gap": 5.875,
+        "best_gap": 5.875,
+        "final_gap": -10.5312,
+        "gap_closure": 0.0,
+        "gap_trajectory": [
+          5.875,
+          -2.7187,
+          -4.1055,
+          -6.375,
+          -5.75,
+          -13.0,
+          -11.0,
+          -5.625,
+          -13.625,
+          -6.625,
+          -10.5312
+        ],
+        "control_stability_mean": 10.2924,
+        "control_stability_max": 19.125
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 17.75,
+        "prob": 7e-05,
+        "rank": 260
+      },
+      "source": {
+        "logit": 26.0,
+        "prob": 0.267578,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": 3.375,
+      "source_logit_delta": -10.75,
+      "baseline_gap": -8.25,
+      "steered_gap_0": 5.875,
+      "gap_closure_0": 14.125,
+      "target_rank_improvement": 254,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T13:30:21.891946",
+    "duration_ms": 69598.3452796936,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 1,
+    "tier_name": "SOURCE_PERSISTS",
+    "cities_found": [
+      "Indianapolis",
+      "Fort Wayne"
+    ],
+    "states_found": [],
+    "notes": "Source capital 'Indianapolis' persists",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

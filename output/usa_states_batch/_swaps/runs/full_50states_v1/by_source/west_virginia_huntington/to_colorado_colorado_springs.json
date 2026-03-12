@@ -1,0 +1,563 @@
+{
+  "swap_id": "west_virginia_huntington__to__colorado_colorado_springs",
+  "source": {
+    "slug": "west_virginia_huntington",
+    "prompt": "<bos>The capital of the state containing Huntington is",
+    "concept": "west virginia",
+    "state": "West Virginia",
+    "capital": "Charleston",
+    "city": "Huntington"
+  },
+  "target": {
+    "slug": "colorado_colorado_springs",
+    "concept": "colorado",
+    "state": "Colorado",
+    "capital": "Denver",
+    "city": "Colorado Springs"
+  },
+  "interventions": {
+    "ablate_count": 40,
+    "amplify_count": 74,
+    "total_count": 114
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "West Virginia",
+      "from_capital": "Charleston",
+      "from_city": "Huntington",
+      "to_state": "Colorado",
+      "to_capital": "Denver",
+      "to_city": "Colorado Springs"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Charleston",
+      "default_prob": 0.162109375,
+      "steered": " Springs",
+      "steered_prob": 0.291015625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.162109375,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Huntington is <strong>Charleston</strong>.\n\n<h3>What is the",
+      "steered_output": "<bos><bos>The capital of the state containing Huntington is Springs, the city of Denver, is located in the",
+      "default_topk": [
+        {
+          "token": " Charleston",
+          "prob": 0.162109375
+        },
+        {
+          "token": " Huntington",
+          "prob": 0.111328125
+        },
+        {
+          "token": " ",
+          "prob": 0.07666015625
+        },
+        {
+          "token": " the",
+          "prob": 0.07666015625
+        },
+        {
+          "token": ":",
+          "prob": 0.052734375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Springs",
+          "prob": 0.291015625
+        },
+        {
+          "token": " River",
+          "prob": 0.09423828125
+        },
+        {
+          "token": " Front",
+          "prob": 0.039306640625
+        },
+        {
+          "token": " sauvages",
+          "prob": 0.027099609375
+        },
+        {
+          "token": " coû",
+          "prob": 0.016357421875
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Denver",
+        "source": " Charleston",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " Springs",
+        ",",
+        " the",
+        " city",
+        " of",
+        " Denver",
+        ",",
+        " is",
+        " located",
+        " in",
+        " the"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Denver",
+          "token_id": 31045,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              -5.75,
+              15.375,
+              25.25,
+              25.25,
+              21.125,
+              26.75,
+              23.0,
+              23.875,
+              24.125,
+              19.75,
+              25.25
+            ],
+            "probs": [
+              0.0,
+              9e-06,
+              0.014526,
+              0.010864,
+              0.000121,
+              0.263672,
+              0.000576,
+              0.002304,
+              0.002823,
+              4.7e-05,
+              0.013855
+            ],
+            "ranks": [
+              220383,
+              911,
+              13,
+              19,
+              128,
+              1,
+              58,
+              30,
+              32,
+              137,
+              4
+            ]
+          },
+          "summary": {
+            "first_top1_position": 5,
+            "first_top5_position": 5,
+            "first_top10_position": 5,
+            "max_prob": 0.263672,
+            "min_rank": 1,
+            "final_rank": 4,
+            "rank_improvement": 220382
+          }
+        },
+        "source": {
+          "token": " Charleston",
+          "token_id": 58271,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              7.5,
+              13.875,
+              22.375,
+              20.25,
+              18.75,
+              22.75,
+              14.5625,
+              14.25,
+              15.125,
+              12.0625,
+              15.25
+            ],
+            "probs": [
+              1e-06,
+              2e-06,
+              0.00082,
+              7.3e-05,
+              1.1e-05,
+              0.004822,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              1e-06
+            ],
+            "ranks": [
+              9454,
+              1943,
+              113,
+              460,
+              373,
+              21,
+              2708,
+              2868,
+              1741,
+              1719,
+              1231
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 21,
+            "final_rank": 1231,
+            "max_prob": 0.004822
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                4.8438,
+                19.875,
+                27.75,
+                20.125,
+                22.0,
+                24.375,
+                22.25,
+                26.125,
+                28.625,
+                22.75,
+                29.25
+              ],
+              "probs": [
+                0.0,
+                0.000828,
+                0.176758,
+                6.4e-05,
+                0.00029,
+                0.024536,
+                0.000273,
+                0.021851,
+                0.253906,
+                0.000954,
+                0.753906
+              ],
+              "ranks": [
+                28691,
+                66,
+                1,
+                492,
+                65,
+                6,
+                90,
+                6,
+                1,
+                40,
+                1
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                11.1875,
+                25.75,
+                26.125,
+                19.375,
+                28.125,
+                19.25,
+                29.125,
+                29.0,
+                20.75,
+                22.75,
+                19.75
+              ],
+              "probs": [
+                2.3e-05,
+                0.294922,
+                0.034912,
+                3.1e-05,
+                0.131836,
+                0.000146,
+                0.263672,
+                0.386719,
+                9.6e-05,
+                0.000954,
+                5.7e-05
+              ],
+              "ranks": [
+                1281,
+                1,
+                5,
+                800,
+                2,
+                346,
+                2,
+                1,
+                202,
+                40,
+                141
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                -2.2344,
+                19.75,
+                26.375,
+                16.625,
+                20.375,
+                21.5,
+                20.875,
+                24.375,
+                27.75,
+                24.125,
+                25.875
+              ],
+              "probs": [
+                0.0,
+                0.000732,
+                0.044678,
+                2e-06,
+                5.7e-05,
+                0.001389,
+                6.9e-05,
+                0.003799,
+                0.105957,
+                0.003769,
+                0.025879
+              ],
+              "ranks": [
+                159099,
+                73,
+                3,
+                2832,
+                170,
+                75,
+                181,
+                22,
+                2,
+                16,
+                3
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                -2.0312,
+                21.875,
+                22.5,
+                15.9375,
+                29.625,
+                17.75,
+                22.625,
+                21.25,
+                21.625,
+                20.0,
+                18.5
+              ],
+              "probs": [
+                0.0,
+                0.006134,
+                0.000927,
+                1e-06,
+                0.59375,
+                3.3e-05,
+                0.000397,
+                0.000167,
+                0.000232,
+                6.1e-05,
+                1.6e-05
+              ],
+              "ranks": [
+                154816,
+                13,
+                102,
+                3767,
+                1,
+                770,
+                76,
+                169,
+                140,
+                122,
+                248
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 5,
+        "source_appears_at": null,
+        "flip_position": 1,
+        "initial_gap": -13.25,
+        "best_gap": 10.0,
+        "final_gap": 10.0,
+        "gap_closure": 23.25,
+        "gap_trajectory": [
+          -13.25,
+          1.5,
+          2.875,
+          5.0,
+          2.375,
+          4.0,
+          8.4375,
+          9.625,
+          9.0,
+          7.6875,
+          10.0
+        ],
+        "control_stability_mean": 20.1195,
+        "control_stability_max": 31.6562
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 21.375,
+        "prob": 0.001801,
+        "rank": 59
+      },
+      "source": {
+        "logit": 25.875,
+        "prob": 0.162109,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -27.125,
+      "source_logit_delta": -18.375,
+      "baseline_gap": -4.5,
+      "steered_gap_0": -13.25,
+      "gap_closure_0": -8.75,
+      "target_rank_improvement": -220324,
+      "flip_at_0": false
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T18:07:13.225549",
+    "duration_ms": 94872.24388122559,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Denver",
+      "Springs",
+      "Huntington"
+    ],
+    "states_found": [],
+    "notes": "Target capital 'Denver' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

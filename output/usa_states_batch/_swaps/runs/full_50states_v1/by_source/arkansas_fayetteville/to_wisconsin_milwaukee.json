@@ -1,0 +1,564 @@
+{
+  "swap_id": "arkansas_fayetteville__to__wisconsin_milwaukee",
+  "source": {
+    "slug": "arkansas_fayetteville",
+    "prompt": "<bos>The capital of the state containing Fayetteville is",
+    "concept": "arkansas",
+    "state": "Arkansas",
+    "capital": "Little Rock",
+    "city": "Fayetteville"
+  },
+  "target": {
+    "slug": "wisconsin_milwaukee",
+    "concept": "wisconsin",
+    "state": "Wisconsin",
+    "capital": "Madison",
+    "city": "Milwaukee"
+  },
+  "interventions": {
+    "ablate_count": 46,
+    "amplify_count": 55,
+    "total_count": 101
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Arkansas",
+      "from_capital": "Little Rock",
+      "from_city": "Fayetteville",
+      "to_state": "Wisconsin",
+      "to_capital": "Madison",
+      "to_city": "Milwaukee"
+    },
+    "exact_match": {
+      "default_has_from_capital": false,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Raleigh",
+      "default_prob": 0.216796875,
+      "steered": " Green",
+      "steered_prob": 0.2421875
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Fayetteville is Raleigh.\n\nThe capital of North Carolina is Raleigh",
+      "steered_output": "<bos><bos>The capital of the state containing Fayetteville is River Falls, Wisconsin, is <strong>Madison</strong>.",
+      "default_topk": [
+        {
+          "token": " Raleigh",
+          "prob": 0.216796875
+        },
+        {
+          "token": " the",
+          "prob": 0.09033203125
+        },
+        {
+          "token": " ",
+          "prob": 0.06201171875
+        },
+        {
+          "token": " Little",
+          "prob": 0.04833984375
+        },
+        {
+          "token": ":",
+          "prob": 0.03759765625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Green",
+          "prob": 0.2421875
+        },
+        {
+          "token": "﻿<?",
+          "prob": 0.0888671875
+        },
+        {
+          "token": " River",
+          "prob": 0.0888671875
+        },
+        {
+          "token": " Drapeau",
+          "prob": 0.0888671875
+        },
+        {
+          "token": " Fond",
+          "prob": 0.047607421875
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Madison",
+        "source": " Little",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " River",
+        " Falls",
+        ",",
+        " Wisconsin",
+        ",",
+        " is",
+        " ",
+        "<strong>",
+        "Madison",
+        "</strong>",
+        "."
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Madison",
+          "token_id": 28428,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              13.5625,
+              11.8125,
+              21.875,
+              25.375,
+              24.0,
+              25.375,
+              26.125,
+              13.4375,
+              10.3125,
+              19.75,
+              23.375
+            ],
+            "probs": [
+              0.000183,
+              1.2e-05,
+              0.000391,
+              0.04541,
+              0.001953,
+              0.009583,
+              0.087402,
+              1e-06,
+              0.000109,
+              0.000131,
+              0.000969
+            ],
+            "ranks": [
+              244,
+              895,
+              79,
+              4,
+              26,
+              14,
+              2,
+              147,
+              184,
+              26,
+              26
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "first_top5_position": 3,
+            "first_top10_position": 3,
+            "max_prob": 0.087402,
+            "min_rank": 2,
+            "final_rank": 26,
+            "rank_improvement": 242
+          }
+        },
+        "source": {
+          "token": " Little",
+          "token_id": 11709,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              11.375,
+              6.8125,
+              19.25,
+              19.75,
+              18.875,
+              19.75,
+              20.0,
+              2.375,
+              1.0781,
+              10.75,
+              13.5625
+            ],
+            "probs": [
+              2.1e-05,
+              0.0,
+              2.8e-05,
+              0.000164,
+              1.2e-05,
+              3.5e-05,
+              0.000192,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              1084,
+              9368,
+              435,
+              282,
+              482,
+              404,
+              226,
+              94243,
+              14652,
+              3022,
+              1827
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 226,
+            "final_rank": 1827,
+            "max_prob": 0.000192
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                10.0,
+                13.8125,
+                23.125,
+                26.0,
+                23.0,
+                27.125,
+                26.875,
+                8.5,
+                3.8438,
+                20.625,
+                23.5
+              ],
+              "probs": [
+                5e-06,
+                9.1e-05,
+                0.001366,
+                0.084961,
+                0.000721,
+                0.055176,
+                0.185547,
+                0.0,
+                0.0,
+                0.000313,
+                0.001099
+              ],
+              "ranks": [
+                2433,
+                303,
+                38,
+                2,
+                55,
+                2,
+                1,
+                3647,
+                4591,
+                15,
+                21
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                15.0,
+                19.125,
+                28.125,
+                24.5,
+                29.0,
+                29.0,
+                22.125,
+                12.9375,
+                4.5625,
+                20.75,
+                25.375
+              ],
+              "probs": [
+                0.000771,
+                0.018555,
+                0.203125,
+                0.018921,
+                0.291016,
+                0.359375,
+                0.001602,
+                0.0,
+                0.0,
+                0.000355,
+                0.007172
+              ],
+              "ranks": [
+                74,
+                14,
+                2,
+                8,
+                1,
+                1,
+                58,
+                209,
+                3287,
+                11,
+                7
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                5.1562,
+                12.6875,
+                21.375,
+                24.5,
+                21.5,
+                26.0,
+                25.875,
+                4.9688,
+                3.3438,
+                17.75,
+                22.375
+              ],
+              "probs": [
+                0.0,
+                3e-05,
+                0.000237,
+                0.018921,
+                0.000161,
+                0.017944,
+                0.068359,
+                0.0,
+                0.0,
+                1.8e-05,
+                0.000357
+              ],
+              "ranks": [
+                25495,
+                559,
+                120,
+                8,
+                110,
+                9,
+                3,
+                32524,
+                5779,
+                71,
+                40
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                8.1875,
+                19.0,
+                23.875,
+                21.125,
+                21.875,
+                22.5,
+                21.375,
+                6.7812,
+                3.875,
+                18.125,
+                21.625
+              ],
+              "probs": [
+                1e-06,
+                0.016357,
+                0.002899,
+                0.000648,
+                0.000234,
+                0.000542,
+                0.000759,
+                0.0,
+                0.0,
+                2.6e-05,
+                0.000169
+              ],
+              "ranks": [
+                6505,
+                16,
+                22,
+                141,
+                92,
+                77,
+                99,
+                11689,
+                4528,
+                60,
+                57
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": null,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 2.1875,
+        "best_gap": 11.0625,
+        "final_gap": 9.8125,
+        "gap_closure": 8.875,
+        "gap_trajectory": [
+          2.1875,
+          5.0,
+          2.625,
+          5.625,
+          5.125,
+          5.625,
+          6.125,
+          11.0625,
+          9.2344,
+          9.0,
+          9.8125
+        ],
+        "control_stability_mean": 11.1188,
+        "control_stability_max": 20.8438
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 20.375,
+        "prob": 0.000607,
+        "rank": 109
+      },
+      "source": {
+        "logit": 24.75,
+        "prob": 0.04834,
+        "rank": 4
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -6.8125,
+      "source_logit_delta": -13.375,
+      "baseline_gap": -4.375,
+      "steered_gap_0": 2.1875,
+      "gap_closure_0": 6.5625,
+      "target_rank_improvement": -135,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T12:25:28.565046",
+    "duration_ms": 69155.23529052734,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Fayetteville",
+      "Madison"
+    ],
+    "states_found": [
+      "Wisconsin"
+    ],
+    "notes": "Target capital 'Madison' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

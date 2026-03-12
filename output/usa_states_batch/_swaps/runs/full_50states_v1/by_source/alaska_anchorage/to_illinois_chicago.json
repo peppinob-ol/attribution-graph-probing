@@ -1,0 +1,564 @@
+{
+  "swap_id": "alaska_anchorage__to__illinois_chicago",
+  "source": {
+    "slug": "alaska_anchorage",
+    "prompt": "<bos>The capital of the state containing Anchorage is",
+    "concept": "alaska",
+    "state": "Alaska",
+    "capital": "Juneau",
+    "city": "Anchorage"
+  },
+  "target": {
+    "slug": "illinois_chicago",
+    "concept": "illinois",
+    "state": "Illinois",
+    "capital": "Springfield",
+    "city": "Chicago"
+  },
+  "interventions": {
+    "ablate_count": 50,
+    "amplify_count": 42,
+    "total_count": 92
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Alaska",
+      "from_capital": "Juneau",
+      "from_city": "Anchorage",
+      "to_state": "Illinois",
+      "to_capital": "Springfield",
+      "to_city": "Chicago"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Juneau",
+      "default_prob": 0.25390625,
+      "steered": " Springfield",
+      "steered_prob": 0.5703125
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": 0.5703125,
+      "from_capital_in_default_topk": 0.25390625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Anchorage is Juneau.\n\nAlaska is a state in the United",
+      "steered_output": "<bos><bos>The capital of the state containing Anchorage is Springfield, Illinois, is a city that has been around",
+      "default_topk": [
+        {
+          "token": " Juneau",
+          "prob": 0.25390625
+        },
+        {
+          "token": " Anchorage",
+          "prob": 0.1533203125
+        },
+        {
+          "token": " the",
+          "prob": 0.10546875
+        },
+        {
+          "token": " ",
+          "prob": 0.08203125
+        },
+        {
+          "token": ":",
+          "prob": 0.072265625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Springfield",
+          "prob": 0.5703125
+        },
+        {
+          "token": "’",
+          "prob": 0.1123046875
+        },
+        {
+          "token": "'",
+          "prob": 0.06005859375
+        },
+        {
+          "token": " City",
+          "prob": 0.036376953125
+        },
+        {
+          "token": " AssemblyCompany",
+          "prob": 0.0250244140625
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Springfield",
+        "source": " Juneau",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " Springfield",
+        ",",
+        " Illinois",
+        ",",
+        " is",
+        " a",
+        " city",
+        " that",
+        " has",
+        " been",
+        " around"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Springfield",
+          "token_id": 46777,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              23.5,
+              24.125,
+              25.375,
+              25.5,
+              26.125,
+              25.375,
+              19.125,
+              18.5,
+              16.75,
+              15.375,
+              13.75
+            ],
+            "probs": [
+              0.570312,
+              0.002121,
+              0.031982,
+              0.005524,
+              0.019897,
+              0.009827,
+              5.7e-05,
+              1e-05,
+              1e-06,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              1,
+              25,
+              5,
+              10,
+              8,
+              12,
+              339,
+              362,
+              729,
+              1214,
+              2016
+            ]
+          },
+          "summary": {
+            "first_top1_position": 0,
+            "first_top5_position": 0,
+            "first_top10_position": 0,
+            "max_prob": 0.570312,
+            "min_rank": 1,
+            "final_rank": 2016,
+            "rank_improvement": 0
+          }
+        },
+        "source": {
+          "token": " Juneau",
+          "token_id": 219013,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              -6.3125,
+              12.1875,
+              15.375,
+              9.625,
+              14.4375,
+              10.75,
+              -5.8438,
+              1.8203,
+              1.0547,
+              -0.7969,
+              2.3125
+            ],
+            "probs": [
+              0.0,
+              0.0,
+              1e-06,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              214499,
+              9102,
+              2014,
+              21405,
+              4205,
+              10745,
+              172304,
+              67671,
+              49861,
+              83721,
+              32071
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 2014,
+            "final_rank": 32071,
+            "max_prob": 1e-06
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                13.1875,
+                23.25,
+                27.25,
+                23.75,
+                27.375,
+                29.0,
+                18.0,
+                22.375,
+                23.375,
+                26.125,
+                26.375
+              ],
+              "probs": [
+                1.9e-05,
+                0.000885,
+                0.208008,
+                0.000961,
+                0.069336,
+                0.369141,
+                1.9e-05,
+                0.000475,
+                0.001038,
+                0.015625,
+                0.05542
+              ],
+              "ranks": [
+                549,
+                45,
+                2,
+                39,
+                2,
+                1,
+                525,
+                62,
+                72,
+                14,
+                4
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                17.875,
+                29.0,
+                25.375,
+                29.25,
+                29.125,
+                21.125,
+                18.0,
+                22.625,
+                29.0,
+                17.5,
+                16.0
+              ],
+              "probs": [
+                0.00206,
+                0.279297,
+                0.031982,
+                0.235352,
+                0.400391,
+                0.00014,
+                1.9e-05,
+                0.00061,
+                0.287109,
+                3e-06,
+                2e-06
+              ],
+              "ranks": [
+                23,
+                1,
+                5,
+                2,
+                1,
+                152,
+                525,
+                57,
+                1,
+                613,
+                1047
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                10.75,
+                22.25,
+                25.125,
+                22.875,
+                26.125,
+                27.875,
+                18.875,
+                21.375,
+                21.875,
+                29.0,
+                26.875
+              ],
+              "probs": [
+                2e-06,
+                0.000326,
+                0.02478,
+                0.000401,
+                0.019897,
+                0.119629,
+                4.5e-05,
+                0.000175,
+                0.000232,
+                0.277344,
+                0.091309
+              ],
+              "ranks": [
+                2018,
+                80,
+                7,
+                64,
+                8,
+                2,
+                367,
+                101,
+                147,
+                1,
+                2
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                12.5,
+                22.375,
+                21.125,
+                21.125,
+                21.875,
+                20.75,
+                15.5625,
+                28.375,
+                17.75,
+                19.125,
+                19.25
+              ],
+              "probs": [
+                1e-05,
+                0.00037,
+                0.000454,
+                7e-05,
+                0.000284,
+                9.6e-05,
+                2e-06,
+                0.191406,
+                4e-06,
+                1.4e-05,
+                4.5e-05
+              ],
+              "ranks": [
+                833,
+                70,
+                100,
+                160,
+                105,
+                190,
+                1189,
+                1,
+                560,
+                355,
+                368
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 0,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 29.8125,
+        "best_gap": 29.8125,
+        "final_gap": 11.4375,
+        "gap_closure": 0.0,
+        "gap_trajectory": [
+          29.8125,
+          11.9375,
+          10.0,
+          15.875,
+          11.6875,
+          14.625,
+          24.9688,
+          16.6797,
+          15.6953,
+          16.1719,
+          11.4375
+        ],
+        "control_stability_mean": 9.8703,
+        "control_stability_max": 18.25
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 18.75,
+        "prob": 0.00014,
+        "rank": 169
+      },
+      "source": {
+        "logit": 26.25,
+        "prob": 0.253906,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": 4.75,
+      "source_logit_delta": -32.5625,
+      "baseline_gap": -7.5,
+      "steered_gap_0": 29.8125,
+      "gap_closure_0": 37.3125,
+      "target_rank_improvement": 168,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T12:09:28.395183",
+    "duration_ms": 68019.15574073792,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Anchorage",
+      "Springfield"
+    ],
+    "states_found": [
+      "Illinois"
+    ],
+    "notes": "Target capital 'Springfield' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

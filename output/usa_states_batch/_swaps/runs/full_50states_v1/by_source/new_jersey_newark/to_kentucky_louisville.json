@@ -1,0 +1,561 @@
+{
+  "swap_id": "new_jersey_newark__to__kentucky_louisville",
+  "source": {
+    "slug": "new_jersey_newark",
+    "prompt": "<bos>The capital of the state containing Newark is",
+    "concept": "new jersey",
+    "state": "New Jersey",
+    "capital": "Trenton",
+    "city": "Newark"
+  },
+  "target": {
+    "slug": "kentucky_louisville",
+    "concept": "kentucky",
+    "state": "Kentucky",
+    "capital": "Frankfort",
+    "city": "Louisville"
+  },
+  "interventions": {
+    "ablate_count": 64,
+    "amplify_count": 58,
+    "total_count": 122
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "New Jersey",
+      "from_capital": "Trenton",
+      "from_city": "Newark",
+      "to_state": "Kentucky",
+      "to_capital": "Frankfort",
+      "to_city": "Louisville"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Trenton",
+      "default_prob": 0.306640625,
+      "steered": "AddTagHelper",
+      "steered_prob": 0.349609375
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": 0.08837890625,
+      "from_capital_in_default_topk": 0.306640625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Newark is Trenton.\n\nThe capital of the state containing Newark",
+      "steered_output": "<bos><bos>The capital of the state containing Newark isAddTagHelper, the nation's 10th largest",
+      "default_topk": [
+        {
+          "token": " Trenton",
+          "prob": 0.306640625
+        },
+        {
+          "token": " the",
+          "prob": 0.068359375
+        },
+        {
+          "token": " New",
+          "prob": 0.060302734375
+        },
+        {
+          "token": " ",
+          "prob": 0.05322265625
+        },
+        {
+          "token": " Newark",
+          "prob": 0.05322265625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "AddTagHelper",
+          "prob": 0.349609375
+        },
+        {
+          "token": " Frankfort",
+          "prob": 0.08837890625
+        },
+        {
+          "token": "LookAnd",
+          "prob": 0.036865234375
+        },
+        {
+          "token": " Drive",
+          "prob": 0.0286865234375
+        },
+        {
+          "token": "ViewImports",
+          "prob": 0.0252685546875
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Frankfort",
+        "source": " Trenton",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        "AddTagHelper",
+        ",",
+        " the",
+        " nation",
+        "'",
+        "s",
+        " ",
+        "1",
+        "0",
+        "th",
+        " largest"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Frankfort",
+          "token_id": 176201,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              20.0,
+              15.6875,
+              26.0,
+              21.75,
+              14.25,
+              3.4062,
+              14.125,
+              -2.8125,
+              3.1562,
+              3.8906,
+              8.3125
+            ],
+            "probs": [
+              0.088379,
+              0.000154,
+              0.025024,
+              0.000618,
+              2e-06,
+              2e-06,
+              1e-06,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              2,
+              345,
+              8,
+              108,
+              342,
+              24,
+              2045,
+              180064,
+              84969,
+              45173,
+              7713
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "first_top5_position": 0,
+            "first_top10_position": 0,
+            "max_prob": 0.088379,
+            "min_rank": 2,
+            "final_rank": 7713,
+            "rank_improvement": 0
+          }
+        },
+        "source": {
+          "token": " Trenton",
+          "token_id": 112353,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              6.2812,
+              16.625,
+              21.375,
+              16.875,
+              13.1875,
+              -4.0938,
+              12.25,
+              1.7734,
+              8.5625,
+              5.1562,
+              7.7812
+            ],
+            "probs": [
+              0.0,
+              0.000395,
+              0.000246,
+              5e-06,
+              1e-06,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              20988,
+              154,
+              185,
+              1940,
+              617,
+              10870,
+              4756,
+              74811,
+              13809,
+              26952,
+              9654
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 154,
+            "final_rank": 9654,
+            "max_prob": 0.000395
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                7.4062,
+                19.5,
+                28.125,
+                19.125,
+                17.5,
+                2.5625,
+                18.0,
+                8.5625,
+                15.5625,
+                15.5625,
+                16.375
+              ],
+              "probs": [
+                0.0,
+                0.007019,
+                0.209961,
+                4.5e-05,
+                6.2e-05,
+                1e-06,
+                5.6e-05,
+                0.0,
+                0.0,
+                6e-06,
+                1.1e-05
+              ],
+              "ranks": [
+                12948,
+                25,
+                1,
+                550,
+                56,
+                51,
+                233,
+                3270,
+                290,
+                92,
+                144
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                14.125,
+                21.5,
+                26.75,
+                18.625,
+                21.5,
+                4.4688,
+                17.0,
+                10.25,
+                16.75,
+                14.5,
+                15.8125
+              ],
+              "probs": [
+                0.000248,
+                0.051758,
+                0.052979,
+                2.7e-05,
+                0.003387,
+                7e-06,
+                2.1e-05,
+                0.0,
+                0.0,
+                2e-06,
+                6e-06
+              ],
+              "ranks": [
+                217,
+                3,
+                3,
+                767,
+                4,
+                15,
+                399,
+                1092,
+                139,
+                159,
+                191
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                3.7031,
+                18.125,
+                26.625,
+                16.375,
+                15.5,
+                2.9531,
+                16.875,
+                3.2812,
+                16.625,
+                13.9375,
+                14.5625
+              ],
+              "probs": [
+                0.0,
+                0.00177,
+                0.046875,
+                3e-06,
+                8e-06,
+                1e-06,
+                1.8e-05,
+                0.0,
+                0.0,
+                1e-06,
+                2e-06
+              ],
+              "ranks": [
+                50739,
+                46,
+                4,
+                2524,
+                167,
+                38,
+                447,
+                46178,
+                162,
+                216,
+                390
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                7.7812,
+                21.125,
+                23.25,
+                16.5,
+                22.875,
+                3.2656,
+                15.9375,
+                7.7812,
+                20.0,
+                16.25,
+                17.5
+              ],
+              "probs": [
+                0.0,
+                0.035645,
+                0.001602,
+                3e-06,
+                0.013367,
+                2e-06,
+                7e-06,
+                0.0,
+                1.2e-05,
+                1.3e-05,
+                3.3e-05
+              ],
+              "ranks": [
+                10883,
+                7,
+                57,
+                2286,
+                3,
+                26,
+                793,
+                5361,
+                33,
+                71,
+                82
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": null,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 13.7188,
+        "best_gap": 13.7188,
+        "final_gap": 0.5313,
+        "gap_closure": 0.0,
+        "gap_trajectory": [
+          13.7188,
+          -0.9375,
+          4.625,
+          4.875,
+          1.0625,
+          7.5,
+          1.875,
+          -4.5859,
+          -5.4063,
+          -1.2656,
+          0.5313
+        ],
+        "control_stability_mean": 8.8836,
+        "control_stability_max": 22.9219
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 19.5,
+        "prob": 0.00017,
+        "rank": 198
+      },
+      "source": {
+        "logit": 27.0,
+        "prob": 0.306641,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": 0.5,
+      "source_logit_delta": -20.7188,
+      "baseline_gap": -7.5,
+      "steered_gap_0": 13.7188,
+      "gap_closure_0": 21.2188,
+      "target_rank_improvement": 196,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T15:24:12.994964",
+    "duration_ms": 69275.18153190613,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 2,
+    "tier_name": "SUPPRESSED_ONLY",
+    "cities_found": [
+      "Newark"
+    ],
+    "states_found": [],
+    "notes": "Garbled/nonsense output",
+    "method": "RULE_HIGH",
+    "confidence": 0.9,
+    "manually_edited": false
+  }
+}

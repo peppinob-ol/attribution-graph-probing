@@ -1,0 +1,564 @@
+{
+  "swap_id": "idaho_idaho_falls__to__florida_miami",
+  "source": {
+    "slug": "idaho_idaho_falls",
+    "prompt": "<bos>The capital of the state containing Idaho Falls is",
+    "concept": "idaho",
+    "state": "Idaho",
+    "capital": "Boise",
+    "city": "Idaho Falls"
+  },
+  "target": {
+    "slug": "florida_miami",
+    "concept": "florida",
+    "state": "Florida",
+    "capital": "Tallahassee",
+    "city": "Miami"
+  },
+  "interventions": {
+    "ablate_count": 81,
+    "amplify_count": 41,
+    "total_count": 122
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Idaho",
+      "from_capital": "Boise",
+      "from_city": "Idaho Falls",
+      "to_state": "Florida",
+      "to_capital": "Tallahassee",
+      "to_city": "Miami"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Boise",
+      "default_prob": 0.220703125,
+      "steered": " الحره",
+      "steered_prob": 0.310546875
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.220703125,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Idaho Falls is Boise.\n\nIdaho Falls is a city in Idaho",
+      "steered_output": "<bos><bos>The capital of the state containing Idaho Falls is الحره, Tallahassee, and West Palm Beach.\n\nThe",
+      "default_topk": [
+        {
+          "token": " Boise",
+          "prob": 0.220703125
+        },
+        {
+          "token": " Idaho",
+          "prob": 0.171875
+        },
+        {
+          "token": ":",
+          "prob": 0.07177734375
+        },
+        {
+          "token": " ",
+          "prob": 0.07177734375
+        },
+        {
+          "token": " the",
+          "prob": 0.07177734375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " الحره",
+          "prob": 0.310546875
+        },
+        {
+          "token": " St",
+          "prob": 0.0537109375
+        },
+        {
+          "token": " Efq",
+          "prob": 0.03271484375
+        },
+        {
+          "token": " West",
+          "prob": 0.03271484375
+        },
+        {
+          "token": " Fort",
+          "prob": 0.0224609375
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Tallahassee",
+        "source": " Boise",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " الحره",
+        ",",
+        " Tallahassee",
+        ",",
+        " and",
+        " West",
+        " Palm",
+        " Beach",
+        ".",
+        "\n\n",
+        "The"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Tallahassee",
+          "token_id": 161316,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              17.75,
+              23.5,
+              27.125,
+              25.5,
+              26.75,
+              25.625,
+              13.3125,
+              0.2432,
+              23.875,
+              27.25,
+              17.625
+            ],
+            "probs": [
+              0.002686,
+              0.005127,
+              0.172852,
+              0.010864,
+              0.084473,
+              0.097656,
+              0.001396,
+              1e-06,
+              0.001175,
+              0.047119,
+              6e-06
+            ],
+            "ranks": [
+              39,
+              21,
+              1,
+              6,
+              2,
+              1,
+              16,
+              1935,
+              38,
+              5,
+              1530
+            ]
+          },
+          "summary": {
+            "first_top1_position": 2,
+            "first_top5_position": 2,
+            "first_top10_position": 2,
+            "max_prob": 0.172852,
+            "min_rank": 1,
+            "final_rank": 1530,
+            "rank_improvement": 38
+          }
+        },
+        "source": {
+          "token": " Boise",
+          "token_id": 112583,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              8.875,
+              20.75,
+              23.5,
+              16.375,
+              24.125,
+              24.125,
+              9.4375,
+              -0.252,
+              17.75,
+              21.875,
+              9.25
+            ],
+            "probs": [
+              0.0,
+              0.000328,
+              0.004608,
+              1e-06,
+              0.006134,
+              0.021851,
+              2.9e-05,
+              0.0,
+              3e-06,
+              0.000218,
+              0.0
+            ],
+            "ranks": [
+              13234,
+              158,
+              30,
+              4577,
+              20,
+              12,
+              196,
+              3024,
+              1537,
+              149,
+              22597
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 12,
+            "final_rank": 22597,
+            "max_prob": 0.021851
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                7.6875,
+                24.25,
+                26.875,
+                23.5,
+                25.5,
+                25.25,
+                5.1562,
+                4.4062,
+                23.875,
+                23.375,
+                15.375
+              ],
+              "probs": [
+                0.0,
+                0.010803,
+                0.134766,
+                0.001472,
+                0.024292,
+                0.067383,
+                0.0,
+                4.8e-05,
+                0.001175,
+                0.000977,
+                1e-06
+              ],
+              "ranks": [
+                22240,
+                14,
+                2,
+                19,
+                7,
+                3,
+                1806,
+                44,
+                38,
+                70,
+                3944
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                11.5,
+                26.625,
+                26.5,
+                27.625,
+                26.625,
+                20.125,
+                10.1875,
+                5.8125,
+                29.0,
+                23.625,
+                13.0625
+              ],
+              "probs": [
+                5e-06,
+                0.116699,
+                0.092773,
+                0.091309,
+                0.074707,
+                0.000399,
+                6.2e-05,
+                0.000197,
+                0.197266,
+                0.001259,
+                0.0
+              ],
+              "ranks": [
+                3457,
+                2,
+                3,
+                3,
+                3,
+                156,
+                128,
+                20,
+                2,
+                52,
+                8545
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                1.1719,
+                23.25,
+                25.125,
+                22.0,
+                23.25,
+                23.0,
+                4.4375,
+                2.8594,
+                21.75,
+                21.625,
+                11.4375
+              ],
+              "probs": [
+                0.0,
+                0.003998,
+                0.023438,
+                0.000328,
+                0.002563,
+                0.00708,
+                0.0,
+                1e-05,
+                0.00014,
+                0.000171,
+                0.0
+              ],
+              "ranks": [
+                133766,
+                27,
+                9,
+                77,
+                37,
+                23,
+                2599,
+                163,
+                133,
+                178,
+                13116
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                2.4219,
+                23.5,
+                22.0,
+                22.375,
+                20.75,
+                19.75,
+                11.0625,
+                1.9062,
+                23.125,
+                20.125,
+                11.5
+              ],
+              "probs": [
+                0.0,
+                0.005127,
+                0.00103,
+                0.000479,
+                0.00021,
+                0.000275,
+                0.000147,
+                4e-06,
+                0.000553,
+                3.8e-05,
+                0.0
+              ],
+              "ranks": [
+                106091,
+                21,
+                72,
+                56,
+                188,
+                201,
+                84,
+                417,
+                62,
+                396,
+                12764
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 2,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 8.875,
+        "best_gap": 9.125,
+        "final_gap": 8.375,
+        "gap_closure": 0.25,
+        "gap_trajectory": [
+          8.875,
+          2.75,
+          3.625,
+          9.125,
+          2.625,
+          1.5,
+          3.875,
+          0.4952,
+          6.125,
+          5.375,
+          8.375
+        ],
+        "control_stability_mean": 14.0105,
+        "control_stability_max": 23.9531
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 17.625,
+        "prob": 5.8e-05,
+        "rank": 269
+      },
+      "source": {
+        "logit": 25.875,
+        "prob": 0.220703,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": 0.125,
+      "source_logit_delta": -17.0,
+      "baseline_gap": -8.25,
+      "steered_gap_0": 8.875,
+      "gap_closure_0": 17.125,
+      "target_rank_improvement": 230,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T13:12:16.640626",
+    "duration_ms": 77160.96234321594,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Tallahassee",
+      "Idaho Falls"
+    ],
+    "states_found": [
+      "Idaho"
+    ],
+    "notes": "Target capital 'Tallahassee' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

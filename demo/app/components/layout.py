@@ -33,8 +33,9 @@ def base_head(title: str = "State Swap Explorer"):
 
 def base_scripts():
     """Return common script elements."""
+    # Version bump to bust browser cache after updates
+    v = "8"
     return (
-        Script(src="/static/islands/Matrix.js", type="module"),
-        Script(src="/static/islands/DetailPanel.js", type="module"),
+        Script(src=f"/static/islands/islands.js?v={v}", type="module"),
     )
 

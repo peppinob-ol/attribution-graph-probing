@@ -1,0 +1,564 @@
+{
+  "swap_id": "ohio_cleveland__to__connecticut_bridgeport",
+  "source": {
+    "slug": "ohio_cleveland",
+    "prompt": "<bos>The capital of the state containing Cleveland is",
+    "concept": "ohio",
+    "state": "Ohio",
+    "capital": "Columbus",
+    "city": "Cleveland"
+  },
+  "target": {
+    "slug": "connecticut_bridgeport",
+    "concept": "connecticut",
+    "state": "Connecticut",
+    "capital": "Hartford",
+    "city": "Bridgeport"
+  },
+  "interventions": {
+    "ablate_count": 40,
+    "amplify_count": 44,
+    "total_count": 84
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Ohio",
+      "from_capital": "Columbus",
+      "from_city": "Cleveland",
+      "to_state": "Connecticut",
+      "to_capital": "Hartford",
+      "to_city": "Bridgeport"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Columbus",
+      "default_prob": 0.2109375,
+      "steered": " Bridgeport",
+      "steered_prob": 0.2158203125
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": 0.1904296875,
+      "from_capital_in_default_topk": 0.2109375,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Cleveland is Columbus.\n\nThe capital of the state containing Cleveland",
+      "steered_output": "<bos><bos>The capital of the state containing Cleveland is Hartford, Connecticut, is a city that has been around",
+      "default_topk": [
+        {
+          "token": " Columbus",
+          "prob": 0.2109375
+        },
+        {
+          "token": " Cleveland",
+          "prob": 0.099609375
+        },
+        {
+          "token": " the",
+          "prob": 0.087890625
+        },
+        {
+          "token": " ",
+          "prob": 0.068359375
+        },
+        {
+          "token": " Ohio",
+          "prob": 0.04150390625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Bridgeport",
+          "prob": 0.2158203125
+        },
+        {
+          "token": " Hartford",
+          "prob": 0.1904296875
+        },
+        {
+          "token": " يتيمه",
+          "prob": 0.0791015625
+        },
+        {
+          "token": " Water",
+          "prob": 0.022705078125
+        },
+        {
+          "token": " Bloomfield",
+          "prob": 0.02001953125
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Hartford",
+        "source": " Columbus",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " Hartford",
+        ",",
+        " Connecticut",
+        ",",
+        " is",
+        " a",
+        " city",
+        " that",
+        " has",
+        " been",
+        " around"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Hartford",
+          "token_id": 64682,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              22.5,
+              22.25,
+              24.75,
+              24.375,
+              26.0,
+              21.125,
+              18.0,
+              18.75,
+              16.375,
+              13.8125,
+              13.1875
+            ],
+            "probs": [
+              0.19043,
+              0.000326,
+              0.027832,
+              0.001892,
+              0.012024,
+              0.000113,
+              1.1e-05,
+              1e-05,
+              1e-06,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              2,
+              87,
+              5,
+              29,
+              9,
+              211,
+              612,
+              369,
+              825,
+              1888,
+              2321
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "first_top5_position": 0,
+            "first_top10_position": 0,
+            "max_prob": 0.19043,
+            "min_rank": 2,
+            "final_rank": 2321,
+            "rank_improvement": 0
+          }
+        },
+        "source": {
+          "token": " Columbus",
+          "token_id": 34602,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              13.3125,
+              15.125,
+              18.5,
+              16.5,
+              20.875,
+              16.75,
+              14.5,
+              14.0625,
+              17.5,
+              15.375,
+              12.625
+            ],
+            "probs": [
+              1.9e-05,
+              0.0,
+              5.4e-05,
+              1e-06,
+              7.2e-05,
+              1e-06,
+              0.0,
+              0.0,
+              3e-06,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              1397,
+              2317,
+              253,
+              1374,
+              236,
+              1167,
+              1795,
+              1876,
+              623,
+              1173,
+              2706
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 236,
+            "final_rank": 2706,
+            "max_prob": 7.2e-05
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                6.0312,
+                23.5,
+                26.625,
+                23.75,
+                27.125,
+                29.0,
+                18.125,
+                22.25,
+                23.375,
+                26.0,
+                26.625
+              ],
+              "probs": [
+                0.0,
+                0.001144,
+                0.181641,
+                0.001015,
+                0.036865,
+                0.298828,
+                1.3e-05,
+                0.000338,
+                0.000992,
+                0.013184,
+                0.074219
+              ],
+              "ranks": [
+                46126,
+                42,
+                2,
+                41,
+                4,
+                1,
+                588,
+                72,
+                82,
+                17,
+                3
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                8.5625,
+                28.75,
+                25.25,
+                29.0,
+                29.625,
+                20.75,
+                16.75,
+                22.125,
+                28.875,
+                17.0,
+                15.5625
+              ],
+              "probs": [
+                0.0,
+                0.217773,
+                0.045898,
+                0.192383,
+                0.449219,
+                7.8e-05,
+                3e-06,
+                0.000298,
+                0.242188,
+                2e-06,
+                1e-06
+              ],
+              "ranks": [
+                17718,
+                2,
+                4,
+                2,
+                1,
+                250,
+                939,
+                76,
+                1,
+                679,
+                1181
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                0.498,
+                22.0,
+                24.0,
+                22.625,
+                26.0,
+                28.375,
+                19.25,
+                21.75,
+                22.75,
+                29.0,
+                27.0
+              ],
+              "probs": [
+                0.0,
+                0.000254,
+                0.013184,
+                0.000328,
+                0.012024,
+                0.160156,
+                3.9e-05,
+                0.000204,
+                0.00053,
+                0.265625,
+                0.108398
+              ],
+              "ranks": [
+                158493,
+                97,
+                11,
+                74,
+                9,
+                2,
+                392,
+                91,
+                110,
+                1,
+                2
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                4.0312,
+                22.5,
+                21.125,
+                20.875,
+                22.0,
+                21.125,
+                16.75,
+                29.0,
+                18.125,
+                19.5,
+                19.625
+              ],
+              "probs": [
+                0.0,
+                0.00042,
+                0.000744,
+                5.7e-05,
+                0.000219,
+                0.000113,
+                3e-06,
+                0.287109,
+                5e-06,
+                2e-05,
+                6.8e-05
+              ],
+              "ranks": [
+                81580,
+                76,
+                57,
+                194,
+                132,
+                211,
+                939,
+                1,
+                525,
+                314,
+                336
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 0,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 9.1875,
+        "best_gap": 9.1875,
+        "final_gap": 0.5625,
+        "gap_closure": 0.0,
+        "gap_trajectory": [
+          9.1875,
+          7.125,
+          6.25,
+          7.875,
+          5.125,
+          4.375,
+          3.5,
+          4.6875,
+          -1.125,
+          -1.5625,
+          0.5625
+        ],
+        "control_stability_mean": 18.5552,
+        "control_stability_max": 28.502
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 21.25,
+        "prob": 0.001259,
+        "rank": 68
+      },
+      "source": {
+        "logit": 26.375,
+        "prob": 0.210938,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": 1.25,
+      "source_logit_delta": -13.0625,
+      "baseline_gap": -5.125,
+      "steered_gap_0": 9.1875,
+      "gap_closure_0": 14.3125,
+      "target_rank_improvement": 66,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T16:02:04.761757",
+    "duration_ms": 75876.90496444702,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Hartford",
+      "Cleveland"
+    ],
+    "states_found": [
+      "Connecticut"
+    ],
+    "notes": "Target capital 'Hartford' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

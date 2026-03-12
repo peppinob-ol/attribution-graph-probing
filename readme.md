@@ -2,23 +2,35 @@
 
 **Automated Attribution Graph Analysis through Probe Prompting**
 
-Streamlit application for automated analysis of attribution graphs with automatic classification and naming of supernodes through probe prompting.
+This repository implements an automated pipeline for interpreting attribution graphs produced by transformer models equipped with Sparse Autoencoders (SAEs) or Cross-Layer Transcoders (CLTs). It builds directly on Anthropic’s open-source Circuit Tracer framework
+ https://github.com/safety-research/circuit-tracer
+
+and is intended as a downstream analysis layer that systematizes and scales feature-level interpretation.
+
+The core idea—developed and motivated in the accompanying LessWrong post
+ https://www.lesswrong.com/posts/zQqGhKPqaCBZZDCge/automated-circuit-interpretation-via-probe-prompting
+
+is to treat attribution graphs not as static artifacts to be manually inspected, but as objects that can be experimentally probed. Instead of inferring feature semantics from decoder geometry or corpus examples alone, this library measures how features behave under controlled semantic variation.
 
 ---
 
 ## Overview
 
-This project implements a **3-stage pipeline** for automatically analyzing and interpreting attribution graphs from models with Sparse Autoencoders (SAE) or Cross-Layer Transcoders (CLT):
+The pipeline automates a workflow that is typically performed manually in circuit-tracing analyses, replacing ad-hoc inspection with reproducible, behavior-based measurements.
 
-### Pipeline v2.0
+It performs three main tasks:
 
-```
-Stage 1: Graph Generation → Stage 2: Probe Prompts → Stage 3: Node Grouping
-```
+1. Attribution graph extraction (upstream).
+Given a prompt and target logit, we rely on Circuit Tracer to compute the attribution graph induced by a replacement model (SAE or CLT). Nodes correspond to transcoder features and input token embeddings; edges represent direct causal influence. Standard cumulative-influence pruning is applied to obtain a tractable subgraph.
+(This repository does not re-implement circuit tracing; it consumes Circuit Tracer outputs.)
 
-1. **Graph Generation**: Generate attribution graphs on Neuronpedia and extract static metrics
-2. **Probe Prompts**: Analyze feature activations on LLM-generated semantic concepts
-3. **Node Grouping**: Automatically classify and name supernodes for interpretability
+2. Feature probing via concept-aligned prompts.
+For a selected attribution graph, the library generates or accepts a small set of probe prompts that vary semantic content while preserving syntactic structure. Feature activations are measured across these probes, producing cross-prompt behavioral signatures (e.g. peak token consistency, sparsity, functional vs. semantic preference). These signatures distinguish features that may look similar geometrically but play different computational roles.
+
+3. Automated interpretation and supernode construction.
+Using transparent, testable heuristics over behavioral signatures, features are classified into functional types (e.g. entity detectors, relational binders, output-promotion “Say X” features). Features with aligned behavior are grouped into concept-aligned supernodes and assigned interpretable names grounded in measured activation behavior rather than assumed semantics. The resulting supernode graph can be exported to Neuronpedia for visualization and quantitative evaluation (Replacement and Completeness).
+
+In effect, this library leverages Circuit Tracer for causal extraction and adds a behavioral analysis layer on top. The contribution is not a new attribution method, but a systematic way to interpret attribution graphs using probe prompting—reducing manual effort, enabling cross-prompt robustness checks, and making circuit analysis more scalable and falsifiable.
 
 ### Results
 

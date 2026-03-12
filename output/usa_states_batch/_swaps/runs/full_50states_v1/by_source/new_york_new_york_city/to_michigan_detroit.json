@@ -1,0 +1,565 @@
+{
+  "swap_id": "new_york_new_york_city__to__michigan_detroit",
+  "source": {
+    "slug": "new_york_new_york_city",
+    "prompt": "<bos>The capital of the state containing New York City is",
+    "concept": "new york",
+    "state": "New York",
+    "capital": "Albany",
+    "city": "New York City"
+  },
+  "target": {
+    "slug": "michigan_detroit",
+    "concept": "michigan",
+    "state": "Michigan",
+    "capital": "Lansing",
+    "city": "Detroit"
+  },
+  "interventions": {
+    "ablate_count": 68,
+    "amplify_count": 51,
+    "total_count": 119
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "New York",
+      "from_capital": "Albany",
+      "from_city": "New York City",
+      "to_state": "Michigan",
+      "to_capital": "Lansing",
+      "to_city": "Detroit"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Albany",
+      "default_prob": 0.46875,
+      "steered": "ėjimas",
+      "steered_prob": 0.12158203125
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.46875,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing New York City is Albany.\n\nThe capital of the state containing New",
+      "steered_output": "<bos><bos>The capital of the state containing New York City is’s population is Lansing.\n\nLansing is the",
+      "default_topk": [
+        {
+          "token": " Albany",
+          "prob": 0.46875
+        },
+        {
+          "token": " the",
+          "prob": 0.0634765625
+        },
+        {
+          "token": " New",
+          "prob": 0.055908203125
+        },
+        {
+          "token": ":",
+          "prob": 0.04931640625
+        },
+        {
+          "token": " ",
+          "prob": 0.04931640625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "ėjimas",
+          "prob": 0.12158203125
+        },
+        {
+          "token": "’",
+          "prob": 0.107421875
+        },
+        {
+          "token": "'",
+          "prob": 0.07373046875
+        },
+        {
+          "token": "monių",
+          "prob": 0.034912109375
+        },
+        {
+          "token": " East",
+          "prob": 0.03076171875
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Lansing",
+        "source": " Albany",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        "’",
+        "s",
+        " population",
+        " is",
+        " Lansing",
+        ".",
+        "\n\n",
+        "L",
+        "ansing",
+        " is",
+        " the"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Lansing",
+          "token_id": 83496,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              15.8125,
+              21.5,
+              22.875,
+              17.75,
+              27.25,
+              22.0,
+              28.5,
+              22.0,
+              0.9727,
+              21.625,
+              23.75
+            ],
+            "probs": [
+              0.003906,
+              0.00061,
+              0.004608,
+              5e-06,
+              0.188477,
+              0.000561,
+              0.118164,
+              0.000591,
+              1e-06,
+              0.000162,
+              0.001625
+            ],
+            "ranks": [
+              26,
+              64,
+              39,
+              651,
+              1,
+              39,
+              4,
+              86,
+              169,
+              89,
+              25
+            ]
+          },
+          "summary": {
+            "first_top1_position": 4,
+            "first_top5_position": 4,
+            "first_top10_position": 4,
+            "max_prob": 0.188477,
+            "min_rank": 1,
+            "final_rank": 25,
+            "rank_improvement": 25
+          }
+        },
+        "source": {
+          "token": " Albany",
+          "token_id": 48794,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              4.4062,
+              15.6875,
+              16.125,
+              14.6875,
+              20.125,
+              14.6875,
+              19.625,
+              3.0469,
+              -6.7188,
+              15.9375,
+              13.625
+            ],
+            "probs": [
+              0.0,
+              2e-06,
+              5e-06,
+              0.0,
+              0.000152,
+              0.0,
+              1.7e-05,
+              0.0,
+              0.0,
+              1e-06,
+              0.0
+            ],
+            "ranks": [
+              30040,
+              2047,
+              2052,
+              2206,
+              226,
+              1157,
+              350,
+              64596,
+              17897,
+              1005,
+              1584
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 226,
+            "final_rank": 1584,
+            "max_prob": 0.000152
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                4.125,
+                20.75,
+                22.25,
+                22.375,
+                26.875,
+                22.125,
+                20.875,
+                10.6875,
+                -0.707,
+                22.875,
+                29.375
+              ],
+              "probs": [
+                0.0,
+                0.000288,
+                0.002457,
+                0.000473,
+                0.129883,
+                0.000633,
+                5.8e-05,
+                0.0,
+                0.0,
+                0.000565,
+                0.451172
+              ],
+              "ranks": [
+                33030,
+                116,
+                64,
+                83,
+                2,
+                37,
+                210,
+                8620,
+                479,
+                51,
+                1
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                14.5,
+                24.125,
+                23.0,
+                29.0,
+                19.75,
+                25.125,
+                18.0,
+                13.0,
+                2.5781,
+                29.75,
+                21.0
+              ],
+              "probs": [
+                0.001053,
+                0.008423,
+                0.005219,
+                0.355469,
+                0.000104,
+                0.012756,
+                3e-06,
+                0.0,
+                4e-06,
+                0.546875,
+                0.000104
+              ],
+              "ranks": [
+                103,
+                4,
+                36,
+                1,
+                279,
+                5,
+                622,
+                4225,
+                54,
+                1,
+                105
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                3.5781,
+                20.0,
+                22.0,
+                21.25,
+                26.125,
+                21.625,
+                19.125,
+                12.25,
+                2.3594,
+                21.25,
+                28.5
+              ],
+              "probs": [
+                0.0,
+                0.000136,
+                0.001923,
+                0.000154,
+                0.061279,
+                0.000385,
+                1e-05,
+                0.0,
+                3e-06,
+                0.000111,
+                0.1875
+              ],
+              "ranks": [
+                39703,
+                185,
+                80,
+                145,
+                4,
+                46,
+                400,
+                5365,
+                66,
+                105,
+                2
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                8.3125,
+                18.25,
+                17.625,
+                28.5,
+                21.75,
+                22.0,
+                15.375,
+                8.875,
+                -0.8164,
+                20.875,
+                19.875
+              ],
+              "probs": [
+                2e-06,
+                2.4e-05,
+                2.4e-05,
+                0.21582,
+                0.000771,
+                0.000561,
+                0.0,
+                0.0,
+                0.0,
+                7.6e-05,
+                3.4e-05
+              ],
+              "ranks": [
+                5889,
+                517,
+                1090,
+                2,
+                83,
+                39,
+                1798,
+                13903,
+                513,
+                126,
+                169
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 4,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 11.4063,
+        "best_gap": 18.9531,
+        "final_gap": 10.125,
+        "gap_closure": 7.546799999999999,
+        "gap_trajectory": [
+          11.4063,
+          5.8125,
+          6.75,
+          3.0625,
+          7.125,
+          7.3125,
+          8.875,
+          18.9531,
+          7.6915,
+          5.6875,
+          10.125
+        ],
+        "control_stability_mean": 13.0412,
+        "control_stability_max": 25.25
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 20.625,
+        "prob": 0.000484,
+        "rank": 90
+      },
+      "source": {
+        "logit": 27.5,
+        "prob": 0.46875,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -4.8125,
+      "source_logit_delta": -23.0938,
+      "baseline_gap": -6.875,
+      "steered_gap_0": 11.4063,
+      "gap_closure_0": 18.2813,
+      "target_rank_improvement": 64,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T15:40:47.345984",
+    "duration_ms": 78980.84831237793,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Lansing",
+      "New York City",
+      "New York"
+    ],
+    "states_found": [
+      "New York"
+    ],
+    "notes": "Target capital 'Lansing' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

@@ -1,0 +1,563 @@
+{
+  "swap_id": "nevada_las_vegas__to__north_carolina_charlotte",
+  "source": {
+    "slug": "nevada_las_vegas",
+    "prompt": "<bos>The capital of the state containing Las Vegas is",
+    "concept": "nevada",
+    "state": "Nevada",
+    "capital": "Carson City",
+    "city": "Las Vegas"
+  },
+  "target": {
+    "slug": "north_carolina_charlotte",
+    "concept": "north carolina",
+    "state": "North Carolina",
+    "capital": "Raleigh",
+    "city": "Charlotte"
+  },
+  "interventions": {
+    "ablate_count": 51,
+    "amplify_count": 52,
+    "total_count": 103
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Nevada",
+      "from_capital": "Carson City",
+      "from_city": "Las Vegas",
+      "to_state": "North Carolina",
+      "to_capital": "Raleigh",
+      "to_city": "Charlotte"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Reno",
+      "default_prob": 0.12060546875,
+      "steered": " Chapel",
+      "steered_prob": 0.1708984375
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Las Vegas is <strong>Carson City</strong>.\n\n<h3>What is",
+      "steered_output": "<bos><bos>The capital of the state containing Las Vegas is Chapel Hill, North Carolina, is a great place to",
+      "default_topk": [
+        {
+          "token": " Reno",
+          "prob": 0.12060546875
+        },
+        {
+          "token": " ",
+          "prob": 0.09375
+        },
+        {
+          "token": " Nevada",
+          "prob": 0.0830078125
+        },
+        {
+          "token": " Las",
+          "prob": 0.0830078125
+        },
+        {
+          "token": " the",
+          "prob": 0.0732421875
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Chapel",
+          "prob": 0.1708984375
+        },
+        {
+          "token": " Efq",
+          "prob": 0.08056640625
+        },
+        {
+          "token": "ContentAlignment",
+          "prob": 0.0296630859375
+        },
+        {
+          "token": "Datuak",
+          "prob": 0.0296630859375
+        },
+        {
+          "token": " Concord",
+          "prob": 0.0262451171875
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Raleigh",
+        "source": " Carson",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " Chapel",
+        " Hill",
+        ",",
+        " North",
+        " Carolina",
+        ",",
+        " is",
+        " a",
+        " great",
+        " place",
+        " to"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Raleigh",
+          "token_id": 74100,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              20.75,
+              -1.3125,
+              22.875,
+              25.125,
+              3.3594,
+              22.75,
+              24.375,
+              26.0,
+              18.625,
+              17.75,
+              13.125
+            ],
+            "probs": [
+              0.007507,
+              0.0,
+              0.000599,
+              0.108887,
+              0.000146,
+              0.000368,
+              0.00296,
+              0.014771,
+              2.1e-05,
+              2.5e-05,
+              0.0
+            ],
+            "ranks": [
+              19,
+              6345,
+              61,
+              4,
+              4,
+              69,
+              26,
+              9,
+              447,
+              229,
+              703
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "first_top5_position": 3,
+            "first_top10_position": 3,
+            "max_prob": 0.108887,
+            "min_rank": 4,
+            "final_rank": 703,
+            "rank_improvement": 15
+          }
+        },
+        "source": {
+          "token": " Carson",
+          "token_id": 56649,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              16.0,
+              -0.0018,
+              16.75,
+              16.75,
+              -1.2656,
+              15.375,
+              17.875,
+              18.375,
+              6.6562,
+              3.0156,
+              5.7188
+            ],
+            "probs": [
+              6.5e-05,
+              0.0,
+              1e-06,
+              2.5e-05,
+              1e-06,
+              0.0,
+              4e-06,
+              7e-06,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              803,
+              2952,
+              1496,
+              319,
+              177,
+              2441,
+              754,
+              739,
+              12729,
+              29099,
+              11539
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 177,
+            "final_rank": 11539,
+            "max_prob": 6.5e-05
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                7.25,
+                5.0312,
+                23.625,
+                25.375,
+                -2.0938,
+                23.5,
+                26.75,
+                29.0,
+                17.875,
+                13.3125,
+                20.125
+              ],
+              "probs": [
+                0.0,
+                9e-06,
+                0.001266,
+                0.139648,
+                1e-06,
+                0.000778,
+                0.031738,
+                0.296875,
+                1e-05,
+                0.0,
+                4.2e-05
+              ],
+              "ranks": [
+                63433,
+                106,
+                35,
+                2,
+                315,
+                42,
+                4,
+                1,
+                562,
+                1382,
+                35
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                11.0625,
+                9.25,
+                29.0,
+                23.0,
+                1.7422,
+                29.25,
+                29.625,
+                20.375,
+                16.5,
+                12.75,
+                19.25
+              ],
+              "probs": [
+                0.0,
+                0.000614,
+                0.273438,
+                0.013,
+                2.9e-05,
+                0.245117,
+                0.5625,
+                5.3e-05,
+                3e-06,
+                0.0,
+                1.8e-05
+              ],
+              "ranks": [
+                15257,
+                7,
+                2,
+                8,
+                23,
+                2,
+                1,
+                293,
+                894,
+                1717,
+                53
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                4.9375,
+                4.1562,
+                22.0,
+                23.875,
+                -2.0469,
+                22.25,
+                25.875,
+                28.5,
+                19.75,
+                18.375,
+                20.0
+              ],
+              "probs": [
+                0.0,
+                4e-06,
+                0.00025,
+                0.03125,
+                1e-06,
+                0.000223,
+                0.013245,
+                0.179688,
+                6.5e-05,
+                4.7e-05,
+                3.7e-05
+              ],
+              "ranks": [
+                111601,
+                185,
+                83,
+                6,
+                307,
+                81,
+                7,
+                2,
+                293,
+                172,
+                37
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                11.0625,
+                9.875,
+                23.875,
+                19.75,
+                1.8125,
+                21.25,
+                21.5,
+                21.5,
+                15.375,
+                16.5,
+                22.5
+              ],
+              "probs": [
+                0.0,
+                0.001152,
+                0.001633,
+                0.000504,
+                3.1e-05,
+                8.2e-05,
+                0.000167,
+                0.000164,
+                1e-06,
+                7e-06,
+                0.000452
+              ],
+              "ranks": [
+                15257,
+                5,
+                30,
+                60,
+                22,
+                146,
+                137,
+                177,
+                1273,
+                389,
+                12
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": null,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 4.75,
+        "best_gap": 14.7344,
+        "final_gap": 7.4062,
+        "gap_closure": 9.9844,
+        "gap_trajectory": [
+          4.75,
+          -1.3107,
+          6.125,
+          8.375,
+          4.625,
+          7.375,
+          6.5,
+          7.625,
+          11.9688,
+          14.7344,
+          7.4062
+        ],
+        "control_stability_mean": 11.7147,
+        "control_stability_max": 23.5625
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 19.5,
+        "prob": 0.000263,
+        "rank": 142
+      },
+      "source": {
+        "logit": 25.125,
+        "prob": 0.073242,
+        "rank": 5
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": 1.25,
+      "source_logit_delta": -9.125,
+      "baseline_gap": -5.625,
+      "steered_gap_0": 4.75,
+      "gap_closure_0": 10.375,
+      "target_rank_improvement": 123,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T15:11:19.940783",
+    "duration_ms": 73515.4139995575,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 3,
+    "tier_name": "TARGET_STATE_ONLY",
+    "cities_found": [
+      "Las Vegas"
+    ],
+    "states_found": [
+      "North Carolina"
+    ],
+    "notes": "Target state 'North Carolina' mentioned, no city found",
+    "method": "RULE_HIGH",
+    "confidence": 0.9,
+    "manually_edited": false
+  }
+}

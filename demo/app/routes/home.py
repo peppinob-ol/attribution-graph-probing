@@ -4,7 +4,7 @@ Home page route - main matrix view
 from fasthtml.common import (
     Html, Head, Body, Title, Link, Script, Meta,
     Div, H1, H2, H3, P, A, Button, Span, Main, Header, Footer, Nav,
-    Section, Article, Aside, Ul, Li, NotStr
+    Section, Article, Aside, Ul, Li, NotStr, Select, Option
 )
 
 
@@ -61,6 +61,8 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                             annotate_badge,
                         ),
                         Nav(cls="flex items-center gap-4")(
+                            # Run selector dropdown
+                            _run_selector(data_loader),
                             Button(
                                 id="about-btn",
                                 cls="text-slate-300 hover:text-white transition-colors"
@@ -68,12 +70,12 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                             A(
                                 href="https://arxiv.org/abs/2511.07002",
                                 target="_blank",
-                                cls="text-slate-400 hover:text-white transition-colors"
+                                cls="text-slate-400 hover:text-white transition-colors hidden-mobile"
                             )("arXiv"),
                             A(
                                 href="https://github.com/peppinob-ol/circuit_tracer-prompt_rover",
                                 target="_blank",
-                                cls="text-slate-400 hover:text-white transition-colors"
+                                cls="text-slate-400 hover:text-white transition-colors hidden-mobile"
                             )("GitHub"),
                         ),
                     ),
@@ -82,11 +84,11 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                 # Main content
                 Main(cls="max-w-7xl mx-auto px-4 py-8")(
                     # Stats bar
-                    Div(cls="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8")(
-                        _stat_card("Total Swaps", str(stats.get('total_swaps', 0)), "experiments"),
-                        _stat_card("Perfect (T5)", f"{perfect_rate:.0f}%", "target capital found"),
-                        _stat_card("State Correct", f"{state_correct_rate:.0f}%", "T3+ success"),
-                        _stat_card("Suppression", f"{suppression_rate:.0f}%", "source removed"),
+                    Div(id="kpi-bar", cls="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8")(
+                        _stat_card("Total Swaps", str(stats.get('total_swaps', 0)), "experiments", value_id="kpi-total"),
+                        _stat_card("Perfect (T5)", f"{perfect_rate:.0f}%", "target capital found", value_id="kpi-perfect"),
+                        _stat_card("State Correct", f"{state_correct_rate:.0f}%", "T3+ success", value_id="kpi-correct"),
+                        _stat_card("Suppression", f"{suppression_rate:.0f}%", "source removed", value_id="kpi-suppress"),
                     ),
                     
                     # Main grid
@@ -154,6 +156,9 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                 
                 # Detail panel mount point
                 Div(id="detail-panel"),
+                
+                # State card mount point
+                Div(id="state-card-mount"),
                 
                 # About modal
                 Div(
@@ -299,8 +304,40 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                 ),
                 
                 # Scripts
-                Script(src="/static/islands/Matrix.js", type="module"),
-                Script(src="/static/islands/DetailPanel.js", type="module"),
+                Script(src="/static/islands/islands.js?v=10", type="module"),
+                # Run selector script
+                Script("""
+                    (function() {
+                        const selector = document.getElementById('run-selector');
+                        if (selector) {
+                            selector.addEventListener('change', async function(e) {
+                                const runId = e.target.value;
+                                selector.disabled = true;
+                                selector.style.opacity = '0.5';
+                                
+                                try {
+                                    const response = await fetch('/api/runs/' + runId, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' }
+                                    });
+                                    
+                                    if (response.ok) {
+                                        // Reload page to show new data
+                                        window.location.reload();
+                                    } else {
+                                        console.error('Failed to switch run');
+                                        selector.disabled = false;
+                                        selector.style.opacity = '1';
+                                    }
+                                } catch (err) {
+                                    console.error('Error switching run:', err);
+                                    selector.disabled = false;
+                                    selector.style.opacity = '1';
+                                }
+                            });
+                        }
+                    })();
+                """),
                 # About modal script
                 Script("""
                     (function() {
@@ -352,11 +389,14 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
         )
 
 
-def _stat_card(title: str, value: str, subtitle: str):
+def _stat_card(title: str, value: str, subtitle: str, value_id: str = ""):
     """Render a stat card."""
+    value_attrs = {"cls": "text-2xl font-bold mt-1 stat-value"}
+    if value_id:
+        value_attrs["id"] = value_id
     return Div(cls="bg-slate-900/50 rounded-xl border border-slate-800 p-4")(
         P(cls="text-xs text-slate-500 uppercase tracking-wide")(title),
-        P(cls="text-2xl font-bold mt-1 stat-value")(value),
+        P(**value_attrs)(value),
         P(cls="text-xs text-slate-400 mt-1")(subtitle),
     )
 
@@ -373,19 +413,20 @@ def _tier_bar(tier_name: str, count: int, total: int):
     """Render a tier distribution bar."""
     pct = (count / total * 100) if total > 0 else 0
     tier_colors = {
-        'PERFECT': 'bg-emerald-500',
-        'TARGET_STATE_CITY': 'bg-lime-500',
-        'TARGET_STATE_ONLY': 'bg-yellow-500',
-        'SUPPRESSED_ONLY': 'bg-orange-400',
-        'SOURCE_PERSISTS': 'bg-red-500',
+        'PERFECT': '#0A4FFF',
+        'TARGET_STATE_CITY': '#3D7DFF',
+        'TARGET_STATE_ONLY': '#AFCBFF',
+        'WRONG_STATE': '#FFE8E8',
+        'SUPPRESSED_ONLY': '#FF7373',
+        'SOURCE_PERSISTS': '#C00000',
     }
-    color = tier_colors.get(tier_name, 'bg-slate-600')
+    color = tier_colors.get(tier_name, '#475569')
     short_name = tier_name.replace('_', ' ').title()[:12]
     
     return Div(cls="flex items-center gap-2")(
         Span(cls="text-xs text-slate-400 w-24 truncate")(short_name),
         Div(cls="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden")(
-            Div(cls=f"h-full {color}", style=f"width: {pct}%"),
+            Div(cls="h-full", style=f"width: {pct}%; background-color: {color};"),
         ),
         Span(cls="text-xs text-slate-500 w-8 text-right")(str(count)),
     )
@@ -415,5 +456,35 @@ def _about_link(title: str, desc: str, url: str, icon_type: str):
                 Div(cls="text-xs text-slate-500")(desc),
             ),
         ),
+    )
+
+
+def _run_selector(data_loader):
+    """Render run selector dropdown."""
+    runs = data_loader.list_runs()
+    current_run = data_loader.get_current_run()
+    
+    if not runs:
+        return Span(cls="text-xs text-slate-500")("No runs available")
+    
+    # Build options
+    options = []
+    for run in runs:
+        label = f"{run['name']} ({run['swap_count']})"
+        if run['has_trajectory']:
+            label += " [T]"  # Trajectory indicator
+        options.append(
+            Option(
+                value=run['id'],
+                selected=(run['id'] == current_run)
+            )(label)
+        )
+    
+    return Div(cls="flex items-center gap-2")(
+        Span(cls="text-xs text-slate-500 hidden-mobile")("Run:"),
+        Select(
+            id="run-selector",
+            cls="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-slate-300 hover:border-slate-500 focus:border-cyan-500 focus:outline-none cursor-pointer"
+        )(*options),
     )
 

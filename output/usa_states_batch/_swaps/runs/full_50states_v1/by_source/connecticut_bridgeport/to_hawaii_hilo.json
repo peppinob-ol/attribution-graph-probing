@@ -1,0 +1,564 @@
+{
+  "swap_id": "connecticut_bridgeport__to__hawaii_hilo",
+  "source": {
+    "slug": "connecticut_bridgeport",
+    "prompt": "<bos>The capital of the state containing Bridgeport is",
+    "concept": "connecticut",
+    "state": "Connecticut",
+    "capital": "Hartford",
+    "city": "Bridgeport"
+  },
+  "target": {
+    "slug": "hawaii_hilo",
+    "concept": "hawaii",
+    "state": "Hawaii",
+    "capital": "Honolulu",
+    "city": "Hilo"
+  },
+  "interventions": {
+    "ablate_count": 44,
+    "amplify_count": 40,
+    "total_count": 84
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Connecticut",
+      "from_capital": "Hartford",
+      "from_city": "Bridgeport",
+      "to_state": "Hawaii",
+      "to_capital": "Honolulu",
+      "to_city": "Hilo"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Hartford",
+      "default_prob": 0.166015625,
+      "steered": "rungsseite",
+      "steered_prob": 0.40234375
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.166015625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Bridgeport is Hartford.\n\nConnecticut has a population of 3",
+      "steered_output": "<bos><bos>The capital of the state containing Bridgeport isrungsseite\n\n* Honolulu, Hawaii\n* Honolulu, Hawaii",
+      "default_topk": [
+        {
+          "token": " Hartford",
+          "prob": 0.166015625
+        },
+        {
+          "token": " ",
+          "prob": 0.078125
+        },
+        {
+          "token": " the",
+          "prob": 0.078125
+        },
+        {
+          "token": " Bridgeport",
+          "prob": 0.06884765625
+        },
+        {
+          "token": ":",
+          "prob": 0.04736328125
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "rungsseite",
+          "prob": 0.40234375
+        },
+        {
+          "token": "#+#",
+          "prob": 0.1669921875
+        },
+        {
+          "token": " O",
+          "prob": 0.06982421875
+        },
+        {
+          "token": " Mili",
+          "prob": 0.054443359375
+        },
+        {
+          "token": "expandindo",
+          "prob": 0.042236328125
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Honolulu",
+        "source": " Hartford",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        "rungsseite",
+        "\n\n",
+        "*",
+        " Honolulu",
+        ",",
+        " Hawaii",
+        "\n",
+        "*",
+        " Honolulu",
+        ",",
+        " Hawaii"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Honolulu",
+          "token_id": 82824,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              7.625,
+              -3.4531,
+              15.0,
+              25.625,
+              23.25,
+              23.875,
+              23.375,
+              -2.9062,
+              25.5,
+              20.375,
+              19.75
+            ],
+            "probs": [
+              1e-06,
+              0.0,
+              5.2e-05,
+              0.138672,
+              0.003799,
+              0.074707,
+              0.001625,
+              0.0,
+              0.396484,
+              0.000256,
+              0.011292
+            ],
+            "ranks": [
+              2778,
+              2485,
+              435,
+              1,
+              18,
+              4,
+              26,
+              1137,
+              1,
+              40,
+              17
+            ]
+          },
+          "summary": {
+            "first_top1_position": 3,
+            "first_top5_position": 3,
+            "first_top10_position": 3,
+            "max_prob": 0.396484,
+            "min_rank": 1,
+            "final_rank": 17,
+            "rank_improvement": 2777
+          }
+        },
+        "source": {
+          "token": " Hartford",
+          "token_id": 64682,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              7.2188,
+              -5.875,
+              5.625,
+              21.5,
+              14.6875,
+              12.9375,
+              16.5,
+              -6.0938,
+              21.5,
+              12.125,
+              10.75
+            ],
+            "probs": [
+              1e-06,
+              0.0,
+              0.0,
+              0.002228,
+              1e-06,
+              1e-06,
+              2e-06,
+              0.0,
+              0.007263,
+              0.0,
+              1e-06
+            ],
+            "ranks": [
+              3588,
+              15594,
+              51851,
+              49,
+              1732,
+              1556,
+              925,
+              13902,
+              16,
+              4009,
+              2618
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 16,
+            "final_rank": 2618,
+            "max_prob": 0.007263
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                6.8125,
+                2.3125,
+                10.5,
+                23.5,
+                21.875,
+                24.5,
+                22.375,
+                -3.0156,
+                19.5,
+                19.5,
+                19.5
+              ],
+              "probs": [
+                1e-06,
+                2e-06,
+                1e-06,
+                0.016479,
+                0.000961,
+                0.139648,
+                0.000599,
+                0.0,
+                0.000984,
+                0.000106,
+                0.008789
+              ],
+              "ranks": [
+                4453,
+                60,
+                6374,
+                8,
+                42,
+                2,
+                55,
+                1236,
+                108,
+                77,
+                20
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                13.9375,
+                6.8125,
+                13.5625,
+                23.5,
+                25.375,
+                19.25,
+                25.25,
+                0.04,
+                18.125,
+                23.125,
+                15.0
+              ],
+              "probs": [
+                0.000641,
+                0.000216,
+                1.2e-05,
+                0.016479,
+                0.031982,
+                0.000732,
+                0.01062,
+                1e-06,
+                0.000248,
+                0.003998,
+                9.7e-05
+              ],
+              "ranks": [
+                64,
+                5,
+                1078,
+                8,
+                5,
+                47,
+                8,
+                129,
+                217,
+                8,
+                226
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                -0.5508,
+                2.6875,
+                10.1875,
+                22.375,
+                20.875,
+                21.125,
+                21.25,
+                -3.8438,
+                16.875,
+                19.125,
+                17.875
+              ],
+              "probs": [
+                0.0,
+                3e-06,
+                0.0,
+                0.005371,
+                0.000355,
+                0.004761,
+                0.000195,
+                0.0,
+                7.1e-05,
+                7.3e-05,
+                0.001724
+              ],
+              "ranks": [
+                90846,
+                42,
+                7403,
+                26,
+                72,
+                10,
+                92,
+                2340,
+                467,
+                92,
+                56
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                4.4375,
+                5.6562,
+                11.25,
+                22.0,
+                21.75,
+                17.5,
+                20.375,
+                -3.6719,
+                15.5,
+                18.125,
+                13.4375
+              ],
+              "probs": [
+                0.0,
+                6.8e-05,
+                1e-06,
+                0.003693,
+                0.000851,
+                0.000127,
+                8.1e-05,
+                0.0,
+                1.8e-05,
+                2.7e-05,
+                2e-05
+              ],
+              "ranks": [
+                15245,
+                8,
+                4248,
+                34,
+                47,
+                108,
+                123,
+                2046,
+                937,
+                153,
+                546
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 3,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 0.4062,
+        "best_gap": 10.9375,
+        "final_gap": 9.0,
+        "gap_closure": 10.5313,
+        "gap_trajectory": [
+          0.4062,
+          2.4219,
+          9.375,
+          4.125,
+          8.5625,
+          10.9375,
+          6.875,
+          3.1876,
+          4.0,
+          8.25,
+          9.0
+        ],
+        "control_stability_mean": 11.7232,
+        "control_stability_max": 22.9258
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 20.75,
+        "prob": 0.00087,
+        "rank": 104
+      },
+      "source": {
+        "logit": 26.0,
+        "prob": 0.166016,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -13.125,
+      "source_logit_delta": -18.7812,
+      "baseline_gap": -5.25,
+      "steered_gap_0": 0.4062,
+      "gap_closure_0": 5.6562,
+      "target_rank_improvement": -2674,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T12:40:14.841453",
+    "duration_ms": 74506.35433197021,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Bridgeport",
+      "Honolulu"
+    ],
+    "states_found": [
+      "Hawaii"
+    ],
+    "notes": "Target capital 'Honolulu' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

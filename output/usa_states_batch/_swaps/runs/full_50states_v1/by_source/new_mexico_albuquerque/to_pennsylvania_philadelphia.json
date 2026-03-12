@@ -1,0 +1,562 @@
+{
+  "swap_id": "new_mexico_albuquerque__to__pennsylvania_philadelphia",
+  "source": {
+    "slug": "new_mexico_albuquerque",
+    "prompt": "<bos>The capital of the state containing Albuquerque is",
+    "concept": "new mexico",
+    "state": "New Mexico",
+    "capital": "Santa Fe",
+    "city": "Albuquerque"
+  },
+  "target": {
+    "slug": "pennsylvania_philadelphia",
+    "concept": "pennsylvania",
+    "state": "Pennsylvania",
+    "capital": "Harrisburg",
+    "city": "Philadelphia"
+  },
+  "interventions": {
+    "ablate_count": 50,
+    "amplify_count": 49,
+    "total_count": 99
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "New Mexico",
+      "from_capital": "Santa Fe",
+      "from_city": "Albuquerque",
+      "to_state": "Pennsylvania",
+      "to_capital": "Harrisburg",
+      "to_city": "Philadelphia"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Santa",
+      "default_prob": 0.259765625,
+      "steered": "’",
+      "steered_prob": 0.224609375
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": 0.09375,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Albuquerque is Santa Fe. The city has a population of ",
+      "steered_output": "<bos><bos>The capital of the state containing Albuquerque is’s largest city, Harrisburg is a great place to",
+      "default_topk": [
+        {
+          "token": " Santa",
+          "prob": 0.259765625
+        },
+        {
+          "token": " Albuquerque",
+          "prob": 0.10791015625
+        },
+        {
+          "token": " New",
+          "prob": 0.09521484375
+        },
+        {
+          "token": " the",
+          "prob": 0.09521484375
+        },
+        {
+          "token": " ",
+          "prob": 0.0654296875
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "’",
+          "prob": 0.224609375
+        },
+        {
+          "token": " Reading",
+          "prob": 0.13671875
+        },
+        {
+          "token": "'",
+          "prob": 0.12060546875
+        },
+        {
+          "token": " Harrisburg",
+          "prob": 0.09375
+        },
+        {
+          "token": " nahilalakip",
+          "prob": 0.0390625
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Harrisburg",
+        "source": " Santa",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        "’",
+        "s",
+        " largest",
+        " city",
+        ",",
+        " Harrisburg",
+        " is",
+        " a",
+        " great",
+        " place",
+        " to"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Harrisburg",
+          "token_id": 132168,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              20.25,
+              16.625,
+              16.625,
+              9.1875,
+              23.0,
+              25.0,
+              21.625,
+              22.25,
+              19.75,
+              17.875,
+              12.1875
+            ],
+            "probs": [
+              0.09375,
+              3e-06,
+              5e-06,
+              0.0,
+              0.000546,
+              0.384766,
+              0.00019,
+              0.000338,
+              5.1e-05,
+              2.1e-05,
+              0.0
+            ],
+            "ranks": [
+              4,
+              1373,
+              2008,
+              8746,
+              46,
+              1,
+              120,
+              83,
+              341,
+              238,
+              813
+            ]
+          },
+          "summary": {
+            "first_top1_position": 5,
+            "first_top5_position": 0,
+            "first_top10_position": 0,
+            "max_prob": 0.384766,
+            "min_rank": 1,
+            "final_rank": 813,
+            "rank_improvement": 3
+          }
+        },
+        "source": {
+          "token": " Santa",
+          "token_id": 10955,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              1.9453,
+              17.875,
+              19.75,
+              13.25,
+              16.375,
+              13.9375,
+              14.0625,
+              13.625,
+              8.75,
+              9.6875,
+              8.875
+            ],
+            "probs": [
+              0.0,
+              1.2e-05,
+              0.000116,
+              0.0,
+              1e-06,
+              6e-06,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              66701,
+              683,
+              440,
+              2491,
+              1250,
+              741,
+              2727,
+              2203,
+              8236,
+              4925,
+              2912
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 440,
+            "final_rank": 2912,
+            "max_prob": 0.000116
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                10.8125,
+                21.375,
+                22.875,
+                12.625,
+                22.375,
+                23.375,
+                22.0,
+                28.75,
+                17.0,
+                11.8125,
+                19.5
+              ],
+              "probs": [
+                7e-06,
+                0.000385,
+                0.00264,
+                0.0,
+                0.000294,
+                0.075684,
+                0.000277,
+                0.224609,
+                3e-06,
+                0.0,
+                2.3e-05
+              ],
+              "ranks": [
+                1714,
+                70,
+                63,
+                3053,
+                62,
+                3,
+                92,
+                2,
+                874,
+                2475,
+                34
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                16.375,
+                24.625,
+                24.25,
+                17.75,
+                29.125,
+                21.25,
+                29.25,
+                19.625,
+                14.125,
+                11.5,
+                18.125
+              ],
+              "probs": [
+                0.001945,
+                0.009888,
+                0.010437,
+                3.2e-05,
+                0.25,
+                0.009033,
+                0.388672,
+                2.4e-05,
+                0.0,
+                0.0,
+                6e-06
+              ],
+              "ranks": [
+                38,
+                5,
+                15,
+                404,
+                2,
+                18,
+                1,
+                295,
+                2011,
+                2786,
+                70
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                7.0625,
+                21.0,
+                22.75,
+                13.0,
+                20.25,
+                20.875,
+                20.5,
+                28.875,
+                17.75,
+                17.375,
+                19.375
+              ],
+              "probs": [
+                0.0,
+                0.000263,
+                0.002335,
+                0.0,
+                3.5e-05,
+                0.006226,
+                6.2e-05,
+                0.253906,
+                7e-06,
+                1.3e-05,
+                2e-05
+              ],
+              "ranks": [
+                11651,
+                97,
+                70,
+                2724,
+                163,
+                21,
+                210,
+                1,
+                666,
+                313,
+                37
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                12.125,
+                16.75,
+                16.75,
+                18.5,
+                26.75,
+                17.5,
+                21.375,
+                20.125,
+                14.0625,
+                15.8125,
+                22.125
+              ],
+              "probs": [
+                2.8e-05,
+                4e-06,
+                6e-06,
+                6.8e-05,
+                0.023315,
+                0.000213,
+                0.000148,
+                4e-05,
+                0.0,
+                3e-06,
+                0.000313
+              ],
+              "ranks": [
+                773,
+                1268,
+                1859,
+                289,
+                5,
+                124,
+                141,
+                235,
+                2068,
+                611,
+                11
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 5,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 18.3047,
+        "best_gap": 18.3047,
+        "final_gap": 3.3125,
+        "gap_closure": 0.0,
+        "gap_trajectory": [
+          18.3047,
+          -1.25,
+          -3.125,
+          -4.0625,
+          6.625,
+          11.0625,
+          7.5625,
+          8.625,
+          11.0,
+          8.1875,
+          3.3125
+        ],
+        "control_stability_mean": 8.8328,
+        "control_stability_max": 21.8125
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 14.4375,
+        "prob": 2e-06,
+        "rank": 1391
+      },
+      "source": {
+        "logit": 26.25,
+        "prob": 0.259766,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": 5.8125,
+      "source_logit_delta": -24.3047,
+      "baseline_gap": -11.8125,
+      "steered_gap_0": 18.3047,
+      "gap_closure_0": 30.1172,
+      "target_rank_improvement": 1387,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T15:35:33.387311",
+    "duration_ms": 79163.0232334137,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Albuquerque",
+      "Harrisburg"
+    ],
+    "states_found": [],
+    "notes": "Target capital 'Harrisburg' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

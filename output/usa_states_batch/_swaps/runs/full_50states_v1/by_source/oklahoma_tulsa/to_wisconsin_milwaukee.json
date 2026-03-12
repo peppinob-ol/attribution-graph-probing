@@ -1,0 +1,562 @@
+{
+  "swap_id": "oklahoma_tulsa__to__wisconsin_milwaukee",
+  "source": {
+    "slug": "oklahoma_tulsa",
+    "prompt": "<bos>The capital of the state containing Tulsa is",
+    "concept": "oklahoma",
+    "state": "Oklahoma",
+    "capital": "Oklahoma City",
+    "city": "Tulsa"
+  },
+  "target": {
+    "slug": "wisconsin_milwaukee",
+    "concept": "wisconsin",
+    "state": "Wisconsin",
+    "capital": "Madison",
+    "city": "Milwaukee"
+  },
+  "interventions": {
+    "ablate_count": 55,
+    "amplify_count": 55,
+    "total_count": 110
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Oklahoma",
+      "from_capital": "Oklahoma City",
+      "from_city": "Tulsa",
+      "to_state": "Wisconsin",
+      "to_capital": "Madison",
+      "to_city": "Milwaukee"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Oklahoma",
+      "default_prob": 0.34765625,
+      "steered": " Green",
+      "steered_prob": 0.15625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Tulsa is Oklahoma City.\n\nThe state of Oklahoma is located",
+      "steered_output": "<bos><bos>The capital of the state containing Tulsa is River City, Madison County, and the city of Madison",
+      "default_topk": [
+        {
+          "token": " Oklahoma",
+          "prob": 0.34765625
+        },
+        {
+          "token": " the",
+          "prob": 0.087890625
+        },
+        {
+          "token": " ",
+          "prob": 0.07763671875
+        },
+        {
+          "token": " Tulsa",
+          "prob": 0.068359375
+        },
+        {
+          "token": ":",
+          "prob": 0.060302734375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Green",
+          "prob": 0.15625
+        },
+        {
+          "token": " River",
+          "prob": 0.0947265625
+        },
+        {
+          "token": " Drapeau",
+          "prob": 0.08349609375
+        },
+        {
+          "token": "﻿<?",
+          "prob": 0.06494140625
+        },
+        {
+          "token": " Fond",
+          "prob": 0.06494140625
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Madison",
+        "source": " Oklahoma",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " River",
+        " City",
+        ",",
+        " Madison",
+        " County",
+        ",",
+        " and",
+        " the",
+        " city",
+        " of",
+        " Madison"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Madison",
+          "token_id": 28428,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              13.6875,
+              9.875,
+              15.8125,
+              26.375,
+              18.25,
+              25.25,
+              27.125,
+              27.25,
+              25.5,
+              24.5,
+              27.25
+            ],
+            "probs": [
+              0.000282,
+              3e-06,
+              2.6e-05,
+              0.092285,
+              0.00029,
+              0.005646,
+              0.069824,
+              0.07666,
+              0.014526,
+              0.004486,
+              0.353516
+            ],
+            "ranks": [
+              208,
+              2051,
+              1006,
+              2,
+              110,
+              10,
+              4,
+              2,
+              15,
+              17,
+              1
+            ]
+          },
+          "summary": {
+            "first_top1_position": 10,
+            "first_top5_position": 3,
+            "first_top10_position": 3,
+            "max_prob": 0.353516,
+            "min_rank": 1,
+            "final_rank": 1,
+            "rank_improvement": 207
+          }
+        },
+        "source": {
+          "token": " Oklahoma",
+          "token_id": 28239,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              2.25,
+              11.4375,
+              19.0,
+              23.25,
+              17.25,
+              23.25,
+              24.25,
+              22.25,
+              21.0,
+              17.875,
+              20.125
+            ],
+            "probs": [
+              0.0,
+              1.4e-05,
+              0.000641,
+              0.004059,
+              0.000106,
+              0.000763,
+              0.003937,
+              0.000515,
+              0.000161,
+              6e-06,
+              0.000284
+            ],
+            "ranks": [
+              66959,
+              966,
+              138,
+              34,
+              246,
+              46,
+              30,
+              164,
+              264,
+              442,
+              221
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 30,
+            "final_rank": 221,
+            "max_prob": 0.004059
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                9.4375,
+                12.9375,
+                18.875,
+                26.875,
+                20.5,
+                22.875,
+                26.625,
+                28.375,
+                20.75,
+                22.875,
+                23.875
+              ],
+              "probs": [
+                4e-06,
+                6.1e-05,
+                0.000568,
+                0.152344,
+                0.002747,
+                0.000526,
+                0.04248,
+                0.235352,
+                0.000126,
+                0.000885,
+                0.012085
+              ],
+              "ranks": [
+                3314,
+                419,
+                149,
+                1,
+                29,
+                61,
+                5,
+                1,
+                307,
+                38,
+                7
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                14.5,
+                18.5,
+                24.25,
+                25.375,
+                24.125,
+                28.625,
+                27.625,
+                24.75,
+                17.875,
+                26.0,
+                19.25
+              ],
+              "probs": [
+                0.000637,
+                0.015747,
+                0.122559,
+                0.033936,
+                0.103027,
+                0.165039,
+                0.115234,
+                0.006287,
+                7e-06,
+                0.020142,
+                0.000119
+              ],
+              "ranks": [
+                101,
+                15,
+                2,
+                5,
+                3,
+                2,
+                2,
+                21,
+                1109,
+                3,
+                380
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                4.625,
+                11.8125,
+                16.125,
+                25.375,
+                17.125,
+                20.25,
+                25.25,
+                26.375,
+                16.5,
+                19.75,
+                20.25
+              ],
+              "probs": [
+                0.0,
+                2e-05,
+                3.6e-05,
+                0.033936,
+                9.4e-05,
+                3.8e-05,
+                0.010742,
+                0.031982,
+                2e-06,
+                3.9e-05,
+                0.000322
+              ],
+              "ranks": [
+                31825,
+                734,
+                819,
+                5,
+                257,
+                267,
+                12,
+                4,
+                2046,
+                173,
+                206
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                7.8438,
+                18.375,
+                22.375,
+                22.125,
+                20.25,
+                24.0,
+                22.25,
+                22.125,
+                16.75,
+                29.625,
+                17.875
+              ],
+              "probs": [
+                1e-06,
+                0.013916,
+                0.018799,
+                0.00132,
+                0.002136,
+                0.001617,
+                0.000534,
+                0.000454,
+                2e-06,
+                0.753906,
+                3e-05
+              ],
+              "ranks": [
+                8028,
+                16,
+                8,
+                69,
+                34,
+                26,
+                118,
+                181,
+                1835,
+                1,
+                713
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 3,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 11.4375,
+        "best_gap": 11.4375,
+        "final_gap": 7.125,
+        "gap_closure": 0.0,
+        "gap_trajectory": [
+          11.4375,
+          -1.5625,
+          -3.1875,
+          3.125,
+          1.0,
+          2.0,
+          2.875,
+          5.0,
+          4.5,
+          6.625,
+          7.125
+        ],
+        "control_stability_mean": 12.7859,
+        "control_stability_max": 21.7812
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 15.8125,
+        "prob": 1e-05,
+        "rank": 613
+      },
+      "source": {
+        "logit": 26.25,
+        "prob": 0.347656,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -2.125,
+      "source_logit_delta": -24.0,
+      "baseline_gap": -10.4375,
+      "steered_gap_0": 11.4375,
+      "gap_closure_0": 21.875,
+      "target_rank_improvement": 405,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T16:16:38.556375",
+    "duration_ms": 68300.97556114197,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Tulsa",
+      "Madison"
+    ],
+    "states_found": [],
+    "notes": "Target capital 'Madison' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

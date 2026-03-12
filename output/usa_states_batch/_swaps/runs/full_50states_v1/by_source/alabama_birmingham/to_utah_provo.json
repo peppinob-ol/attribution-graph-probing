@@ -1,0 +1,564 @@
+{
+  "swap_id": "alabama_birmingham__to__utah_provo",
+  "source": {
+    "slug": "alabama_birmingham",
+    "prompt": "<bos>The capital of the state containing Birmingham is",
+    "concept": "alabama",
+    "state": "Alabama",
+    "capital": "Montgomery",
+    "city": "Birmingham"
+  },
+  "target": {
+    "slug": "utah_provo",
+    "concept": "utah",
+    "state": "Utah",
+    "capital": "Salt Lake City",
+    "city": "Provo"
+  },
+  "interventions": {
+    "ablate_count": 36,
+    "amplify_count": 48,
+    "total_count": 84
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Alabama",
+      "from_capital": "Montgomery",
+      "from_city": "Birmingham",
+      "to_state": "Utah",
+      "to_capital": "Salt Lake City",
+      "to_city": "Provo"
+    },
+    "exact_match": {
+      "default_has_from_capital": false,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " the",
+      "default_prob": 0.134765625,
+      "steered": " يتيمه",
+      "steered_prob": 0.212890625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.0634765625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Birmingham is <strong>Birmingham</strong>.\n\n<h3>What is Birmingham",
+      "steered_output": "<bos><bos>The capital of the state containing Birmingham is يتيمه, Utah, is Salt Lake City.\n\nThe",
+      "default_topk": [
+        {
+          "token": " the",
+          "prob": 0.134765625
+        },
+        {
+          "token": " ",
+          "prob": 0.08154296875
+        },
+        {
+          "token": " Alabama",
+          "prob": 0.08154296875
+        },
+        {
+          "token": " Birmingham",
+          "prob": 0.08154296875
+        },
+        {
+          "token": " Montgomery",
+          "prob": 0.0634765625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " يتيمه",
+          "prob": 0.212890625
+        },
+        {
+          "token": " Too",
+          "prob": 0.146484375
+        },
+        {
+          "token": "rungsseite",
+          "prob": 0.12890625
+        },
+        {
+          "token": " Transfermarkt",
+          "prob": 0.0537109375
+        },
+        {
+          "token": " Pays",
+          "prob": 0.0419921875
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Salt",
+        "source": " Montgomery",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " يتيمه",
+        ",",
+        " Utah",
+        ",",
+        " is",
+        " Salt",
+        " Lake",
+        " City",
+        ".",
+        "\n\n",
+        "The"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Salt",
+          "token_id": 21757,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              16.75,
+              -6.75,
+              24.25,
+              19.875,
+              24.875,
+              25.375,
+              -0.8398,
+              -8.8125,
+              23.0,
+              26.75,
+              21.625
+            ],
+            "probs": [
+              0.000465,
+              0.0,
+              0.209961,
+              0.000519,
+              0.049072,
+              0.205078,
+              0.0,
+              1e-06,
+              0.000809,
+              0.070312,
+              0.001221
+            ],
+            "ranks": [
+              106,
+              10991,
+              2,
+              63,
+              3,
+              1,
+              474,
+              1148,
+              22,
+              4,
+              63
+            ]
+          },
+          "summary": {
+            "first_top1_position": 5,
+            "first_top5_position": 2,
+            "first_top10_position": 2,
+            "max_prob": 0.209961,
+            "min_rank": 1,
+            "final_rank": 63,
+            "rank_improvement": 105
+          }
+        },
+        "source": {
+          "token": " Montgomery",
+          "token_id": 42163,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              6.0,
+              -13.1875,
+              13.4375,
+              7.8438,
+              10.75,
+              10.75,
+              -9.375,
+              -13.75,
+              11.1875,
+              12.5625,
+              -2.2656
+            ],
+            "probs": [
+              0.0,
+              0.0,
+              4e-06,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              38558,
+              152377,
+              2920,
+              60324,
+              25723,
+              19805,
+              114410,
+              70806,
+              17466,
+              12857,
+              228091
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 2920,
+            "final_rank": 228091,
+            "max_prob": 4e-06
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                11.0,
+                -0.6953,
+                23.875,
+                20.875,
+                25.5,
+                25.0,
+                1.3828,
+                -4.25,
+                21.875,
+                22.875,
+                15.8125
+              ],
+              "probs": [
+                1e-06,
+                2e-06,
+                0.144531,
+                0.001404,
+                0.091797,
+                0.140625,
+                2e-06,
+                9.6e-05,
+                0.000263,
+                0.001457,
+                4e-06
+              ],
+              "ranks": [
+                4539,
+                272,
+                3,
+                33,
+                2,
+                2,
+                97,
+                30,
+                40,
+                41,
+                1783
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                11.0625,
+                -1.1094,
+                20.0,
+                25.5,
+                27.125,
+                17.625,
+                -0.4727,
+                -7.6875,
+                23.0,
+                19.125,
+                15.25
+              ],
+              "probs": [
+                2e-06,
+                1e-06,
+                0.002991,
+                0.143555,
+                0.466797,
+                8.8e-05,
+                0.0,
+                3e-06,
+                0.000809,
+                3.4e-05,
+                2e-06
+              ],
+              "ranks": [
+                4412,
+                352,
+                17,
+                2,
+                1,
+                360,
+                344,
+                440,
+                22,
+                329,
+                2545
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                1.6328,
+                -6.4062,
+                21.375,
+                18.25,
+                22.5,
+                23.875,
+                -0.4941,
+                -8.0,
+                21.875,
+                19.875,
+                14.0625
+              ],
+              "probs": [
+                0.0,
+                0.0,
+                0.011841,
+                0.000102,
+                0.004578,
+                0.045654,
+                0.0,
+                2e-06,
+                0.000263,
+                7.2e-05,
+                1e-06
+              ],
+              "ranks": [
+                116702,
+                9050,
+                6,
+                153,
+                19,
+                5,
+                354,
+                583,
+                40,
+                214,
+                4690
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                5.4062,
+                -1.8125,
+                15.125,
+                17.625,
+                18.25,
+                17.75,
+                -0.1797,
+                -8.8125,
+                21.375,
+                15.5,
+                12.3125
+              ],
+              "probs": [
+                0.0,
+                0.0,
+                2.3e-05,
+                5.5e-05,
+                6.5e-05,
+                0.0001,
+                1e-06,
+                1e-06,
+                0.000159,
+                1e-06,
+                0.0
+              ],
+              "ranks": [
+                46498,
+                518,
+                938,
+                249,
+                252,
+                298,
+                269,
+                1148,
+                59,
+                2603,
+                11372
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 5,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 10.75,
+        "best_gap": 23.8906,
+        "final_gap": 23.8906,
+        "gap_closure": 13.1406,
+        "gap_trajectory": [
+          10.75,
+          6.4375,
+          10.8125,
+          12.0312,
+          14.125,
+          14.625,
+          8.5352,
+          4.9375,
+          11.8125,
+          14.1875,
+          23.8906
+        ],
+        "control_stability_mean": 12.133,
+        "control_stability_max": 22.2422
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 16.625,
+        "prob": 1.9e-05,
+        "rank": 613
+      },
+      "source": {
+        "logit": 24.75,
+        "prob": 0.063477,
+        "rank": 5
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": 0.125,
+      "source_logit_delta": -18.75,
+      "baseline_gap": -8.125,
+      "steered_gap_0": 10.75,
+      "gap_closure_0": 18.875,
+      "target_rank_improvement": 507,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T12:07:10.800942",
+    "duration_ms": 75737.29681968689,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Birmingham",
+      "Salt Lake City"
+    ],
+    "states_found": [
+      "Utah"
+    ],
+    "notes": "Target capital 'Salt Lake City' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

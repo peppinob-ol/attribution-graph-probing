@@ -1,0 +1,561 @@
+{
+  "swap_id": "new_hampshire_manchester__to__vermont_burlington",
+  "source": {
+    "slug": "new_hampshire_manchester",
+    "prompt": "<bos>The capital of the state containing Manchester is",
+    "concept": "new hampshire",
+    "state": "New Hampshire",
+    "capital": "Concord",
+    "city": "Manchester"
+  },
+  "target": {
+    "slug": "vermont_burlington",
+    "concept": "vermont",
+    "state": "Vermont",
+    "capital": "Montpelier",
+    "city": "Burlington"
+  },
+  "interventions": {
+    "ablate_count": 27,
+    "amplify_count": 8,
+    "total_count": 35
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "New Hampshire",
+      "from_capital": "Concord",
+      "from_city": "Manchester",
+      "to_state": "Vermont",
+      "to_capital": "Montpelier",
+      "to_city": "Burlington"
+    },
+    "exact_match": {
+      "default_has_from_capital": false,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Manchester",
+      "default_prob": 0.18359375,
+      "steered": " Agency",
+      "steered_prob": 0.1611328125
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Manchester is Manchester.\n\nThe capital of the state containing Manchester",
+      "steered_output": "<bos><bos>The capital of the state containing Manchester is Intervale is the city of <strong>Manchester</strong>.",
+      "default_topk": [
+        {
+          "token": " Manchester",
+          "prob": 0.18359375
+        },
+        {
+          "token": " the",
+          "prob": 0.0869140625
+        },
+        {
+          "token": " ",
+          "prob": 0.06787109375
+        },
+        {
+          "token": ":",
+          "prob": 0.052734375
+        },
+        {
+          "token": " Hartford",
+          "prob": 0.046630859375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Agency",
+          "prob": 0.1611328125
+        },
+        {
+          "token": " Interv",
+          "prob": 0.1416015625
+        },
+        {
+          "token": " Shel",
+          "prob": 0.1103515625
+        },
+        {
+          "token": " Kingdom",
+          "prob": 0.024658203125
+        },
+        {
+          "token": " City",
+          "prob": 0.024658203125
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Mont",
+        "source": " Concord",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " Interv",
+        "ale",
+        " is",
+        " the",
+        " city",
+        " of",
+        " ",
+        "<strong>",
+        "Manchester",
+        "</strong>",
+        "."
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Mont",
+          "token_id": 9475,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              8.625,
+              1.5625,
+              17.25,
+              22.0,
+              18.125,
+              17.75,
+              22.0,
+              6.3125,
+              11.5,
+              17.375,
+              15.6875
+            ],
+            "probs": [
+              2e-06,
+              0.0,
+              1.6e-05,
+              0.001534,
+              2.1e-05,
+              6e-06,
+              0.00267,
+              0.0,
+              0.0,
+              9e-06,
+              0.0
+            ],
+            "ranks": [
+              6599,
+              11037,
+              1036,
+              60,
+              689,
+              430,
+              42,
+              7107,
+              7545,
+              244,
+              1020
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "first_top5_position": null,
+            "first_top10_position": null,
+            "max_prob": 0.00267,
+            "min_rank": 42,
+            "final_rank": 1020,
+            "rank_improvement": 6557
+          }
+        },
+        "source": {
+          "token": " Concord",
+          "token_id": 70810,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              -0.4844,
+              -3.5312,
+              13.75,
+              23.125,
+              16.875,
+              18.75,
+              23.375,
+              7.9688,
+              13.9375,
+              16.25,
+              16.0
+            ],
+            "probs": [
+              0.0,
+              0.0,
+              0.0,
+              0.00473,
+              6e-06,
+              1.5e-05,
+              0.010559,
+              0.0,
+              2e-06,
+              3e-06,
+              0.0
+            ],
+            "ranks": [
+              120920,
+              105337,
+              7408,
+              23,
+              1394,
+              234,
+              12,
+              2046,
+              3032,
+              430,
+              933
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 12,
+            "final_rank": 933,
+            "max_prob": 0.010559
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                14.9375,
+                6.4062,
+                22.125,
+                26.625,
+                20.875,
+                21.875,
+                23.5,
+                6.4688,
+                1.6172,
+                19.875,
+                23.875
+              ],
+              "probs": [
+                0.000896,
+                2.6e-05,
+                0.002106,
+                0.15625,
+                0.000332,
+                0.000347,
+                0.011963,
+                0.0,
+                0.0,
+                0.000108,
+                0.001183
+              ],
+              "ranks": [
+                102,
+                785,
+                34,
+                1,
+                169,
+                32,
+                5,
+                6192,
+                115724,
+                56,
+                29
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                17.625,
+                10.625,
+                27.0,
+                20.75,
+                18.125,
+                22.625,
+                17.25,
+                7.6875,
+                2.6875,
+                21.25,
+                25.375
+              ],
+              "probs": [
+                0.013184,
+                0.001762,
+                0.275391,
+                0.000439,
+                2.1e-05,
+                0.000732,
+                2.3e-05,
+                0.0,
+                0.0,
+                0.000425,
+                0.00528
+              ],
+              "ranks": [
+                10,
+                61,
+                1,
+                210,
+                689,
+                22,
+                1131,
+                2457,
+                92830,
+                30,
+                12
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                13.25,
+                6.2812,
+                21.25,
+                25.5,
+                18.875,
+                20.125,
+                20.625,
+                2.4688,
+                0.1602,
+                18.375,
+                23.125
+              ],
+              "probs": [
+                0.000166,
+                2.3e-05,
+                0.000877,
+                0.050781,
+                4.5e-05,
+                6e-05,
+                0.000675,
+                0.0,
+                0.0,
+                2.4e-05,
+                0.000557
+              ],
+              "ranks": [
+                358,
+                846,
+                69,
+                4,
+                479,
+                83,
+                163,
+                72242,
+                148447,
+                118,
+                43
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                7.9688,
+                7.3125,
+                24.125,
+                21.5,
+                16.375,
+                29.75,
+                18.125,
+                3.5781,
+                4.3438,
+                21.75,
+                23.875
+              ],
+              "probs": [
+                1e-06,
+                6.4e-05,
+                0.015564,
+                0.000931,
+                4e-06,
+                0.914062,
+                5.5e-05,
+                0.0,
+                0.0,
+                0.000702,
+                0.001183
+              ],
+              "ranks": [
+                9129,
+                481,
+                9,
+                95,
+                1810,
+                1,
+                675,
+                42794,
+                62979,
+                20,
+                29
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": null,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 9.1094,
+        "best_gap": 9.1094,
+        "final_gap": -0.3125,
+        "gap_closure": 0.0,
+        "gap_trajectory": [
+          9.1094,
+          5.0937,
+          3.5,
+          -1.125,
+          1.25,
+          -1.0,
+          -1.375,
+          -1.6563,
+          -2.4375,
+          1.125,
+          -0.3125
+        ],
+        "control_stability_mean": 8.5122,
+        "control_stability_max": 21.7812
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 19.5,
+        "prob": 0.000216,
+        "rank": 241
+      },
+      "source": {
+        "logit": 21.625,
+        "prob": 0.001801,
+        "rank": 58
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -10.875,
+      "source_logit_delta": -22.1094,
+      "baseline_gap": -2.125,
+      "steered_gap_0": 9.1094,
+      "gap_closure_0": 11.2344,
+      "target_rank_improvement": -6358,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T15:21:00.267696",
+    "duration_ms": 71318.5760974884,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 2,
+    "tier_name": "SUPPRESSED_ONLY",
+    "cities_found": [
+      "Manchester"
+    ],
+    "states_found": [],
+    "notes": "Garbled/nonsense output",
+    "method": "RULE_HIGH",
+    "confidence": 0.9,
+    "manually_edited": false
+  }
+}

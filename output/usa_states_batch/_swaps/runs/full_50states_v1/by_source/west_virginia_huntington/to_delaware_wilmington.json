@@ -1,0 +1,563 @@
+{
+  "swap_id": "west_virginia_huntington__to__delaware_wilmington",
+  "source": {
+    "slug": "west_virginia_huntington",
+    "prompt": "<bos>The capital of the state containing Huntington is",
+    "concept": "west virginia",
+    "state": "West Virginia",
+    "capital": "Charleston",
+    "city": "Huntington"
+  },
+  "target": {
+    "slug": "delaware_wilmington",
+    "concept": "delaware",
+    "state": "Delaware",
+    "capital": "Dover",
+    "city": "Wilmington"
+  },
+  "interventions": {
+    "ablate_count": 40,
+    "amplify_count": 47,
+    "total_count": 87
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "West Virginia",
+      "from_capital": "Charleston",
+      "from_city": "Huntington",
+      "to_state": "Delaware",
+      "to_capital": "Dover",
+      "to_city": "Wilmington"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Charleston",
+      "default_prob": 0.162109375,
+      "steered": "Datuak",
+      "steered_prob": 0.3359375
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.162109375,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Huntington is <strong>Charleston</strong>.\n\n<h3>What is the",
+      "steered_output": "<bos><bos>The capital of the state containing Huntington is Händenburg, Delaware.\n\nThe city of Delaware was",
+      "default_topk": [
+        {
+          "token": " Charleston",
+          "prob": 0.162109375
+        },
+        {
+          "token": " Huntington",
+          "prob": 0.111328125
+        },
+        {
+          "token": " ",
+          "prob": 0.07666015625
+        },
+        {
+          "token": " the",
+          "prob": 0.07666015625
+        },
+        {
+          "token": ":",
+          "prob": 0.052734375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "Datuak",
+          "prob": 0.3359375
+        },
+        {
+          "token": " Händen",
+          "prob": 0.203125
+        },
+        {
+          "token": "'",
+          "prob": 0.0201416015625
+        },
+        {
+          "token": " moglie",
+          "prob": 0.017822265625
+        },
+        {
+          "token": " Salem",
+          "prob": 0.017822265625
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Dover",
+        "source": " Charleston",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " Händ",
+        "enburg",
+        ",",
+        " Delaware",
+        ".",
+        "\n\n",
+        "The",
+        " city",
+        " of",
+        " Delaware",
+        " was"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Dover",
+          "token_id": 68672,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              15.5,
+              13.125,
+              12.125,
+              22.25,
+              11.875,
+              23.5,
+              7.4062,
+              18.0,
+              15.5625,
+              23.875,
+              16.625
+            ],
+            "probs": [
+              0.014709,
+              2.5e-05,
+              0.0,
+              0.001472,
+              0.0,
+              0.001427,
+              0.0,
+              1.4e-05,
+              1e-06,
+              0.010315,
+              1e-06
+            ],
+            "ranks": [
+              8,
+              1439,
+              16639,
+              69,
+              5027,
+              40,
+              32067,
+              892,
+              1370,
+              9,
+              1178
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "first_top5_position": null,
+            "first_top10_position": 0,
+            "max_prob": 0.014709,
+            "min_rank": 8,
+            "final_rank": 1178,
+            "rank_improvement": 0
+          }
+        },
+        "source": {
+          "token": " Charleston",
+          "token_id": 58271,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              5.7188,
+              13.125,
+              17.5,
+              21.5,
+              13.625,
+              21.125,
+              4.625,
+              17.75,
+              17.125,
+              22.75,
+              14.4375
+            ],
+            "probs": [
+              1e-06,
+              2.5e-05,
+              8e-06,
+              0.000698,
+              1e-06,
+              0.000133,
+              0.0,
+              1.1e-05,
+              3e-06,
+              0.003357,
+              0.0
+            ],
+            "ranks": [
+              7693,
+              1439,
+              989,
+              116,
+              2134,
+              212,
+              64599,
+              1001,
+              740,
+              32,
+              2979
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 32,
+            "final_rank": 2979,
+            "max_prob": 0.003357
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                5.125,
+                18.0,
+                22.0,
+                27.0,
+                20.0,
+                23.0,
+                13.5625,
+                17.5,
+                22.125,
+                25.5,
+                23.125
+              ],
+              "probs": [
+                0.0,
+                0.003326,
+                0.000698,
+                0.169922,
+                0.000486,
+                0.000866,
+                0.0,
+                9e-06,
+                0.000507,
+                0.05249,
+                0.0009
+              ],
+              "ranks": [
+                10067,
+                31,
+                54,
+                1,
+                57,
+                66,
+                6298,
+                1179,
+                70,
+                3,
+                54
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                11.3125,
+                20.75,
+                27.625,
+                25.375,
+                26.0,
+                23.875,
+                14.9375,
+                19.125,
+                28.0,
+                23.125,
+                29.125
+              ],
+              "probs": [
+                0.000224,
+                0.052002,
+                0.193359,
+                0.033447,
+                0.196289,
+                0.002075,
+                1e-06,
+                4.5e-05,
+                0.180664,
+                0.004883,
+                0.363281
+              ],
+              "ranks": [
+                220,
+                3,
+                2,
+                4,
+                2,
+                34,
+                3802,
+                492,
+                2,
+                16,
+                1
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                -1.5391,
+                16.75,
+                20.625,
+                25.375,
+                19.125,
+                21.375,
+                12.625,
+                16.875,
+                20.125,
+                23.25,
+                21.75
+              ],
+              "probs": [
+                0.0,
+                0.000954,
+                0.000176,
+                0.033447,
+                0.000203,
+                0.000171,
+                0.0,
+                5e-06,
+                6.9e-05,
+                0.005524,
+                0.000228
+              ],
+              "ranks": [
+                98633,
+                87,
+                134,
+                4,
+                101,
+                179,
+                8124,
+                1532,
+                184,
+                14,
+                106
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                2.5156,
+                17.875,
+                22.25,
+                21.75,
+                19.125,
+                19.25,
+                9.9375,
+                15.9375,
+                28.625,
+                20.0,
+                21.125
+              ],
+              "probs": [
+                0.0,
+                0.00293,
+                0.000896,
+                0.000893,
+                0.000203,
+                2e-05,
+                0.0,
+                2e-06,
+                0.335938,
+                0.000215,
+                0.000122
+              ],
+              "ranks": [
+                30341,
+                33,
+                49,
+                93,
+                101,
+                601,
+                16321,
+                2382,
+                1,
+                312,
+                156
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": null,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 9.7812,
+        "best_gap": 9.7812,
+        "final_gap": 2.1875,
+        "gap_closure": 0.0,
+        "gap_trajectory": [
+          9.7812,
+          0.0,
+          -5.375,
+          0.75,
+          -1.75,
+          2.375,
+          2.7812,
+          0.25,
+          -1.5625,
+          1.125,
+          2.1875
+        ],
+        "control_stability_mean": 16.734,
+        "control_stability_max": 26.9141
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 20.875,
+        "prob": 0.001091,
+        "rank": 84
+      },
+      "source": {
+        "logit": 25.875,
+        "prob": 0.162109,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -5.375,
+      "source_logit_delta": -20.1562,
+      "baseline_gap": -5.0,
+      "steered_gap_0": 9.7812,
+      "gap_closure_0": 14.7812,
+      "target_rank_improvement": 76,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T18:07:47.696646",
+    "duration_ms": 96169.90876197815,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 3,
+    "tier_name": "TARGET_STATE_ONLY",
+    "cities_found": [
+      "Huntington"
+    ],
+    "states_found": [
+      "Delaware"
+    ],
+    "notes": "Target state 'Delaware' mentioned, no city found",
+    "method": "RULE_HIGH",
+    "confidence": 0.9,
+    "manually_edited": false
+  }
+}

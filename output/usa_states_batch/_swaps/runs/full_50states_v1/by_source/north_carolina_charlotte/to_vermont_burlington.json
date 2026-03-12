@@ -1,0 +1,562 @@
+{
+  "swap_id": "north_carolina_charlotte__to__vermont_burlington",
+  "source": {
+    "slug": "north_carolina_charlotte",
+    "prompt": "<bos>The capital of the state containing Charlotte is",
+    "concept": "north carolina",
+    "state": "North Carolina",
+    "capital": "Raleigh",
+    "city": "Charlotte"
+  },
+  "target": {
+    "slug": "vermont_burlington",
+    "concept": "vermont",
+    "state": "Vermont",
+    "capital": "Montpelier",
+    "city": "Burlington"
+  },
+  "interventions": {
+    "ablate_count": 52,
+    "amplify_count": 8,
+    "total_count": 60
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "North Carolina",
+      "from_capital": "Raleigh",
+      "from_city": "Charlotte",
+      "to_state": "Vermont",
+      "to_capital": "Montpelier",
+      "to_city": "Burlington"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": true,
+      "from_suppressed": false
+    },
+    "first_token": {
+      "default": " Raleigh",
+      "default_prob": 0.34765625,
+      "steered": " Agency",
+      "steered_prob": 0.1826171875
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.34765625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Charlotte is Raleigh.\n\nThe capital of North Carolina is Raleigh",
+      "steered_output": "<bos><bos>The capital of the state containing Charlotte is Intervale, the city of Raleigh is a great place",
+      "default_topk": [
+        {
+          "token": " Raleigh",
+          "prob": 0.34765625
+        },
+        {
+          "token": " Charlotte",
+          "prob": 0.07763671875
+        },
+        {
+          "token": " ",
+          "prob": 0.068359375
+        },
+        {
+          "token": " the",
+          "prob": 0.068359375
+        },
+        {
+          "token": " North",
+          "prob": 0.04150390625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Agency",
+          "prob": 0.1826171875
+        },
+        {
+          "token": " Interv",
+          "prob": 0.11083984375
+        },
+        {
+          "token": " Shel",
+          "prob": 0.076171875
+        },
+        {
+          "token": "?",
+          "prob": 0.040771484375
+        },
+        {
+          "token": "VT",
+          "prob": 0.019287109375
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Mont",
+        "source": " Raleigh",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " Interv",
+        "ale",
+        ",",
+        " the",
+        " city",
+        " of",
+        " Raleigh",
+        " is",
+        " a",
+        " great",
+        " place"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Mont",
+          "token_id": 9475,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              5.1875,
+              0.4316,
+              17.5,
+              23.125,
+              20.75,
+              17.75,
+              22.625,
+              14.6875,
+              10.75,
+              5.625,
+              5.7812
+            ],
+            "probs": [
+              0.0,
+              0.0,
+              4.1e-05,
+              0.002975,
+              0.000179,
+              4e-06,
+              0.005554,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              19361,
+              11062,
+              608,
+              40,
+              299,
+              625,
+              23,
+              2165,
+              5363,
+              16181,
+              16582
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "first_top5_position": null,
+            "first_top10_position": null,
+            "max_prob": 0.005554,
+            "min_rank": 23,
+            "final_rank": 16582,
+            "rank_improvement": 19338
+          }
+        },
+        "source": {
+          "token": " Raleigh",
+          "token_id": 74100,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              -7.2188,
+              -4.0625,
+              15.25,
+              24.0,
+              23.0,
+              19.875,
+              24.875,
+              21.625,
+              23.125,
+              22.0,
+              20.375
+            ],
+            "probs": [
+              0.0,
+              0.0,
+              4e-06,
+              0.007141,
+              0.001701,
+              3.7e-05,
+              0.052734,
+              0.000136,
+              0.000687,
+              0.000402,
+              0.000267
+            ],
+            "ranks": [
+              215429,
+              86536,
+              2288,
+              21,
+              73,
+              207,
+              4,
+              152,
+              70,
+              151,
+              85
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 4,
+            "final_rank": 85,
+            "max_prob": 0.052734
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                14.125,
+                4.8125,
+                20.875,
+                27.0,
+                19.125,
+                22.0,
+                23.625,
+                22.75,
+                29.0,
+                18.75,
+                14.25
+              ],
+              "probs": [
+                0.001091,
+                1.2e-05,
+                0.001183,
+                0.143555,
+                3.5e-05,
+                0.000307,
+                0.015076,
+                0.00042,
+                0.245117,
+                1.6e-05,
+                1e-06
+              ],
+              "ranks": [
+                93,
+                1025,
+                62,
+                1,
+                780,
+                58,
+                9,
+                80,
+                1,
+                515,
+                1225
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                16.375,
+                9.1875,
+                26.125,
+                25.375,
+                19.375,
+                28.125,
+                17.125,
+                29.5,
+                21.25,
+                16.75,
+                13.1875
+              ],
+              "probs": [
+                0.010315,
+                0.000919,
+                0.225586,
+                0.02832,
+                4.5e-05,
+                0.139648,
+                2.3e-05,
+                0.359375,
+                0.000105,
+                2e-06,
+                0.0
+              ],
+              "ranks": [
+                9,
+                70,
+                1,
+                7,
+                686,
+                2,
+                1183,
+                1,
+                183,
+                977,
+                1797
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                11.75,
+                5.0938,
+                20.125,
+                25.875,
+                17.75,
+                20.375,
+                20.5,
+                20.75,
+                28.75,
+                19.5,
+                18.875
+              ],
+              "probs": [
+                0.000101,
+                1.5e-05,
+                0.000561,
+                0.046631,
+                9e-06,
+                6e-05,
+                0.000664,
+                5.7e-05,
+                0.19043,
+                3.3e-05,
+                6e-05
+              ],
+              "ranks": [
+                600,
+                874,
+                108,
+                3,
+                1641,
+                166,
+                152,
+                219,
+                2,
+                398,
+                171
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                5.4062,
+                6.0,
+                23.0,
+                21.25,
+                15.9375,
+                29.625,
+                16.625,
+                22.25,
+                21.875,
+                15.6875,
+                17.125
+              ],
+              "probs": [
+                0.0,
+                3.8e-05,
+                0.009949,
+                0.000458,
+                1e-06,
+                0.628906,
+                1.4e-05,
+                0.000256,
+                0.000197,
+                1e-06,
+                1e-05
+              ],
+              "ranks": [
+                17860,
+                534,
+                13,
+                179,
+                4057,
+                1,
+                1513,
+                105,
+                134,
+                1254,
+                378
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": null,
+        "source_appears_at": 6,
+        "flip_position": 0,
+        "initial_gap": 12.4063,
+        "best_gap": 12.4063,
+        "final_gap": -14.5938,
+        "gap_closure": 0.0,
+        "gap_trajectory": [
+          12.4063,
+          4.4941,
+          2.25,
+          -0.875,
+          -2.25,
+          -2.125,
+          -2.25,
+          -6.9375,
+          -12.375,
+          -16.375,
+          -14.5938
+        ],
+        "control_stability_mean": 9.282,
+        "control_stability_max": 24.2188
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 19.25,
+        "prob": 0.000193,
+        "rank": 151
+      },
+      "source": {
+        "logit": 26.75,
+        "prob": 0.347656,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -14.0625,
+      "source_logit_delta": -33.9688,
+      "baseline_gap": -7.5,
+      "steered_gap_0": 12.4063,
+      "gap_closure_0": 19.9063,
+      "target_rank_improvement": -19210,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T15:52:16.343337",
+    "duration_ms": 84848.74296188354,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 1,
+    "tier_name": "SOURCE_PERSISTS",
+    "cities_found": [
+      "Raleigh",
+      "Charlotte"
+    ],
+    "states_found": [],
+    "notes": "Source capital 'Raleigh' persists",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

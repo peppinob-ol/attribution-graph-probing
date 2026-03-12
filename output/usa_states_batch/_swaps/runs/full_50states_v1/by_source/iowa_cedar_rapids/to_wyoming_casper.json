@@ -1,0 +1,561 @@
+{
+  "swap_id": "iowa_cedar_rapids__to__wyoming_casper",
+  "source": {
+    "slug": "iowa_cedar_rapids",
+    "prompt": "<bos>The capital of the state containing Cedar Rapids is",
+    "concept": "iowa",
+    "state": "Iowa",
+    "capital": "Des Moines",
+    "city": "Cedar Rapids"
+  },
+  "target": {
+    "slug": "wyoming_casper",
+    "concept": "wyoming",
+    "state": "Wyoming",
+    "capital": "Cheyenne",
+    "city": "Casper"
+  },
+  "interventions": {
+    "ablate_count": 48,
+    "amplify_count": 58,
+    "total_count": 106
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Iowa",
+      "from_capital": "Des Moines",
+      "from_city": "Cedar Rapids",
+      "to_state": "Wyoming",
+      "to_capital": "Cheyenne",
+      "to_city": "Casper"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Iowa",
+      "default_prob": 0.2177734375,
+      "steered": "RenderAtEndOf",
+      "steered_prob": 0.328125
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Cedar Rapids is Des Moines.\n\nThe state of Iowa is located",
+      "steered_output": "<bos><bos>The capital of the state containing Cedar Rapids isRenderAtEndOf, the nation's 10th largest",
+      "default_topk": [
+        {
+          "token": " Iowa",
+          "prob": 0.2177734375
+        },
+        {
+          "token": " Des",
+          "prob": 0.2177734375
+        },
+        {
+          "token": " Cedar",
+          "prob": 0.080078125
+        },
+        {
+          "token": ":",
+          "prob": 0.062255859375
+        },
+        {
+          "token": " the",
+          "prob": 0.048583984375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "RenderAtEndOf",
+          "prob": 0.328125
+        },
+        {
+          "token": " يتيمه",
+          "prob": 0.12060546875
+        },
+        {
+          "token": "MessageTagHelper",
+          "prob": 0.09423828125
+        },
+        {
+          "token": " Lander",
+          "prob": 0.0269775390625
+        },
+        {
+          "token": " River",
+          "prob": 0.0238037109375
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Cheyenne",
+        "source": " Des",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        "RenderAtEndOf",
+        ",",
+        " the",
+        " nation",
+        "'",
+        "s",
+        " ",
+        "1",
+        "0",
+        "th",
+        " largest"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Cheyenne",
+          "token_id": 137867,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              14.0625,
+              5.625,
+              24.25,
+              21.375,
+              6.4688,
+              -8.875,
+              9.6875,
+              5.4688,
+              11.8125,
+              6.4688,
+              5.6562
+            ],
+            "probs": [
+              0.000219,
+              1.8e-05,
+              0.01355,
+              0.000519,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              195,
+              2239,
+              12,
+              135,
+              4624,
+              66744,
+              12216,
+              15487,
+              2507,
+              10247,
+              18663
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "first_top5_position": null,
+            "first_top10_position": null,
+            "max_prob": 0.01355,
+            "min_rank": 12,
+            "final_rank": 18663,
+            "rank_improvement": 183
+          }
+        },
+        "source": {
+          "token": " Des",
+          "token_id": 2481,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              5.4688,
+              4.0,
+              21.0,
+              21.25,
+              5.5625,
+              -2.0938,
+              18.625,
+              6.5312,
+              11.875,
+              8.5,
+              8.625
+            ],
+            "probs": [
+              0.0,
+              4e-06,
+              0.000526,
+              0.000458,
+              0.0,
+              0.0,
+              0.000115,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              26666,
+              6253,
+              143,
+              149,
+              7722,
+              626,
+              182,
+              8947,
+              2436,
+              3517,
+              6448
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 143,
+            "final_rank": 6448,
+            "max_prob": 0.000526
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                7.9062,
+                8.8125,
+                27.125,
+                19.25,
+                13.125,
+                2.2656,
+                17.5,
+                8.8125,
+                15.5625,
+                15.5,
+                14.125
+              ],
+              "probs": [
+                0.0,
+                0.000441,
+                0.240234,
+                6.2e-05,
+                1.2e-05,
+                2e-06,
+                3.7e-05,
+                0.0,
+                0.0,
+                4e-06,
+                1e-06
+              ],
+              "ranks": [
+                9797,
+                204,
+                1,
+                490,
+                91,
+                30,
+                358,
+                2260,
+                233,
+                92,
+                501
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                9.75,
+                12.9375,
+                25.375,
+                18.0,
+                17.875,
+                4.0312,
+                16.125,
+                8.9375,
+                15.5625,
+                13.5625,
+                14.875
+              ],
+              "probs": [
+                3e-06,
+                0.027344,
+                0.041748,
+                1.8e-05,
+                0.001434,
+                1.2e-05,
+                9e-06,
+                0.0,
+                0.0,
+                1e-06,
+                2e-06
+              ],
+              "ranks": [
+                3731,
+                4,
+                4,
+                997,
+                6,
+                8,
+                756,
+                2005,
+                233,
+                235,
+                358
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                0.4297,
+                10.3125,
+                25.625,
+                17.5,
+                11.875,
+                3.4531,
+                17.375,
+                4.3125,
+                17.0,
+                13.9375,
+                14.125
+              ],
+              "probs": [
+                0.0,
+                0.001984,
+                0.053711,
+                1.1e-05,
+                4e-06,
+                7e-06,
+                3.3e-05,
+                0.0,
+                0.0,
+                1e-06,
+                1e-06
+              ],
+              "ranks": [
+                111676,
+                52,
+                2,
+                1345,
+                179,
+                13,
+                394,
+                26253,
+                97,
+                188,
+                501
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                5.9688,
+                11.8125,
+                21.875,
+                16.0,
+                18.125,
+                2.3594,
+                15.375,
+                7.0938,
+                19.625,
+                16.125,
+                17.5
+              ],
+              "probs": [
+                0.0,
+                0.00885,
+                0.001259,
+                2e-06,
+                0.001846,
+                2e-06,
+                4e-06,
+                0.0,
+                6e-06,
+                7e-06,
+                2.9e-05
+              ],
+              "ranks": [
+                21909,
+                21,
+                73,
+                2756,
+                3,
+                26,
+                1165,
+                6478,
+                31,
+                74,
+                102
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": null,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 8.5937,
+        "best_gap": 8.5937,
+        "final_gap": -2.9688,
+        "gap_closure": 0.0,
+        "gap_trajectory": [
+          8.5937,
+          1.625,
+          3.25,
+          0.125,
+          0.9063,
+          -6.7812,
+          -8.9375,
+          -1.0624,
+          -0.0625,
+          -2.0312,
+          -2.9688
+        ],
+        "control_stability_mean": 9.0445,
+        "control_stability_max": 25.1953
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 15.5,
+        "prob": 6e-06,
+        "rank": 755
+      },
+      "source": {
+        "logit": 26.0,
+        "prob": 0.217773,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -1.4375,
+      "source_logit_delta": -20.5312,
+      "baseline_gap": -10.5,
+      "steered_gap_0": 8.5937,
+      "gap_closure_0": 19.0937,
+      "target_rank_improvement": 560,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T13:36:53.130338",
+    "duration_ms": 75598.2141494751,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 2,
+    "tier_name": "SUPPRESSED_ONLY",
+    "cities_found": [
+      "Cedar Rapids"
+    ],
+    "states_found": [],
+    "notes": "Garbled/nonsense output",
+    "method": "RULE_HIGH",
+    "confidence": 0.9,
+    "manually_edited": false
+  }
+}

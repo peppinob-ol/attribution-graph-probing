@@ -1,6 +1,11 @@
 <script>
   import { onMount } from 'svelte';
   
+  // ===========================================
+  // FEATURE FLAGS - flip to false to disable
+  // ===========================================
+  const SHOW_TRAJECTORY_FEATURES = true;
+  
   // State
   let visible = false;
   let loading = false;
@@ -19,11 +24,19 @@
     0: { name: 'WRONG STATE', color: 'bg-slate-600', textColor: 'text-slate-400', desc: 'Unrelated state in output' },
   };
   
+  function handleEscape(event) {
+    if (visible && event.key === 'Escape') {
+      close();
+    }
+  }
+
   // Listen for cell selection events
   onMount(() => {
     document.addEventListener('cell-selected', handleCellSelected);
+    document.addEventListener('keydown', handleEscape);
     return () => {
       document.removeEventListener('cell-selected', handleCellSelected);
+      document.removeEventListener('keydown', handleEscape);
     };
   });
   
@@ -83,16 +96,153 @@
     }
     return result;
   }
+  
+  // ===========================================
+  // TRAJECTORY HELPERS
+  // ===========================================
+  
+  // Get trajectory summary safely
+  function getTrajectory() {
+    if (!data?.evaluation?.logit_trajectory) return null;
+    return data.evaluation.logit_trajectory;
+  }
+  
+  // Get trajectory summary metrics
+  function getTrajectorySummary() {
+    const traj = getTrajectory();
+    if (!traj?.summary) return null;
+    return traj.summary;
+  }
+  
+  // Get baseline comparison at position 0
+  function getPosition0Comparison() {
+    return data?.evaluation?.position_0_comparison || null;
+  }
+  
+  // Generate SVG sparkline path for gap trajectory
+  function generateSparklinePath(gapTrajectory, width = 120, height = 44) {
+    if (!gapTrajectory || gapTrajectory.length < 2) return null;
+    
+    const padding = 4;
+    const w = width - padding * 2;
+    const h = height - padding * 2;
+    
+    // Find min/max for scaling
+    const min = Math.min(...gapTrajectory, 0); // include 0 for reference
+    const max = Math.max(...gapTrajectory, 0);
+    const range = max - min || 1;
+    
+    // Generate points
+    const points = gapTrajectory.map((val, i) => {
+      const x = padding + (i / (gapTrajectory.length - 1)) * w;
+      const y = padding + h - ((val - min) / range) * h;
+      return { x, y, val };
+    });
+    
+    // Create path
+    const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    
+    // Zero line position
+    const zeroY = padding + h - ((0 - min) / range) * h;
+    
+    // Find flip position (first point where val > 0)
+    const flipIdx = gapTrajectory.findIndex(v => v > 0);
+    const flipPoint = flipIdx >= 0 ? points[flipIdx] : null;
+    
+    return { pathD, zeroY, points, flipPoint, width, height, padding };
+  }
+  
+  // Format number for display
+  function formatNum(val, decimals = 1) {
+    if (val === null || val === undefined || isNaN(val)) return 'N/A';
+    return val.toFixed(decimals);
+  }
+  
+  function formatTokenLabel(token, fallback) {
+    return (token || fallback || '').trim() || fallback;
+  }
+  
+  // Get flip status info
+  function getFlipStatus() {
+    const summary = getTrajectorySummary();
+    const pos0 = getPosition0Comparison();
+    
+    if (!summary) return null;
+    
+    const flipPos = summary.flip_position;
+    const flipAt0 = pos0?.flip_at_0 ?? (flipPos === 0);
+    
+    if (flipPos === null || flipPos === undefined) {
+      return {
+        achieved: false,
+        position: null,
+        label: 'NO FLIP',
+        badgeLabel: 'NO FLIP',
+        color: 'text-red-400',
+        bgColor: 'bg-red-500/20',
+        description: 'The target token never outranks the source token during the tracked generation steps.'
+      };
+    } else if (flipPos === 0) {
+      return {
+        achieved: true,
+        position: 0,
+        label: 'FLIP @ 0 POS',
+        badgeLabel: 'FLIP @ 0 POS',
+        color: 'text-emerald-400',
+        bgColor: 'bg-emerald-500/20',
+        description: 'The target token already outranks the source token at generation position 0.'
+      };
+    } else {
+      return {
+        achieved: true,
+        position: flipPos,
+        label: `FLIP @ ${flipPos} POS`,
+        badgeLabel: `FLIP @ ${flipPos} POS`,
+        color: 'text-yellow-400',
+        bgColor: 'bg-yellow-500/20',
+        description: `The target token first outranks the source token at generation position ${flipPos}.`
+      };
+    }
+  }
+  
+  // Get gap closure quality
+  function getGapClosureQuality(gapClosure) {
+    if (gapClosure === null || gapClosure === undefined) return { label: 'N/A', color: 'text-slate-500' };
+    if (gapClosure >= 10) return { label: 'strong', color: 'text-emerald-400' };
+    if (gapClosure >= 5) return { label: 'good', color: 'text-lime-400' };
+    if (gapClosure > 0) return { label: 'weak', color: 'text-yellow-400' };
+    if (gapClosure === 0) return { label: 'neutral', color: 'text-slate-400' };
+    return { label: 'negative', color: 'text-red-400' };
+  }
+  
+  // Get specificity quality (lower is better)
+  function getSpecificityQuality(stability) {
+    if (stability === null || stability === undefined) return { label: 'N/A', color: 'text-slate-500' };
+    if (stability < 5) return { label: 'high', color: 'text-emerald-400' };
+    if (stability < 10) return { label: 'medium', color: 'text-yellow-400' };
+    return { label: 'low', color: 'text-orange-400' };
+  }
+  
+  function getRankDeltaInfo(delta) {
+    if (delta === null || delta === undefined) {
+      return { text: '(+0)', color: 'text-yellow-400' };
+    }
+    if (delta > 0) return { text: `(+${delta})`, color: 'text-emerald-400' };
+    if (delta < 0) return { text: `(${delta})`, color: 'text-red-400' };
+    return { text: '(+0)', color: 'text-yellow-400' };
+  }
+  
+  function getFirstTop5Label(position) {
+    if (position === null || position === undefined) return 'never';
+    return `position ${position}`;
+  }
 </script>
 
 <!-- Backdrop -->
 {#if visible}
   <div 
-    class="fixed inset-0 bg-black/50 z-40"
-    on:click={close}
-    on:keydown={(e) => e.key === 'Escape' && close()}
-    role="button"
-    tabindex="0"
+    class="fixed inset-0 bg-black/50 z-40 pointer-events-none"
+    aria-hidden="true"
   ></div>
 {/if}
 
@@ -150,13 +300,24 @@
           </div>
         </div>
         
-        <!-- Tier badge -->
+        <!-- Tier badge + Flip badge -->
+        {@const flipStatus = SHOW_TRAJECTORY_FEATURES ? getFlipStatus() : null}
         <div class="mb-6 p-4 rounded-lg bg-slate-800/50 border border-slate-700">
-          <div class="flex items-center gap-3 mb-2">
+          <div class="flex items-center gap-3 mb-2 flex-wrap">
             <div class="px-3 py-1 rounded {info.color} text-white font-bold text-sm">
               TIER {tier}
             </div>
             <div class="{info.textColor} font-semibold">{info.name}</div>
+            
+            <!-- Flip badge (new) -->
+            {#if flipStatus}
+              <div
+                class="px-2 py-1 rounded {flipStatus.bgColor} {flipStatus.color} font-mono text-xs border border-current/30"
+                title={flipStatus.description}
+              >
+                {flipStatus.badgeLabel}
+              </div>
+            {/if}
           </div>
           <p class="text-sm text-slate-400">{info.desc}</p>
           {#if data.classification?.notes}
@@ -245,6 +406,187 @@
             </div>
           </div>
         </div>
+        
+        <!-- Trajectory Metrics (new) -->
+        {#if SHOW_TRAJECTORY_FEATURES}
+          {@const trajSummary = getTrajectorySummary()}
+          {@const trajectory = getTrajectory()}
+          
+          {#if trajSummary}
+            <div class="p-4 rounded-lg bg-slate-800/50 border border-slate-700 mb-6">
+              <div class="flex items-start justify-between gap-3 mb-3">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <div class="text-xs text-slate-500 uppercase">Trajectory Metrics</div>
+                  {#if flipStatus}
+                    <div
+                      class="px-2 py-1 rounded {flipStatus.bgColor} {flipStatus.color} font-mono text-xs border border-current/30"
+                      title={flipStatus.description}
+                    >
+                      {flipStatus.badgeLabel}
+                    </div>
+                  {/if}
+                </div>
+                <div
+                  class="w-5 h-5 rounded-full border border-slate-600 text-slate-400 flex items-center justify-center text-[11px] cursor-help shrink-0"
+                  title="Trajectory metrics compare the target token against the source token across generation positions. Positive gap means the target logit is ahead of the source logit. Flip position is the first step where the target outranks the source. Initial gap is the step-0 margin, best gap is the strongest margin reached later, gap closure measures extra gain after step 0, and specificity measures how much unrelated control tokens drift during the intervention, where lower is better."
+                >
+                  ?
+                </div>
+              </div>
+              
+              <!-- Sparkline -->
+              {#if trajSummary.gap_trajectory?.length > 1}
+                {@const spark = generateSparklinePath(trajSummary.gap_trajectory)}
+                {#if spark}
+                  <div
+                    class="mb-4 p-3 rounded bg-slate-900/50"
+                    title="Gap trajectory tracks target logit minus source logit across generation positions. Above the dashed zero line, the target token is ahead. Below the dashed line, the source token is ahead."
+                  >
+                    <div class="flex items-center justify-between mb-2">
+                      <span class="text-xs text-slate-500">Gap Trajectory</span>
+                    </div>
+                    <div class="flex justify-between items-center mb-1">
+                      <span class="text-[11px] font-medium text-sky-200">
+                        {formatTokenLabel(trajectory?.tokens?.target, 'Target')} (Target)
+                      </span>
+                      <span></span>
+                    </div>
+                    <svg 
+                      class="w-full h-20"
+                      viewBox="0 0 {spark.width} {spark.height}"
+                      aria-label="Gap trajectory chart"
+                    >
+                      <!-- Zero reference line -->
+                      <line 
+                        x1="{spark.padding}" 
+                        y1="{spark.zeroY}" 
+                        x2="{spark.width - spark.padding}" 
+                        y2="{spark.zeroY}" 
+                        stroke="rgb(100 116 139)" 
+                        stroke-width="1" 
+                        stroke-dasharray="2,2"
+                      />
+                      
+                      <!-- Gap trajectory line -->
+                      <path 
+                        d="{spark.pathD}" 
+                        fill="none" 
+                        stroke="rgb(56 189 248)" 
+                        stroke-width="1.1"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      
+                      <!-- Flip point marker -->
+                      {#if spark.flipPoint}
+                        <circle 
+                          cx="{spark.flipPoint.x}" 
+                          cy="{spark.flipPoint.y}" 
+                          r="1.8" 
+                          fill="rgb(56 189 248)"
+                          stroke="rgb(224 242 254)"
+                          stroke-width="0.8"
+                        />
+                      {/if}
+                    </svg>
+                    <div class="flex justify-between items-center text-xs text-slate-600 mt-1">
+                      <div class="flex flex-col items-start gap-1">
+                        <span class="text-slate-100">pos 0</span>
+                        <span class="text-[11px] text-slate-400">
+                          {formatTokenLabel(trajectory?.tokens?.source, 'Source')} (Source)
+                        </span>
+                      </div>
+                      <span>pos {trajSummary.gap_trajectory.length - 1}</span>
+                    </div>
+                  </div>
+                {/if}
+              {/if}
+              
+              <!-- Metrics grid -->
+              <div class="grid grid-cols-2 gap-3">
+                <!-- Initial Gap -->
+                <div
+                  class="p-2 rounded bg-slate-900/30"
+                  title="Initial gap is the target logit minus the source logit at generation position 0. Positive means the target starts ahead."
+                >
+                  <div class="text-xs text-slate-500 mb-1">Initial Gap</div>
+                  <div class="text-sm font-mono {trajSummary.initial_gap > 0 ? 'text-emerald-400' : trajSummary.initial_gap < 0 ? 'text-red-400' : 'text-slate-400'}">
+                    {trajSummary.initial_gap > 0 ? '+' : ''}{formatNum(trajSummary.initial_gap)}
+                  </div>
+                </div>
+                
+                <!-- Best Gap -->
+                <div
+                  class="p-2 rounded bg-slate-900/30"
+                  title="Best gap is the maximum target-minus-source margin reached anywhere in the tracked trajectory."
+                >
+                  <div class="text-xs text-slate-500 mb-1">Best Gap</div>
+                  <div class="text-sm font-mono {trajSummary.best_gap > 0 ? 'text-emerald-400' : trajSummary.best_gap < 0 ? 'text-red-400' : 'text-slate-400'}">
+                    {trajSummary.best_gap > 0 ? '+' : ''}{formatNum(trajSummary.best_gap)}
+                  </div>
+                </div>
+
+                <!-- Gap Closure -->
+                <div
+                  class="p-2 rounded bg-slate-900/30"
+                  title="Gap closure is best gap minus initial gap. Positive means the target gained additional advantage after position 0. Zero means the trajectory never improved beyond its starting margin."
+                >
+                  <div class="text-xs text-slate-500 mb-1">Gap Closure</div>
+                  <div class="flex items-baseline gap-2">
+                    <span class="text-sm font-mono {trajSummary.gap_closure > 0 ? 'text-emerald-400' : trajSummary.gap_closure < 0 ? 'text-red-400' : 'text-slate-400'}">
+                      {trajSummary.gap_closure > 0 ? '+' : ''}{formatNum(trajSummary.gap_closure)}
+                    </span>
+                    <span class="text-xs {getGapClosureQuality(trajSummary.gap_closure).color}">
+                      {getGapClosureQuality(trajSummary.gap_closure).label}
+                    </span>
+                  </div>
+                </div>
+                
+                <!-- Specificity -->
+                <div
+                  class="p-2 rounded bg-slate-900/30"
+                  title="Specificity measures how much unrelated control tokens drift during the intervention. Lower is better because it means the steering is more selective."
+                >
+                  <div class="text-xs text-slate-500 mb-1">Specificity</div>
+                  <div class="flex items-baseline gap-2">
+                    <span class="text-sm font-mono text-slate-300">
+                      {formatNum(trajSummary.control_stability_mean)}
+                    </span>
+                    <span class="text-xs {getSpecificityQuality(trajSummary.control_stability_mean).color}">
+                      {getSpecificityQuality(trajSummary.control_stability_mean).label}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Target rank improvement (if available) -->
+              {#if trajectory?.trajectories?.target?.summary}
+                {@const targetSum = trajectory.trajectories.target.summary}
+                {@const targetBestRank = targetSum.min_rank}
+                {@const rankDelta = getRankDeltaInfo(targetSum.rank_improvement)}
+                <div class="mt-3 pt-3 border-t border-slate-700/50">
+                  <div
+                    class="flex items-center justify-between text-sm"
+                    title="Best target rank is the highest position the target token reaches anywhere in the tracked trajectory. The number in parentheses shows the improvement relative to the starting rank at pos 0."
+                  >
+                    <span class="text-slate-500">Best target rank:</span>
+                    <span class="font-mono">
+                      <span class="text-slate-400">#{targetBestRank ?? '?'}</span>
+                      <span class="{rankDelta.color} ml-2">{rankDelta.text}</span>
+                    </span>
+                  </div>
+                  <div
+                    class="flex items-center justify-between text-sm mt-1"
+                    title="First top-5 is the earliest generation position where the target token enters the model's top-5 candidates. 'never' means it never reached top-5 during the tracked steps."
+                  >
+                    <span class="text-slate-500">First top-5:</span>
+                    <span class="font-mono text-cyan-400">{getFirstTop5Label(targetSum.first_top5_position)}</span>
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {/if}
+        {/if}
         
         <!-- Status indicators -->
         <div class="p-4 rounded-lg bg-slate-800/50 border border-slate-700 mb-6">

@@ -1,0 +1,564 @@
+{
+  "swap_id": "delaware_wilmington__to__california_oakland",
+  "source": {
+    "slug": "delaware_wilmington",
+    "prompt": "<bos>The capital of the state containing Wilmington is",
+    "concept": "delaware",
+    "state": "Delaware",
+    "capital": "Dover",
+    "city": "Wilmington"
+  },
+  "target": {
+    "slug": "california_oakland",
+    "concept": "california",
+    "state": "California",
+    "capital": "Sacramento",
+    "city": "Oakland"
+  },
+  "interventions": {
+    "ablate_count": 47,
+    "amplify_count": 37,
+    "total_count": 84
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Delaware",
+      "from_capital": "Dover",
+      "from_city": "Wilmington",
+      "to_state": "California",
+      "to_capital": "Sacramento",
+      "to_city": "Oakland"
+    },
+    "exact_match": {
+      "default_has_from_capital": false,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Raleigh",
+      "default_prob": 0.16015625,
+      "steered": " Sacramento",
+      "steered_prob": 0.5078125
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": 0.5078125,
+      "from_capital_in_default_topk": 0.0458984375,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Wilmington is <strong>Raleigh</strong>.\n\n<h3>What is the",
+      "steered_output": "<bos><bos>The capital of the state containing Wilmington is Sacramento, California, is a city that has been around",
+      "default_topk": [
+        {
+          "token": " Raleigh",
+          "prob": 0.16015625
+        },
+        {
+          "token": " the",
+          "prob": 0.09716796875
+        },
+        {
+          "token": " ",
+          "prob": 0.05908203125
+        },
+        {
+          "token": " Wilmington",
+          "prob": 0.052001953125
+        },
+        {
+          "token": " Dover",
+          "prob": 0.0458984375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Sacramento",
+          "prob": 0.5078125
+        },
+        {
+          "token": " Concord",
+          "prob": 0.053466796875
+        },
+        {
+          "token": " Efq",
+          "prob": 0.0252685546875
+        },
+        {
+          "token": " San",
+          "prob": 0.017333984375
+        },
+        {
+          "token": " Santa",
+          "prob": 0.0135498046875
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Sacramento",
+        "source": " Dover",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " Sacramento",
+        ",",
+        " California",
+        ",",
+        " is",
+        " a",
+        " city",
+        " that",
+        " has",
+        " been",
+        " around"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Sacramento",
+          "token_id": 43939,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              22.0,
+              25.625,
+              25.0,
+              26.0,
+              26.0,
+              22.625,
+              19.25,
+              16.125,
+              16.75,
+              13.0,
+              13.6875
+            ],
+            "probs": [
+              0.507812,
+              0.009277,
+              0.032715,
+              0.008789,
+              0.016968,
+              0.000454,
+              3.7e-05,
+              1e-06,
+              1e-06,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              1,
+              9,
+              6,
+              11,
+              8,
+              105,
+              365,
+              890,
+              722,
+              2187,
+              1897
+            ]
+          },
+          "summary": {
+            "first_top1_position": 0,
+            "first_top5_position": 0,
+            "first_top10_position": 0,
+            "max_prob": 0.507812,
+            "min_rank": 1,
+            "final_rank": 1897,
+            "rank_improvement": 0
+          }
+        },
+        "source": {
+          "token": " Dover",
+          "token_id": 68672,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              10.625,
+              10.125,
+              17.5,
+              13.125,
+              13.875,
+              11.375,
+              1.3984,
+              6.0625,
+              0.2451,
+              -3.2344,
+              1.4531
+            ],
+            "probs": [
+              6e-06,
+              0.0,
+              1.8e-05,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              3125,
+              13364,
+              475,
+              5348,
+              3063,
+              6044,
+              41101,
+              18616,
+              54315,
+              111050,
+              36211
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 475,
+            "final_rank": 36211,
+            "max_prob": 1.8e-05
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                8.4375,
+                23.125,
+                26.875,
+                23.125,
+                26.5,
+                29.25,
+                18.625,
+                22.5,
+                23.5,
+                26.0,
+                26.625
+              ],
+              "probs": [
+                1e-06,
+                0.000763,
+                0.212891,
+                0.000496,
+                0.027954,
+                0.341797,
+                2e-05,
+                0.000448,
+                0.001106,
+                0.014648,
+                0.071289
+              ],
+              "ranks": [
+                9941,
+                58,
+                2,
+                56,
+                4,
+                1,
+                473,
+                64,
+                68,
+                17,
+                3
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                13.625,
+                29.125,
+                25.125,
+                29.375,
+                29.5,
+                21.0,
+                16.875,
+                22.375,
+                29.0,
+                17.0,
+                15.375
+              ],
+              "probs": [
+                0.000117,
+                0.306641,
+                0.036865,
+                0.255859,
+                0.558594,
+                9e-05,
+                3e-06,
+                0.000395,
+                0.269531,
+                2e-06,
+                1e-06
+              ],
+              "ranks": [
+                401,
+                1,
+                4,
+                2,
+                1,
+                212,
+                834,
+                67,
+                1,
+                649,
+                1211
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                2.4688,
+                21.875,
+                24.375,
+                21.875,
+                25.125,
+                28.375,
+                19.25,
+                21.5,
+                22.625,
+                28.75,
+                27.0
+              ],
+              "probs": [
+                0.0,
+                0.000218,
+                0.017456,
+                0.000142,
+                0.00705,
+                0.142578,
+                3.7e-05,
+                0.000165,
+                0.00046,
+                0.229492,
+                0.103516
+              ],
+              "ranks": [
+                86902,
+                101,
+                9,
+                105,
+                13,
+                2,
+                365,
+                99,
+                114,
+                1,
+                1
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                7.4062,
+                21.75,
+                21.5,
+                21.375,
+                21.75,
+                21.25,
+                16.375,
+                28.75,
+                18.125,
+                19.25,
+                19.625
+              ],
+              "probs": [
+                0.0,
+                0.000193,
+                0.000984,
+                8.6e-05,
+                0.000241,
+                0.000115,
+                2e-06,
+                0.232422,
+                5e-06,
+                1.7e-05,
+                6.5e-05
+              ],
+              "ranks": [
+                16295,
+                110,
+                57,
+                146,
+                103,
+                175,
+                973,
+                1,
+                511,
+                333,
+                318
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 0,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 11.375,
+        "best_gap": 17.8516,
+        "final_gap": 12.2344,
+        "gap_closure": 6.476600000000001,
+        "gap_trajectory": [
+          11.375,
+          15.5,
+          7.5,
+          12.875,
+          12.125,
+          11.25,
+          17.8516,
+          10.0625,
+          16.5049,
+          16.2344,
+          12.2344
+        ],
+        "control_stability_mean": 15.3,
+        "control_stability_max": 26.2812
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 24.125,
+        "prob": 0.013184,
+        "rank": 13
+      },
+      "source": {
+        "logit": 25.375,
+        "prob": 0.045898,
+        "rank": 5
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -2.125,
+      "source_logit_delta": -14.75,
+      "baseline_gap": -1.25,
+      "steered_gap_0": 11.375,
+      "gap_closure_0": 12.625,
+      "target_rank_improvement": 12,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T12:46:07.517606",
+    "duration_ms": 87738.38496208191,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Sacramento",
+      "Wilmington"
+    ],
+    "states_found": [
+      "California"
+    ],
+    "notes": "Target capital 'Sacramento' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

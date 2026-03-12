@@ -1,0 +1,564 @@
+{
+  "swap_id": "michigan_detroit__to__montana_billings",
+  "source": {
+    "slug": "michigan_detroit",
+    "prompt": "<bos>The capital of the state containing Detroit is",
+    "concept": "michigan",
+    "state": "Michigan",
+    "capital": "Lansing",
+    "city": "Detroit"
+  },
+  "target": {
+    "slug": "montana_billings",
+    "concept": "montana",
+    "state": "Montana",
+    "capital": "Helena",
+    "city": "Billings"
+  },
+  "interventions": {
+    "ablate_count": 51,
+    "amplify_count": 53,
+    "total_count": 104
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Michigan",
+      "from_capital": "Lansing",
+      "from_city": "Detroit",
+      "to_state": "Montana",
+      "to_capital": "Helena",
+      "to_city": "Billings"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Lansing",
+      "default_prob": 0.3984375,
+      "steered": " Helena",
+      "steered_prob": 0.26171875
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": 0.26171875,
+      "from_capital_in_default_topk": 0.3984375,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Detroit is Lansing.\n\nThe capital of Michigan is Lansing.",
+      "steered_output": "<bos><bos>The capital of the state containing Detroit is Helena, Montana, is the 10th largest",
+      "default_topk": [
+        {
+          "token": " Lansing",
+          "prob": 0.3984375
+        },
+        {
+          "token": " Michigan",
+          "prob": 0.07861328125
+        },
+        {
+          "token": " ",
+          "prob": 0.061279296875
+        },
+        {
+          "token": " the",
+          "prob": 0.061279296875
+        },
+        {
+          "token": "\n\n",
+          "prob": 0.0419921875
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Helena",
+          "prob": 0.26171875
+        },
+        {
+          "token": "expandindo",
+          "prob": 0.0849609375
+        },
+        {
+          "token": "ftagPool",
+          "prob": 0.058349609375
+        },
+        {
+          "token": " Bo",
+          "prob": 0.058349609375
+        },
+        {
+          "token": "tonode",
+          "prob": 0.021484375
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Helena",
+        "source": " Lansing",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " Helena",
+        ",",
+        " Montana",
+        ",",
+        " is",
+        " the",
+        " ",
+        "1",
+        "0",
+        "th",
+        " largest"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Helena",
+          "token_id": 57159,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              19.25,
+              21.375,
+              23.125,
+              23.375,
+              25.5,
+              26.0,
+              21.25,
+              9.625,
+              12.25,
+              8.875,
+              14.125
+            ],
+            "probs": [
+              0.261719,
+              0.003998,
+              0.040527,
+              0.00074,
+              0.027588,
+              0.048096,
+              0.000816,
+              0.0,
+              0.0,
+              0.0,
+              1e-06
+            ],
+            "ranks": [
+              1,
+              18,
+              5,
+              42,
+              6,
+              4,
+              93,
+              1595,
+              2016,
+              3620,
+              1013
+            ]
+          },
+          "summary": {
+            "first_top1_position": 0,
+            "first_top5_position": 0,
+            "first_top10_position": 0,
+            "max_prob": 0.261719,
+            "min_rank": 1,
+            "final_rank": 1013,
+            "rank_improvement": 0
+          }
+        },
+        "source": {
+          "token": " Lansing",
+          "token_id": 83496,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              3.8906,
+              10.375,
+              13.625,
+              13.625,
+              18.875,
+              18.875,
+              12.625,
+              -1.0625,
+              11.125,
+              2.5781,
+              7.2812
+            ],
+            "probs": [
+              0.0,
+              0.0,
+              3e-06,
+              0.0,
+              3.6e-05,
+              3.9e-05,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              30192,
+              9646,
+              858,
+              3029,
+              335,
+              407,
+              4018,
+              135886,
+              3490,
+              55120,
+              13012
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 335,
+            "final_rank": 13012,
+            "max_prob": 3.9e-05
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                6.0312,
+                20.125,
+                24.5,
+                23.375,
+                26.0,
+                27.875,
+                19.25,
+                13.875,
+                18.5,
+                16.875,
+                18.25
+              ],
+              "probs": [
+                0.0,
+                0.001144,
+                0.160156,
+                0.00074,
+                0.04541,
+                0.314453,
+                0.000111,
+                0.0,
+                2e-06,
+                1.2e-05,
+                4.9e-05
+              ],
+              "ranks": [
+                11812,
+                31,
+                2,
+                42,
+                4,
+                1,
+                235,
+                124,
+                86,
+                83,
+                140
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                8.5,
+                25.5,
+                21.875,
+                29.0,
+                28.375,
+                19.0,
+                15.375,
+                12.5,
+                17.875,
+                14.75,
+                16.75
+              ],
+              "probs": [
+                6e-06,
+                0.24707,
+                0.011597,
+                0.205078,
+                0.488281,
+                4.4e-05,
+                2e-06,
+                0.0,
+                1e-06,
+                1e-06,
+                1.1e-05
+              ],
+              "ranks": [
+                3059,
+                2,
+                8,
+                2,
+                1,
+                389,
+                1401,
+                266,
+                107,
+                201,
+                300
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                -1.3984,
+                17.25,
+                21.5,
+                20.25,
+                23.875,
+                26.5,
+                17.5,
+                2.2188,
+                18.875,
+                15.375,
+                16.5
+              ],
+              "probs": [
+                0.0,
+                6.4e-05,
+                0.007996,
+                3.3e-05,
+                0.005432,
+                0.07959,
+                1.9e-05,
+                0.0,
+                3e-06,
+                3e-06,
+                9e-06
+              ],
+              "ranks": [
+                135271,
+                244,
+                11,
+                169,
+                16,
+                2,
+                536,
+                60854,
+                69,
+                150,
+                331
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                4.0625,
+                20.5,
+                18.125,
+                20.25,
+                20.875,
+                20.5,
+                12.625,
+                9.375,
+                23.0,
+                18.75,
+                22.0
+              ],
+              "probs": [
+                0.0,
+                0.001663,
+                0.000273,
+                3.3e-05,
+                0.000271,
+                0.000196,
+                0.0,
+                0.0,
+                0.000213,
+                7.9e-05,
+                0.00209
+              ],
+              "ranks": [
+                28307,
+                27,
+                84,
+                169,
+                128,
+                172,
+                4018,
+                1761,
+                18,
+                30,
+                19
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 0,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 15.3594,
+        "best_gap": 15.3594,
+        "final_gap": 6.8438,
+        "gap_closure": 0.0,
+        "gap_trajectory": [
+          15.3594,
+          11.0,
+          9.5,
+          9.75,
+          6.625,
+          7.125,
+          8.625,
+          10.6875,
+          1.125,
+          6.2969,
+          6.8438
+        ],
+        "control_stability_mean": 15.0879,
+        "control_stability_max": 27.8984
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 17.0,
+        "prob": 1.4e-05,
+        "rank": 478
+      },
+      "source": {
+        "logit": 27.25,
+        "prob": 0.398438,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": 2.25,
+      "source_logit_delta": -23.3594,
+      "baseline_gap": -10.25,
+      "steered_gap_0": 15.3594,
+      "gap_closure_0": 25.6094,
+      "target_rank_improvement": 477,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T14:23:09.253400",
+    "duration_ms": 71118.01385879517,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Detroit",
+      "Helena"
+    ],
+    "states_found": [
+      "Montana"
+    ],
+    "notes": "Target capital 'Helena' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

@@ -1,0 +1,564 @@
+{
+  "swap_id": "rhode_island_warwick__to__new_jersey_newark",
+  "source": {
+    "slug": "rhode_island_warwick",
+    "prompt": "<bos>The capital of the state containing Warwick is",
+    "concept": "rhode island",
+    "state": "Rhode Island",
+    "capital": "Providence",
+    "city": "Warwick"
+  },
+  "target": {
+    "slug": "new_jersey_newark",
+    "concept": "new jersey",
+    "state": "New Jersey",
+    "capital": "Trenton",
+    "city": "Newark"
+  },
+  "interventions": {
+    "ablate_count": 33,
+    "amplify_count": 64,
+    "total_count": 97
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Rhode Island",
+      "from_capital": "Providence",
+      "from_city": "Warwick",
+      "to_state": "New Jersey",
+      "to_capital": "Trenton",
+      "to_city": "Newark"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " the",
+      "default_prob": 0.1064453125,
+      "steered": " Valley",
+      "steered_prob": 0.2890625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Warwick is <strong>Providence</strong>.\n\n<h3>What is the",
+      "steered_output": "<bos><bos>The capital of the state containing Warwick is Valley, New Jersey, is <strong>Trenton</strong>",
+      "default_topk": [
+        {
+          "token": " the",
+          "prob": 0.1064453125
+        },
+        {
+          "token": " ",
+          "prob": 0.056884765625
+        },
+        {
+          "token": ":",
+          "prob": 0.05029296875
+        },
+        {
+          "token": " Albany",
+          "prob": 0.05029296875
+        },
+        {
+          "token": " Harrisburg",
+          "prob": 0.0390625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Valley",
+          "prob": 0.2890625
+        },
+        {
+          "token": " River",
+          "prob": 0.09375
+        },
+        {
+          "token": " Trust",
+          "prob": 0.08251953125
+        },
+        {
+          "token": " Elizabeth",
+          "prob": 0.044189453125
+        },
+        {
+          "token": "Vezi",
+          "prob": 0.034423828125
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Trenton",
+        "source": " Providence",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " Valley",
+        ",",
+        " New",
+        " Jersey",
+        ",",
+        " is",
+        " ",
+        "<strong>",
+        "Trent",
+        "on",
+        "</strong>"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Trenton",
+          "token_id": 112353,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              9.875,
+              8.0625,
+              23.625,
+              13.9375,
+              19.875,
+              25.375,
+              25.75,
+              12.0625,
+              16.125,
+              -1.8594,
+              19.25
+            ],
+            "probs": [
+              6e-06,
+              0.0,
+              0.003998,
+              7e-06,
+              2.7e-05,
+              0.021851,
+              0.169922,
+              0.0,
+              0.000763,
+              0.0,
+              4.6e-05
+            ],
+            "ranks": [
+              1610,
+              19252,
+              33,
+              347,
+              203,
+              10,
+              1,
+              341,
+              95,
+              638,
+              41
+            ]
+          },
+          "summary": {
+            "first_top1_position": 6,
+            "first_top5_position": 6,
+            "first_top10_position": 5,
+            "max_prob": 0.169922,
+            "min_rank": 1,
+            "final_rank": 41,
+            "rank_improvement": 1609
+          }
+        },
+        "source": {
+          "token": " Providence",
+          "token_id": 45100,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              0.1865,
+              16.125,
+              20.75,
+              19.125,
+              18.5,
+              19.5,
+              16.75,
+              3.3125,
+              -0.6641,
+              -5.5312,
+              11.5
+            ],
+            "probs": [
+              0.0,
+              1e-05,
+              0.000226,
+              0.001274,
+              7e-06,
+              6.2e-05,
+              2.1e-05,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ranks": [
+              78915,
+              887,
+              245,
+              18,
+              444,
+              347,
+              773,
+              60344,
+              72851,
+              6681,
+              1818
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 18,
+            "final_rank": 1818,
+            "max_prob": 0.001274
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                9.0,
+                19.0,
+                27.375,
+                11.0625,
+                23.125,
+                26.625,
+                25.625,
+                6.9375,
+                5.8125,
+                0.7695,
+                19.5
+              ],
+              "probs": [
+                3e-06,
+                0.000181,
+                0.169922,
+                0.0,
+                0.00069,
+                0.076172,
+                0.150391,
+                0.0,
+                0.0,
+                0.0,
+                5.9e-05
+              ],
+              "ranks": [
+                2660,
+                209,
+                1,
+                1548,
+                41,
+                2,
+                2,
+                8615,
+                9472,
+                134,
+                36
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                11.5625,
+                26.0,
+                25.75,
+                14.4375,
+                29.0,
+                28.125,
+                20.125,
+                10.9375,
+                5.9688,
+                2.1406,
+                19.75
+              ],
+              "probs": [
+                3.3e-05,
+                0.198242,
+                0.033447,
+                1.2e-05,
+                0.246094,
+                0.341797,
+                0.000614,
+                0.0,
+                0.0,
+                0.0,
+                7.5e-05
+              ],
+              "ranks": [
+                616,
+                2,
+                4,
+                264,
+                2,
+                1,
+                120,
+                650,
+                8834,
+                61,
+                31
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                2.9844,
+                17.625,
+                25.75,
+                10.6875,
+                21.875,
+                25.125,
+                24.25,
+                4.875,
+                5.6562,
+                0.293,
+                17.75
+              ],
+              "probs": [
+                0.0,
+                4.6e-05,
+                0.033447,
+                0.0,
+                0.000198,
+                0.016968,
+                0.038086,
+                0.0,
+                0.0,
+                0.0,
+                1e-05
+              ],
+              "ranks": [
+                35372,
+                449,
+                4,
+                1887,
+                76,
+                12,
+                4,
+                29309,
+                10025,
+                179,
+                81
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                6.5,
+                23.125,
+                21.75,
+                11.5,
+                21.0,
+                21.5,
+                19.75,
+                4.3125,
+                5.25,
+                1.2812,
+                17.25
+              ],
+              "probs": [
+                0.0,
+                0.01123,
+                0.000614,
+                1e-06,
+                8.2e-05,
+                0.000454,
+                0.000422,
+                0.0,
+                0.0,
+                0.0,
+                6e-06
+              ],
+              "ranks": [
+                9003,
+                12,
+                126,
+                1246,
+                130,
+                111,
+                161,
+                38554,
+                11535,
+                104,
+                104
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": null,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 9.6885,
+        "best_gap": 16.7891,
+        "final_gap": 7.75,
+        "gap_closure": 7.100600000000002,
+        "gap_trajectory": [
+          9.6885,
+          -8.0625,
+          2.875,
+          -5.1875,
+          1.375,
+          5.875,
+          9.0,
+          8.75,
+          16.7891,
+          3.6718,
+          7.75
+        ],
+        "control_stability_mean": 10.7285,
+        "control_stability_max": 22.7656
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 24.5,
+        "prob": 0.023682,
+        "rank": 10
+      },
+      "source": {
+        "logit": 24.75,
+        "prob": 0.030518,
+        "rank": 6
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -14.625,
+      "source_logit_delta": -24.5635,
+      "baseline_gap": -0.25,
+      "steered_gap_0": 9.6885,
+      "gap_closure_0": 9.9385,
+      "target_rank_improvement": -1600,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T16:36:53.095566",
+    "duration_ms": 75363.18254470825,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Trenton",
+      "Warwick"
+    ],
+    "states_found": [
+      "New Jersey"
+    ],
+    "notes": "Target capital 'Trenton' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

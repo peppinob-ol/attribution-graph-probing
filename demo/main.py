@@ -20,7 +20,17 @@ import sys
 from pathlib import Path
 
 from fasthtml.common import fast_app, serve
-from starlette.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class NoCacheMiddleware(BaseHTTPMiddleware):
+    """Add no-cache headers to island JS files to prevent stale code."""
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/static/islands/"):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
 
 from app.routes.home import home_routes
 from app.routes.api import api_routes
@@ -47,11 +57,11 @@ ANNOTATE_MODE = "--annotate" in sys.argv
 # Initialize data loader
 data_loader = DataLoader(DATA_DIR)
 
-# Create FastHTML app
-app, rt = fast_app(debug=True)
+# Create FastHTML app (static_path=DEMO_DIR so /static/* resolves to demo/static/*)
+app, rt = fast_app(debug=True, static_path=str(DEMO_DIR))
 
-# Mount static files directory
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+# Add no-cache middleware for island JS files
+app.add_middleware(NoCacheMiddleware)
 
 # Register routes
 home_routes(app, rt, data_loader, ANNOTATE_MODE)

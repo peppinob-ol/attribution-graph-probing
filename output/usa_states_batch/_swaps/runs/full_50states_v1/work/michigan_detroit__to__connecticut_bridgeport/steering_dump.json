@@ -1,0 +1,504 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "swap_prompt",
+      "prompt": "<bos>The capital of the state containing Detroit is",
+      "steered": "<bos><bos>The capital of the state containing Detroit is يتيمه, Hartford, Connecticut.\n\nThe capital of the",
+      "default": "<bos><bos>The capital of the state containing Detroit is Lansing.\n\nThe capital of Michigan is Lansing.",
+      "steered_topk": [
+        {
+          "token": " يتيمه",
+          "prob": 0.16796875
+        },
+        {
+          "token": " Hartford",
+          "prob": 0.10205078125
+        },
+        {
+          "token": " Bridgeport",
+          "prob": 0.061767578125
+        },
+        {
+          "token": "曖昧さ回避",
+          "prob": 0.04248046875
+        },
+        {
+          "token": "ftagPool",
+          "prob": 0.032958984375
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Lansing",
+          "prob": 0.3984375
+        },
+        {
+          "token": " Michigan",
+          "prob": 0.07861328125
+        },
+        {
+          "token": " ",
+          "prob": 0.061279296875
+        },
+        {
+          "token": " the",
+          "prob": 0.061279296875
+        },
+        {
+          "token": "\n\n",
+          "prob": 0.0419921875
+        }
+      ],
+      "intervention_count": 95,
+      "logit_trajectory": {
+        "tokens": {
+          "target": " Hartford",
+          "source": " Lansing",
+          "controls": [
+            " the",
+            " is",
+            " a",
+            " of"
+          ]
+        },
+        "n_positions": 11,
+        "generated_tokens": [
+          " يتيمه",
+          ",",
+          " Hartford",
+          ",",
+          " Connecticut",
+          ".",
+          "\n\n",
+          "The",
+          " capital",
+          " of",
+          " the"
+        ],
+        "trajectories": {
+          "target": {
+            "token": " Hartford",
+            "token_id": 64682,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                22.75,
+                -1.2969,
+                25.25,
+                21.5,
+                25.25,
+                23.125,
+                27.5,
+                20.0,
+                21.375,
+                21.0,
+                18.625
+              ],
+              "probs": [
+                0.102051,
+                0.0,
+                0.617188,
+                0.001373,
+                0.099121,
+                0.002945,
+                0.239258,
+                0.000309,
+                0.00028,
+                0.000296,
+                1.2e-05
+              ],
+              "ranks": [
+                2,
+                290,
+                1,
+                34,
+                3,
+                19,
+                1,
+                166,
+                191,
+                16,
+                403
+              ]
+            },
+            "summary": {
+              "first_top1_position": 2,
+              "first_top5_position": 0,
+              "first_top10_position": 0,
+              "max_prob": 0.617188,
+              "min_rank": 1,
+              "final_rank": 403,
+              "rank_improvement": 1
+            }
+          },
+          "source": {
+            "token": " Lansing",
+            "token_id": 83496,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                13.0625,
+                -12.4375,
+                13.1875,
+                9.8125,
+                16.375,
+                13.0,
+                16.875,
+                6.5938,
+                14.4375,
+                10.9375,
+                14.25
+              ],
+              "probs": [
+                6e-06,
+                0.0,
+                4e-06,
+                0.0,
+                1.4e-05,
+                0.0,
+                6e-06,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "ranks": [
+                3619,
+                112681,
+                1366,
+                40453,
+                901,
+                9979,
+                1242,
+                98715,
+                4494,
+                3074,
+                2752
+              ]
+            },
+            "summary": {
+              "first_top1_position": null,
+              "min_rank": 901,
+              "final_rank": 2752,
+              "max_prob": 1.4e-05
+            }
+          },
+          "controls": {
+            " the": {
+              "token": " the",
+              "token_id": 573,
+              "trajectory": {
+                "positions": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10
+                ],
+                "logits": [
+                  5.5,
+                  -1.8906,
+                  22.0,
+                  21.375,
+                  23.875,
+                  21.875,
+                  23.0,
+                  17.625,
+                  17.75,
+                  19.625,
+                  29.625
+                ],
+                "probs": [
+                  0.0,
+                  0.0,
+                  0.023926,
+                  0.001213,
+                  0.025146,
+                  0.000843,
+                  0.002655,
+                  2.9e-05,
+                  7e-06,
+                  7.5e-05,
+                  0.714844
+                ],
+                "ranks": [
+                  78175,
+                  393,
+                  5,
+                  36,
+                  8,
+                  37,
+                  24,
+                  865,
+                  1128,
+                  28,
+                  1
+                ]
+              }
+            },
+            " is": {
+              "token": " is",
+              "token_id": 603,
+              "trajectory": {
+                "positions": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10
+                ],
+                "logits": [
+                  7.75,
+                  -4.625,
+                  18.375,
+                  25.875,
+                  25.5,
+                  26.875,
+                  21.875,
+                  13.0625,
+                  19.25,
+                  23.25,
+                  18.125
+                ],
+                "probs": [
+                  0.0,
+                  0.0,
+                  0.000637,
+                  0.108887,
+                  0.12793,
+                  0.125,
+                  0.000862,
+                  0.0,
+                  3.3e-05,
+                  0.002808,
+                  7e-06
+                ],
+                "ranks": [
+                  40390,
+                  2258,
+                  37,
+                  2,
+                  2,
+                  3,
+                  47,
+                  10433,
+                  561,
+                  4,
+                  473
+                ]
+              }
+            },
+            " a": {
+              "token": " a",
+              "token_id": 476,
+              "trajectory": {
+                "positions": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10
+                ],
+                "logits": [
+                  -0.1328,
+                  -6.2188,
+                  19.75,
+                  20.375,
+                  21.875,
+                  20.375,
+                  21.0,
+                  15.5625,
+                  17.375,
+                  18.875,
+                  26.125
+                ],
+                "probs": [
+                  0.0,
+                  0.0,
+                  0.002518,
+                  0.000444,
+                  0.003403,
+                  0.000189,
+                  0.000359,
+                  4e-06,
+                  5e-06,
+                  3.5e-05,
+                  0.021606
+                ],
+                "ranks": [
+                  195089,
+                  6303,
+                  14,
+                  68,
+                  25,
+                  100,
+                  105,
+                  2684,
+                  1390,
+                  44,
+                  2
+                ]
+              }
+            },
+            " of": {
+              "token": " of",
+              "token_id": 576,
+              "trajectory": {
+                "positions": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10
+                ],
+                "logits": [
+                  3.0625,
+                  -2.4375,
+                  13.625,
+                  19.5,
+                  16.75,
+                  18.0,
+                  16.5,
+                  9.875,
+                  16.5,
+                  29.0,
+                  20.0
+                ],
+                "probs": [
+                  0.0,
+                  0.0,
+                  6e-06,
+                  0.000185,
+                  2e-05,
+                  1.8e-05,
+                  4e-06,
+                  0.0,
+                  2e-06,
+                  0.882812,
+                  4.7e-05
+                ],
+                "ranks": [
+                  130309,
+                  566,
+                  1033,
+                  113,
+                  699,
+                  394,
+                  1540,
+                  37710,
+                  1934,
+                  1,
+                  224
+                ]
+              }
+            }
+          }
+        },
+        "summary": {
+          "target_appears_at": 2,
+          "source_appears_at": null,
+          "flip_position": 0,
+          "initial_gap": 9.6875,
+          "best_gap": 13.4062,
+          "final_gap": 4.375,
+          "gap_closure": 3.7187,
+          "gap_trajectory": [
+            9.6875,
+            11.1406,
+            12.0625,
+            11.6875,
+            8.875,
+            10.125,
+            10.625,
+            13.4062,
+            6.9375,
+            10.0625,
+            4.375
+          ],
+          "control_stability_mean": 15.3934,
+          "control_stability_max": 26.2578
+        }
+      },
+      "baseline_logits": {
+        "target": {
+          "logit": 18.625,
+          "prob": 7.2e-05,
+          "rank": 215
+        },
+        "source": {
+          "logit": 27.25,
+          "prob": 0.398438,
+          "rank": 1
+        }
+      },
+      "position_0_comparison": {
+        "target_logit_delta": 4.125,
+        "source_logit_delta": -14.1875,
+        "baseline_gap": -8.625,
+        "steered_gap_0": 9.6875,
+        "gap_closure_0": 18.3125,
+        "target_rank_improvement": 213,
+        "flip_at_0": true
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

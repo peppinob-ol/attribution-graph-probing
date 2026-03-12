@@ -1,0 +1,562 @@
+{
+  "swap_id": "mississippi_gulfport__to__arizona_tucson",
+  "source": {
+    "slug": "mississippi_gulfport",
+    "prompt": "<bos>The capital of the state containing Gulfport is",
+    "concept": "mississippi",
+    "state": "Mississippi",
+    "capital": "Jackson",
+    "city": "Gulfport"
+  },
+  "target": {
+    "slug": "arizona_tucson",
+    "concept": "arizona",
+    "state": "Arizona",
+    "capital": "Phoenix",
+    "city": "Tucson"
+  },
+  "interventions": {
+    "ablate_count": 36,
+    "amplify_count": 47,
+    "total_count": 83
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Mississippi",
+      "from_capital": "Jackson",
+      "from_city": "Gulfport",
+      "to_state": "Arizona",
+      "to_capital": "Phoenix",
+      "to_city": "Tucson"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Bil",
+      "default_prob": 0.12890625,
+      "steered": " Surprise",
+      "steered_prob": 0.224609375
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.11328125,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Gulfport is <strong>Jackson</strong>.\n\n<h3>What is the",
+      "steered_output": "<bos><bos>The capital of the state containing Gulfport is Surprise, AZ is Phoenix.\n\nThe population of the",
+      "default_topk": [
+        {
+          "token": " Bil",
+          "prob": 0.12890625
+        },
+        {
+          "token": " Jackson",
+          "prob": 0.11328125
+        },
+        {
+          "token": " ",
+          "prob": 0.08837890625
+        },
+        {
+          "token": " the",
+          "prob": 0.078125
+        },
+        {
+          "token": " Gulf",
+          "prob": 0.04736328125
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Surprise",
+          "prob": 0.224609375
+        },
+        {
+          "token": "rungsseite",
+          "prob": 0.10595703125
+        },
+        {
+          "token": "WriteTagHelper",
+          "prob": 0.09375
+        },
+        {
+          "token": " dépasse",
+          "prob": 0.056884765625
+        },
+        {
+          "token": "LookAnd",
+          "prob": 0.056884765625
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Phoenix",
+        "source": " Jackson",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " Surprise",
+        ",",
+        " AZ",
+        " is",
+        " Phoenix",
+        ".",
+        "\n\n",
+        "The",
+        " population",
+        " of",
+        " the"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Phoenix",
+          "token_id": 29738,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              16.5,
+              21.625,
+              23.875,
+              23.875,
+              26.375,
+              24.25,
+              27.0,
+              17.625,
+              25.875,
+              21.375,
+              26.375
+            ],
+            "probs": [
+              0.000813,
+              0.000961,
+              0.055176,
+              0.00161,
+              0.209961,
+              0.001968,
+              0.036377,
+              1e-05,
+              0.031738,
+              0.000343,
+              0.073242
+            ],
+            "ranks": [
+              85,
+              53,
+              4,
+              29,
+              1,
+              20,
+              6,
+              788,
+              6,
+              28,
+              3
+            ]
+          },
+          "summary": {
+            "first_top1_position": 4,
+            "first_top5_position": 2,
+            "first_top10_position": 2,
+            "max_prob": 0.209961,
+            "min_rank": 1,
+            "final_rank": 3,
+            "rank_improvement": 84
+          }
+        },
+        "source": {
+          "token": " Jackson",
+          "token_id": 13280,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              4.9688,
+              14.875,
+              14.875,
+              15.375,
+              16.875,
+              13.8125,
+              15.9375,
+              -1.3203,
+              16.125,
+              5.3125,
+              19.0
+            ],
+            "probs": [
+              0.0,
+              1e-06,
+              7e-06,
+              0.0,
+              1.6e-05,
+              0.0,
+              1e-06,
+              0.0,
+              2e-06,
+              0.0,
+              4.6e-05
+            ],
+            "ranks": [
+              49797,
+              2849,
+              1150,
+              2317,
+              743,
+              3259,
+              1733,
+              155307,
+              1847,
+              25614,
+              318
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 318,
+            "final_rank": 318,
+            "max_prob": 4.6e-05
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                5.4375,
+                22.875,
+                24.5,
+                22.125,
+                26.125,
+                23.875,
+                21.25,
+                9.5625,
+                18.25,
+                20.0,
+                28.125
+              ],
+              "probs": [
+                0.0,
+                0.003357,
+                0.103027,
+                0.000278,
+                0.163086,
+                0.00135,
+                0.000115,
+                0.0,
+                1.5e-05,
+                8.7e-05,
+                0.419922
+              ],
+              "ranks": [
+                43127,
+                22,
+                3,
+                79,
+                2,
+                24,
+                180,
+                14559,
+                688,
+                59,
+                1
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                14.6875,
+                26.875,
+                22.75,
+                29.125,
+                22.125,
+                25.125,
+                20.75,
+                14.0625,
+                18.875,
+                26.625,
+                20.875
+              ],
+              "probs": [
+                0.000133,
+                0.183594,
+                0.017944,
+                0.306641,
+                0.002991,
+                0.00473,
+                7e-05,
+                0.0,
+                2.9e-05,
+                0.06543,
+                0.000299
+              ],
+              "ranks": [
+                357,
+                2,
+                8,
+                1,
+                32,
+                12,
+                226,
+                3651,
+                532,
+                2,
+                90
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                2.9531,
+                21.5,
+                23.0,
+                21.75,
+                25.25,
+                22.75,
+                19.5,
+                8.25,
+                16.25,
+                19.0,
+                23.25
+              ],
+              "probs": [
+                0.0,
+                0.000851,
+                0.023071,
+                0.000192,
+                0.067871,
+                0.000439,
+                2e-05,
+                0.0,
+                2e-06,
+                3.2e-05,
+                0.00322
+              ],
+              "ranks": [
+                86797,
+                57,
+                7,
+                96,
+                3,
+                40,
+                380,
+                20583,
+                1790,
+                109,
+                19
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                2.6719,
+                22.375,
+                19.25,
+                21.125,
+                20.125,
+                21.625,
+                15.375,
+                6.9062,
+                14.875,
+                29.125,
+                18.75
+              ],
+              "probs": [
+                0.0,
+                0.002029,
+                0.000542,
+                0.000103,
+                0.000404,
+                0.000142,
+                0.0,
+                0.0,
+                1e-06,
+                0.796875,
+                3.6e-05
+              ],
+              "ranks": [
+                92806,
+                32,
+                93,
+                128,
+                125,
+                74,
+                2163,
+                30237,
+                3282,
+                1,
+                353
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 4,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 11.5312,
+        "best_gap": 18.9453,
+        "final_gap": 7.375,
+        "gap_closure": 7.4140999999999995,
+        "gap_trajectory": [
+          11.5312,
+          6.75,
+          9.0,
+          8.5,
+          9.5,
+          10.4375,
+          11.0625,
+          18.9453,
+          9.75,
+          16.0625,
+          7.375
+        ],
+        "control_stability_mean": 14.4414,
+        "control_stability_max": 26.4531
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 18.625,
+        "prob": 0.000117,
+        "rank": 307
+      },
+      "source": {
+        "logit": 25.5,
+        "prob": 0.113281,
+        "rank": 2
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -2.125,
+      "source_logit_delta": -20.5312,
+      "baseline_gap": -6.875,
+      "steered_gap_0": 11.5312,
+      "gap_closure_0": 18.4062,
+      "target_rank_improvement": 222,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T14:35:20.244473",
+    "duration_ms": 72944.24796104431,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Phoenix",
+      "Gulfport"
+    ],
+    "states_found": [],
+    "notes": "Target capital 'Phoenix' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

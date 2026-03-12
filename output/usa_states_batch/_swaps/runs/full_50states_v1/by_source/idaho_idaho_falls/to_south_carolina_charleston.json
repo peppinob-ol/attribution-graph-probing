@@ -1,0 +1,565 @@
+{
+  "swap_id": "idaho_idaho_falls__to__south_carolina_charleston",
+  "source": {
+    "slug": "idaho_idaho_falls",
+    "prompt": "<bos>The capital of the state containing Idaho Falls is",
+    "concept": "idaho",
+    "state": "Idaho",
+    "capital": "Boise",
+    "city": "Idaho Falls"
+  },
+  "target": {
+    "slug": "south_carolina_charleston",
+    "concept": "south carolina",
+    "state": "South Carolina",
+    "capital": "Columbia",
+    "city": "Charleston"
+  },
+  "interventions": {
+    "ablate_count": 81,
+    "amplify_count": 45,
+    "total_count": 126
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Idaho",
+      "from_capital": "Boise",
+      "from_city": "Idaho Falls",
+      "to_state": "South Carolina",
+      "to_capital": "Columbia",
+      "to_city": "Charleston"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Boise",
+      "default_prob": 0.220703125,
+      "steered": " Columbia",
+      "steered_prob": 0.56640625
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": 0.56640625,
+      "from_capital_in_default_topk": 0.220703125,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Idaho Falls is Boise.\n\nIdaho Falls is a city in Idaho",
+      "steered_output": "<bos><bos>The capital of the state containing Idaho Falls is Columbia Falls, Montana.\n\nThe city of Columbia Falls",
+      "default_topk": [
+        {
+          "token": " Boise",
+          "prob": 0.220703125
+        },
+        {
+          "token": " Idaho",
+          "prob": 0.171875
+        },
+        {
+          "token": ":",
+          "prob": 0.07177734375
+        },
+        {
+          "token": " ",
+          "prob": 0.07177734375
+        },
+        {
+          "token": " the",
+          "prob": 0.07177734375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Columbia",
+          "prob": 0.56640625
+        },
+        {
+          "token": " Charleston",
+          "prob": 0.046630859375
+        },
+        {
+          "token": "Columbia",
+          "prob": 0.0283203125
+        },
+        {
+          "token": " Charm",
+          "prob": 0.01513671875
+        },
+        {
+          "token": " Montgomery",
+          "prob": 0.01336669921875
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Columbia",
+        "source": " Boise",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " Columbia",
+        " Falls",
+        ",",
+        " Montana",
+        ".",
+        "\n\n",
+        "The",
+        " city",
+        " of",
+        " Columbia",
+        " Falls"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Columbia",
+          "token_id": 17909,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              25.25,
+              14.5625,
+              24.375,
+              24.125,
+              25.5,
+              27.75,
+              14.9375,
+              21.625,
+              21.5,
+              27.75,
+              15.8125
+            ],
+            "probs": [
+              0.566406,
+              4.7e-05,
+              0.00531,
+              0.073242,
+              0.0065,
+              0.068848,
+              1e-06,
+              0.000471,
+              0.000278,
+              0.289062,
+              2.6e-05
+            ],
+            "ranks": [
+              1,
+              239,
+              15,
+              3,
+              10,
+              3,
+              3944,
+              129,
+              102,
+              1,
+              181
+            ]
+          },
+          "summary": {
+            "first_top1_position": 0,
+            "first_top5_position": 0,
+            "first_top10_position": 0,
+            "max_prob": 0.566406,
+            "min_rank": 1,
+            "final_rank": 181,
+            "rank_improvement": 0
+          }
+        },
+        "source": {
+          "token": " Boise",
+          "token_id": 112583,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              11.8125,
+              12.875,
+              21.25,
+              20.25,
+              21.25,
+              22.0,
+              9.75,
+              19.0,
+              14.25,
+              24.25,
+              7.0
+            ],
+            "probs": [
+              1e-06,
+              9e-06,
+              0.000234,
+              0.001518,
+              9.3e-05,
+              0.000219,
+              0.0,
+              3.4e-05,
+              0.0,
+              0.008728,
+              0.0
+            ],
+            "ranks": [
+              6924,
+              710,
+              123,
+              56,
+              162,
+              136,
+              17054,
+              577,
+              2466,
+              14,
+              11011
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 14,
+            "final_rank": 11011,
+            "max_prob": 0.008728
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                8.625,
+                16.125,
+                22.625,
+                24.125,
+                23.5,
+                22.75,
+                12.4375,
+                17.75,
+                22.75,
+                26.375,
+                17.125
+              ],
+              "probs": [
+                0.0,
+                0.000222,
+                0.000923,
+                0.073242,
+                0.000877,
+                0.000465,
+                0.0,
+                1e-05,
+                0.000973,
+                0.073242,
+                9.7e-05
+              ],
+              "ranks": [
+                29349,
+                87,
+                52,
+                3,
+                43,
+                89,
+                8859,
+                1056,
+                46,
+                2,
+                75
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                14.0625,
+                22.25,
+                27.875,
+                23.125,
+                29.125,
+                24.5,
+                12.9375,
+                19.75,
+                28.0,
+                23.875,
+                23.375
+              ],
+              "probs": [
+                8e-06,
+                0.101562,
+                0.175781,
+                0.026978,
+                0.244141,
+                0.00267,
+                0.0,
+                7.2e-05,
+                0.185547,
+                0.006012,
+                0.050049
+              ],
+              "ranks": [
+                1949,
+                3,
+                2,
+                10,
+                2,
+                26,
+                7710,
+                367,
+                2,
+                20,
+                3
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                2.6875,
+                15.125,
+                21.625,
+                23.25,
+                22.375,
+                21.125,
+                12.125,
+                17.0,
+                20.25,
+                23.875,
+                16.5
+              ],
+              "probs": [
+                0.0,
+                8.2e-05,
+                0.00034,
+                0.030518,
+                0.000286,
+                9.2e-05,
+                0.0,
+                5e-06,
+                8e-05,
+                0.006012,
+                5.2e-05
+              ],
+              "ranks": [
+                140329,
+                174,
+                95,
+                7,
+                84,
+                224,
+                9573,
+                1472,
+                176,
+                20,
+                114
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                6.4062,
+                16.75,
+                23.5,
+                19.5,
+                21.875,
+                18.125,
+                10.125,
+                17.125,
+                28.375,
+                20.375,
+                17.125
+              ],
+              "probs": [
+                0.0,
+                0.000416,
+                0.002213,
+                0.000717,
+                0.000174,
+                5e-06,
+                0.0,
+                5e-06,
+                0.269531,
+                0.000181,
+                9.7e-05
+              ],
+              "ranks": [
+                62150,
+                69,
+                27,
+                91,
+                105,
+                968,
+                15343,
+                1429,
+                1,
+                307,
+                75
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 0,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 13.4375,
+        "best_gap": 13.4375,
+        "final_gap": 8.8125,
+        "gap_closure": 0.0,
+        "gap_trajectory": [
+          13.4375,
+          1.6875,
+          3.125,
+          3.875,
+          4.25,
+          5.75,
+          5.1875,
+          2.625,
+          7.25,
+          3.5,
+          8.8125
+        ],
+        "control_stability_mean": 12.7734,
+        "control_stability_max": 21.9688
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 17.875,
+        "prob": 7.4e-05,
+        "rank": 226
+      },
+      "source": {
+        "logit": 25.875,
+        "prob": 0.220703,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": 7.375,
+      "source_logit_delta": -14.0625,
+      "baseline_gap": -8.0,
+      "steered_gap_0": 13.4375,
+      "gap_closure_0": 21.4375,
+      "target_rank_improvement": 225,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T13:16:11.005680",
+    "duration_ms": 73840.59453010559,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Idaho Falls",
+      "Columbia"
+    ],
+    "states_found": [
+      "Montana",
+      "Idaho"
+    ],
+    "notes": "Target capital 'Columbia' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

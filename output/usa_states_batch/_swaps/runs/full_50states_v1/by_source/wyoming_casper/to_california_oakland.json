@@ -1,0 +1,564 @@
+{
+  "swap_id": "wyoming_casper__to__california_oakland",
+  "source": {
+    "slug": "wyoming_casper",
+    "prompt": "<bos>The capital of the state containing Casper is",
+    "concept": "wyoming",
+    "state": "Wyoming",
+    "capital": "Cheyenne",
+    "city": "Casper"
+  },
+  "target": {
+    "slug": "california_oakland",
+    "concept": "california",
+    "state": "California",
+    "capital": "Sacramento",
+    "city": "Oakland"
+  },
+  "interventions": {
+    "ablate_count": 58,
+    "amplify_count": 37,
+    "total_count": 95
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Wyoming",
+      "from_capital": "Cheyenne",
+      "from_city": "Casper",
+      "to_state": "California",
+      "to_capital": "Sacramento",
+      "to_city": "Oakland"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Cheyenne",
+      "default_prob": 0.314453125,
+      "steered": " Sacramento",
+      "steered_prob": 0.2451171875
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": 0.2451171875,
+      "from_capital_in_default_topk": 0.314453125,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Casper is Cheyenne.\n\nThe capital of Wyoming is Cheyenne.",
+      "steered_output": "<bos><bos>The capital of the state containing Casper is Sacramento, California is the capital of the state of California",
+      "default_topk": [
+        {
+          "token": " Cheyenne",
+          "prob": 0.314453125
+        },
+        {
+          "token": " Casper",
+          "prob": 0.16796875
+        },
+        {
+          "token": " ",
+          "prob": 0.061767578125
+        },
+        {
+          "token": " the",
+          "prob": 0.061767578125
+        },
+        {
+          "token": " Laramie",
+          "prob": 0.0546875
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Sacramento",
+          "prob": 0.2451171875
+        },
+        {
+          "token": "ViewImports",
+          "prob": 0.11572265625
+        },
+        {
+          "token": " écout",
+          "prob": 0.02587890625
+        },
+        {
+          "token": " connaissent",
+          "prob": 0.0201416015625
+        },
+        {
+          "token": " vendus",
+          "prob": 0.0177001953125
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Sacramento",
+        "source": " Cheyenne",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " Sacramento",
+        ",",
+        " California",
+        " is",
+        " the",
+        " capital",
+        " of",
+        " the",
+        " state",
+        " of",
+        " California"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Sacramento",
+          "token_id": 43939,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              22.25,
+              25.125,
+              25.125,
+              26.0,
+              22.0,
+              20.625,
+              22.0,
+              24.75,
+              22.75,
+              21.5,
+              17.125
+            ],
+            "probs": [
+              0.245117,
+              0.006073,
+              0.039551,
+              0.00885,
+              0.000265,
+              0.00106,
+              0.001457,
+              0.017456,
+              0.008118,
+              0.000332,
+              0.007141
+            ],
+            "ranks": [
+              1,
+              14,
+              5,
+              10,
+              127,
+              62,
+              10,
+              3,
+              13,
+              49,
+              3
+            ]
+          },
+          "summary": {
+            "first_top1_position": 0,
+            "first_top5_position": 0,
+            "first_top10_position": 0,
+            "max_prob": 0.245117,
+            "min_rank": 1,
+            "final_rank": 3,
+            "rank_improvement": 0
+          }
+        },
+        "source": {
+          "token": " Cheyenne",
+          "token_id": 137867,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              6.875,
+              15.375,
+              20.0,
+              17.0,
+              14.5,
+              9.625,
+              13.25,
+              13.25,
+              12.6875,
+              12.8125,
+              7.8438
+            ],
+            "probs": [
+              0.0,
+              0.0,
+              0.000235,
+              1e-06,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              1e-06
+            ],
+            "ranks": [
+              34638,
+              2359,
+              134,
+              1301,
+              2490,
+              7204,
+              905,
+              2092,
+              2381,
+              1837,
+              1168
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 134,
+            "final_rank": 1168,
+            "max_prob": 0.000235
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                7.9688,
+                23.125,
+                26.75,
+                23.375,
+                29.125,
+                19.5,
+                21.125,
+                28.375,
+                19.75,
+                22.0,
+                18.0
+              ],
+              "probs": [
+                0.0,
+                0.000824,
+                0.200195,
+                0.000641,
+                0.328125,
+                0.000343,
+                0.000607,
+                0.652344,
+                0.000404,
+                0.000549,
+                0.017212
+              ],
+              "ranks": [
+                23087,
+                55,
+                1,
+                54,
+                1,
+                104,
+                16,
+                1,
+                59,
+                33,
+                2
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                13.625,
+                29.0,
+                25.25,
+                29.375,
+                21.875,
+                17.0,
+                21.875,
+                18.25,
+                13.625,
+                23.125,
+                11.625
+              ],
+              "probs": [
+                4.4e-05,
+                0.292969,
+                0.044678,
+                0.257812,
+                0.000234,
+                2.8e-05,
+                0.001282,
+                2.6e-05,
+                1e-06,
+                0.001686,
+                2.9e-05
+              ],
+              "ranks": [
+                1082,
+                1,
+                4,
+                1,
+                134,
+                316,
+                11,
+                162,
+                1523,
+                15,
+                121
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                1.2891,
+                22.0,
+                24.25,
+                22.125,
+                28.25,
+                17.75,
+                19.125,
+                24.75,
+                16.25,
+                19.75,
+                13.75
+              ],
+              "probs": [
+                0.0,
+                0.000267,
+                0.016479,
+                0.000184,
+                0.136719,
+                6e-05,
+                8.2e-05,
+                0.017456,
+                1.2e-05,
+                5.8e-05,
+                0.000244
+              ],
+              "ranks": [
+                143111,
+                92,
+                11,
+                104,
+                2,
+                221,
+                54,
+                3,
+                402,
+                104,
+                36
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                6.3438,
+                21.875,
+                21.5,
+                21.5,
+                21.125,
+                15.0,
+                28.25,
+                20.25,
+                16.5,
+                29.125,
+                13.1875
+              ],
+              "probs": [
+                0.0,
+                0.000236,
+                0.001053,
+                9.8e-05,
+                0.00011,
+                4e-06,
+                0.753906,
+                0.000194,
+                1.6e-05,
+                0.679688,
+                0.000139
+              ],
+              "ranks": [
+                41698,
+                103,
+                59,
+                149,
+                180,
+                826,
+                1,
+                63,
+                358,
+                1,
+                54
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 0,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 15.375,
+        "best_gap": 15.375,
+        "final_gap": 9.2812,
+        "gap_closure": 0.0,
+        "gap_trajectory": [
+          15.375,
+          9.75,
+          5.125,
+          9.0,
+          7.5,
+          11.0,
+          8.75,
+          11.5,
+          10.0625,
+          8.6875,
+          9.2812
+        ],
+        "control_stability_mean": 14.2543,
+        "control_stability_max": 26.9609
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 19.375,
+        "prob": 0.000254,
+        "rank": 130
+      },
+      "source": {
+        "logit": 26.5,
+        "prob": 0.314453,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": 2.875,
+      "source_logit_delta": -19.625,
+      "baseline_gap": -7.125,
+      "steered_gap_0": 15.375,
+      "gap_closure_0": 22.5,
+      "target_rank_improvement": 129,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T18:34:53.743921",
+    "duration_ms": 166118.77918243408,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Sacramento",
+      "Casper"
+    ],
+    "states_found": [
+      "California"
+    ],
+    "notes": "Target capital 'Sacramento' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

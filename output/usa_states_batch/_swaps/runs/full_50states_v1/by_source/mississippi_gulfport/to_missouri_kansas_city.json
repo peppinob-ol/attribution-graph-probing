@@ -1,0 +1,562 @@
+{
+  "swap_id": "mississippi_gulfport__to__missouri_kansas_city",
+  "source": {
+    "slug": "mississippi_gulfport",
+    "prompt": "<bos>The capital of the state containing Gulfport is",
+    "concept": "mississippi",
+    "state": "Mississippi",
+    "capital": "Jackson",
+    "city": "Gulfport"
+  },
+  "target": {
+    "slug": "missouri_kansas_city",
+    "concept": "missouri",
+    "state": "Missouri",
+    "capital": "Jefferson City",
+    "city": "Kansas City"
+  },
+  "interventions": {
+    "ablate_count": 36,
+    "amplify_count": 46,
+    "total_count": 82
+  },
+  "evaluation": {
+    "ground_truth": {
+      "from_state": "Mississippi",
+      "from_capital": "Jackson",
+      "from_city": "Gulfport",
+      "to_state": "Missouri",
+      "to_capital": "Jefferson City",
+      "to_city": "Kansas City"
+    },
+    "exact_match": {
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false,
+      "from_suppressed": true
+    },
+    "first_token": {
+      "default": " Bil",
+      "default_prob": 0.12890625,
+      "steered": " Independence",
+      "steered_prob": 0.08642578125
+    },
+    "target_in_topk": {
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.11328125,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Gulfport is <strong>Jackson</strong>.\n\n<h3>What is the",
+      "steered_output": "<bos><bos>The capital of the state containing Gulfport is Jefferson City is the seat of government for the state.",
+      "default_topk": [
+        {
+          "token": " Bil",
+          "prob": 0.12890625
+        },
+        {
+          "token": " Jackson",
+          "prob": 0.11328125
+        },
+        {
+          "token": " ",
+          "prob": 0.08837890625
+        },
+        {
+          "token": " the",
+          "prob": 0.078125
+        },
+        {
+          "token": " Gulf",
+          "prob": 0.04736328125
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Independence",
+          "prob": 0.08642578125
+        },
+        {
+          "token": " Jefferson",
+          "prob": 0.0673828125
+        },
+        {
+          "token": "Externé",
+          "prob": 0.04638671875
+        },
+        {
+          "token": " Efq",
+          "prob": 0.028076171875
+        },
+        {
+          "token": " Council",
+          "prob": 0.028076171875
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Jefferson",
+        "source": " Jackson",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        " Jefferson",
+        " City",
+        " is",
+        " the",
+        " seat",
+        " of",
+        " government",
+        " for",
+        " the",
+        " state",
+        "."
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Jefferson",
+          "token_id": 33197,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              19.5,
+              17.0,
+              24.25,
+              25.125,
+              20.875,
+              -2.9531,
+              23.875,
+              21.75,
+              24.25,
+              21.875,
+              18.875
+            ],
+            "probs": [
+              0.067383,
+              0.000542,
+              0.001984,
+              0.007751,
+              0.001198,
+              4.9e-05,
+              0.061523,
+              0.000196,
+              0.023193,
+              0.002365,
+              8e-06
+            ],
+            "ranks": [
+              2,
+              41,
+              34,
+              15,
+              58,
+              32,
+              3,
+              41,
+              3,
+              25,
+              176
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "first_top5_position": 0,
+            "first_top10_position": 0,
+            "max_prob": 0.067383,
+            "min_rank": 2,
+            "final_rank": 176,
+            "rank_improvement": 0
+          }
+        },
+        "source": {
+          "token": " Jackson",
+          "token_id": 13280,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              10.75,
+              16.125,
+              19.75,
+              22.125,
+              15.9375,
+              -7.2812,
+              21.875,
+              17.75,
+              21.75,
+              19.5,
+              15.5625
+            ],
+            "probs": [
+              1.1e-05,
+              0.000226,
+              2.2e-05,
+              0.000387,
+              9e-06,
+              1e-06,
+              0.008362,
+              4e-06,
+              0.001907,
+              0.00022,
+              0.0
+            ],
+            "ranks": [
+              2828,
+              66,
+              299,
+              105,
+              650,
+              349,
+              13,
+              245,
+              24,
+              97,
+              691
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 13,
+            "final_rank": 691,
+            "max_prob": 0.008362
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                8.0625,
+                15.5625,
+                23.75,
+                29.0,
+                19.125,
+                -0.9688,
+                25.625,
+                22.125,
+                27.75,
+                19.5,
+                22.0
+              ],
+              "probs": [
+                1e-06,
+                0.000129,
+                0.001198,
+                0.373047,
+                0.000208,
+                0.000359,
+                0.353516,
+                0.000286,
+                0.769531,
+                0.00022,
+                0.000178
+              ],
+              "ranks": [
+                11023,
+                92,
+                44,
+                1,
+                138,
+                9,
+                1,
+                29,
+                1,
+                97,
+                43
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                13.875,
+                21.25,
+                29.25,
+                21.625,
+                16.5,
+                -2.5469,
+                15.5,
+                23.0,
+                16.125,
+                13.125,
+                23.125
+              ],
+              "probs": [
+                0.000243,
+                0.038086,
+                0.292969,
+                0.000235,
+                1.5e-05,
+                7.4e-05,
+                1.4e-05,
+                0.000687,
+                7e-06,
+                0.0,
+                0.000549
+              ],
+              "ranks": [
+                346,
+                4,
+                1,
+                143,
+                488,
+                29,
+                604,
+                19,
+                407,
+                2436,
+                26
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                2.3125,
+                13.9375,
+                21.875,
+                27.25,
+                16.75,
+                -3.1094,
+                21.625,
+                19.875,
+                23.125,
+                14.3125,
+                20.125
+              ],
+              "probs": [
+                0.0,
+                2.5e-05,
+                0.000184,
+                0.064941,
+                1.9e-05,
+                4.2e-05,
+                0.0065,
+                3e-05,
+                0.007538,
+                1e-06,
+                2.7e-05
+              ],
+              "ranks": [
+                80899,
+                286,
+                104,
+                3,
+                435,
+                33,
+                15,
+                100,
+                8,
+                1370,
+                95
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                8.1875,
+                15.5,
+                24.375,
+                21.25,
+                14.9375,
+                6.9375,
+                20.125,
+                29.0,
+                18.625,
+                16.125,
+                29.875
+              ],
+              "probs": [
+                1e-06,
+                0.000121,
+                0.002243,
+                0.000161,
+                3e-06,
+                0.972656,
+                0.00145,
+                0.277344,
+                8.4e-05,
+                8e-06,
+                0.46875
+              ],
+              "ranks": [
+                10475,
+                109,
+                28,
+                175,
+                1010,
+                1,
+                39,
+                2,
+                130,
+                545,
+                1
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 0,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 8.75,
+        "best_gap": 8.75,
+        "final_gap": 3.3125,
+        "gap_closure": 0.0,
+        "gap_trajectory": [
+          8.75,
+          0.875,
+          4.5,
+          3.0,
+          4.9375,
+          4.3281,
+          2.0,
+          4.0,
+          2.5,
+          2.375,
+          3.3125
+        ],
+        "control_stability_mean": 12.3578,
+        "control_stability_max": 24.9375
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 21.75,
+        "prob": 0.00267,
+        "rank": 39
+      },
+      "source": {
+        "logit": 25.5,
+        "prob": 0.113281,
+        "rank": 2
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": -2.25,
+      "source_logit_delta": -14.75,
+      "baseline_gap": -3.75,
+      "steered_gap_0": 8.75,
+      "gap_closure_0": 12.5,
+      "target_rank_improvement": 37,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-01-11T14:38:44.794289",
+    "duration_ms": 78886.12055778503,
+    "is_identity": false
+  },
+  "classification": {
+    "tier": 5,
+    "tier_name": "PERFECT",
+    "cities_found": [
+      "Gulfport",
+      "Jefferson City"
+    ],
+    "states_found": [],
+    "notes": "Target capital 'Jefferson City' found",
+    "method": "RULE_HIGH",
+    "confidence": 1.0,
+    "manually_edited": false
+  }
+}

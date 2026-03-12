@@ -2,10 +2,12 @@
 Data loader for swap experiment results.
 
 Reads from output/usa_states_batch/ directory structure:
-- _swaps/_matrix.csv - Tier matrix
+- _swaps/runs/{run_id}/by_source/*/to_*.json - Swap details (run-specific)
+- _swaps/by_source/*/to_*.json - Swap details (legacy fallback)
 - _swaps/_analysis_v3/*.json - Analysis data
-- _swaps/by_source/*/to_*.json - Swap details
 - */manifest.json - Neuronpedia URLs
+
+Supports multiple experiment runs via run_id parameter.
 """
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -16,15 +18,142 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
 class DataLoader:
-    """Load and cache swap experiment data."""
+    """Load and cache swap experiment data with multi-run support."""
     
-    def __init__(self, data_dir: Path):
+    def __init__(self, data_dir: Path, run_id: Optional[str] = None):
         self.data_dir = Path(data_dir)
-        self.swaps_dir = self.data_dir / "_swaps"
+        self.base_swaps_dir = self.data_dir / "_swaps"
+        self.run_id = run_id
+        self._set_swaps_dir()
         self._matrix_cache: Optional[Dict] = None
         self._states_cache: Optional[List[Dict]] = None
         self._analysis_cache: Optional[Dict] = None
         self._stats_cache: Optional[Dict] = None
+    
+    def _set_swaps_dir(self):
+        """Set swaps_dir based on current run_id."""
+        if self.run_id:
+            run_dir = self.base_swaps_dir / "runs" / self.run_id
+            if run_dir.exists():
+                self.swaps_dir = run_dir
+            else:
+                # Fallback to base swaps dir
+                self.swaps_dir = self.base_swaps_dir
+        else:
+            # Check if runs directory exists and has runs
+            runs_dir = self.base_swaps_dir / "runs"
+            if runs_dir.exists():
+                # Prefer the full 50-state run on a fresh load.
+                default_run_id = self._get_default_run_id()
+                if default_run_id:
+                    self.run_id = default_run_id
+                    self.swaps_dir = self.base_swaps_dir / "runs" / default_run_id
+                else:
+                    self.swaps_dir = self.base_swaps_dir
+            else:
+                self.swaps_dir = self.base_swaps_dir
+
+    def _get_default_run_id(self) -> Optional[str]:
+        """Choose the default run for a fresh app load."""
+        runs = self.list_runs()
+        if not runs:
+            return None
+
+        preferred_prefixes = ("full_50states",)
+
+        for prefix in preferred_prefixes:
+            for run in runs:
+                if run["id"].startswith(prefix):
+                    return run["id"]
+
+        for run in runs:
+            if "legacy" not in run["id"].lower():
+                return run["id"]
+
+        return runs[0]["id"]
+    
+    def list_runs(self) -> List[Dict[str, Any]]:
+        """List available experiment runs."""
+        runs = []
+        runs_dir = self.base_swaps_dir / "runs"
+        
+        if not runs_dir.exists():
+            return runs
+        
+        for run_dir in sorted(runs_dir.iterdir(), reverse=True):
+            if not run_dir.is_dir():
+                continue
+            
+            by_source = run_dir / "by_source"
+            if not by_source.exists():
+                continue
+            
+            # Load run manifest for metadata
+            manifest_path = run_dir / "run_manifest.json"
+            manifest = {}
+            if manifest_path.exists():
+                try:
+                    with open(manifest_path, 'r', encoding='utf-8') as f:
+                        manifest = json.load(f)
+                except (json.JSONDecodeError, IOError):
+                    pass
+            
+            # Count swaps
+            swap_count = sum(1 for _ in by_source.glob("*/to_*.json"))
+            
+            # Check for trajectory data
+            has_trajectory = (run_dir / "_trajectory_analysis").exists()
+            
+            # Get config info
+            config = manifest.get('config', {})
+            ct_config = config.get('ct_steering', {})
+            
+            runs.append({
+                'id': run_dir.name,
+                'name': self._format_run_name(run_dir.name),
+                'swap_count': swap_count,
+                'has_trajectory': has_trajectory,
+                'timestamp': manifest.get('timestamp_started', ''),
+                'status': manifest.get('status', 'unknown'),
+                'M_ablate': ct_config.get('M_ablate', -2),
+                'M_amplify': ct_config.get('M_amplify', 20),
+                'is_current': run_dir.name == self.run_id,
+            })
+        
+        return runs
+    
+    def _format_run_name(self, run_id: str) -> str:
+        """Format run ID into human-readable name."""
+        # full_50states_v1 -> "Full 50 States v1"
+        # pilot_6states_v1 -> "Pilot 6 States v1"
+        # gpu_test_8 -> "GPU Test 8"
+        name = run_id.replace('_', ' ').title()
+        name = name.replace('50states', '50 States')
+        name = name.replace('6states', '6 States')
+        name = name.replace('Gpu', 'GPU')
+        return name
+    
+    def set_run(self, run_id: str) -> bool:
+        """Switch to a different run."""
+        run_dir = self.base_swaps_dir / "runs" / run_id
+        if not run_dir.exists():
+            return False
+        
+        self.run_id = run_id
+        self._set_swaps_dir()
+        self._clear_caches()
+        return True
+    
+    def get_current_run(self) -> Optional[str]:
+        """Get the current run ID."""
+        return self.run_id
+    
+    def _clear_caches(self):
+        """Clear all cached data."""
+        self._matrix_cache = None
+        self._states_cache = None
+        self._analysis_cache = None
+        self._stats_cache = None
     
     def get_matrix(self) -> Dict[str, Dict[str, Optional[int]]]:
         """Build tier matrix dynamically from individual swap JSON files."""
@@ -144,11 +273,13 @@ class DataLoader:
                 
                 # Get a sample swap to extract state info
                 state_info = self._get_state_info_from_swap(source_dir)
+                capital = state_info.get('capital', '')
+                logit_flags = self._get_state_logit_flags(slug, capital)
                 
                 states.append({
                     'slug': slug,
                     'state': state_info.get('state', state_name),
-                    'capital': state_info.get('capital', ''),
+                    'capital': capital,
                     'city': state_info.get('city', self._slug_to_city(slug)),
                     'abbr': self._state_to_abbr(state_info.get('state', state_name)),
                     'archetype': arch_data.get('archetype', 'Unknown'),
@@ -157,6 +288,7 @@ class DataLoader:
                     'src_tier': arch_data.get('src_tier', 0),
                     'tgt_tier': arch_data.get('tgt_tier', 0),
                     'neuronpedia_url': neuronpedia_url,
+                    **logit_flags,
                 })
         
         self._states_cache = states
@@ -178,6 +310,71 @@ class DataLoader:
             except (json.JSONDecodeError, IOError):
                 continue
         return {}
+
+    def _load_state_logit_metadata(self, state_dir: Path, capital: str) -> Dict[str, Any]:
+        """Load top-logit metadata used by state warnings and filters."""
+        graph_path = state_dir / "00 Graph Generation" / "graph.json"
+        if not graph_path.exists():
+            return {}
+
+        try:
+            with open(graph_path, 'r', encoding='utf-8') as f:
+                graph = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return {}
+
+        import re
+
+        logits = []
+        native_prob = 0
+        target_token = ''
+
+        for node in graph.get('nodes', []):
+            clerp = node.get('clerp', '')
+            prob = node.get('token_prob')
+            if clerp and prob is not None and clerp.startswith('Output '):
+                match = re.search(r'Output\s+"([^"]*)"', clerp)
+                if match:
+                    token = match.group(1).strip()
+                    if token:
+                        logits.append({
+                            'token': token,
+                            'prob': prob,
+                            'is_target': node.get('is_target_logit', False),
+                        })
+
+            if node.get('is_target_logit') and not target_token:
+                native_prob = node.get('token_prob', 0)
+                match = re.search(r'Output\s+"([^"]*)"', clerp)
+                target_token = match.group(1).strip() if match else clerp.strip().strip("'")
+
+        logits.sort(key=lambda x: x['prob'], reverse=True)
+        top_logits = logits[:5]
+        capital_lower = capital.lower() if capital else ''
+        capital_in_logits = any(
+            token and len(token) > 1 and token.lower() in capital_lower
+            for token in (logit.get('token', '') for logit in top_logits)
+        )
+
+        return {
+            'logits': top_logits,
+            'native_prob': native_prob,
+            'target_token': target_token,
+            'capital_is_top_logit': target_token.lower() in capital_lower if capital and target_token else False,
+            'capital_in_logits': capital_in_logits,
+        }
+
+    def _get_state_logit_flags(self, slug: str, capital: str) -> Dict[str, Any]:
+        """Return compact warning flags for the matrix state list."""
+        state_dir = self._find_state_dir(slug)
+        if not state_dir:
+            return {}
+
+        metadata = self._load_state_logit_metadata(state_dir, capital)
+        return {
+            'capital_is_top_logit': metadata.get('capital_is_top_logit'),
+            'capital_in_logits': metadata.get('capital_in_logits'),
+        }
     
     def get_analysis(self) -> Dict[str, Any]:
         """Load analysis summary data."""
@@ -483,62 +680,8 @@ class DataLoader:
             profile['pinned_nodes'] = np_data.get('pinned_nodes', 0)
             profile['neuronpedia_url'] = np_data.get('url', '')
         
-        # Load native probability and logits from graph.json
-        graph_path = state_dir / "00 Graph Generation" / "graph.json"
         capital = profile.get('capital', '')
-        if graph_path.exists():
-            try:
-                with open(graph_path, 'r', encoding='utf-8') as f:
-                    graph = json.load(f)
-                
-                # Collect all logit nodes with probabilities
-                # Clerp format: 'Output " Baton" (p=0.398)' - extract token between quotes
-                import re
-                logits = []
-                for node in graph.get('nodes', []):
-                    clerp = node.get('clerp', '')
-                    prob = node.get('token_prob')
-                    if clerp and prob is not None and clerp.startswith('Output '):
-                        # Extract token from format: Output " Baton" (p=0.398)
-                        match = re.search(r'Output\s+"([^"]*)"', clerp)
-                        if match:
-                            token = match.group(1).strip()
-                            if token:  # Skip empty tokens
-                                logits.append({
-                                    'token': token,
-                                    'prob': prob,
-                                    'is_target': node.get('is_target_logit', False),
-                                })
-                
-                # Sort by probability descending, take top 5
-                logits.sort(key=lambda x: x['prob'], reverse=True)
-                profile['logits'] = logits[:5]
-                
-                # Get the target logit (highest prob or marked as target)
-                for node in graph.get('nodes', []):
-                    if node.get('is_target_logit'):
-                        profile['native_prob'] = node.get('token_prob', 0)
-                        clerp = node.get('clerp', '')
-                        # Extract token from format: Output " Baton" (p=0.398)
-                        match = re.search(r'Output\s+"([^"]*)"', clerp)
-                        target_token = match.group(1).strip() if match else clerp.strip().strip("'")
-                        profile['target_token'] = target_token
-                        # Check if capital contains the top logit token
-                        profile['capital_is_top_logit'] = target_token.lower() in capital.lower() if capital and target_token else False
-                        break
-                
-                # Check if any logit token appears in the capital name
-                # e.g., "Baton" in "Baton Rouge" = True
-                capital_in_logits = False
-                capital_lower = capital.lower() if capital else ''
-                for logit in profile.get('logits', []):
-                    token = logit.get('token', '')
-                    if token and len(token) > 1 and token.lower() in capital_lower:
-                        capital_in_logits = True
-                        break
-                profile['capital_in_logits'] = capital_in_logits
-            except (json.JSONDecodeError, IOError):
-                pass
+        profile.update(self._load_state_logit_metadata(state_dir, capital))
         
         # Load feature layer distribution
         features_path = state_dir / "00 Graph Generation" / "selected_features_with_nodes.json"

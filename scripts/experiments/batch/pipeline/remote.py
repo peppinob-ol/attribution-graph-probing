@@ -5,6 +5,7 @@ Handles rsync, GPU selection, locking, and remote command execution.
 import atexit
 import json
 import os
+import random
 import shutil
 import subprocess
 import tempfile
@@ -366,13 +367,33 @@ class RemoteExecutor:
                 busy.add(uuid)
         return busy
 
+    def get_locked_gpus(self) -> Set[int]:
+        """
+        Get set of GPU indices that are currently locked by other workers.
+        """
+        cmd = f'ls -1 {self.base_dir}/.locks/ 2>/dev/null | grep "^gpu" | sed "s/gpu//"'
+        rc, stdout, stderr = self.ssh_run(cmd, timeout=5)
+        
+        locked = set()
+        if rc == 0 and stdout.strip():
+            for line in stdout.strip().split('\n'):
+                try:
+                    locked.add(int(line.strip()))
+                except ValueError:
+                    pass
+        return locked
+    
     def get_free_gpu(self) -> Optional[int]:
         """
         Find a free GPU on the remote node.
         
         Uses nvidia-smi to check memory usage and running processes.
+        Excludes GPUs that are already locked by other workers.
         Returns GPU index if found, None otherwise.
         """
+        # First, check which GPUs are already locked by other workers
+        locked_gpus = self.get_locked_gpus()
+        
         # Query GPU status
         cmd = 'nvidia-smi --query-gpu=index,uuid,memory.used,utilization.gpu --format=csv,noheader,nounits'
         rc, stdout, stderr = self.ssh_run(cmd, timeout=10)
@@ -447,9 +468,22 @@ class RemoteExecutor:
                 else:
                     ghost_candidates.append(row)
         
+        # Filter out locked GPUs from all candidates
+        def exclude_locked(rows: List[Dict[str, int]]) -> List[Dict[str, int]]:
+            return [r for r in rows if r["index"] not in locked_gpus]
+        
+        free_candidates = exclude_locked(free_candidates)
+        ghost_candidates = exclude_locked(ghost_candidates)
+        nonbusy_candidates = exclude_locked(nonbusy_candidates)
+        
         def _choose(candidate_rows: List[Dict[str, int]], note: Optional[str] = None) -> int:
+            # Sort by memory, then shuffle among equally-low-memory GPUs to avoid contention
             candidate_rows.sort(key=lambda r: (r["memory"], r["index"]))
-            chosen_row = candidate_rows[0]
+            min_mem = candidate_rows[0]["memory"]
+            # Get all GPUs with the same (lowest) memory usage
+            same_mem = [r for r in candidate_rows if r["memory"] == min_mem]
+            # Pick randomly among them to distribute load
+            chosen_row = random.choice(same_mem)
             if note:
                 print(note.format(idx=chosen_row["index"], mem=chosen_row["memory"]))
             return chosen_row["index"]
@@ -484,14 +518,22 @@ class RemoteExecutor:
                 ),
             )
         
-        # Last resort: pick the lowest-memory GPU overall, even if busy, but warn loudly.
-        gpu_rows.sort(key=lambda r: (r["memory"], r["index"]))
-        chosen_row = gpu_rows[0]
-        print(
-            "WARNING: All GPUs report active compute processes; falling back to GPU "
-            f"{chosen_row['index']} (memory {chosen_row['memory']} MB)."
-        )
-        return chosen_row["index"]
+        # Last resort: pick the lowest-memory GPU overall, excluding locked ones
+        unlocked_rows = exclude_locked(gpu_rows)
+        if unlocked_rows:
+            unlocked_rows.sort(key=lambda r: (r["memory"], r["index"]))
+            chosen_row = unlocked_rows[0]
+            print(
+                "WARNING: All GPUs report active compute processes; falling back to GPU "
+                f"{chosen_row['index']} (memory {chosen_row['memory']} MB)."
+            )
+            return chosen_row["index"]
+        
+        # All GPUs locked - return None to trigger retry
+        if locked_gpus:
+            # Don't spam logs - caller handles retry logic
+            pass
+        return None
 
     def _fallback_gpu_index(self) -> Optional[int]:
         """

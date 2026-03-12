@@ -1,27 +1,19 @@
 /**
  * Build script for Svelte islands
- * Compiles .svelte files to JS modules in ../static/islands/
+ * Compiles init.js (which imports all Svelte components) to a single bundle
  */
 import * as esbuild from 'esbuild';
 import sveltePlugin from 'esbuild-svelte';
-import { readdirSync } from 'fs';
-import { join, basename } from 'path';
 
 const isWatch = process.argv.includes('--watch');
 
-// Find all .svelte files
-const svelteFiles = readdirSync('.')
-  .filter(f => f.endsWith('.svelte'))
-  .map(f => `./${f}`);
-
-console.log('Building Svelte islands:', svelteFiles);
+console.log('Building Svelte islands...');
 
 const buildOptions = {
-  entryPoints: svelteFiles,
+  entryPoints: ['./init.js'],
   bundle: true,
-  outdir: '../static/islands',
+  outfile: '../static/islands/islands.js',
   format: 'esm',
-  splitting: true,
   minify: !isWatch,
   sourcemap: isWatch,
   plugins: [
