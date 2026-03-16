@@ -1,0 +1,31 @@
+version: 0.1
+experiment_name: paintings_painters_swap
+inputs:
+  source_config: configs/paintings_painters_full.yml
+  graphs_root: output/paintings_painters_batch
+swap:
+  mode: matrix
+  include_identity: true
+ct_steering:
+  model_id: google/gemma-2-2b
+  transcoder_set: mntss/clt-gemma-2-2b-2.5M
+  M_ablate: -2
+  M_amplify: 20
+  temperature: 0.3
+  n_tokens: 10
+  freq_penalty: 2.0
+  seed: 42
+  top_k: 5
+  freeze_attention: false
+  steer_generated_tokens: false
+compute:
+  inherit_from_source: true
+  remote:
+    enabled: true
+    batch_size: 4
+    max_gpus: 8
+steps:
+  validate_inputs: true
+  prepare_features: true
+  run_steering: true
+  aggregate_results: true

@@ -1,0 +1,83 @@
+version: 0.1
+experiment_name: products_founders_batch
+paths:
+  outputs_root: output/products_founders_batch
+model:
+  id: gemma-2-2b
+  source_set: clt-hp
+features:
+  selection: cumulative_influence
+  threshold: 0.95
+  post_filter:
+    node_threshold: 95
+probes:
+  mode: templated
+  templated:
+    templates:
+    - id: probe_product
+      text: 'entity: A famous product is {product}'
+    - id: probe_company
+      text: 'entity: A major technology company is {company}'
+    - id: probe_founder
+      text: 'entity: The founder of {company} is {founder}'
+    - id: probe_founder_concept
+      text: 'attribute: The person who started and created a company is called the
+        founder'
+    - id: probe_relationship
+      text: 'relationship: the person who established a company is its founder'
+graph_generation:
+  enabled: true
+  seeds_mode: templated
+  templated:
+    seed_prompt: The company that makes {product} was founded by
+    slug_template: '{slug}'
+    entities:
+      items:
+      - slug: iphone
+        product: the iPhone
+        company: Apple
+        founder: Steve Jobs
+      - slug: windows
+        product: Windows
+        company: Microsoft
+        founder: Bill Gates
+      - slug: model_s
+        product: the Model S
+        company: Tesla
+        founder: Elon Musk
+      - slug: facebook
+        product: Facebook
+        company: Meta
+        founder: Mark Zuckerberg
+      - slug: oracle_db
+        product: Oracle Database
+        company: Oracle
+        founder: Larry Ellison
+      - slug: dell_xps
+        product: the Dell XPS
+        company: Dell
+        founder: Michael Dell
+      - slug: alibaba
+        product: Alibaba
+        company: Alibaba Group
+        founder: Jack Ma
+      - slug: nike_shoes
+        product: Nike shoes
+        company: Nike
+        founder: Phil Knight
+      - slug: twitter
+        product: Twitter
+        company: Twitter
+        founder: Jack Dorsey
+      - slug: dyson
+        product: Dyson vacuums
+        company: Dyson
+        founder: James Dyson
+      - slug: wordpress
+        product: WordPress
+        company: Automattic
+        founder: Matt Mullenweg
+      - slug: oculus
+        product: the Oculus Rift
+        company: Oculus
+        founder: Palmer Luckey

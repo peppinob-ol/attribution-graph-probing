@@ -1,0 +1,79 @@
+version: 0.1
+experiment_name: tv_characters_creators_batch
+paths:
+  outputs_root: output/tv_characters_creators_batch
+model:
+  id: gemma-2-2b
+  source_set: clt-hp
+features:
+  selection: cumulative_influence
+  threshold: 0.95
+  post_filter:
+    node_threshold: 95
+probes:
+  mode: templated
+  templated:
+    templates:
+    - id: probe_character
+      text: 'entity: A famous TV character is {character}'
+    - id: probe_show
+      text: 'entity: A famous TV show is {show}'
+    - id: probe_creator
+      text: 'entity: The creator of {show} is {creator}'
+    - id: probe_creator_concept
+      text: 'attribute: The person who originated a TV show is called its creator'
+    - id: probe_relationship
+      text: 'relationship: the person who conceived and developed a TV series is its
+        creator'
+graph_generation:
+  enabled: true
+  seeds_mode: templated
+  templated:
+    seed_prompt: The TV show featuring {character} was created by
+    slug_template: '{slug}'
+    entities:
+      items:
+      - slug: walter_white
+        character: Walter White
+        show: Breaking Bad
+        creator: Vince Gilligan
+      - slug: homer_simpson
+        character: Homer Simpson
+        show: The Simpsons
+        creator: Matt Groening
+      - slug: tony_soprano
+        character: Tony Soprano
+        show: The Sopranos
+        creator: David Chase
+      - slug: fox_mulder
+        character: Fox Mulder
+        show: The X-Files
+        creator: Chris Carter
+      - slug: buffy_summers
+        character: Buffy Summers
+        show: Buffy the Vampire Slayer
+        creator: Joss Whedon
+      - slug: spongebob
+        character: SpongeBob SquarePants
+        show: SpongeBob SquarePants
+        creator: Stephen Hillenburg
+      - slug: eric_cartman
+        character: Eric Cartman
+        show: South Park
+        creator: Trey Parker
+      - slug: stewie_griffin
+        character: Stewie Griffin
+        show: Family Guy
+        creator: Seth MacFarlane
+      - slug: don_draper
+        character: Don Draper
+        show: Mad Men
+        creator: Matthew Weiner
+      - slug: carrie_bradshaw
+        character: Carrie Bradshaw
+        show: Sex and the City
+        creator: Darren Star
+      - slug: tommy_shelby
+        character: Tommy Shelby
+        show: Peaky Blinders
+        creator: Steven Knight

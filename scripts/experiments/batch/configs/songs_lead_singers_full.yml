@@ -1,0 +1,58 @@
+version: 0.1
+experiment_name: songs_lead_singers_batch
+paths:
+  outputs_root: output/songs_lead_singers_batch
+model:
+  id: gemma-2-2b
+  source_set: clt-hp
+features:
+  selection: cumulative_influence
+  threshold: 0.95
+  post_filter:
+    node_threshold: 95
+probes:
+  mode: templated
+  templated:
+    templates:
+    - id: probe_song
+      text: 'entity: A famous song by {band} is {song}'
+    - id: probe_band
+      text: 'entity: A famous rock band is {band}'
+    - id: probe_singer
+      text: 'entity: The lead singer of {band} is {lead_singer}'
+    - id: probe_band_concept
+      text: 'attribute: A musical group that performs songs together is called a band'
+    - id: probe_relationship
+      text: 'relationship: the lead vocalist of a band is the lead singer'
+graph_generation:
+  enabled: true
+  seeds_mode: templated
+  templated:
+    seed_prompt: The name of the lead singer of the band that performed {song} is
+    slug_template: '{slug}'
+    entities:
+      items:
+      - slug: teen_spirit
+        song: Smells Like Teen Spirit
+        band: Nirvana
+        lead_singer: Kurt Cobain
+      - slug: stairway_to_heaven
+        song: Stairway to Heaven
+        band: Led Zeppelin
+        lead_singer: Robert Plant
+      - slug: enter_sandman
+        song: Enter Sandman
+        band: Metallica
+        lead_singer: James Hetfield
+      - slug: back_in_black
+        song: Back in Black
+        band: AC/DC
+        lead_singer: Brian Johnson
+      - slug: livin_on_a_prayer
+        song: Livin' on a Prayer
+        band: Bon Jovi
+        lead_singer: Jon Bon Jovi
+      - slug: everlong
+        song: Everlong
+        band: Foo Fighters
+        lead_singer: Dave Grohl
