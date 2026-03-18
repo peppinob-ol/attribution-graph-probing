@@ -18,6 +18,10 @@
   let subgraphUrlCache = {};
   let sourceSubgraphUrl = null;
   let targetSubgraphUrl = null;
+
+  // Swap features (ablated/amplified per layer)
+  let features = null;
+  let featuresExpanded = false;
   
   let domainConfig = null;
   $: isUsaStates = domainConfig?.is_usa_states ?? true;
@@ -62,6 +66,8 @@
     loading = true;
     error = null;
     data = null;
+    features = null;
+    featuresExpanded = false;
     sourceSubgraphUrl = null;
     targetSubgraphUrl = null;
     
@@ -72,12 +78,16 @@
       }
       data = await res.json();
       
-      // Resolve subgraph URLs in parallel (non-blocking)
-      Promise.all([fetchSubgraphUrl(from), fetchSubgraphUrl(to)])
-        .then(([srcUrl, tgtUrl]) => {
-          sourceSubgraphUrl = srcUrl;
-          targetSubgraphUrl = tgtUrl;
-        });
+      // Resolve subgraph URLs and features in parallel (non-blocking)
+      Promise.all([
+        fetchSubgraphUrl(from),
+        fetchSubgraphUrl(to),
+        fetch(`/api/swap/${from}/${to}/features`).then(r => r.ok ? r.json() : null).catch(() => null),
+      ]).then(([srcUrl, tgtUrl, feat]) => {
+        sourceSubgraphUrl = srcUrl;
+        targetSubgraphUrl = tgtUrl;
+        if (feat && !feat.error) features = feat;
+      });
     } catch (e) {
       error = e.message;
     } finally {
@@ -103,6 +113,8 @@
   function close() {
     visible = false;
     data = null;
+    features = null;
+    featuresExpanded = false;
     fromSlug = null;
     toSlug = null;
     sourceSubgraphUrl = null;
@@ -112,16 +124,45 @@
   // Get tier from classification
   function getTier() {
     if (!data) return null;
-    // Try classification first
     if (data.classification?.tier !== undefined) {
       return data.classification.tier;
     }
-    // Fallback to evaluation
     const exact = data.evaluation?.exact_match || {};
-    if (exact.steered_has_to_capital) return 5;
-    if (exact.from_suppressed && !exact.steered_has_to_capital) return 2;
+    const evaluation = data.evaluation || {};
+    const toAnswer = evaluation.to_answer || '';
+    const steeredOut = evaluation.raw?.steered_output || '';
+
+    let hit = exact.steered_has_to_capital || exact.steered_has_to_answer;
+
+    if (!hit && toAnswer && steeredOut) {
+      const norm = s => s.replace(/\./g, '').replace(/-/g, ' ').toLowerCase();
+      if (norm(toAnswer) && norm(steeredOut).includes(norm(toAnswer))) {
+        hit = true;
+      }
+    }
+
+    if (!hit) {
+      const steeredFirst = (evaluation.first_token?.steered || '').trim();
+      if (steeredFirst.length >= 2 && toAnswer) {
+        if (toAnswer.replace(/\./g, '').toLowerCase().includes(steeredFirst.toLowerCase())) {
+          hit = true;
+        }
+      }
+    }
+
+    if (!hit && toAnswer && steeredOut) {
+      const outLower = steeredOut.toLowerCase();
+      for (const word of toAnswer.replace(/\./g, '').split(/\s+/)) {
+        if (word.length >= 3 && new RegExp('\\b' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(steeredOut)) {
+          hit = true;
+          break;
+        }
+      }
+    }
+
+    if (hit) return 5;
     if (!exact.from_suppressed) return 1;
-    return 3;
+    return 2;
   }
   
   function getAnswerValue(entity) {
@@ -282,6 +323,28 @@
   function getFirstTop5Label(position) {
     if (position === null || position === undefined) return 'never';
     return `position ${position}`;
+  }
+
+  function getFeatureLayerRows(feat) {
+    if (!feat?.layer_counts) return [];
+    const abl = feat.layer_counts.ablated || {};
+    const amp = feat.layer_counts.amplified || {};
+    const allLayers = new Set([...Object.keys(abl), ...Object.keys(amp)]);
+    let maxCount = 1;
+    const rows = [];
+    for (const l of allLayers) {
+      const a = abl[l] || 0;
+      const m = amp[l] || 0;
+      const total = a + m;
+      if (total > maxCount) maxCount = total;
+      rows.push({ layer: Number(l), ablated: a, amplified: m, total });
+    }
+    rows.sort((a, b) => b.layer - a.layer);
+    for (const r of rows) {
+      r.ablWidth = (r.ablated / maxCount) * 100;
+      r.ampWidth = (r.amplified / maxCount) * 100;
+    }
+    return rows;
   }
 </script>
 
@@ -650,25 +713,180 @@
         
         <!-- Intervention stats -->
         {#if data.interventions}
+          {@const ablCount = features?.summary?.ablate_count ?? data.interventions.ablate_count ?? 0}
+          {@const ampCount = features?.summary?.amplify_count ?? data.interventions.amplify_count ?? 0}
+          {@const totCount = features?.summary?.total_count ?? data.interventions.total_count ?? 0}
+          {@const layerRows = features ? getFeatureLayerRows(features) : []}
           <div class="p-4 rounded-lg bg-slate-800/50 border border-slate-700">
-            <div class="text-xs text-slate-500 uppercase mb-3">Interventions</div>
-            <div class="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <div class="text-lg font-bold text-red-400">{data.interventions.ablate_count || 0}</div>
-                <div class="text-xs text-slate-500">Ablated</div>
+            <div class="flex items-center justify-between mb-3">
+              <div class="text-xs text-slate-500 uppercase">Interventions</div>
+              <div class="flex gap-4 text-xs">
+                <span><span class="font-bold text-red-400">{ablCount}</span> <span class="text-slate-500">ablated</span></span>
+                <span><span class="font-bold text-emerald-400">{ampCount}</span> <span class="text-slate-500">amplified</span></span>
+                <span><span class="font-bold text-slate-400">{totCount}</span> <span class="text-slate-500">total</span></span>
               </div>
-              <div>
-                <div class="text-lg font-bold text-emerald-400">{data.interventions.amplify_count || 0}</div>
-                <div class="text-xs text-slate-500">Amplified</div>
+            </div>
+
+            <!-- Features by Layer chart -->
+            {#if layerRows.length > 0}
+              <div class="mb-3">
+                <div class="text-xs text-slate-500 uppercase mb-2">Features by Layer</div>
+                <div class="space-y-0.5">
+                  {#each layerRows as row}
+                    <div class="flex items-center gap-1 text-xs">
+                      <div class="w-5 text-slate-500 text-right font-mono">{row.layer}</div>
+                      <div class="flex-1 h-3 flex rounded overflow-hidden bg-slate-700/50">
+                        <div style="width: {row.ablWidth}%; background: #f87171;" title="{row.ablated} ablated"></div>
+                        <div style="width: {row.ampWidth}%; background: #4ade80;" title="{row.amplified} amplified"></div>
+                      </div>
+                      <div class="w-5 text-slate-500 text-right">{row.total}</div>
+                    </div>
+                  {/each}
+                </div>
+                <div class="flex items-center gap-4 mt-2 text-xs">
+                  <span class="flex items-center gap-1">
+                    <span class="w-2.5 h-2.5 rounded" style="background: #f87171;"></span>
+                    <span class="text-slate-500">Ablated (source)</span>
+                  </span>
+                  <span class="flex items-center gap-1">
+                    <span class="w-2.5 h-2.5 rounded" style="background: #4ade80;"></span>
+                    <span class="text-slate-500">Amplified (target)</span>
+                  </span>
+                </div>
               </div>
-              <div>
-                <div class="text-lg font-bold text-slate-400">{data.interventions.total_count || 0}</div>
-                <div class="text-xs text-slate-500">Total</div>
-              </div>
+            {/if}
+
+            <!-- Expandable feature links -->
+            {#if features && totCount > 0}
+              <button
+                class="w-full flex items-center justify-between py-2 px-1 hover:bg-slate-700/30 rounded transition-colors text-left"
+                on:click={() => featuresExpanded = !featuresExpanded}
+              >
+                <span class="text-xs text-slate-400">View {totCount} feature links</span>
+                <svg class="w-4 h-4 text-slate-500 transition-transform {featuresExpanded ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {#if featuresExpanded}
+                <div class="mt-2 space-y-4">
+                  <!-- Ablated features -->
+                  {#if features.ablated?.length > 0}
+                    <div>
+                      <div class="text-xs text-slate-500 uppercase mb-1.5">Ablated ({features.ablated.length})</div>
+                      <div class="space-y-0.5">
+                        {#each features.ablated as feat}
+                          <a
+                            href={feat.neuronpedia_url}
+                            target="_blank"
+                            class="flex items-center gap-2 py-1 px-2 rounded hover:bg-slate-700/40 transition-colors group"
+                          >
+                            <span class="text-xs text-slate-300 font-mono shrink-0">L{feat.layer} #{feat.index}</span>
+                            {#if feat.supernode_name}
+                              <span class="text-xs text-slate-500 truncate">{feat.supernode_name}</span>
+                            {/if}
+                            <span class="text-xs text-cyan-400 opacity-60 group-hover:opacity-100 ml-auto shrink-0">-></span>
+                          </a>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+
+                  <!-- Amplified features -->
+                  {#if features.amplified?.length > 0}
+                    <div>
+                      <div class="text-xs text-slate-500 uppercase mb-1.5">Amplified ({features.amplified.length})</div>
+                      <div class="space-y-0.5">
+                        {#each features.amplified as feat}
+                          <a
+                            href={feat.neuronpedia_url}
+                            target="_blank"
+                            class="flex items-center gap-2 py-1 px-2 rounded hover:bg-slate-700/40 transition-colors group"
+                          >
+                            <span class="text-xs text-slate-300 font-mono shrink-0">L{feat.layer} #{feat.index}</span>
+                            {#if feat.supernode_name}
+                              <span class="text-xs text-slate-500 truncate">{feat.supernode_name}</span>
+                            {/if}
+                            <span class="text-xs text-cyan-400 opacity-60 group-hover:opacity-100 ml-auto shrink-0">-></span>
+                          </a>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+            {/if}
+          </div>
+        {/if}
+
+        <!-- Source / Target groupings -->
+        {#if features && (features.source_groupings?.length > 0 || features.target_groupings?.length > 0)}
+          <div class="p-4 rounded-lg bg-slate-800/50 border border-slate-700 mt-4">
+            <div class="text-xs text-slate-500 uppercase mb-3">Groupings</div>
+            <div class="grid grid-cols-2 gap-4">
+
+              <!-- Source groupings -->
+              {#if features.source_groupings?.length > 0}
+                {@const srcAblated = features.source_groupings.filter(g => g.ablated)}
+                {@const srcNotAblated = features.source_groupings.filter(g => !g.ablated)}
+                <div>
+                  <div class="text-xs text-slate-400 font-semibold mb-2">Source</div>
+                  {#if srcAblated.length > 0}
+                    <div class="mb-2">
+                      <div class="text-xs text-red-400/70 uppercase mb-1">Ablated ({srcAblated.length})</div>
+                      <div class="space-y-0.5">
+                        {#each srcAblated as g}
+                          <div class="text-xs text-slate-300 px-1 py-0.5 rounded bg-red-500/10 border border-red-500/20 truncate" title={g.name}>{g.name}</div>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+                  {#if srcNotAblated.length > 0}
+                    <div>
+                      <div class="text-xs text-slate-500 uppercase mb-1">Not ablated ({srcNotAblated.length})</div>
+                      <div class="space-y-0.5">
+                        {#each srcNotAblated as g}
+                          <div class="text-xs text-slate-500 px-1 py-0.5 rounded bg-slate-700/30 truncate" title={g.name}>{g.name}</div>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+
+              <!-- Target groupings -->
+              {#if features.target_groupings?.length > 0}
+                {@const tgtAmplified = features.target_groupings.filter(g => g.amplified)}
+                {@const tgtNotAmplified = features.target_groupings.filter(g => !g.amplified)}
+                <div>
+                  <div class="text-xs text-slate-400 font-semibold mb-2">Target</div>
+                  {#if tgtAmplified.length > 0}
+                    <div class="mb-2">
+                      <div class="text-xs text-emerald-400/70 uppercase mb-1">Amplified ({tgtAmplified.length})</div>
+                      <div class="space-y-0.5">
+                        {#each tgtAmplified as g}
+                          <div class="text-xs text-slate-300 px-1 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 truncate" title={g.name}>{g.name}</div>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+                  {#if tgtNotAmplified.length > 0}
+                    <div>
+                      <div class="text-xs text-slate-500 uppercase mb-1">Not amplified ({tgtNotAmplified.length})</div>
+                      <div class="space-y-0.5">
+                        {#each tgtNotAmplified as g}
+                          <div class="text-xs text-slate-500 px-1 py-0.5 rounded bg-slate-700/30 truncate" title={g.name}>{g.name}</div>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+
             </div>
           </div>
         {/if}
-        
+
         <!-- Links -->
         <div class="mt-6 flex gap-2">
           {#if sourceSubgraphUrl || source.neuronpedia_url}

@@ -509,28 +509,32 @@ def main():
     gc_traj = gc.get('over_trajectory', {})
     gc_0 = gc.get('at_position_0', {})
     
+    def _fmt(val, fmt=".2f"):
+        return f"{val:{fmt}}" if val is not None else "N/A"
+
     print(f"\nGap Closure:")
-    print(f"  Over trajectory - Mean: {gc_traj.get('mean', 'N/A'):.2f}, Std: {gc_traj.get('std', 'N/A'):.2f}")
-    print(f"  At position 0   - Mean: {gc_0.get('mean', 'N/A'):.2f}, Std: {gc_0.get('std', 'N/A'):.2f}")
-    print(f"  Positive closure rate: {gc.get('positive_rate', 0):.1%}")
+    print(f"  Over trajectory - Mean: {_fmt(gc_traj.get('mean'))}, Std: {_fmt(gc_traj.get('std'))}")
+    print(f"  At position 0   - Mean: {_fmt(gc_0.get('mean'))}, Std: {_fmt(gc_0.get('std'))}")
+    print(f"  Positive closure rate: {_fmt(gc.get('positive_rate', 0), '.1%')}")
     
     flip = summary.get('flip_achieved', {})
     print(f"\nFlip Achieved:")
-    print(f"  Any position: {flip.get('any_position_rate', 0):.1%}")
-    print(f"  At position 0: {flip.get('position_0_rate', 0):.1%}")
-    if flip.get('mean_flip_position'):
-        print(f"  Mean flip position: {flip.get('mean_flip_position'):.1f}")
+    print(f"  Any position: {_fmt(flip.get('any_position_rate', 0), '.1%')}")
+    print(f"  At position 0: {_fmt(flip.get('position_0_rate', 0), '.1%')}")
+    mfp = flip.get('mean_flip_position')
+    if mfp is not None:
+        print(f"  Mean flip position: {mfp:.1f}")
     
     top_n = summary.get('target_reaches_top_n', {})
     print(f"\nTarget Reaches Top-N:")
-    print(f"  Top-1: {top_n.get('top1_rate', 0):.1%}")
-    print(f"  Top-5: {top_n.get('top5_rate', 0):.1%}")
-    print(f"  Top-10: {top_n.get('top10_rate', 0):.1%}")
+    print(f"  Top-1: {_fmt(top_n.get('top1_rate', 0), '.1%')}")
+    print(f"  Top-5: {_fmt(top_n.get('top5_rate', 0), '.1%')}")
+    print(f"  Top-10: {_fmt(top_n.get('top10_rate', 0), '.1%')}")
     
     ctrl = summary.get('control_stability', {})
     print(f"\nControl Stability:")
-    print(f"  Mean stability: {ctrl.get('mean', {}).get('mean', 'N/A'):.2f}")
-    print(f"  High specificity rate: {ctrl.get('high_specificity_rate', 0):.1%}")
+    print(f"  Mean stability: {_fmt(ctrl.get('mean', {}).get('mean'))}")
+    print(f"  High specificity rate: {_fmt(ctrl.get('high_specificity_rate', 0), '.1%')}")
     
     print(f"\nOutputs saved to: {output_dir}")
     print("="*60)

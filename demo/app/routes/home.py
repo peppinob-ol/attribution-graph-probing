@@ -25,6 +25,8 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
         perfect_rate = aggregate.get('perfect_rate', 0) * 100
         state_correct_rate = aggregate.get('state_correct_rate', 0) * 100
         suppression_rate = aggregate.get('suppression_rate', 0) * 100
+        flip_at_01_rate = aggregate.get('flip_at_01_rate', 0) * 100
+        has_flip_data = aggregate.get('flip_tracked', 0) > 0
         
         # Annotation mode badge
         annotate_badge = Span(cls="text-xs px-2 py-1 bg-amber-900/50 text-amber-400 rounded-full ml-2 animate-pulse")(
@@ -87,11 +89,9 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                 # Main content
                 Main(cls="max-w-7xl mx-auto px-4 py-8")(
                     # Stats bar
-                    Div(id="kpi-bar", cls="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8")(
-                        _stat_card("Total Swaps", str(stats.get('total_swaps', 0)), "experiments", value_id="kpi-total"),
-                        _stat_card("Perfect (T5)", f"{perfect_rate:.0f}%", "target capital found", value_id="kpi-perfect"),
-                        _stat_card("State Correct", f"{state_correct_rate:.0f}%", "T3+ success", value_id="kpi-correct"),
-                        _stat_card("Suppression", f"{suppression_rate:.0f}%", "source removed", value_id="kpi-suppress"),
+                    Div(id="kpi-bar", cls=f"grid grid-cols-1 {'md:grid-cols-5' if has_flip_data else 'md:grid-cols-4'} gap-4 mb-8")(
+                        *_kpi_cards(stats, perfect_rate, state_correct_rate,
+                                    suppression_rate, flip_at_01_rate, has_flip_data),
                     ),
                     
                     # Main grid
@@ -120,16 +120,56 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                         
                         # Sidebar (1 col)
                         Aside(cls="space-y-6")(
-                            # Legend
-                            Div(cls="bg-slate-900/50 rounded-xl border border-slate-800 p-4")(
-                                H3(cls="text-sm font-semibold text-slate-400 mb-3")("TIER LEGEND"),
-                                Div(cls="space-y-2")(
+                            # Legend with toggle
+                            Div(cls="bg-slate-900/50 rounded-xl border border-slate-800 px-3 py-4")(
+                                # Toggle switch
+                                Div(cls="flex items-center justify-between gap-3 mb-2")(
+                                    H3(
+                                        id="legend-title",
+                                        cls="text-sm font-semibold text-slate-400"
+                                    )("TIER LEGEND"),
+                                    Div(cls="flex items-center gap-3")(
+                                        Span(
+                                            id="color-mode-label-tier",
+                                            cls="text-[10px] font-medium text-cyan-400",
+                                        )("Tier"),
+                                        Button(
+                                            id="color-mode-toggle",
+                                            cls="relative ml-1 mr-2 inline-flex h-5 w-9 flex-shrink-0 cursor-pointer items-center rounded-full border transition-colors focus:outline-none",
+                                            style="background-color: #1e293b; border-color: #475569; box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.35);",
+                                            role="switch",
+                                            **{"aria-checked": "false"},
+                                        )(
+                                            Span(
+                                                id="color-mode-knob",
+                                                cls="pointer-events-none inline-block h-4 w-4 rounded-full shadow-lg transition-transform",
+                                                style="background-color: #22d3ee; transform: translateX(1px);",
+                                            ),
+                                        ),
+                                        Span(
+                                            id="color-mode-label-flip",
+                                            cls="text-[10px] font-medium text-slate-500",
+                                        )("Flip"),
+                                    ),
+                                ),
+                                # Tier legend (shown by default)
+                                Div(id="tier-legend", cls="space-y-2")(
                                     _legend_item("T5", "PERFECT", "#0A4FFF"),
                                     _legend_item("T4", "Partial + Answer", "#3D7DFF"),
                                     _legend_item("T3", "Partial", "#AFCBFF"),
                                     _legend_item("W", "Wrong Answer", "#FFE8E8"),
                                     _legend_item("T2", "Suppressed", "#FF7373"),
                                     _legend_item("T1", "Source Persists", "#C00000"),
+                                ),
+                                # Flip legend (hidden by default)
+                                Div(id="flip-legend", cls="space-y-2", style="display: none;")(
+                                    _legend_item("@0", "Immediate flip", "#10b981"),
+                                    _legend_item("@1", "Flip at pos 1", "#34d399"),
+                                    _legend_item("@2", "Flip at pos 2", "#a3e635"),
+                                    _legend_item("@3", "Flip at pos 3", "#facc15"),
+                                    _legend_item("@4+", "Late flip", "#fb923c"),
+                                    _legend_item("Never", "No flip", "#7f1d1d"),
+                                    _legend_item("--", "No trajectory data", "#1e293b"),
                                 ),
                             ),
                             
@@ -304,7 +344,7 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                 ),
                 
                 # Scripts
-                Script(src="/static/islands/islands.js?v=10", type="module"),
+                Script(src="/static/islands/islands.js?v=11", type="module"),
                 # Run selector script (handles cross-dataset switching)
                 Script("""
                     (function() {
@@ -321,6 +361,43 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                                 else { sel.disabled = false; sel.style.opacity = '1'; }
                             } catch (_) { sel.disabled = false; sel.style.opacity = '1'; }
                         });
+                    })();
+                """),
+                # Color mode toggle script
+                Script("""
+                    (function() {
+                        var toggle = document.getElementById('color-mode-toggle');
+                        var knob   = document.getElementById('color-mode-knob');
+                        var lblT   = document.getElementById('color-mode-label-tier');
+                        var lblF   = document.getElementById('color-mode-label-flip');
+                        var title  = document.getElementById('legend-title');
+                        var tierLeg = document.getElementById('tier-legend');
+                        var flipLeg = document.getElementById('flip-legend');
+                        var mode = 'tier';
+
+                        if (!toggle) return;
+
+                        function apply() {
+                            var isFlip = mode === 'flip';
+                            toggle.style.backgroundColor = isFlip ? '#064e3b' : '#1e293b';
+                            toggle.style.borderColor = isFlip ? '#10b981' : '#475569';
+                            toggle.setAttribute('aria-checked', String(isFlip));
+                            knob.style.transform = isFlip ? 'translateX(18px)' : 'translateX(1px)';
+                            knob.style.backgroundColor = isFlip ? '#34d399' : '#22d3ee';
+                            lblT.style.color = isFlip ? '#64748b' : '#22d3ee';
+                            lblF.style.color = isFlip ? '#10b981' : '#64748b';
+                            title.textContent = isFlip ? 'FLIP POSITION' : 'TIER LEGEND';
+                            tierLeg.style.display = isFlip ? 'none' : '';
+                            flipLeg.style.display = isFlip ? '' : 'none';
+                            document.dispatchEvent(new CustomEvent('color-mode-changed', {
+                                detail: { mode: mode }, bubbles: true
+                            }));
+                        }
+
+                        toggle.onclick = function() {
+                            mode = mode === 'tier' ? 'flip' : 'tier';
+                            apply();
+                        };
                     })();
                 """),
                 # About modal script
@@ -372,6 +449,27 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                 """),
             ),
         )
+
+
+def _kpi_cards(stats, perfect_rate, state_correct_rate,
+               suppression_rate, flip_at_01_rate, has_flip_data):
+    """Build the list of KPI stat cards (4 or 5 depending on flip data)."""
+    cards = [
+        _stat_card("Total Swaps", str(stats.get('total_swaps', 0)),
+                    "experiments", value_id="kpi-total"),
+        _stat_card("Perfect (T5)", f"{perfect_rate:.0f}%",
+                    "target capital found", value_id="kpi-perfect"),
+        _stat_card("State Correct", f"{state_correct_rate:.0f}%",
+                    "T3+ success", value_id="kpi-correct"),
+        _stat_card("Suppression", f"{suppression_rate:.0f}%",
+                    "source removed", value_id="kpi-suppress"),
+    ]
+    if has_flip_data:
+        cards.append(
+            _stat_card("Logit Flip @0-1", f"{flip_at_01_rate:.0f}%",
+                        "flip at pos 0 or 1", value_id="kpi-flip01"),
+        )
+    return cards
 
 
 def _stat_card(title: str, value: str, subtitle: str, value_id: str = ""):

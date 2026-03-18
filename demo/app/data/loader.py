@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import json
 import csv
+import re
 from functools import lru_cache
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -242,10 +243,12 @@ class DataLoader:
         self.run_id = run_id
         self._set_swaps_dir()
         self._matrix_cache: Optional[Dict] = None
+        self._flip_matrix_cache: Optional[Dict] = None
         self._states_cache: Optional[List[Dict]] = None
         self._analysis_cache: Optional[Dict] = None
         self._stats_cache: Optional[Dict] = None
         self._domain_config_cache: Optional[Dict] = None
+        self._gpu_batch_features_index: Optional[Dict[str, List]] = None
     
     def _set_swaps_dir(self):
         """Set swaps_dir based on current run_id."""
@@ -361,10 +364,12 @@ class DataLoader:
     def _clear_caches(self):
         """Clear all cached data."""
         self._matrix_cache = None
+        self._flip_matrix_cache = None
         self._states_cache = None
         self._analysis_cache = None
         self._stats_cache = None
         self._domain_config_cache = None
+        self._gpu_batch_features_index = None
     
     # ------------------------------------------------------------------
     # Domain & model configuration (loaded from config_resolved.json)
@@ -542,7 +547,17 @@ class DataLoader:
         return matrix
     
     def _get_tier_from_swap(self, swap_data: Dict) -> Optional[float]:
-        """Extract tier from swap data, computing if necessary. Supports 2.5 for WRONG STATE."""
+        """Extract tier from swap data, computing if necessary.
+
+        Tier semantics (domain-agnostic):
+            5 = PERFECT  -- target answer detected in steered output via any of:
+                  a) full answer match (strict or fuzzy punctuation)
+                  b) steered first token is a substring of the target answer
+                  c) any word (len>=3) of the target answer appears in the
+                     steered output (e.g. "Harper" in "Nelle Harper...")
+            2 = SUPPRESSED_ONLY -- source gone, no target signal
+            1 = SOURCE_PERSISTS -- source answer still in output
+        """
         if 'classification' in swap_data:
             tier = swap_data['classification'].get('tier')
             if tier is not None:
@@ -550,17 +565,107 @@ class DataLoader:
 
         evaluation = swap_data.get('evaluation', {})
         exact = evaluation.get('exact_match', {})
+
         hit = exact.get('steered_has_to_capital') or exact.get('steered_has_to_answer')
+
+        to_answer = evaluation.get('to_answer', '')
+        steered_out = evaluation.get('raw', {}).get('steered_output', '')
+
+        if not hit and to_answer and steered_out:
+            to_norm = to_answer.replace('.', '').replace('-', ' ').lower()
+            out_norm = steered_out.replace('.', '').replace('-', ' ').lower()
+            if to_norm and to_norm in out_norm:
+                hit = True
+
+        if not hit:
+            first_token = evaluation.get('first_token', {})
+            steered_first_tok = (first_token.get('steered', '') or '').strip()
+            if len(steered_first_tok) >= 2 and to_answer:
+                answer_norm = to_answer.replace('.', '').lower()
+                tok_norm = steered_first_tok.lower()
+                if tok_norm in answer_norm:
+                    hit = True
+
+        if not hit and to_answer and steered_out:
+            out_lower = steered_out.lower()
+            for word in to_answer.replace('.', '').split():
+                if len(word) >= 3:
+                    pattern = r'\b' + re.escape(word.lower()) + r'\b'
+                    if re.search(pattern, out_lower):
+                        hit = True
+                        break
 
         if hit:
             return 5
-        elif exact.get('from_suppressed') and not hit:
-            return 2
-        elif not exact.get('from_suppressed'):
+
+        if not exact.get('from_suppressed'):
             return 1
-        else:
-            return 3
+
+        return 2
     
+    @staticmethod
+    def _get_flip_position_from_swap(swap_data: Dict):
+        """Extract logit flip position from swap data.
+
+        Returns:
+            int >= 0  -- generation position where the flip first occurs
+            None      -- trajectory was tracked but flip never occurred
+            -1        -- no trajectory data available for this swap
+        """
+        traj = swap_data.get('evaluation', {}).get('logit_trajectory')
+        if traj is None or not isinstance(traj, dict) or 'summary' not in traj:
+            return -1
+        return traj['summary'].get('flip_position')
+
+    def get_flip_matrix(self) -> Dict[str, Dict[str, Optional[int]]]:
+        """Build flip-position matrix from swap JSON files.
+
+        Same structure as ``get_matrix()`` but values are the generation
+        position where the logit flip first occurs (0, 1, 2 ...) or
+        ``None`` when no flip is observed.
+        """
+        if self._flip_matrix_cache is not None:
+            return self._flip_matrix_cache
+
+        matrix: Dict[str, Dict[str, Optional[int]]] = {}
+
+        by_source_dir = self.swaps_dir / "by_source"
+        if by_source_dir.exists():
+            for source_dir in by_source_dir.iterdir():
+                if not source_dir.is_dir():
+                    continue
+                from_slug = source_dir.name
+                matrix[from_slug] = {}
+                for swap_file in source_dir.glob("to_*.json"):
+                    try:
+                        with open(swap_file, 'r', encoding='utf-8') as f:
+                            swap_data = json.load(f)
+                        to_slug = swap_file.stem.replace("to_", "")
+                        if not to_slug and swap_data.get('target'):
+                            to_slug = swap_data['target'].get('slug', '')
+                        matrix[from_slug][to_slug] = self._get_flip_position_from_swap(swap_data)
+                    except (json.JSONDecodeError, IOError):
+                        continue
+
+        work_dir = self.swaps_dir / "work"
+        if work_dir.exists():
+            for swap_file in work_dir.glob("*.json"):
+                try:
+                    with open(swap_file, 'r', encoding='utf-8') as f:
+                        swap_data = json.load(f)
+                    swap_id = swap_file.stem
+                    if "__to__" in swap_id:
+                        from_slug, to_slug = swap_id.split("__to__")
+                        if from_slug not in matrix:
+                            matrix[from_slug] = {}
+                        if to_slug not in matrix[from_slug]:
+                            matrix[from_slug][to_slug] = self._get_flip_position_from_swap(swap_data)
+                except (json.JSONDecodeError, IOError):
+                    continue
+
+        self._flip_matrix_cache = matrix
+        return matrix
+
     def get_states(self) -> List[Dict[str, Any]]:
         """Get entity list with metadata from by_source directories.
 
@@ -829,6 +934,7 @@ class DataLoader:
         
         # Clear caches so stats are recalculated
         self._matrix_cache = None
+        self._flip_matrix_cache = None
         self._stats_cache = None
         
         # Return updated data with fresh stats
@@ -918,12 +1024,30 @@ class DataLoader:
         tier_rates = {}
         for name, count in tier_counts.items():
             tier_rates[name] = count / total_swaps if total_swaps > 0 else 0
-        
+
+        # Flip stats from trajectory data
+        flip_matrix = self.get_flip_matrix()
+        flip_tracked = 0
+        flip_at_0 = 0
+        flip_at_01 = 0
+        for from_slug, targets in flip_matrix.items():
+            for to_slug, fp in targets.items():
+                if fp == -1:
+                    continue
+                flip_tracked += 1
+                if fp is not None and fp <= 1:
+                    flip_at_01 += 1
+                if fp is not None and fp == 0:
+                    flip_at_0 += 1
+
         aggregate = {
             'perfect_rate': perfect_count / total_swaps if total_swaps > 0 else 0,
             'state_correct_rate': state_correct_count / total_swaps if total_swaps > 0 else 0,
             'suppression_rate': suppressed_count / total_swaps if total_swaps > 0 else 0,
             'avg_tier': tier_sum / total_swaps if total_swaps > 0 else 0,
+            'flip_at_01_rate': flip_at_01 / flip_tracked if flip_tracked > 0 else 0,
+            'flip_at_0_rate': flip_at_0 / flip_tracked if flip_tracked > 0 else 0,
+            'flip_tracked': flip_tracked,
         }
         
         stats = {
@@ -937,58 +1061,171 @@ class DataLoader:
         self._stats_cache = stats
         return stats
     
+    def _get_gpu_batch_features_index(self) -> Dict[str, List]:
+        """
+        Build and cache a swap_id -> feature_list index from GPU batch files.
+
+        Scans _swaps/_work/_gpu_batch_*/features.json which use the format:
+          {"global": [...], "per_prompt": {"swap_id": [...features], ...}}
+        """
+        if self._gpu_batch_features_index is not None:
+            return self._gpu_batch_features_index
+
+        index: Dict[str, List] = {}
+        work_dir = self.base_swaps_dir / "_work"
+        if not work_dir.exists():
+            self._gpu_batch_features_index = index
+            return index
+
+        for batch_file in sorted(work_dir.glob("_gpu_batch_*/features.json")):
+            try:
+                with open(batch_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                for swap_id, feats in data.get('per_prompt', {}).items():
+                    if isinstance(feats, list):
+                        index[swap_id] = feats
+            except (json.JSONDecodeError, IOError):
+                pass
+
+        self._gpu_batch_features_index = index
+        return index
+
     def get_swap_features(self, from_slug: str, to_slug: str) -> Optional[Dict]:
         """
         Get intervention features for a swap.
-        
-        Loads from _swaps/work/{from_slug}__to__{to_slug}/features.json
-        Returns structured data with ablated/amplified features grouped by layer.
+
+        Tries two locations in order:
+          1. Per-swap file: _swaps/work/{swap_id}/features.json  (usa_states style)
+          2. GPU batch index: _swaps/_work/_gpu_batch_N/features.json  (per_prompt keyed)
+
+        Returns structured data with ablated/amplified features grouped by layer,
+        enriched with supernode_name from each entity's node_grouping.csv.
+        Also returns source/target grouping lists with ablated/amplified flags.
         """
         swap_id = f"{from_slug}__to__{to_slug}"
+
+        # Try per-swap file first (usa_states / older format)
+        raw_features: Optional[List] = None
         features_path = self.swaps_dir / "work" / swap_id / "features.json"
-        
-        if not features_path.exists():
+        if features_path.exists():
+            try:
+                with open(features_path, 'r', encoding='utf-8') as f:
+                    raw_features = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass
+
+        # Fall back to GPU batch index
+        if raw_features is None:
+            index = self._get_gpu_batch_features_index()
+            raw_features = index.get(swap_id)
+
+        if raw_features is None:
             return None
-        
-        try:
-            with open(features_path, 'r', encoding='utf-8') as f:
-                raw_features = json.load(f)
-        except (json.JSONDecodeError, IOError):
-            return None
-        
+
+        np_model = self.get_domain_config().get('np_model', 'gemma-2-2b')
+
+        def _load_grouping_map(slug: str) -> Dict:
+            """Return {(layer, index): supernode_name} for an entity."""
+            entity_dir = self._find_state_dir(slug)
+            if not entity_dir:
+                return {}
+            grouping_path = entity_dir / "02 Node Grouping" / "node_grouping.csv"
+            if not grouping_path.exists():
+                return {}
+            result = {}
+            try:
+                with open(grouping_path, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        try:
+                            key = (int(row.get('layer', 0)), int(row.get('feature', 0)))
+                            result[key] = row.get('supernode_name', '')
+                        except (ValueError, TypeError):
+                            pass
+            except IOError:
+                pass
+            return result
+
+        def _load_all_groupings(slug: str) -> list:
+            """Return sorted list of unique supernode names for an entity."""
+            entity_dir = self._find_state_dir(slug)
+            if not entity_dir:
+                return []
+            grouping_path = entity_dir / "02 Node Grouping" / "node_grouping.csv"
+            if not grouping_path.exists():
+                return []
+            names: set = set()
+            try:
+                with open(grouping_path, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        sn = row.get('supernode_name', '').strip()
+                        if sn:
+                            names.add(sn)
+            except IOError:
+                pass
+            return sorted(names)
+
+        source_map = _load_grouping_map(from_slug)
+        target_map = _load_grouping_map(to_slug)
+        all_source_groupings = _load_all_groupings(from_slug)
+        all_target_groupings = _load_all_groupings(to_slug)
+
         # Group features by type and layer
-        ablated = []  # M < 0
-        amplified = []  # M > 0
-        layer_counts = {'ablated': {}, 'amplified': {}}
-        
+        ablated = []
+        amplified = []
+        layer_counts: Dict = {'ablated': {}, 'amplified': {}}
+        ablated_grouping_names: set = set()
+        amplified_grouping_names: set = set()
+
         for feat in raw_features:
             layer = feat.get('layer', 0)
             index = feat.get('index', 0)
             M = feat.get('M', 0)
             stored_activation = feat.get('stored_activation')
-            
-            np_model = self.get_domain_config().get('np_model', 'gemma-2-2b')
             np_url = f"https://www.neuronpedia.org/{np_model}/{layer}-clt-hp/{index}"
-            
-            feature_info = {
-                'layer': layer,
-                'index': index,
-                'M': M,
-                'stored_activation': stored_activation,
-                'neuronpedia_url': np_url,
-            }
-            
+
             if M < 0:
+                sn = source_map.get((layer, index), '')
+                feature_info = {
+                    'layer': layer,
+                    'index': index,
+                    'M': M,
+                    'stored_activation': stored_activation,
+                    'neuronpedia_url': np_url,
+                    'supernode_name': sn,
+                }
                 ablated.append(feature_info)
                 layer_counts['ablated'][layer] = layer_counts['ablated'].get(layer, 0) + 1
+                if sn:
+                    ablated_grouping_names.add(sn)
             else:
+                sn = target_map.get((layer, index), '')
+                feature_info = {
+                    'layer': layer,
+                    'index': index,
+                    'M': M,
+                    'stored_activation': stored_activation,
+                    'neuronpedia_url': np_url,
+                    'supernode_name': sn,
+                }
                 amplified.append(feature_info)
                 layer_counts['amplified'][layer] = layer_counts['amplified'].get(layer, 0) + 1
-        
-        # Sort by layer
+                if sn:
+                    amplified_grouping_names.add(sn)
+
         ablated.sort(key=lambda x: (x['layer'], x['index']))
         amplified.sort(key=lambda x: (x['layer'], x['index']))
-        
+
+        source_groupings = [
+            {'name': name, 'ablated': name in ablated_grouping_names}
+            for name in all_source_groupings
+        ]
+        target_groupings = [
+            {'name': name, 'amplified': name in amplified_grouping_names}
+            for name in all_target_groupings
+        ]
+
         return {
             'swap_id': swap_id,
             'ablated': ablated,
@@ -998,7 +1235,9 @@ class DataLoader:
                 'ablate_count': len(ablated),
                 'amplify_count': len(amplified),
                 'total_count': len(ablated) + len(amplified),
-            }
+            },
+            'source_groupings': source_groupings,
+            'target_groupings': target_groupings,
         }
     
     def get_state_profile(self, slug: str) -> Optional[Dict]:

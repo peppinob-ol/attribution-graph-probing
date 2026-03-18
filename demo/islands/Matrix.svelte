@@ -5,6 +5,7 @@
   
   // State
   let matrix = {};
+  let flipMatrix = {};
   let states = [];
   let domainConfig = null;
   let loading = true;
@@ -14,6 +15,7 @@
   let sortBy = 'alpha';
   let hideOverlap = false;
   let hideCapitalNotTopLogit = false;
+  let colorMode = 'tier';
 
   $: isUsaStates = domainConfig?.is_usa_states ?? true;
   
@@ -28,18 +30,71 @@
     null: { bg: '#1e293b', hover: '#334155' },
   };
 
+  const flipColors = {
+    0:    { bg: '#10b981', hover: '#34d399' },
+    1:    { bg: '#34d399', hover: '#6ee7b7' },
+    2:    { bg: '#a3e635', hover: '#bef264' },
+    3:    { bg: '#facc15', hover: '#fde047' },
+    4:    { bg: '#fb923c', hover: '#fdba74' },
+    5:    { bg: '#f87171', hover: '#fca5a5' },
+    'late': { bg: '#ef4444', hover: '#f87171' },
+    null: { bg: '#7f1d1d', hover: '#991b1b' },
+    'no_data': { bg: '#1e293b', hover: '#334155' },
+  };
+
+  function getFlipStyle(flipPos) {
+    if (flipPos === undefined || flipPos === -1) return flipColors['no_data'];
+    if (flipPos === null) return flipColors[null];
+    if (flipPos <= 5) return flipColors[flipPos] || flipColors[5];
+    return flipColors['late'];
+  }
+
+  function getFlipLabel(flipPos) {
+    if (flipPos === undefined || flipPos === -1) return 'No data';
+    if (flipPos === null) return 'Never';
+    return `@${flipPos}`;
+  }
+
   function getTierStyle(tier) {
     if (tier === null || tier === undefined) return tierColors[null];
     return tierColors[tier] || tierColors[null];
   }
+
+  function getCellStyle(fromSlug, toSlug) {
+    if (colorMode === 'flip') {
+      const flipPos = flipMatrix[fromSlug]?.[toSlug];
+      const tierVal = matrix[fromSlug]?.[toSlug];
+      if (tierVal === undefined || tierVal === null) return flipColors['no_data'];
+      if (flipPos === -1) return flipColors['no_data'];
+      return getFlipStyle(flipPos);
+    }
+    return getTierStyle(getTier(fromSlug, toSlug));
+  }
   
   function hasNameOverlap(s) {
-    if (!isUsaStates) return false;
-    const stateLower = (s.state || '').toLowerCase();
-    const cityLower = (s.city || '').toLowerCase();
-    if (!stateLower || !cityLower) return false;
-    if (cityLower.includes(stateLower)) return true;
-    return stateLower.split(/\s+/).filter(w => w.length >= 4).some(w => cityLower.includes(w));
+    if (isUsaStates) {
+      const stateLower = (s.state || '').toLowerCase();
+      const cityLower = (s.city || '').toLowerCase();
+      if (!stateLower || !cityLower) return false;
+      if (cityLower.includes(stateLower)) return true;
+      return stateLower.split(/\s+/).filter(w => w.length >= 4).some(w => cityLower.includes(w));
+    }
+
+    const fields = s.fields || {};
+    const conceptFields = domainConfig?.concept_fields || [];
+    const answerField = domainConfig?.answer_field || '';
+    const primaryField = domainConfig?.primary_field || '';
+    const intermediateField = conceptFields.find(f => f !== answerField) || '';
+    if (!primaryField || !intermediateField) return false;
+
+    const a = (fields[primaryField] || '').toLowerCase();
+    const b = (fields[intermediateField] || '').toLowerCase();
+    if (!a || !b) return false;
+
+    if (a.includes(b) || b.includes(a)) return true;
+    const aWords = a.split(/\s+/).filter(w => w.length >= 4);
+    const bWords = b.split(/\s+/).filter(w => w.length >= 4);
+    return aWords.some(w => b.includes(w)) || bWords.some(w => a.includes(w));
   }
 
   function hasCapitalNotTopLogit(s) {
@@ -64,11 +119,12 @@
   $: overlapCount = states.filter(s => hasNameOverlap(s)).length;
   $: capitalNotTopLogitCount = states.filter(s => hasCapitalNotTopLogit(s)).length;
   
-  $: filteredStats = computeStats(visibleStates, matrix);
+  $: filteredStats = computeStats(visibleStates, matrix, flipMatrix);
   
-  function computeStats(visible, mat) {
+  function computeStats(visible, mat, fmat) {
     const slugs = new Set(visible.map(s => s.slug));
     let total = 0, perfect = 0, stateCorrect = 0, suppressed = 0;
+    let flipTracked = 0, flipAt01 = 0;
     for (const from of slugs) {
       for (const to of slugs) {
         if (from === to) continue;
@@ -78,6 +134,11 @@
         if (tier === 5) perfect++;
         if (tier >= 3) stateCorrect++;
         if (tier >= 2) suppressed++;
+        const fp = fmat[from]?.[to];
+        if (fp !== undefined && fp !== -1) {
+          flipTracked++;
+          if (fp !== null && fp <= 1) flipAt01++;
+        }
       }
     }
     return {
@@ -85,6 +146,8 @@
       perfectRate: total > 0 ? (perfect / total * 100) : 0,
       stateCorrectRate: total > 0 ? (stateCorrect / total * 100) : 0,
       suppressionRate: total > 0 ? (suppressed / total * 100) : 0,
+      flipAt01Rate: flipTracked > 0 ? (flipAt01 / flipTracked * 100) : 0,
+      flipTracked,
     };
   }
   
@@ -101,6 +164,9 @@
     el('kpi-perfect', `${stats.perfectRate.toFixed(0)}%`);
     el('kpi-correct', `${stats.stateCorrectRate.toFixed(0)}%`);
     el('kpi-suppress', `${stats.suppressionRate.toFixed(0)}%`);
+    if (stats.flipTracked > 0) {
+      el('kpi-flip01', `${stats.flipAt01Rate.toFixed(0)}%`);
+    }
   }
   
   function selectCell(fromSlug, toSlug) {
@@ -156,13 +222,19 @@
     }
   }
 
+  function handleColorModeChanged(e) {
+    colorMode = e.detail?.mode || 'tier';
+  }
+
   onMount(async () => {
     document.addEventListener('keydown', handleKeydown);
+    document.addEventListener('color-mode-changed', handleColorModeChanged);
     try {
-      const [matrixRes, statesRes, configRes] = await Promise.all([
+      const [matrixRes, statesRes, configRes, flipRes] = await Promise.all([
         fetch('/api/matrix'),
         fetch('/api/states'),
         fetch('/api/config'),
+        fetch('/api/flip-matrix'),
       ]);
       
       if (!matrixRes.ok || !statesRes.ok) {
@@ -175,6 +247,9 @@
         const cfg = await configRes.json();
         domainConfig = cfg.domain || null;
       }
+      if (flipRes.ok) {
+        flipMatrix = await flipRes.json();
+      }
       loading = false;
     } catch (e) {
       error = e.message;
@@ -184,6 +259,7 @@
 
   onDestroy(() => {
     document.removeEventListener('keydown', handleKeydown);
+    document.removeEventListener('color-mode-changed', handleColorModeChanged);
   });
   
   function getTier(fromSlug, toSlug) {
@@ -222,7 +298,7 @@
       {/each}
     </div>
     
-    {#if isUsaStates && (overlapCount > 0 || capitalNotTopLogitCount > 0)}
+    {#if overlapCount > 0 || (isUsaStates && capitalNotTopLogitCount > 0)}
       <span class="text-slate-700 hidden sm:inline">|</span>
       {#if overlapCount > 0}
         <label class="flex items-center gap-2 cursor-pointer select-none">
@@ -232,7 +308,7 @@
           </span>
         </label>
       {/if}
-      {#if capitalNotTopLogitCount > 0}
+      {#if isUsaStates && capitalNotTopLogitCount > 0}
         <label class="flex items-center gap-2 cursor-pointer select-none">
           <input type="checkbox" bind:checked={hideCapitalNotTopLogit} class="accent-cyan-500" />
           <span class="text-xs {hideCapitalNotTopLogit ? 'text-cyan-400' : 'text-slate-400'}">
@@ -268,6 +344,7 @@
     </div>
   {:else}
     <div class="overflow-x-auto">
+      {#key colorMode}
       <div class="matrix-grid" style="grid-template-columns: 64px repeat({visibleStates.length}, 16px);">
         <!-- Empty corner cell -->
         <div class="matrix-corner"></div>
@@ -305,8 +382,9 @@
           {#each visibleStates as colState, colIndex}
             {@const tier = getTier(rowState.slug, colState.slug)}
             {@const isIdentity = rowState.slug === colState.slug}
-            {@const cs = isIdentity ? { bg: '#0f172a', hover: '#0f172a' } : getTierStyle(tier)}
+            {@const cs = isIdentity ? { bg: '#0f172a', hover: '#0f172a' } : getCellStyle(rowState.slug, colState.slug)}
             {@const sel = selected?.from === rowState.slug && selected?.to === colState.slug}
+            {@const flipPos = flipMatrix[rowState.slug]?.[colState.slug]}
             <button
               class="matrix-cell rounded-sm transition-all duration-100"
               class:opacity-30={isDimmed(rowState.slug, colState.slug)}
@@ -315,11 +393,12 @@
               on:click={() => selectCell(rowState.slug, colState.slug)}
               on:mouseenter={() => hoveredCell = { from: rowState.slug, to: colState.slug }}
               on:mouseleave={() => hoveredCell = null}
-              title={isIdentity ? 'Identity' : tier !== null ? `${rowState.abbr} -> ${colState.abbr}: Tier ${tier}` : 'No data'}
+              title={isIdentity ? 'Identity' : tier !== null ? `${rowState.abbr} -> ${colState.abbr}: ${colorMode === 'flip' ? getFlipLabel(flipPos) : 'Tier ' + tier}` : 'No data'}
             ></button>
           {/each}
         {/each}
       </div>
+      {/key}
     </div>
     
     <!-- Hover info -->
@@ -327,6 +406,7 @@
       {@const fromState = states.find(s => s.slug === hoveredCell.from)}
       {@const toState = states.find(s => s.slug === hoveredCell.to)}
       {@const tier = getTier(hoveredCell.from, hoveredCell.to)}
+      {@const flipPos = flipMatrix[hoveredCell.from]?.[hoveredCell.to]}
       <div class="mt-4 p-3 bg-slate-800/50 rounded-lg text-sm">
         <span class="text-slate-400">{fromState?.label || fromState?.state || hoveredCell.from}</span>
         <span class="text-slate-600 mx-2">-></span>
@@ -336,6 +416,11 @@
           <span class="ml-3 px-2 py-0.5 rounded text-xs font-bold"
                 style="background-color: {badge.bg}; color: {[3, 2.5].includes(tier) ? '#1e293b' : '#fff'};">
             T{tier}
+          </span>
+          {@const flipBadge = getFlipStyle(flipPos)}
+          <span class="ml-1 px-2 py-0.5 rounded text-xs font-bold"
+                style="background-color: {flipBadge.bg}; color: {[0, 1, 2, 3].includes(flipPos) ? '#1e293b' : '#fff'};">
+            {getFlipLabel(flipPos)}
           </span>
         {:else}
           <span class="ml-3 text-slate-600">No data</span>

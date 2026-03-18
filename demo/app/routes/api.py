@@ -16,11 +16,7 @@ def _sync_loader(target, source) -> None:
     target.base_swaps_dir = source.base_swaps_dir
     target.run_id = source.run_id
     target.swaps_dir = source.swaps_dir
-    target._matrix_cache = None
-    target._states_cache = None
-    target._analysis_cache = None
-    target._stats_cache = None
-    target._domain_config_cache = None
+    target._clear_caches()
 
 
 def api_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None):
@@ -165,6 +161,15 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None)
     def api_matrix():
         """Return tier matrix as JSON."""
         matrix = data_loader.get_matrix()
+        return Response(
+            content=json.dumps(matrix),
+            media_type="application/json"
+        )
+
+    @rt("/api/flip-matrix")
+    def api_flip_matrix():
+        """Return logit-flip position matrix as JSON."""
+        matrix = data_loader.get_flip_matrix()
         return Response(
             content=json.dumps(matrix),
             media_type="application/json"

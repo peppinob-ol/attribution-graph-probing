@@ -115,9 +115,26 @@ def _parse_initial_letters(word: str) -> List[str]:
     return unique
 
 
-_FUNCTION_WORDS = frozenset({"a", "an", "at", "by", "de", "di", "du", "el",
-                              "in", "la", "le", "of", "on", "or", "the", "to",
-                              "van", "von", "y"})
+_FUNCTION_WORDS = frozenset({"a", "an", "and", "at", "by", "de", "di", "du",
+                              "el", "in", "la", "le", "of", "on", "or", "the",
+                              "to", "van", "von", "y"})
+
+_REVERSE_MIN_LEN = 3
+
+
+def _is_reverse_match_candidate(name_lc: str) -> bool:
+    """Whether a lowercased supernode name qualifies for reverse substring matching.
+
+    Reverse matching checks if the *name* is a substring of the concept word
+    (the opposite of forward matching).  Short alphabetic names are excluded
+    to avoid spurious hits; purely-numeric names are always allowed so that
+    digit supernodes like "4" or "8" can match numeric concepts like "1984".
+    """
+    if name_lc in _FUNCTION_WORDS:
+        return False
+    if name_lc.isdigit():
+        return True
+    return len(name_lc) >= _REVERSE_MIN_LEN
 
 
 def _match_concept_to_supernodes(
@@ -128,21 +145,21 @@ def _match_concept_to_supernodes(
     """Find rows in grouping_df whose supernode_name matches *concept_lc*.
 
     Strategy (in order):
-    1. Substring match on the full concept string.
-    2. Per-word fallback for multi-word concepts:
-       a. Normal words (len >= 3, not a function word): substring match.
-       b. Initials containing periods ("j.r.r.", "j.k."): extract each
-          letter and look for exact supernode names or "Say (letter)" names.
+    1. Forward full-concept match: concept string is a substring of the name.
+    2. Per-word matching (works for both single- and multi-word concepts):
+       a. Initials with periods: extract letters, match exact or "Say (X)".
+       b. Normal words (>= 3 chars, not a function word):
+          - Forward: word is a substring of the name.
+          - Reverse: name is a substring of the word (catches fragment
+            supernodes like "Dosto" for concept word "dostoevsky", or digit
+            supernodes like "4" for concept "1984").
     """
-    # 1. Full concept match
+    # 1. Forward full concept match
     matches = grouping_df[names.str.contains(concept_lc, na=False, regex=False)]
     if not matches.empty:
         return matches
 
-    if " " not in concept_lc:
-        return matches  # single word, nothing more to try
-
-    # 2. Per-word fallback
+    # 2. Per-word matching
     words = concept_lc.split()
     all_matches: List[pd.DataFrame] = []
 
@@ -156,9 +173,16 @@ def _match_concept_to_supernodes(
                 if not hit.empty:
                     all_matches.append(hit)
         elif len(word) >= 3 and word not in _FUNCTION_WORDS:
-            hit = grouping_df[names.str.contains(word, na=False, regex=False)]
-            if not hit.empty:
-                all_matches.append(hit)
+            # Forward: word is substring of name
+            fwd = grouping_df[names.str.contains(word, na=False, regex=False)]
+            if not fwd.empty:
+                all_matches.append(fwd)
+            # Reverse: name is substring of word
+            rev = grouping_df[
+                names.apply(lambda n, w=word: _is_reverse_match_candidate(n) and n in w)
+            ]
+            if not rev.empty:
+                all_matches.append(rev)
 
     if all_matches:
         return pd.concat(all_matches).drop_duplicates()

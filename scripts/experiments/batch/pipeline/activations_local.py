@@ -5,6 +5,7 @@ Supports single-seed, multi-seed (model loaded once), and multi-GPU modes.
 import json
 import os
 import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
@@ -25,6 +26,8 @@ def _base_env(config: Dict[str, Any]) -> dict:
     env['CHUNK_BY_LAYER'] = 'true' if local_config.get('chunk_by_layer', True) else 'false'
     env['INCLUDE_ZERO_ACTIVATIONS'] = 'true' if local_config.get('include_zero', False) else 'false'
     env.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'expandable_segments:True')
+    if local_config.get('force_cpu', False):
+        env['CUDA_VISIBLE_DEVICES'] = ''
     return env
 
 
@@ -60,7 +63,7 @@ def process_activations_step(config: Dict[str, Any], seed: Dict[str, Any], paths
 
     try:
         result = subprocess.run(
-            ['python3', str(script_path)],
+            [sys.executable, str(script_path)],
             env=env, capture_output=True, text=True, timeout=3600,
         )
         if result.returncode != 0:
@@ -116,7 +119,7 @@ def _run_one_batch(
     timeout = 3600 * len(batch_states)
     try:
         result = subprocess.run(
-            ['python3', str(script_path)],
+            [sys.executable, str(script_path)],
             env=env, capture_output=False, text=True, timeout=timeout,
         )
     except subprocess.TimeoutExpired:
@@ -188,7 +191,8 @@ def process_activations_batch_local(
         env = _base_env(config)
         env['SEEDS_MANIFEST_PATH'] = str(manifest_path)
         env['PERSIST_SAE_CACHE'] = 'true'
-        if gpus:
+        force_cpu = local_cfg.get('force_cpu', False)
+        if gpus and not force_cpu:
             env['CUDA_VISIBLE_DEVICES'] = str(gpus[0])
         manifest = []
         for state in seed_states:
@@ -206,7 +210,7 @@ def process_activations_batch_local(
         timeout = 3600 * len(seed_states)
         try:
             result = subprocess.run(
-                ['python3', str(script_path)],
+                [sys.executable, str(script_path)],
                 env=env, capture_output=False, text=True, timeout=timeout,
             )
         except subprocess.TimeoutExpired:

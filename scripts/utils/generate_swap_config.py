@@ -21,6 +21,38 @@ import yaml
 
 
 DEFAULT_OUTPUT_DIR = "scripts/experiments/batch/configs"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _check_entity_outputs(name: str, entities: list[dict]) -> dict:
+    """Check which entities already have batch pipeline outputs."""
+    outputs_root = REPO_ROOT / "output" / f"{name}_batch"
+    if not outputs_root.exists():
+        return {"root_exists": False, "with_graphs": 0, "with_grouping": 0,
+                "total": len(entities)}
+
+    with_graphs = 0
+    with_grouping = 0
+    for entity in entities:
+        slug = entity["slug"]
+        entity_dir = outputs_root / slug
+        if not entity_dir.exists():
+            slug_lower = slug.lower()
+            for entry in outputs_root.iterdir():
+                if entry.is_dir() and entry.name.lower() == slug_lower:
+                    entity_dir = entry
+                    break
+        batch_graph = entity_dir / "00 Graph Generation" / "graph.json"
+        flat_graph = entity_dir / "graph.json"
+        if batch_graph.exists() or flat_graph.exists():
+            with_graphs += 1
+        batch_grouping = entity_dir / "02 Node Grouping" / "node_grouping.csv"
+        flat_grouping = entity_dir / "node_grouping.csv"
+        if batch_grouping.exists() or flat_grouping.exists():
+            with_grouping += 1
+
+    return {"root_exists": True, "with_graphs": with_graphs,
+            "with_grouping": with_grouping, "total": len(entities)}
 
 
 def generate_configs(dataset_path: str, output_dir: str | None = None):
@@ -37,7 +69,12 @@ def generate_configs(dataset_path: str, output_dir: str | None = None):
 
     concept_fields = [dataset["swap_concept_field"], dataset["expected_field"]]
 
-    full_config = _build_full_config(dataset)
+    state = _check_entity_outputs(name, dataset["entities"])
+    all_graphs = state["with_graphs"] == state["total"]
+    all_grouping = state["with_grouping"] == state["total"]
+    needs_full_pipeline = not all_graphs or not all_grouping
+
+    full_config = _build_full_config(dataset, skip_graph_generation=all_graphs)
     swap_config = _build_swap_config(name, concept_fields)
 
     full_path = out / f"{name}_full.yml"
@@ -50,6 +87,20 @@ def generate_configs(dataset_path: str, output_dir: str | None = None):
     print(f"Generated : {swap_path}")
     print(f"Entities  : {n_entities}")
     print(f"Matrix    : {n_entities}x{n_entities} = {n_entities**2} swap pairs")
+
+    if not state["root_exists"]:
+        print(f"\nOutputs   : output/{name}_batch/ does not exist")
+        print(f"            Run the full pipeline first:")
+        print(f"            python run_batch_from_yaml.py --config configs/{name}_full.yml")
+    else:
+        print(f"\nOutputs   : {state['with_graphs']}/{state['total']} entities have graphs, "
+              f"{state['with_grouping']}/{state['total']} have grouping")
+        if needs_full_pipeline:
+            missing = state["total"] - state["with_graphs"]
+            print(f"            {missing} entities still need the full pipeline")
+        else:
+            print(f"            All entities processed -- full pipeline can be skipped")
+    print(f"Features  : prepare_features=true (per-pair features.json generated at swap time)")
 
 
 def resolve_dataset_paths(dataset_inputs: list[str]) -> list[Path]:
@@ -100,7 +151,7 @@ def _extract_blacklist_tokens(probe_templates: list[dict]) -> list[str]:
     return sorted(tokens)
 
 
-def _build_full_config(dataset: dict) -> dict:
+def _build_full_config(dataset: dict, *, skip_graph_generation: bool = False) -> dict:
     name = dataset["name"]
     blacklist_tokens = _extract_blacklist_tokens(dataset.get("probe_templates", []))
     return {
@@ -148,8 +199,9 @@ def _build_full_config(dataset: dict) -> dict:
             },
         },
         "steps": {
-            "graph_generation": True,
+            "graph_generation": not skip_graph_generation,
             "feature_export": True,
+            "prepare_features": True,
             "probe_prompts": True,
             "activations": True,
             "grouping": True,
@@ -192,10 +244,11 @@ def _build_swap_config(name: str, concept_fields: list[str]) -> dict:
             "top_k": 5,
             "freeze_attention": False,
             "steer_generated_tokens": False,
+            "track_trajectory": True,
         },
         "compute": {
-            "inherit_from_source": True,
-            "remote": {"enabled": True, "batch_size": 4, "max_gpus": 8},
+            "inherit_from_source": False,
+            "remote": {"enabled": False},
         },
         "steps": {
             "validate_inputs": True,

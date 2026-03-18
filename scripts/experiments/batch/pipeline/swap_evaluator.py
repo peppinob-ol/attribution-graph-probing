@@ -14,6 +14,35 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 
+def _fuzzy_contains(text: str, target: str) -> bool:
+    """Check if *target* appears in *text* after normalising punctuation.
+
+    Catches near-misses like "J.R.R Tolkien" vs "J.R.R. Tolkien".
+    """
+    if not text or not target:
+        return False
+    norm_target = target.replace('.', '').replace('-', ' ').lower()
+    norm_text = text.replace('.', '').replace('-', ' ').lower()
+    return bool(norm_target and norm_target in norm_text)
+
+
+def _first_token_matches(steered_topk: List[Dict[str, Any]],
+                         to_answer: str) -> bool:
+    """Return True when the steered first token is a substring of the target answer.
+
+    Handles subword tokens (e.g. "Dost" matching "Dostoevsky" in
+    "Fyodor Dostoevsky") by checking the full answer string.
+    Requires token length >= 2 to avoid trivial single-char matches.
+    """
+    if not steered_topk or not to_answer:
+        return False
+    steered_first = (steered_topk[0].get('token', '') or '').strip().lower()
+    if len(steered_first) < 2:
+        return False
+    answer_norm = to_answer.replace('.', '').lower()
+    return steered_first in answer_norm
+
+
 def _get_answer_field(concept_fields: Optional[List[str]] = None) -> str:
     """Return the entity field that represents the expected model answer.
 
@@ -66,8 +95,12 @@ def evaluate_swap(
         'exact_match': {
             'default_has_from_answer': bool(from_answer and from_answer in default_out),
             'steered_has_to_answer': bool(to_answer and to_answer in steered_out),
+            'steered_has_to_answer_fuzzy': bool(
+                to_answer and _fuzzy_contains(steered_out, to_answer)),
             'steered_has_from_answer': bool(from_answer and from_answer in steered_out),
             'from_suppressed': bool(from_answer and from_answer not in steered_out),
+            'first_token_matches_target': _first_token_matches(
+                steered_topk, to_answer),
             # Backward-compatible aliases for USA-based analysis code
             'default_has_from_capital': bool(from_answer and from_answer in default_out),
             'steered_has_to_capital': bool(to_answer and to_answer in steered_out),

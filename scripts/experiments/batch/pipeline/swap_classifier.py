@@ -21,13 +21,26 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 
 class SwapTier(IntEnum):
-    """Success tier for swap classification."""
-    WRONG_STATE = 0      # City from unrelated third state
-    SOURCE_PERSISTS = 1  # Source city/state still in output
-    SUPPRESSED_ONLY = 2  # Source gone, but garbled/no geographic content
-    TARGET_STATE_ONLY = 3  # Target state mentioned, no valid city
-    TARGET_STATE_CITY = 4  # Other city in target state (not capital)
-    PERFECT = 5          # Target capital appears
+    """Success tier for swap classification.
+
+    Geography domain (USA states):
+        0 = WRONG_STATE      -- city from unrelated third state
+        1 = SOURCE_PERSISTS  -- source city/state still in output
+        2 = SUPPRESSED_ONLY  -- source gone, garbled / no geographic content
+        3 = TARGET_STATE_ONLY -- target state mentioned, no valid city
+        4 = TARGET_STATE_CITY -- other city in target state (not capital)
+        5 = PERFECT           -- target capital appears
+
+    Generic domain (books, languages, etc.) -- reuses the same numeric
+    scale but tier 3 means "first token of target answer is correct while
+    the full answer diverges" (partial steering success).
+    """
+    WRONG_STATE = 0
+    SOURCE_PERSISTS = 1
+    SUPPRESSED_ONLY = 2
+    TARGET_STATE_ONLY = 3  # Generic: FIRST_TOKEN_MATCH
+    TARGET_STATE_CITY = 4
+    PERFECT = 5
 
 
 class ClassificationMethod(IntEnum):

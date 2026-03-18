@@ -262,13 +262,21 @@ def _run_local_ct_steering(
     env['STEER_SEED'] = str(steering_cfg.get('seed', 42))
     env['TOP_K'] = str(steering_cfg.get('top_k', 5))
     env['FREEZE_ATTENTION'] = 'true' if steering_cfg.get('freeze_attention') else 'false'
+    if steering_cfg.get('track_trajectory'):
+        env['TRACK_TRAJECTORY'] = 'true'
+        tt = steering_cfg.get('target_token')
+        st = steering_cfg.get('source_token')
+        if tt:
+            env['TARGET_TOKEN'] = str(tt)
+        if st:
+            env['SOURCE_TOKEN'] = str(st)
     if gpu_id is not None:
         env['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
     env.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'expandable_segments:True')
 
     try:
         result = subprocess.run(
-            ['python3', str(script_path)],
+            [sys.executable, str(script_path)],
             env=env, capture_output=True, text=True, timeout=timeout,
         )
         if result.returncode != 0:
@@ -358,6 +366,9 @@ def _run_gpu_batch(
     swap_cfg = config.get('swap', {})
     concept_fields = swap_cfg.get('concept_fields')
 
+    answer_field = concept_fields[-1] if concept_fields else 'capital'
+    track_traj = ct_config.get('track_trajectory', False)
+
     batch_dir = work_root / f"_gpu_batch_{gpu_id}"
     batch_dir.mkdir(parents=True, exist_ok=True)
 
@@ -365,7 +376,11 @@ def _run_gpu_batch(
     per_prompt_features: Dict[str, List] = {}
     for pp in batch:
         pid = pp.pair.swap_id
-        prompts.append({"id": pid, "text": pp.prompt})
+        entry: Dict[str, Any] = {"id": pid, "text": pp.prompt}
+        if track_traj:
+            entry["target_token"] = pp.pair.to_entity.get(answer_field, '')
+            entry["source_token"] = pp.pair.from_entity.get(answer_field, '')
+        prompts.append(entry)
         per_prompt_features[pid] = pp.features
 
     prompts_path = batch_dir / "prompts.json"
@@ -385,6 +400,7 @@ def _run_gpu_batch(
         'seed': ct_config.get('seed', 42),
         'top_k': ct_config.get('top_k', 5),
         'freeze_attention': ct_config.get('freeze_attention', False),
+        'track_trajectory': track_traj,
     }
 
     timeout = max(120, len(batch) * 30)

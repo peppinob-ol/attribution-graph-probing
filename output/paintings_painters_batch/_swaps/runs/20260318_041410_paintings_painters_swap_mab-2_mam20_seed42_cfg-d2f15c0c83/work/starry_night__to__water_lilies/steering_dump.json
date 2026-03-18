@@ -1,0 +1,191 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "swap_prompt",
+      "prompt": "<bos>The first name of the painter of The Starry Night is",
+      "steered": "<bos><bos>The first name of the painter of The Starry Night is<bos><strong> Vincent van Gogh</strong> was born in 1",
+      "default": "<bos><bos>The first name of the painter of The Starry Night is Vincent Van Gogh.\n\nVincent Van Gogh was born",
+      "steered_topk": [
+        {
+          "token": "1",
+          "prob": 0.78125
+        },
+        {
+          "token": "<strong>",
+          "prob": 0.197265625
+        },
+        {
+          "token": "3",
+          "prob": 0.005279541015625
+        },
+        {
+          "token": "2",
+          "prob": 0.004241943359375
+        },
+        {
+          "token": "<em>",
+          "prob": 0.003509521484375
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Vincent",
+          "prob": 0.28125
+        },
+        {
+          "token": " Van",
+          "prob": 0.0625
+        },
+        {
+          "token": ":",
+          "prob": 0.048828125
+        },
+        {
+          "token": " ",
+          "prob": 0.048828125
+        },
+        {
+          "token": " not",
+          "prob": 0.048828125
+        }
+      ],
+      "intervention_count": 152,
+      "logit_trajectory": {
+        "tokens": {
+          "target": " Claude",
+          "source": " Vincent",
+          "controls": [
+            " the",
+            " is",
+            " a",
+            " of"
+          ]
+        },
+        "n_positions": -2,
+        "generated_tokens": [
+          "<bos>",
+          "<strong>",
+          " Vincent",
+          " van",
+          " Gogh",
+          "</strong>",
+          " was",
+          " born",
+          " in",
+          " ",
+          "1"
+        ],
+        "trajectories": {
+          "target": {
+            "token": " Claude",
+            "token_id": 46470,
+            "trajectory": {
+              "positions": [],
+              "logits": [],
+              "probs": [],
+              "ranks": []
+            },
+            "summary": {}
+          },
+          "source": {
+            "token": " Vincent",
+            "token_id": 30347,
+            "trajectory": {
+              "positions": [],
+              "logits": [],
+              "probs": [],
+              "ranks": []
+            },
+            "summary": {}
+          },
+          "controls": {
+            " the": {
+              "token": " the",
+              "token_id": 573,
+              "trajectory": {
+                "positions": [],
+                "logits": [],
+                "probs": [],
+                "ranks": []
+              }
+            },
+            " is": {
+              "token": " is",
+              "token_id": 603,
+              "trajectory": {
+                "positions": [],
+                "logits": [],
+                "probs": [],
+                "ranks": []
+              }
+            },
+            " a": {
+              "token": " a",
+              "token_id": 476,
+              "trajectory": {
+                "positions": [],
+                "logits": [],
+                "probs": [],
+                "ranks": []
+              }
+            },
+            " of": {
+              "token": " of",
+              "token_id": 576,
+              "trajectory": {
+                "positions": [],
+                "logits": [],
+                "probs": [],
+                "ranks": []
+              }
+            }
+          }
+        },
+        "summary": {
+          "target_appears_at": null,
+          "source_appears_at": 2,
+          "flip_position": null,
+          "initial_gap": null,
+          "best_gap": null,
+          "final_gap": null,
+          "gap_closure": null,
+          "gap_trajectory": [],
+          "control_stability_mean": null,
+          "control_stability_max": null
+        }
+      },
+      "baseline_logits": {
+        "target": {
+          "logit": 21.875,
+          "prob": 0.006592,
+          "rank": 21
+        },
+        "source": {
+          "logit": 25.625,
+          "prob": 0.28125,
+          "rank": 1
+        }
+      },
+      "position_0_comparison": {
+        "target_logit_delta": null,
+        "source_logit_delta": null,
+        "baseline_gap": -3.75,
+        "steered_gap_0": null,
+        "gap_closure_0": null,
+        "target_rank_improvement": null,
+        "flip_at_0": false
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

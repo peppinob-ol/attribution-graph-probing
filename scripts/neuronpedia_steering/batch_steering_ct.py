@@ -869,22 +869,30 @@ def run_ct_generation(
         steered_text = default_text
         steered_logits = None
 
+    # Detect logits tensor format from circuit_tracer library.
+    # New versions return [1 + gen_steps, vocab] (only last prompt position + generation).
+    # Old versions returned [prompt_len + gen_steps, vocab] (full prompt included).
+    # We detect by comparing the tensor size with the expected size for each format.
+    effective_prompt_in_logits = sequence_length  # default: assume full prompt
+    if steered_logits is not None:
+        steered_ids_for_detect = model.tokenizer.encode(steered_text, add_special_tokens=False)
+        approx_gen_count = max(len(steered_ids_for_detect) - sequence_length, 1)
+        total_logit_positions = steered_logits.squeeze().shape[0]
+        expected_compact = 1 + approx_gen_count
+        expected_full = sequence_length + approx_gen_count
+        if abs(total_logit_positions - expected_compact) < abs(total_logit_positions - expected_full):
+            effective_prompt_in_logits = 1
+
     # Get top-k logits for FIRST generated token
-    # steered_logits from feature_intervention_generate has shape [batch, prompt+generated, vocab]
-    # Position (sequence_length - 1) predicts the first generated token
     steered_topk = []
     if steered_logits is not None:
         with torch.inference_mode():
-            # steered_logits includes both prompt and generated tokens
-            # Position i predicts token i+1, so position (seq_len-1) predicts first new token
-            first_gen_position = sequence_length - 1
+            first_gen_position = effective_prompt_in_logits - 1
             steered_topk = get_topk_logits(steered_logits, model.tokenizer, top_k, position=first_gen_position)
 
     # For default: use baseline logits captured BEFORE generation
-    # This gives us the clean prediction for the first token after the prompt
     default_topk = []
     with torch.inference_mode():
-        # Last position of prompt predicts first generated token
         default_topk = get_topk_logits(baseline_logits, model.tokenizer, top_k, position=-1)
 
     result = {
@@ -905,7 +913,7 @@ def run_ct_generation(
         result["logit_trajectory"] = extract_logit_trajectory(
             logits=steered_logits,
             tokenizer=model.tokenizer,
-            prompt_length=sequence_length,
+            prompt_length=effective_prompt_in_logits,
             target_token=target_token,
             source_token=source_token,
             control_tokens=control_tokens,
@@ -1007,6 +1015,10 @@ def main() -> None:
         prompt_id = item["id"]
         text = item["text"]
 
+        # Per-prompt tokens override global env vars
+        item_target = item.get("target_token", target_token)
+        item_source = item.get("source_token", source_token)
+
         # Combine global and per-prompt features
         feats = list(global_features)
         feats.extend(per_prompt.get(prompt_id, []))
@@ -1023,10 +1035,9 @@ def main() -> None:
             max_new_tokens=args.n_tokens,
             freeze_attention=args.freeze_attention,
             top_k=args.top_k,
-            # Trajectory tracking
             track_trajectory=track_trajectory,
-            target_token=target_token,
-            source_token=source_token,
+            target_token=item_target,
+            source_token=item_source,
             control_tokens=control_tokens,
         )
 
