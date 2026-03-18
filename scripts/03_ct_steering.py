@@ -95,6 +95,76 @@ class CTSteeringResult:
 # ---------------------------------------------------------------------------
 
 
+def _parse_initial_letters(word: str) -> List[str]:
+    """Extract unique letters from an initial-like token.
+
+    "j.r.r." -> ["j", "r"]
+    "j.k."   -> ["j", "k"]
+    "f."     -> ["f"]
+    Returns empty list if the word doesn't look like an initial.
+    """
+    if "." not in word:
+        return []
+    letters = [ch for ch in word if ch.isalpha()]
+    seen: set = set()
+    unique: List[str] = []
+    for letter in letters:
+        if letter not in seen:
+            seen.add(letter)
+            unique.append(letter)
+    return unique
+
+
+_FUNCTION_WORDS = frozenset({"a", "an", "at", "by", "de", "di", "du", "el",
+                              "in", "la", "le", "of", "on", "or", "the", "to",
+                              "van", "von", "y"})
+
+
+def _match_concept_to_supernodes(
+    grouping_df: pd.DataFrame,
+    names: "pd.Series",
+    concept_lc: str,
+) -> pd.DataFrame:
+    """Find rows in grouping_df whose supernode_name matches *concept_lc*.
+
+    Strategy (in order):
+    1. Substring match on the full concept string.
+    2. Per-word fallback for multi-word concepts:
+       a. Normal words (len >= 3, not a function word): substring match.
+       b. Initials containing periods ("j.r.r.", "j.k."): extract each
+          letter and look for exact supernode names or "Say (letter)" names.
+    """
+    # 1. Full concept match
+    matches = grouping_df[names.str.contains(concept_lc, na=False, regex=False)]
+    if not matches.empty:
+        return matches
+
+    if " " not in concept_lc:
+        return matches  # single word, nothing more to try
+
+    # 2. Per-word fallback
+    words = concept_lc.split()
+    all_matches: List[pd.DataFrame] = []
+
+    for word in words:
+        initial_letters = _parse_initial_letters(word)
+        if initial_letters:
+            for letter in initial_letters:
+                hit = grouping_df[
+                    names.eq(letter) | names.eq(f"say ({letter})")
+                ]
+                if not hit.empty:
+                    all_matches.append(hit)
+        elif len(word) >= 3 and word not in _FUNCTION_WORDS:
+            hit = grouping_df[names.str.contains(word, na=False, regex=False)]
+            if not hit.empty:
+                all_matches.append(hit)
+
+    if all_matches:
+        return pd.concat(all_matches).drop_duplicates()
+    return matches  # still empty
+
+
 def extract_ct_supernode(
     grouping_df: pd.DataFrame,
     metrics_df: pd.DataFrame,
@@ -105,13 +175,15 @@ def extract_ct_supernode(
     position_col: str = "position",
 ) -> CTSupernodeSpec:
     """
-    Extract every feature whose supernode name contains ``concept`` (case-insensitive).
+    Extract every feature whose supernode name matches ``concept``.
 
-    Similar to extract_concept_supernode but returns CTFeatureRef with position info.
-    
-    For multi-word concepts (e.g., "new york"), tries:
-    1. Full concept match first
-    2. If no match, tries each word separately and combines results
+    Matching strategy (case-insensitive):
+    1. Full concept substring match (e.g. "tolkien" in "Say (Tolkien)").
+    2. Per-word fallback for multi-word concepts:
+       - Normal words (>= 3 chars): substring match.
+       - Initials with periods ("j.r.r."): extract each letter and match
+         exact supernode names ("j") or Say patterns ("say (j)").
+       - Common function words ("of", "the", "de", ...) are skipped.
     """
     if not concept.strip():
         raise ValueError("Concept string must be non-empty.")
@@ -120,22 +192,8 @@ def extract_ct_supernode(
     if supernode_col not in grouping_df.columns:
         raise KeyError(f"Column '{supernode_col}' not found in grouping dataframe.")
 
-    # Prepare lowercase view for matching
     names = grouping_df[supernode_col].astype(str).str.lower()
-    
-    # First try full concept match
-    matches = grouping_df[names.str.contains(concept_lc, na=False, regex=False)]
-
-    # If no matches and concept has multiple words, try each word
-    if matches.empty and ' ' in concept_lc:
-        words = concept_lc.split()
-        all_matches = []
-        for word in words:
-            if len(word) >= 3:  # Skip short words like "of", "the", etc.
-                word_matches = grouping_df[names.str.contains(word, na=False, regex=False)]
-                all_matches.append(word_matches)
-        if all_matches:
-            matches = pd.concat(all_matches).drop_duplicates()
+    matches = _match_concept_to_supernodes(grouping_df, names, concept_lc)
 
     if matches.empty:
         raise ValueError(

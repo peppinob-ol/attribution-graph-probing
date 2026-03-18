@@ -8,7 +8,7 @@ from fasthtml.common import (
 )
 
 
-def home_routes(app, rt, data_loader, annotate_mode: bool = False):
+def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None):
     """Register home page routes."""
     
     @rt("/")
@@ -17,6 +17,9 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
         stats = data_loader.get_stats()
         analysis = data_loader.get_analysis()
         insights = analysis.get('insights', [])
+        dc = data_loader.get_domain_config()
+        page_title = dc.get('display_name', 'Swap Explorer')
+        is_usa = dc.get('is_usa_states', True)
         
         aggregate = stats.get('aggregate', {})
         perfect_rate = aggregate.get('perfect_rate', 0) * 100
@@ -30,7 +33,7 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
         
         return Html(
             Head(
-                Title("State Swap Explorer"),
+                Title(f"{page_title} - Swap Explorer"),
                 Meta(charset="UTF-8"),
                 Meta(name="viewport", content="width=device-width, initial-scale=1.0"),
                 Link(rel="stylesheet", href="/static/css/tailwind.css"),
@@ -53,7 +56,7 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                                 cls="text-2xl font-bold bg-clip-text text-transparent mobile-title",
                                 style="background-image: linear-gradient(to right, #0A4FFF, #3D7DFF);"
                             )(
-                                "State Swap Explorer"
+                                f"{page_title} Swap Explorer"
                             ),
                             Span(cls="text-xs px-2 py-1 bg-slate-800 rounded-full text-slate-400 hidden-mobile")(
                                 "Circuit Steering Demo"
@@ -61,8 +64,8 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                             annotate_badge,
                         ),
                         Nav(cls="flex items-center gap-4")(
-                            # Run selector dropdown
-                            _run_selector(data_loader),
+                            # Run selector dropdown (groups by dataset when registry is active)
+                            _run_selector(data_loader, registry=registry),
                             Button(
                                 id="about-btn",
                                 cls="text-slate-300 hover:text-white transition-colors"
@@ -122,9 +125,9 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                                 H3(cls="text-sm font-semibold text-slate-400 mb-3")("TIER LEGEND"),
                                 Div(cls="space-y-2")(
                                     _legend_item("T5", "PERFECT", "#0A4FFF"),
-                                    _legend_item("T4", "State + City", "#3D7DFF"),
-                                    _legend_item("T3", "State Only", "#AFCBFF"),
-                                    _legend_item("W", "Wrong State", "#FFE8E8"),
+                                    _legend_item("T4", "Partial + Answer", "#3D7DFF"),
+                                    _legend_item("T3", "Partial", "#AFCBFF"),
+                                    _legend_item("W", "Wrong Answer", "#FFE8E8"),
                                     _legend_item("T2", "Suppressed", "#FF7373"),
                                     _legend_item("T1", "Source Persists", "#C00000"),
                                 ),
@@ -182,17 +185,16 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                                 P(cls="text-slate-300 leading-relaxed")(
                                     "An interactive demo exploring whether ",
                                     Span(cls="text-cyan-400 font-medium")("internal-state swaps"),
-                                    " inside Gemma-2-2B can redirect geographical outputs from one US state to another."
+                                    " can redirect model outputs from one concept to another."
                                 ),
                                 P(cls="text-slate-400 text-sm leading-relaxed")(
-                                    "The matrix visualizes ",
-                                    Span(cls="text-white")("2,500 pairwise steering experiments"),
-                                    " across all 50 states. Each cell represents an attempt to redirect the model from a source state (row) to a target state (column), ",
+                                    "The matrix visualizes pairwise steering experiments. ",
+                                    "Each cell represents an attempt to redirect the model from a source entity (row) to a target entity (column), ",
                                     "evaluated on a tiered scale from T5 (perfect redirection) to T1 (source persists)."
                                 ),
                                 P(cls="text-slate-400 text-sm leading-relaxed")(
-                                    "This is a working investigation into the geometry and causal structure of concept steering in small LLMs, ",
-                                    "with focus on how latent representations respond to controlled interventions on geographical entities."
+                                    "This is a working investigation into the geometry and causal structure of concept steering in LLMs, ",
+                                    "with focus on how latent representations respond to controlled interventions."
                                 ),
                             ),
                             # Steering method
@@ -201,30 +203,28 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                                 P(cls="text-slate-300 text-sm leading-relaxed mb-2")(
                                     "Each swap uses ",
                                     A(href="https://www.lesswrong.com/posts/zQqGhKPqaCBZZDCge/automated-circuit-interpretation-via-probe-prompting", target="_blank", cls="text-cyan-400 hover:underline")("Probe Prompting"),
-                                    " to identify state-related features via ",
-                                    A(href="https://www.neuronpedia.org/gemma-2-2b/clt-hp", target="_blank", cls="text-cyan-400 hover:underline")("CLT transcoders"),
-                                    ". We then use ", 
+                                    " to identify concept-related features via CLT transcoders. We then use ",
                                     A(href="https://github.com/safety-research/circuit-tracer", target="_blank", cls="text-cyan-400 hover:underline")("Circuit Tracer"),
-                                    " to suppress source-state activations while amplifying target-state features during generation. Steering configuration: "
+                                    " to suppress source activations while amplifying target features during generation."
                                 ),
                                 P(cls="text-slate-500 text-xs mb-3")(
                                     "Model: ",
-                                    A(href="https://huggingface.co/mntss/clt-gemma-2-2b-2.5M", target="_blank", cls="text-slate-400 hover:underline")("mntss/clt-gemma-2-2b-2.5M"),
+                                    Span(cls="text-slate-400")(dc.get('model_id', '') or "N/A"),
                                 ),
                                 Div(cls="font-mono text-xs bg-slate-900/50 rounded p-3 space-y-1")(
                                     Div(cls="flex items-center gap-3")(
                                         Span(cls="text-slate-500 w-28")("Source features"),
-                                        Span(cls="text-red-400")("ablate -2x"),
+                                        Span(cls="text-red-400")(f"ablate {dc.get('m_ablate', -2)}x"),
                                         Span(cls="text-slate-600 text-[10px]")("(reverse direction)"),
                                     ),
                                     Div(cls="flex items-center gap-3")(
                                         Span(cls="text-slate-500 w-28")("Target features"),
-                                        Span(cls="text-emerald-400")("amplify +20x"),
+                                        Span(cls="text-emerald-400")(f"amplify +{dc.get('m_amplify', 20)}x"),
                                         Span(cls="text-slate-600 text-[10px]")("(boost activation)"),
                                     ),
                                     Div(cls="flex items-center gap-3")(
                                         Span(cls="text-slate-500 w-28")("Generation"),
-                                        Span(cls="text-slate-300")("10 tokens, temp 0.3"),
+                                        Span(cls="text-slate-300")(f"{dc.get('n_tokens', 10)} tokens, temp {dc.get('temperature', 0.3)}"),
                                     ),
                                 ),
                             ),
@@ -305,37 +305,22 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False):
                 
                 # Scripts
                 Script(src="/static/islands/islands.js?v=10", type="module"),
-                # Run selector script
+                # Run selector script (handles cross-dataset switching)
                 Script("""
                     (function() {
-                        const selector = document.getElementById('run-selector');
-                        if (selector) {
-                            selector.addEventListener('change', async function(e) {
-                                const runId = e.target.value;
-                                selector.disabled = true;
-                                selector.style.opacity = '0.5';
-                                
-                                try {
-                                    const response = await fetch('/api/runs/' + runId, {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' }
-                                    });
-                                    
-                                    if (response.ok) {
-                                        // Reload page to show new data
-                                        window.location.reload();
-                                    } else {
-                                        console.error('Failed to switch run');
-                                        selector.disabled = false;
-                                        selector.style.opacity = '1';
-                                    }
-                                } catch (err) {
-                                    console.error('Error switching run:', err);
-                                    selector.disabled = false;
-                                    selector.style.opacity = '1';
-                                }
-                            });
-                        }
+                        var sel = document.getElementById('run-selector');
+                        if (!sel) return;
+                        sel.addEventListener('change', async function(e) {
+                            sel.disabled = true;
+                            sel.style.opacity = '0.5';
+                            try {
+                                var r = await fetch('/api/runs/' + e.target.value, {
+                                    method: 'POST'
+                                });
+                                if (r.ok) { window.location.href = '/?t=' + Date.now(); }
+                                else { sel.disabled = false; sel.style.opacity = '1'; }
+                            } catch (_) { sel.disabled = false; sel.style.opacity = '1'; }
+                        });
                     })();
                 """),
                 # About modal script
@@ -459,27 +444,59 @@ def _about_link(title: str, desc: str, url: str, icon_type: str):
     )
 
 
-def _run_selector(data_loader):
-    """Render run selector dropdown."""
-    runs = data_loader.list_runs()
+def _run_selector(data_loader, registry=None):
+    """Render run selector dropdown, grouped by dataset when registry is active."""
     current_run = data_loader.get_current_run()
-    
-    if not runs:
+
+    if registry is not None:
+        all_runs = registry.list_all_runs()
+    else:
+        all_runs = data_loader.list_runs()
+
+    if not all_runs:
         return Span(cls="text-xs text-slate-500")("No runs available")
-    
-    # Build options
+
+    def _short_label(run):
+        label = run.get("dataset_label", "")
+        count = run.get("swap_count", 0)
+        if label:
+            return f"{label} ({count} swaps)"
+        name = run.get("name", run["id"])
+        return f"{name} ({count})"
+
+    # Group runs by dataset_label (or flat list if no label)
+    from collections import OrderedDict
+    groups = OrderedDict()
+    for run in all_runs:
+        key = run.get("dataset_label", "")
+        groups.setdefault(key, []).append(run)
+
     options = []
-    for run in runs:
-        label = f"{run['name']} ({run['swap_count']})"
-        if run['has_trajectory']:
-            label += " [T]"  # Trajectory indicator
-        options.append(
-            Option(
-                value=run['id'],
-                selected=(run['id'] == current_run)
-            )(label)
-        )
-    
+    if len(groups) <= 1:
+        for run in all_runs:
+            options.append(Option(
+                value=run["id"],
+                selected=(run["id"] == current_run),
+            )(_short_label(run)))
+    else:
+        for ds_label, runs in groups.items():
+            group_options = []
+            for run in runs:
+                group_options.append(Option(
+                    value=run["id"],
+                    selected=(run["id"] == current_run),
+                )(_short_label(run)))
+            # NotStr to emit raw <optgroup> since fasthtml doesn't ship Optgroup
+            inner = "".join(
+                f'<option value="{r["id"]}"'
+                f'{" selected" if r["id"] == current_run else ""}>'
+                f'{_short_label(r)}</option>'
+                for r in runs
+            )
+            options.append(NotStr(
+                f'<optgroup label="{ds_label}">{inner}</optgroup>'
+            ))
+
     return Div(cls="flex items-center gap-2")(
         Span(cls="text-xs text-slate-500 hidden-mobile")("Run:"),
         Select(

@@ -102,16 +102,20 @@ if "HF_TOKEN" not in os.environ:
 # ---------------------------------------------------------------------------------------------------------
 
 # ========================= verifica preliminare file input (prima di caricare modello) ===================
-if not os.path.exists(PROMPTS_JSON_PATH):
-    raise FileNotFoundError(f"File prompts non trovato: {PROMPTS_JSON_PATH}")
-if not os.path.exists(FEATURES_JSON_PATH):
-    raise FileNotFoundError(f"File features non trovato: {FEATURES_JSON_PATH}")
-print(f"✓ File input verificati:\n  - {PROMPTS_JSON_PATH}\n  - {FEATURES_JSON_PATH}")
+_MULTI_SEED = bool(os.environ.get("SEEDS_MANIFEST_PATH"))
+if not _MULTI_SEED:
+    if not os.path.exists(PROMPTS_JSON_PATH):
+        raise FileNotFoundError(f"File prompts non trovato: {PROMPTS_JSON_PATH}")
+    if not os.path.exists(FEATURES_JSON_PATH):
+        raise FileNotFoundError(f"File features non trovato: {FEATURES_JSON_PATH}")
+    print(f"Input verificati:\n  - {PROMPTS_JSON_PATH}\n  - {FEATURES_JSON_PATH}")
+else:
+    print(f"Multi-seed mode: input validation deferred to per-seed processing")
 
 # ========================= clona repo neuronpedia e setta sys.path =======================================
 REPO_URL = "https://github.com/hijohnnylin/neuronpedia.git"
 # Base directory per il clone del repo; su Colab di default è /content, su nodi remoti usa NP_WORKDIR
-REPO_BASE = os.environ.get("NP_WORKDIR", "/content")
+REPO_BASE = os.environ.get("NP_WORKDIR", os.path.join(os.path.expanduser("~"), ".cache", "neuronpedia_workdir"))
 REPO_DIR = os.path.join(REPO_BASE, "neuronpedia")
 
 if not os.path.exists(REPO_DIR):
@@ -202,15 +206,21 @@ if hasattr(shutil, 'disk_usage'):
         print(f"   I SAE clt-hp richiedono ~10-15 GB temporanei per layer durante il download")
         print(f"   Lo script procederà comunque - i layer verranno scaricati/eliminati uno alla volta")
 
-# CLEANUP GPU
+# CLEANUP GPU (use current device so we respect CUDA_VISIBLE_DEVICES when set by parent)
 if torch.cuda.is_available():
+    cuda_dev = torch.cuda.current_device()
     print("\nPulizia memoria GPU prima di iniziare...")
     torch.cuda.empty_cache()
     gc.collect()
 
     mem_free_gb = torch.cuda.mem_get_info()[0] / 1024**3
     mem_total_gb = torch.cuda.mem_get_info()[1] / 1024**3
-    print(f"  GPU: {torch.cuda.get_device_name(0)}")
+    gpu_name = torch.cuda.get_device_name(cuda_dev)
+    cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES", "")
+    if cuda_visible:
+        print(f"  GPU (pinned): {gpu_name} [CUDA_VISIBLE_DEVICES={cuda_visible}]")
+    else:
+        print(f"  GPU: {gpu_name}")
     print(f"  Memoria libera: {mem_free_gb:.2f} GB / {mem_total_gb:.2f} GB totali")
 
     # Check se c'è abbastanza memoria (gemma-2-2b richiede ~5-6 GB)
@@ -636,39 +646,29 @@ def run_layer_by_layer_all_prompts(prompts: list[dict], wanted_features: list[di
 
 # ========================= carica input, esegui per tutti i prompt, salva JSON ===========================
 
-try:
-    print(f"\n{'='*60}")
-    print(f"Caricamento input files...")
-    prompts = load_prompts(PROMPTS_JSON_PATH)
-    features = load_features(FEATURES_JSON_PATH, SOURCE_SET)
-    print(f"✓ {len(prompts)} prompt(s), {len(features)} feature(s)")
+def process_single_seed(prompts_path, features_path, output_path):
+    """Process a single seed: load inputs, run activations, save output."""
+    prompts = load_prompts(prompts_path)
+    features = load_features(features_path, SOURCE_SET)
+    print(f"  {len(prompts)} prompt(s), {len(features)} feature(s)")
 
     if CHUNK_BY_LAYER:
-        # OTTIMIZZAZIONE: processa layer-by-layer per tutti i prompt insieme
-        # Questo minimizza i re-download (ogni layer viene scaricato 1 sola volta)
         results = run_layer_by_layer_all_prompts(prompts, features)
-        
-        # Stampa riepilogo per prompt
         print(f"\n{'='*60}")
         print(f"Riepilogo risultati:")
         for i, res in enumerate(results, 1):
             print(f"  [{i}/{len(results)}] {res['probe_id']}: {len(res['activations'])} attivazioni, {len(res['tokens'])} token")
     else:
-        # Metodo classico: tutti i layer insieme per ogni prompt
         results = []
         for i, p in enumerate(prompts, 1):
             pid, text = p["id"], p["text"]
             print(f"\n[{i}/{len(prompts)}] Processando prompt '{pid}'...")
             print(f"  Text: {text[:60]}{'...' if len(text) > 60 else ''}")
-
             res = run_all_for_prompt(text, features)
-
-            print(f"  ✓ {len(res['activations'])} attivazioni trovate, {len(res['tokens'])} token")
+            print(f"  {len(res['activations'])} attivazioni trovate, {len(res['tokens'])} token")
             results.append({
-                "probe_id": pid,
-                "prompt": text,
-                "tokens": res["tokens"],
-                "counts": res["counts"],
+                "probe_id": pid, "prompt": text,
+                "tokens": res["tokens"], "counts": res["counts"],
                 "activations": res["activations"],
             })
 
@@ -680,31 +680,67 @@ try:
         "n_features_requested": len(features),
         "results": results,
     }
-
-    with open(OUT_JSON_PATH, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
 
-    print(f"\n{'='*60}")
-    print(f"✔ COMPLETATO!")
-    print(f"{'='*60}")
-    print(f"File salvato: {OUT_JSON_PATH}")
-    print(f"Statistiche:")
-    print(f"  - Prompt processati: {len(results)}")
-    print(f"  - Features richieste: {len(features)}")
-    print(f"  - Modello: {MODEL_ID}")
-    print(f"  - SAE set: {SOURCE_SET}")
-    print(f"  - Device: {out['device']}")
+    file_size_mb = os.path.getsize(output_path) / (1024 * 1024)
+    print(f"  Saved: {output_path} ({file_size_mb:.2f} MB)")
+    return True
 
-    # Dimensione file
-    file_size_mb = os.path.getsize(OUT_JSON_PATH) / (1024 * 1024)
-    print(f"  - Dimensione output: {file_size_mb:.2f} MB")
+
+# ========================= execution: single-seed or multi-seed via manifest ==============================
+SEEDS_MANIFEST_PATH = os.environ.get("SEEDS_MANIFEST_PATH")
+
+if SEEDS_MANIFEST_PATH:
+    # Multi-seed mode: model loaded once, process each seed sequentially
+    with open(SEEDS_MANIFEST_PATH, "r", encoding="utf-8") as f:
+        manifest = json.load(f)
+
+    total = len(manifest)
+    succeeded, failed_slugs = 0, []
+    print(f"\n{'='*60}")
+    print(f"MULTI-SEED MODE: {total} seed(s)")
     print(f"{'='*60}")
 
-except Exception as e:
+    for i, entry in enumerate(manifest, 1):
+        slug = entry["slug"]
+        print(f"\n[{i}/{total}] Seed: {slug}")
+        print("-" * 60)
+        try:
+            process_single_seed(entry["prompts_json"], entry["features_json"], entry["output_json"])
+            succeeded += 1
+        except Exception as e:
+            print(f"  FAILED: {e}")
+            traceback.print_exc()
+            failed_slugs.append(slug)
+
     print(f"\n{'='*60}")
-    print(f"✗ ERRORE!")
+    print(f"MULTI-SEED COMPLETE: {succeeded}/{total} succeeded")
+    if failed_slugs:
+        print(f"Failed: {', '.join(failed_slugs)}")
     print(f"{'='*60}")
-    print(f"Messaggio: {e}")
-    print(f"\nStack trace completo:")
-    traceback.print_exc()
-    print(f"{'='*60}")
+
+    # Write per-seed results to a status file next to the manifest
+    status_path = SEEDS_MANIFEST_PATH.replace(".json", "_status.json")
+    status = {e["slug"]: e["slug"] not in failed_slugs for e in manifest}
+    with open(status_path, "w", encoding="utf-8") as f:
+        json.dump(status, f, indent=2)
+
+    sys.exit(1 if failed_slugs else 0)
+
+else:
+    # Single-seed mode (original behavior)
+    try:
+        print(f"\n{'='*60}")
+        print(f"Caricamento input files...")
+        process_single_seed(PROMPTS_JSON_PATH, FEATURES_JSON_PATH, OUT_JSON_PATH)
+        print(f"\n{'='*60}")
+        print(f"COMPLETATO!")
+        print(f"{'='*60}")
+    except Exception as e:
+        print(f"\n{'='*60}")
+        print(f"ERRORE: {e}")
+        print(f"{'='*60}")
+        traceback.print_exc()
+        sys.exit(1)

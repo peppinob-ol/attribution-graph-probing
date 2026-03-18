@@ -35,8 +35,10 @@ def generate_configs(dataset_path: str, output_dir: str | None = None):
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
+    concept_fields = [dataset["swap_concept_field"], dataset["expected_field"]]
+
     full_config = _build_full_config(dataset)
-    swap_config = _build_swap_config(name)
+    swap_config = _build_swap_config(name, concept_fields)
 
     full_path = out / f"{name}_full.yml"
     swap_path = out / f"{name}_swap.yml"
@@ -88,8 +90,19 @@ def resolve_dataset_paths(dataset_inputs: list[str]) -> list[Path]:
     return unique_paths
 
 
+def _extract_blacklist_tokens(probe_templates: list[dict]) -> list[str]:
+    """Derive blacklist tokens from probe template prefixes (text before ':')."""
+    tokens = {"<bos>"}
+    for tpl in probe_templates:
+        text = tpl.get("text", "")
+        if ":" in text:
+            tokens.add(text.split(":")[0].strip())
+    return sorted(tokens)
+
+
 def _build_full_config(dataset: dict) -> dict:
     name = dataset["name"]
+    blacklist_tokens = _extract_blacklist_tokens(dataset.get("probe_templates", []))
     return {
         "version": 0.1,
         "experiment_name": f"{name}_batch",
@@ -104,6 +117,44 @@ def _build_full_config(dataset: dict) -> dict:
             "mode": "templated",
             "templated": {"templates": dataset.get("probe_templates", [])},
         },
+        "get_activations": {
+            "backend": "local",
+            "local": {
+                "chunk_by_layer": True,
+                "include_zero": False,
+                "gpus": [0, 1, 2, 3, 4, 5, 6, 7],
+                "batch_size": 2,
+            },
+        },
+        "grouping": {
+            "enabled": True,
+            "window": 7,
+            "blacklist_tokens": blacklist_tokens,
+            "thresholds": {
+                "dict_peak_consistency_min": 0.8,
+                "dict_n_distinct_peaks_max": 1,
+                "sayx_func_vs_sem_min": 50.0,
+                "sayx_layer_min": 7,
+                "rel_sparsity_max": 0.45,
+                "sem_layer_max": 3,
+                "sem_conf_s_min": 0.50,
+                "sem_func_vs_sem_max": 50.0,
+            },
+            "upload": {
+                "enabled": True,
+                "api_key_env": "NEURONPEDIA_API_KEY",
+                "display_name_template": "{slug} (auto-grouped)",
+                "overwrite_id": "",
+            },
+        },
+        "steps": {
+            "graph_generation": True,
+            "feature_export": True,
+            "probe_prompts": True,
+            "activations": True,
+            "grouping": True,
+            "upload_subgraph": True,
+        },
         "graph_generation": {
             "enabled": True,
             "seeds_mode": "templated",
@@ -116,7 +167,7 @@ def _build_full_config(dataset: dict) -> dict:
     }
 
 
-def _build_swap_config(name: str) -> dict:
+def _build_swap_config(name: str, concept_fields: list[str]) -> dict:
     return {
         "version": 0.1,
         "experiment_name": f"{name}_swap",
@@ -124,7 +175,11 @@ def _build_swap_config(name: str) -> dict:
             "source_config": f"configs/{name}_full.yml",
             "graphs_root": f"output/{name}_batch",
         },
-        "swap": {"mode": "matrix", "include_identity": True},
+        "swap": {
+            "mode": "matrix",
+            "include_identity": True,
+            "concept_fields": concept_fields,
+        },
         "ct_steering": {
             "model_id": "google/gemma-2-2b",
             "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",

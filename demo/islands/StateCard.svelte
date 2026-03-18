@@ -6,6 +6,11 @@
   const CYAN         = '#22d3ee';
   const SLATE        = '#475569';
 
+  let domainConfig = null;
+  $: isUsaStates = domainConfig?.is_usa_states ?? true;
+  $: entityFields = domainConfig?.entity_fields || [];
+  $: answerLabel = domainConfig?.answer_field || 'capital';
+
   const tierColors = {
     5:    { bg: '#0A4FFF', hover: '#3D7DFF' },
     4:    { bg: '#3D7DFF', hover: '#6B9FFF' },
@@ -50,11 +55,11 @@
     if (np > 0.50)           w.push({ text: 'High native prob', color: '#fbbf24' });
     if ((d.supernodes || 0) > 280) w.push({ text: 'High supernode count', color: '#fbbf24' });
     if (d.capital_is_top_logit === false && d.capital_in_logits === true)
-      w.push({ text: 'Capital not top logit', color: '#f87171' });
+      w.push({ text: `${answerLabel} not top logit`, color: '#f87171' });
     if (d.capital_in_logits === false)
-      w.push({ text: 'Capital absent from logits', color: '#f87171' });
+      w.push({ text: `${answerLabel} absent from logits`, color: '#f87171' });
     if (d.has_token_overlap)
-      w.push({ text: 'Token overlap (city has state name)', color: '#f87171' });
+      w.push({ text: 'Token overlap', color: '#f87171' });
     return w;
   }
 
@@ -63,7 +68,8 @@
     const snLayers = d.supernode_layer_counts || {};
     const maxCount = Math.max(...Object.values(layers), 1);
     const rows = [];
-    for (let layer = 22; layer >= 0; layer--) {
+    const layerNums = Object.keys(layers).map(Number).sort((a, b) => b - a);
+    for (const layer of layerNums) {
       const total = layers[layer] || 0;
       if (total === 0) continue;
       const sn = snLayers[layer] || 0;
@@ -214,9 +220,16 @@
     show(e.detail.slug);
   }
 
-  onMount(() => {
+  onMount(async () => {
     document.addEventListener('show-state-card', handleShowStateCard);
     document.addEventListener('keydown', handleKeydown);
+    try {
+      const res = await fetch('/api/config');
+      if (res.ok) {
+        const cfg = await res.json();
+        domainConfig = cfg.domain || null;
+      }
+    } catch {}
   });
 
   onDestroy(() => {
@@ -260,7 +273,7 @@
           </button>
 
           <div class="flex-1 text-center leading-tight">
-            <h2 class="text-xl font-bold text-white mb-0">{data.state}</h2>
+            <h2 class="text-xl font-bold text-white mb-0">{data.label || data.state}</h2>
             {#if data.neuronpedia_url}
               <button
                 class="subgraph-btn px-2 py-0 rounded text-xs bg-cyan-900/40 hover:bg-cyan-900/60 text-cyan-400 border border-cyan-700/60 transition-colors"
@@ -269,9 +282,16 @@
               >view subgraph</button>
             {/if}
             <div class="text-sm text-slate-400">
-              <span>Capital: <span class="text-emerald-400">{data.capital || '?'}</span></span>
-              <span class="mx-2 text-slate-600">|</span>
-              <span>City: {data.city}</span>
+              {#if data.fields && Object.keys(data.fields).length > 0}
+                {#each Object.entries(data.fields) as [field, value], i}
+                  {#if i > 0}<span class="mx-2 text-slate-600">|</span>{/if}
+                  <span class="capitalize">{field}: <span class={field === answerLabel ? 'text-emerald-400' : ''}>{value || '?'}</span></span>
+                {/each}
+              {:else}
+                <span>Capital: <span class="text-emerald-400">{data.capital || '?'}</span></span>
+                <span class="mx-2 text-slate-600">|</span>
+                <span>City: {data.city}</span>
+              {/if}
             </div>
             {#if warnings.length > 0}
               <div class="flex flex-wrap gap-1 mt-2 justify-center">
@@ -328,7 +348,7 @@
             {/if}
           </div>
           <div class="p-3 rounded-lg bg-slate-800/50">
-            <div class="text-xs text-slate-500 uppercase mb-1">State Features</div>
+            <div class="text-xs text-slate-500 uppercase mb-1">Concept Features</div>
             <div class="text-lg font-bold text-cyan-400">{data.supernode_feature_count || 0}</div>
             <div class="text-xs text-slate-600">{data.pinned_nodes || 0} pinned features / {data.supernodes || 0} supernodes</div>
           </div>
@@ -378,7 +398,7 @@
               <div class="flex items-center gap-3 text-xs">
                 <span class="flex items-center gap-1">
                   <span class="w-2 h-2 rounded" style="background: {CYAN};"></span>
-                  <span class="text-slate-500">State ({data.supernode_feature_count || 0})</span>
+                  <span class="text-slate-500">Concept ({data.supernode_feature_count || 0})</span>
                 </span>
                 <span class="flex items-center gap-1">
                   <span class="w-2 h-2 rounded" style="background: {SLATE};"></span>
@@ -401,10 +421,9 @@
           </div>
         {/if}
 
-        <!-- Token overlap warning -->
         {#if data.has_token_overlap}
           <div class="mt-3 px-3 py-2 bg-amber-900/30 border border-amber-700/50 rounded text-xs text-amber-400 mb-4">
-            Token overlap: city name contains state name
+            Token overlap detected
           </div>
         {/if}
 

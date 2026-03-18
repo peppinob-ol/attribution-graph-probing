@@ -1,5 +1,5 @@
 """
-State profile page route
+Entity profile page route
 """
 from fasthtml.common import (
     Html, Head, Body, Title, Link, Script, Meta,
@@ -13,7 +13,7 @@ def state_routes(app, rt, data_loader):
     
     @rt("/state/{slug}")
     def state_profile(slug: str):
-        """State profile page."""
+        """Entity profile page."""
         states = data_loader.get_states()
         state = next((s for s in states if s['slug'] == slug), None)
         
@@ -21,7 +21,7 @@ def state_routes(app, rt, data_loader):
             return Html(
                 Body(cls="min-h-screen bg-slate-950 text-white flex items-center justify-center")(
                     Div(cls="text-center")(
-                        H1(cls="text-4xl font-bold text-red-500")("State Not Found"),
+                        H1(cls="text-4xl font-bold text-red-500")("Entity Not Found"),
                         A(href="/", cls="text-cyan-400 hover:underline mt-4 block")("Back to Matrix"),
                     ),
                 ),
@@ -48,7 +48,7 @@ def state_routes(app, rt, data_loader):
         
         return Html(
             Head(
-                Title(f"{state['state']} - State Swap Explorer"),
+                Title(f"{state.get('label', state.get('state', slug))} - Swap Explorer"),
                 Meta(charset="UTF-8"),
                 Meta(name="viewport", content="width=device-width, initial-scale=1.0"),
                 Link(rel="stylesheet", href="/static/css/tailwind.css"),

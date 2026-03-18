@@ -1,13 +1,19 @@
 """
-Data loader for swap experiment results.
+Data loader for swap experiment results (domain-agnostic).
 
-Reads from output/usa_states_batch/ directory structure:
+Reads from output/<domain>_batch/ directory structure:
 - _swaps/runs/{run_id}/by_source/*/to_*.json - Swap details (run-specific)
-- _swaps/by_source/*/to_*.json - Swap details (legacy fallback)
-- _swaps/_analysis_v3/*.json - Analysis data
-- */manifest.json - Neuronpedia URLs
+- _swaps/runs/{run_id}/config_resolved.json  - Domain & model metadata
+- _swaps/_analysis_v3/*.json                 - Analysis data
+- */manifest.json                            - Neuronpedia URLs
 
-Supports multiple experiment runs via run_id parameter.
+Supports multiple experiment runs and auto-detects domain fields
+(e.g. state/capital, character/author) from config_resolved.json.
+
+Multi-dataset discovery:
+    DemoRegistry scans output/* for run_manifest.json files that carry
+    "display_demo": true and groups them by dataset (graphs_root).  The
+    demo can then switch both dataset and run without restarting the server.
 """
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -15,6 +21,216 @@ import json
 import csv
 from functools import lru_cache
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+
+# ---------------------------------------------------------------------------
+# DemoRegistry  – multi-dataset discovery
+# ---------------------------------------------------------------------------
+
+class DemoRegistry:
+    """Scan an output root for demo-enabled runs and manage the active dataset.
+
+    Discovery rules:
+    - Walk output_root/*/_swaps/runs/*/run_manifest.json
+    - Keep only manifests where display_demo == True
+    - Derive dataset_dir from manifest["config"]["inputs"]["graphs_root"]
+      falling back to the grandparent of the run dir (_swaps/runs/<id> -> dataset)
+    - Group runs by resolved dataset_dir (normalised to an absolute Path)
+
+    The active dataset+run is exposed through ``active_loader``.
+    """
+
+    def __init__(self, output_root: Path, initial_data_dir: Optional[Path] = None):
+        self.output_root = Path(output_root)
+        # {dataset_id: {"dir": Path, "label": str, "runs": [run_dict, ...]}}
+        self._datasets: Dict[str, Dict[str, Any]] = {}
+        self._active_dataset_id: Optional[str] = None
+        self.active_loader: Optional["DataLoader"] = None
+
+        self._scan()
+
+        if self._datasets:
+            # If a specific data_dir was given, prefer the dataset that matches it
+            preferred_id = None
+            if initial_data_dir is not None:
+                initial_data_dir = Path(initial_data_dir).resolve()
+                for ds_id, ds in self._datasets.items():
+                    if ds["dir"].resolve() == initial_data_dir:
+                        preferred_id = ds_id
+                        break
+            if preferred_id is None:
+                # Pick the dataset with the most recent run (first after sort)
+                preferred_id = next(iter(self._datasets))
+            self._activate_dataset(preferred_id)
+
+    # ------------------------------------------------------------------
+    # Discovery
+    # ------------------------------------------------------------------
+
+    def _scan(self) -> None:
+        """Walk output_root looking for demo-enabled run_manifest.json files."""
+        if not self.output_root.exists():
+            return
+
+        datasets: Dict[Path, Dict[str, Any]] = {}
+
+        for manifest_path in sorted(
+            self.output_root.glob("*/_swaps/runs/*/run_manifest.json"),
+            reverse=True,
+        ):
+            try:
+                with open(manifest_path, "r", encoding="utf-8") as fh:
+                    manifest = json.load(fh)
+            except (json.JSONDecodeError, IOError):
+                continue
+
+            if not manifest.get("display_demo"):
+                continue
+
+            # Resolve dataset dir: prefer the explicit graphs_root in config
+            graphs_root_raw = (
+                manifest.get("config", {})
+                .get("inputs", {})
+                .get("graphs_root", "")
+            )
+            dataset_dir = None
+            if graphs_root_raw:
+                candidate = Path(graphs_root_raw)
+                if not candidate.is_absolute():
+                    candidate = self.output_root.parent / candidate
+                if candidate.exists():
+                    dataset_dir = candidate
+                # Windows path on a Linux machine: fall through to physical parent
+
+            if dataset_dir is None:
+                # Physical fallback: output/<ds>/_swaps/runs/<run_id>/run_manifest.json
+                dataset_dir = manifest_path.parent.parent.parent.parent
+
+            dataset_dir = dataset_dir.resolve()
+
+            if dataset_dir not in datasets:
+                label = self._derive_dataset_label(dataset_dir.name)
+                datasets[dataset_dir] = {
+                    "dir": dataset_dir,
+                    "label": label,
+                    "runs": [],
+                }
+
+            run_id = manifest_path.parent.name
+            swap_count = sum(
+                1 for _ in (manifest_path.parent / "by_source").glob("*/to_*.json")
+            ) if (manifest_path.parent / "by_source").exists() else 0
+
+            datasets[dataset_dir]["runs"].append({
+                "id": run_id,
+                "manifest": manifest,
+                "swap_count": swap_count,
+            })
+
+        # Build ordered dict: datasets sorted by label, runs already reverse-sorted
+        for dataset_dir, ds in sorted(datasets.items(), key=lambda x: x[1]["label"]):
+            ds_id = dataset_dir.name
+            self._datasets[ds_id] = ds
+
+    @staticmethod
+    def _derive_dataset_label(folder_name: str) -> str:
+        """Turn 'book_characters_authors_batch' -> 'Book Characters Authors'."""
+        name = folder_name.replace("_batch", "").replace("_", " ").title()
+        return name
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def list_datasets(self) -> List[Dict[str, Any]]:
+        """Return summary list of all demo datasets."""
+        result = []
+        for ds_id, ds in self._datasets.items():
+            result.append({
+                "id": ds_id,
+                "label": ds["label"],
+                "run_count": len(ds["runs"]),
+                "is_active": ds_id == self._active_dataset_id,
+            })
+        return result
+
+    def list_runs_for_dataset(self, dataset_id: str) -> List[Dict[str, Any]]:
+        """Return run summaries for a specific dataset."""
+        ds = self._datasets.get(dataset_id)
+        if not ds:
+            return []
+        result = []
+        for r in ds["runs"]:
+            manifest = r["manifest"]
+            result.append({
+                "id": r["id"],
+                "dataset_id": dataset_id,
+                "dataset_label": ds["label"],
+                "name": self._format_run_name(r["id"]),
+                "swap_count": r["swap_count"],
+                "status": manifest.get("status", "unknown"),
+                "timestamp": manifest.get("timestamp_started", manifest.get("timestamp", "")),
+                "has_trajectory": (
+                    (ds["dir"] / "_swaps" / "runs" / r["id"] / "_trajectory_analysis").exists()
+                ),
+            })
+        return result
+
+    def list_all_runs(self) -> List[Dict[str, Any]]:
+        """Return all demo-enabled runs across all datasets, grouped by dataset."""
+        all_runs = []
+        for ds_id in self._datasets:
+            all_runs.extend(self.list_runs_for_dataset(ds_id))
+        return all_runs
+
+    def set_dataset(self, dataset_id: str) -> bool:
+        """Switch the active dataset (picks its best run automatically)."""
+        if dataset_id not in self._datasets:
+            return False
+        self._activate_dataset(dataset_id)
+        return True
+
+    def set_run(self, run_id: str) -> bool:
+        """Switch run within the current dataset."""
+        if self.active_loader is None:
+            return False
+        return self.active_loader.set_run(run_id)
+
+    def set_run_global(self, run_id: str) -> bool:
+        """Switch to any run across all datasets.
+
+        Finds which dataset owns the run, activates that dataset, then
+        selects the specific run.
+        """
+        for ds_id, ds in self._datasets.items():
+            for r in ds["runs"]:
+                if r["id"] == run_id:
+                    if ds_id != self._active_dataset_id:
+                        self._activate_dataset(ds_id)
+                    self.active_loader.set_run(run_id)
+                    return True
+        return False
+
+    @property
+    def active_dataset_id(self) -> Optional[str]:
+        return self._active_dataset_id
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _activate_dataset(self, dataset_id: str) -> None:
+        ds = self._datasets[dataset_id]
+        # Pick best run: first in list (already sorted newest-first)
+        best_run_id = ds["runs"][0]["id"] if ds["runs"] else None
+        self.active_loader = DataLoader(ds["dir"], run_id=best_run_id)
+        self._active_dataset_id = dataset_id
+
+    @staticmethod
+    def _format_run_name(run_id: str) -> str:
+        name = run_id.replace("_", " ").title()
+        name = name.replace("50states", "50 States").replace("6states", "6 States")
+        return name
 
 
 class DataLoader:
@@ -29,6 +245,7 @@ class DataLoader:
         self._states_cache: Optional[List[Dict]] = None
         self._analysis_cache: Optional[Dict] = None
         self._stats_cache: Optional[Dict] = None
+        self._domain_config_cache: Optional[Dict] = None
     
     def _set_swaps_dir(self):
         """Set swaps_dir based on current run_id."""
@@ -54,17 +271,10 @@ class DataLoader:
                 self.swaps_dir = self.base_swaps_dir
 
     def _get_default_run_id(self) -> Optional[str]:
-        """Choose the default run for a fresh app load."""
+        """Choose the default run for a fresh app load (most recent non-legacy)."""
         runs = self.list_runs()
         if not runs:
             return None
-
-        preferred_prefixes = ("full_50states",)
-
-        for prefix in preferred_prefixes:
-            for run in runs:
-                if run["id"].startswith(prefix):
-                    return run["id"]
 
         for run in runs:
             if "legacy" not in run["id"].lower():
@@ -154,7 +364,123 @@ class DataLoader:
         self._states_cache = None
         self._analysis_cache = None
         self._stats_cache = None
+        self._domain_config_cache = None
     
+    # ------------------------------------------------------------------
+    # Domain & model configuration (loaded from config_resolved.json)
+    # ------------------------------------------------------------------
+
+    def get_domain_config(self) -> Dict[str, Any]:
+        """Return domain and model metadata for the active run.
+
+        Reads config_resolved.json once and caches the result.  Falls back to
+        USA-states defaults when the file is missing (legacy runs).
+        """
+        if self._domain_config_cache is not None:
+            return self._domain_config_cache
+
+        config = self._load_config_resolved()
+        if not config:
+            self._domain_config_cache = self._build_fallback_domain_config()
+            return self._domain_config_cache
+
+        entities = config.get('_entities', [])
+        entity_index = {e['slug']: e for e in entities}
+
+        concept_fields = config.get('swap', {}).get('concept_fields', [])
+
+        entity_fields: List[str] = []
+        if entities:
+            entity_fields = [k for k in entities[0] if k != 'slug']
+
+        primary_field = entity_fields[0] if entity_fields else 'slug'
+        for f in entity_fields:
+            if f not in concept_fields:
+                primary_field = f
+                break
+
+        answer_field = concept_fields[-1] if concept_fields else ''
+
+        ct = config.get('ct_steering', {})
+        model_id = ct.get('model_id', '')
+        transcoder_set = ct.get('transcoder_set', '')
+        np_model = model_id.split('/')[-1] if model_id else 'gemma-2-2b'
+
+        experiment_name = config.get('experiment_name', '')
+        is_usa_states = 'usa_states' in experiment_name or 'state' in concept_fields
+        display_name = experiment_name.replace('_swap', '').replace('_', ' ').title()
+
+        self._domain_config_cache = {
+            'experiment_name': experiment_name,
+            'display_name': display_name,
+            'concept_fields': concept_fields,
+            'answer_field': answer_field,
+            'primary_field': primary_field,
+            'entity_fields': entity_fields,
+            'entity_index': entity_index,
+            'entity_count': len(entities),
+            'model_id': model_id,
+            'transcoder_set': transcoder_set,
+            'np_model': np_model,
+            'is_usa_states': is_usa_states,
+            'm_ablate': ct.get('M_ablate', -2),
+            'm_amplify': ct.get('M_amplify', 20),
+            'temperature': ct.get('temperature', 0.3),
+            'n_tokens': ct.get('n_tokens', 10),
+        }
+        return self._domain_config_cache
+
+    def _load_config_resolved(self) -> Optional[Dict]:
+        """Load config_resolved.json from the active run directory."""
+        path = self.swaps_dir / "config_resolved.json"
+        if path.exists():
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass
+        return None
+
+    def _build_fallback_domain_config(self) -> Dict[str, Any]:
+        """Fallback domain config for legacy runs without config_resolved.json."""
+        return {
+            'experiment_name': 'usa_states_swap',
+            'display_name': 'USA States',
+            'concept_fields': ['state', 'capital'],
+            'answer_field': 'capital',
+            'primary_field': 'city',
+            'entity_fields': ['city', 'state', 'capital'],
+            'entity_index': {},
+            'entity_count': 0,
+            'model_id': 'google/gemma-2-2b',
+            'transcoder_set': 'mntss/clt-gemma-2-2b-2.5M',
+            'np_model': 'gemma-2-2b',
+            'is_usa_states': True,
+            'm_ablate': -2,
+            'm_amplify': 20,
+            'temperature': 0.3,
+            'n_tokens': 10,
+        }
+
+    @staticmethod
+    def _slug_to_label(slug: str) -> str:
+        """Convert a slug to a human-readable label."""
+        return slug.replace('_', ' ').title()
+
+    def _make_abbr(self, slug: str, label: str) -> str:
+        """Generate a short abbreviation for matrix headers."""
+        dc = self.get_domain_config()
+        if dc['is_usa_states']:
+            return self._state_to_abbr(label)
+        parts = slug.split('_')
+        if len(parts) >= 2:
+            return ''.join(p[0].upper() for p in parts[:3])
+        return slug[:3].upper()
+
+    # ------------------------------------------------------------------
+    # Matrix
+    # ------------------------------------------------------------------
+
     def get_matrix(self) -> Dict[str, Dict[str, Optional[int]]]:
         """Build tier matrix dynamically from individual swap JSON files."""
         if self._matrix_cache is not None:
@@ -217,103 +543,129 @@ class DataLoader:
     
     def _get_tier_from_swap(self, swap_data: Dict) -> Optional[float]:
         """Extract tier from swap data, computing if necessary. Supports 2.5 for WRONG STATE."""
-        # Try classification first
         if 'classification' in swap_data:
             tier = swap_data['classification'].get('tier')
             if tier is not None:
-                return float(tier)  # Supports 2.5 for WRONG STATE
-        
-        # Compute from evaluation data
+                return float(tier)
+
         evaluation = swap_data.get('evaluation', {})
         exact = evaluation.get('exact_match', {})
-        
-        if exact.get('steered_has_to_capital'):
-            return 5  # PERFECT
-        elif exact.get('from_suppressed') and not exact.get('steered_has_to_capital'):
-            return 2  # SUPPRESSED_ONLY
+        hit = exact.get('steered_has_to_capital') or exact.get('steered_has_to_answer')
+
+        if hit:
+            return 5
+        elif exact.get('from_suppressed') and not hit:
+            return 2
         elif not exact.get('from_suppressed'):
-            return 1  # SOURCE_PERSISTS
+            return 1
         else:
-            return 3  # TARGET_STATE_ONLY (default)
+            return 3
     
     def get_states(self) -> List[Dict[str, Any]]:
-        """Get list of all states with metadata from by_source directories."""
+        """Get entity list with metadata from by_source directories.
+
+        Returns a list of dicts with backward-compatible keys (``state``,
+        ``capital``, ``city``, ``abbr``) plus generic keys (``label``,
+        ``answer``, ``fields``) so that frontends can work with any domain.
+        """
         if self._states_cache is not None:
             return self._states_cache
-        
-        states = []
+
+        dc = self.get_domain_config()
+        entity_index = dc['entity_index']
+        primary_field = dc['primary_field']
+        answer_field = dc['answer_field']
+
         analysis = self.get_analysis()
         archetypes = analysis.get('archetypes', {})
-        
-        # Build archetype lookup
-        archetype_lookup = {}
-        for archetype, state_list in archetypes.items():
-            for state_data in state_list:
-                archetype_lookup[state_data['state']] = {
+
+        archetype_lookup: Dict[str, Dict] = {}
+        for archetype, entity_list in archetypes.items():
+            for ed in entity_list:
+                key = ed.get('state', ed.get(primary_field, ''))
+                archetype_lookup[key] = {
                     'archetype': archetype,
-                    'native_prob': state_data.get('native_prob', 0),
-                    'supernodes': state_data.get('supernodes', 0),
-                    'src_tier': state_data.get('src_tier', 0),
-                    'tgt_tier': state_data.get('tgt_tier', 0),
+                    'native_prob': ed.get('native_prob', 0),
+                    'supernodes': ed.get('supernodes', 0),
+                    'src_tier': ed.get('src_tier', 0),
+                    'tgt_tier': ed.get('tgt_tier', 0),
                 }
-        
-        # Get states from by_source directory (has all 50 states)
+
+        entities: List[Dict[str, Any]] = []
         by_source_dir = self.swaps_dir / "by_source"
         if by_source_dir.exists():
             for source_dir in sorted(by_source_dir.iterdir()):
                 if not source_dir.is_dir():
                     continue
-                
+
                 slug = source_dir.name
-                state_name = self._slug_to_state_name(slug)
-                arch_data = archetype_lookup.get(state_name, {})
-                
-                # Try to find Neuronpedia URL from manifest
+                edata = entity_index.get(slug, {})
+                if not edata:
+                    edata = self._get_entity_info_from_swap(source_dir)
+
+                label = (edata.get(primary_field, '')
+                         or self._slug_to_label(slug))
+                answer = edata.get(answer_field, '')
+                abbr = self._make_abbr(slug, edata.get('state', label))
+
+                # Backward-compatible keys
+                state_val = edata.get('state', label)
+                capital_val = edata.get('capital', answer)
+                city_val = edata.get('city',
+                                     edata.get(primary_field, label))
+
+                arch_key = state_val if dc['is_usa_states'] else label
+                arch_data = archetype_lookup.get(arch_key, {})
+
                 neuronpedia_url = self._get_neuronpedia_url(slug)
-                
-                # Get a sample swap to extract state info
-                state_info = self._get_state_info_from_swap(source_dir)
-                capital = state_info.get('capital', '')
-                logit_flags = self._get_state_logit_flags(slug, capital)
-                
-                states.append({
+                logit_flags = (self._get_entity_logit_flags(slug, answer)
+                               if self._find_state_dir(slug) else {})
+
+                entities.append({
                     'slug': slug,
-                    'state': state_info.get('state', state_name),
-                    'capital': capital,
-                    'city': state_info.get('city', self._slug_to_city(slug)),
-                    'abbr': self._state_to_abbr(state_info.get('state', state_name)),
+                    'label': label,
+                    'answer': answer,
+                    'state': state_val,
+                    'capital': capital_val,
+                    'city': city_val,
+                    'abbr': abbr,
                     'archetype': arch_data.get('archetype', 'Unknown'),
                     'native_prob': arch_data.get('native_prob', 0),
                     'supernodes': arch_data.get('supernodes', 0),
                     'src_tier': arch_data.get('src_tier', 0),
                     'tgt_tier': arch_data.get('tgt_tier', 0),
                     'neuronpedia_url': neuronpedia_url,
+                    'fields': {k: v for k, v in edata.items()
+                               if k != 'slug'},
                     **logit_flags,
                 })
-        
-        self._states_cache = states
-        return states
-    
-    def _get_state_info_from_swap(self, source_dir: Path) -> Dict[str, str]:
-        """Extract state info from a sample swap file."""
+
+        self._states_cache = entities
+        return entities
+
+    def _get_entity_info_from_swap(self, source_dir: Path) -> Dict[str, str]:
+        """Extract entity fields from a sample swap file's source section."""
         for swap_file in source_dir.glob("to_*.json"):
             try:
                 with open(swap_file, 'r', encoding='utf-8') as f:
                     swap_data = json.load(f)
                 source = swap_data.get('source', {})
                 if source:
-                    return {
-                        'state': source.get('state', ''),
-                        'capital': source.get('capital', ''),
-                        'city': source.get('city', ''),
-                    }
+                    return {k: v for k, v in source.items()
+                            if k not in ('prompt', 'concept',
+                                         'neuronpedia_url')}
             except (json.JSONDecodeError, IOError):
                 continue
         return {}
 
-    def _load_state_logit_metadata(self, state_dir: Path, capital: str) -> Dict[str, Any]:
-        """Load top-logit metadata used by state warnings and filters."""
-        graph_path = state_dir / "00 Graph Generation" / "graph.json"
+    def _load_entity_logit_metadata(self, entity_dir: Path,
+                                     answer: str) -> Dict[str, Any]:
+        """Load top-logit metadata from graph.json.
+
+        ``answer`` is the expected output token (capital, author, etc.)
+        used only for highlighting; the rest is model-agnostic.
+        """
+        graph_path = entity_dir / "00 Graph Generation" / "graph.json"
         if not graph_path.exists():
             return {}
 
@@ -325,8 +677,8 @@ class DataLoader:
 
         import re
 
-        logits = []
-        native_prob = 0
+        logits: List[Dict] = []
+        native_prob = 0.0
         target_token = ''
 
         for node in graph.get('nodes', []):
@@ -346,31 +698,34 @@ class DataLoader:
             if node.get('is_target_logit') and not target_token:
                 native_prob = node.get('token_prob', 0)
                 match = re.search(r'Output\s+"([^"]*)"', clerp)
-                target_token = match.group(1).strip() if match else clerp.strip().strip("'")
+                target_token = (match.group(1).strip() if match
+                                else clerp.strip().strip("'"))
 
         logits.sort(key=lambda x: x['prob'], reverse=True)
         top_logits = logits[:5]
-        capital_lower = capital.lower() if capital else ''
-        capital_in_logits = any(
-            token and len(token) > 1 and token.lower() in capital_lower
-            for token in (logit.get('token', '') for logit in top_logits)
+        answer_lower = answer.lower() if answer else ''
+        answer_in_logits = any(
+            t and len(t) > 1 and t.lower() in answer_lower
+            for t in (l.get('token', '') for l in top_logits)
         )
 
         return {
             'logits': top_logits,
             'native_prob': native_prob,
             'target_token': target_token,
-            'capital_is_top_logit': target_token.lower() in capital_lower if capital and target_token else False,
-            'capital_in_logits': capital_in_logits,
+            'capital_is_top_logit': (
+                target_token.lower() in answer_lower
+                if answer and target_token else False),
+            'capital_in_logits': answer_in_logits,
         }
 
-    def _get_state_logit_flags(self, slug: str, capital: str) -> Dict[str, Any]:
-        """Return compact warning flags for the matrix state list."""
-        state_dir = self._find_state_dir(slug)
-        if not state_dir:
+    def _get_entity_logit_flags(self, slug: str,
+                                answer: str) -> Dict[str, Any]:
+        """Return compact warning flags for the matrix entity list."""
+        entity_dir = self._find_state_dir(slug)
+        if not entity_dir:
             return {}
-
-        metadata = self._load_state_logit_metadata(state_dir, capital)
+        metadata = self._load_entity_logit_metadata(entity_dir, answer)
         return {
             'capital_is_top_logit': metadata.get('capital_is_top_logit'),
             'capital_in_logits': metadata.get('capital_in_logits'),
@@ -612,8 +967,8 @@ class DataLoader:
             M = feat.get('M', 0)
             stored_activation = feat.get('stored_activation')
             
-            # Build Neuronpedia link
-            np_url = f"https://www.neuronpedia.org/gemma-2-2b/{layer}-clt-hp/{index}"
+            np_model = self.get_domain_config().get('np_model', 'gemma-2-2b')
+            np_url = f"https://www.neuronpedia.org/{np_model}/{layer}-clt-hp/{index}"
             
             feature_info = {
                 'layer': layer,
@@ -647,177 +1002,175 @@ class DataLoader:
         }
     
     def get_state_profile(self, slug: str) -> Optional[Dict]:
-        """
-        Get comprehensive state profile with stats.
-        
-        Includes:
-        - Native probability (target logit prob from graph)
-        - Supernode/pinned feature counts
-        - Feature count by layer
-        - Attack score (avg tier when target - others steer to this state)
-        - Defense score (avg tier when source - this state's prompt)
-        - Wrong state rate
-        - Capital city
-        """
-        # Find state directory
-        state_dir = self._find_state_dir(slug)
-        if not state_dir:
-            return None
-        
-        state_name = self._slug_to_state_name(slug)
-        profile = {
+        """Get comprehensive entity profile with stats (domain-agnostic)."""
+        dc = self.get_domain_config()
+        entity_index = dc['entity_index']
+        edata = entity_index.get(slug, {})
+        primary_field = dc['primary_field']
+        answer_field = dc['answer_field']
+
+        label = edata.get(primary_field, '') or self._slug_to_label(slug)
+        answer = edata.get(answer_field, '')
+
+        entity_dir = self._find_state_dir(slug)
+
+        profile: Dict[str, Any] = {
             'slug': slug,
-            'state': state_name,
-            'city': self._slug_to_city(slug),
-            'capital': self._get_state_capital(state_name),
+            'label': label,
+            'answer': answer,
+            'state': edata.get('state', label),
+            'city': edata.get('city', edata.get(primary_field, label)),
+            'capital': edata.get('capital', answer),
+            'fields': {k: v for k, v in edata.items() if k != 'slug'},
         }
-        
-        # Load manifest for Neuronpedia data
-        manifest = self._load_manifest(state_dir)
-        if manifest:
-            np_data = manifest.get('neuronpedia', {})
-            profile['supernodes'] = np_data.get('supernodes', 0)
-            profile['pinned_nodes'] = np_data.get('pinned_nodes', 0)
-            profile['neuronpedia_url'] = np_data.get('url', '')
-        
-        capital = profile.get('capital', '')
-        profile.update(self._load_state_logit_metadata(state_dir, capital))
-        
-        # Load feature layer distribution
-        features_path = state_dir / "00 Graph Generation" / "selected_features_with_nodes.json"
-        if features_path.exists():
-            try:
-                with open(features_path, 'r', encoding='utf-8') as f:
-                    features_data = json.load(f)
-                features = features_data.get('features', [])
-                profile['total_features'] = len(features)
-                
-                # Count by layer
-                layer_counts = {}
-                for feat in features:
-                    layer = feat.get('layer', 0)
-                    layer_counts[layer] = layer_counts.get(layer, 0) + 1
-                profile['feature_layers'] = layer_counts
-            except (json.JSONDecodeError, IOError):
-                pass
-        
-        # Load state supernode features from node_grouping.csv
-        grouping_path = state_dir / "02 Node Grouping" / "node_grouping.csv"
-        if grouping_path.exists():
-            try:
-                state_concept = self._slug_to_state_name(slug).lower()
-                supernode_features = []
-                supernode_layer_counts = {}
-                
-                with open(grouping_path, 'r', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        supernode_name = row.get('supernode_name', '').lower()
-                        # Match state name in supernode (e.g., "california", "texas")
-                        if state_concept in supernode_name or supernode_name in state_concept:
-                            layer = int(row.get('layer', 0))
-                            supernode_features.append({
-                                'layer': layer,
-                                'feature': row.get('feature', ''),
-                                'supernode_name': row.get('supernode_name', ''),
-                            })
-                            supernode_layer_counts[layer] = supernode_layer_counts.get(layer, 0) + 1
-                
-                profile['supernode_features'] = supernode_features
-                profile['supernode_feature_count'] = len(supernode_features)
-                profile['supernode_layer_counts'] = supernode_layer_counts
-            except (IOError, ValueError):
-                pass
-        
-        # Calculate attack/defense scores from matrix
+
+        if entity_dir:
+            manifest = self._load_manifest(entity_dir)
+            if manifest:
+                np_data = manifest.get('neuronpedia', {})
+                profile['supernodes'] = np_data.get('supernodes', 0)
+                profile['pinned_nodes'] = np_data.get('pinned_nodes', 0)
+                profile['neuronpedia_url'] = np_data.get('url', '')
+
+            profile.update(
+                self._load_entity_logit_metadata(entity_dir, answer))
+
+            features_path = (entity_dir / "00 Graph Generation"
+                             / "selected_features_with_nodes.json")
+            if features_path.exists():
+                try:
+                    with open(features_path, 'r', encoding='utf-8') as f:
+                        features_data = json.load(f)
+                    features = features_data.get('features', [])
+                    profile['total_features'] = len(features)
+                    layer_counts: Dict[int, int] = {}
+                    for feat in features:
+                        layer = feat.get('layer', 0)
+                        layer_counts[layer] = layer_counts.get(layer, 0) + 1
+                    profile['feature_layers'] = layer_counts
+                except (json.JSONDecodeError, IOError):
+                    pass
+
+            grouping_path = (entity_dir / "02 Node Grouping"
+                             / "node_grouping.csv")
+            if grouping_path.exists():
+                try:
+                    match_terms: set = set()
+                    for cf in dc['concept_fields']:
+                        val = edata.get(cf, '')
+                        if val:
+                            match_terms.add(val.lower())
+                    if label:
+                        match_terms.add(label.lower())
+
+                    supernode_features = []
+                    supernode_layer_counts: Dict[int, int] = {}
+                    with open(grouping_path, 'r', encoding='utf-8') as f:
+                        reader = csv.DictReader(f)
+                        for row in reader:
+                            sn = row.get('supernode_name', '').lower()
+                            if any(t in sn or sn in t
+                                   for t in match_terms):
+                                layer = int(row.get('layer', 0))
+                                supernode_features.append({
+                                    'layer': layer,
+                                    'feature': row.get('feature', ''),
+                                    'supernode_name': row.get(
+                                        'supernode_name', ''),
+                                })
+                                supernode_layer_counts[layer] = (
+                                    supernode_layer_counts.get(layer, 0) + 1)
+
+                    profile['supernode_features'] = supernode_features
+                    profile['supernode_feature_count'] = len(
+                        supernode_features)
+                    profile['supernode_layer_counts'] = supernode_layer_counts
+                except (IOError, ValueError):
+                    pass
+
+        # Attack/defense scores from matrix
         matrix = self.get_matrix()
-        
-        # Attack score: avg tier when this state is source (this state attacking others)
+
         attack_tiers = []
         if slug in matrix:
             for to_slug, tier in matrix[slug].items():
                 if tier is not None and to_slug != slug:
                     attack_tiers.append(tier)
-        profile['attack_avg'] = sum(attack_tiers) / len(attack_tiers) if attack_tiers else 0
+        profile['attack_avg'] = (sum(attack_tiers) / len(attack_tiers)
+                                 if attack_tiers else 0)
         profile['attack_count'] = len(attack_tiers)
-        # Success rate (T3+) when attacking
-        attack_success = len([t for t in attack_tiers if t >= 3])
-        profile['attack_success_rate'] = attack_success / len(attack_tiers) if attack_tiers else 0
-        
-        # Defense score: avg tier when this state is target (others attacking this state)
+        attack_ok = len([t for t in attack_tiers if t >= 3])
+        profile['attack_success_rate'] = (attack_ok / len(attack_tiers)
+                                          if attack_tiers else 0)
+
         defense_tiers = []
-        wrong_state_count = 0
+        wrong_count = 0
         for from_slug, targets in matrix.items():
-            if from_slug != slug and slug in targets and targets[slug] is not None:
+            if (from_slug != slug and slug in targets
+                    and targets[slug] is not None):
                 tier = targets[slug]
                 defense_tiers.append(tier)
                 if tier == 2.5:
-                    wrong_state_count += 1
-        profile['defense_avg'] = sum(defense_tiers) / len(defense_tiers) if defense_tiers else 0
+                    wrong_count += 1
+        profile['defense_avg'] = (sum(defense_tiers) / len(defense_tiers)
+                                  if defense_tiers else 0)
         profile['defense_count'] = len(defense_tiers)
-        # Success rate (T3+) when being attacked (defense = others succeeded attacking this)
-        defense_success = len([t for t in defense_tiers if t >= 3])
-        profile['defense_success_rate'] = defense_success / len(defense_tiers) if defense_tiers else 0
-        
-        # Wrong state rate (T2.5) as target
-        profile['wrong_state_rate'] = wrong_state_count / len(defense_tiers) if defense_tiers else 0
-        profile['wrong_state_count'] = wrong_state_count
-        
-        # Token overlap flag
-        overlap_slugs = [
-            'colorado_colorado_springs', 'new_york_new_york_city',
-            'virginia_virginia_beach', 'idaho_idaho_falls',
-            'missouri_kansas_city', 'indiana_fort_wayne'
-        ]
-        profile['has_token_overlap'] = slug in overlap_slugs
-        
-        # Get swap summaries (just tier and basic info, not full outputs)
+        defense_ok = len([t for t in defense_tiers if t >= 3])
+        profile['defense_success_rate'] = (defense_ok / len(defense_tiers)
+                                           if defense_tiers else 0)
+        profile['wrong_state_rate'] = (wrong_count / len(defense_tiers)
+                                       if defense_tiers else 0)
+        profile['wrong_state_count'] = wrong_count
+
+        profile['has_token_overlap'] = False
+        if dc['is_usa_states']:
+            overlap_slugs = [
+                'colorado_colorado_springs', 'new_york_new_york_city',
+                'virginia_virginia_beach', 'idaho_idaho_falls',
+                'missouri_kansas_city', 'indiana_fort_wayne',
+            ]
+            profile['has_token_overlap'] = slug in overlap_slugs
+
         profile['swaps_as_target'] = self._get_swap_summaries_as_target(slug)
         profile['swaps_as_source'] = self._get_swap_summaries_as_source(slug)
-        
+
         return profile
     
     def _get_swap_summaries_as_target(self, slug: str) -> List[Dict]:
-        """Get summary of swaps where this state is target (being attacked)."""
+        """Swaps where this entity is the target."""
         matrix = self.get_matrix()
-        states = self.get_states()
-        state_map = {s['slug']: s for s in states}
-        
+        entity_map = {s['slug']: s for s in self.get_states()}
+
         summaries = []
         for from_slug, targets in matrix.items():
             if from_slug != slug and slug in targets and targets[slug] is not None:
                 tier = targets[slug]
-                from_state = state_map.get(from_slug, {})
+                e = entity_map.get(from_slug, {})
                 summaries.append({
                     'from_slug': from_slug,
-                    'from_state': from_state.get('state', from_slug),
-                    'from_city': from_state.get('city', ''),
+                    'from_state': e.get('label', e.get('state', from_slug)),
+                    'from_city': e.get('city', ''),
                     'tier': tier,
                 })
-        
-        # Sort by tier descending (best results first)
         summaries.sort(key=lambda x: -x['tier'])
         return summaries
-    
+
     def _get_swap_summaries_as_source(self, slug: str) -> List[Dict]:
-        """Get summary of swaps where this state is source (defending)."""
+        """Swaps where this entity is the source."""
         matrix = self.get_matrix()
-        states = self.get_states()
-        state_map = {s['slug']: s for s in states}
-        
+        entity_map = {s['slug']: s for s in self.get_states()}
+
         summaries = []
         if slug in matrix:
             for to_slug, tier in matrix[slug].items():
                 if to_slug != slug and tier is not None:
-                    to_state = state_map.get(to_slug, {})
+                    e = entity_map.get(to_slug, {})
                     summaries.append({
                         'to_slug': to_slug,
-                        'to_state': to_state.get('state', to_slug),
-                        'to_city': to_state.get('city', ''),
+                        'to_state': e.get('label', e.get('state', to_slug)),
+                        'to_city': e.get('city', ''),
                         'tier': tier,
                     })
-        
-        # Sort by tier descending (best results first)
         summaries.sort(key=lambda x: -x['tier'])
         return summaries
     
@@ -1018,10 +1371,13 @@ class DataLoader:
         if not base_url:
             return None
         
-        # Extract state and city from slug for priority matching
-        state_name = self._slug_to_state_name(slug)
-        city_name = self._slug_to_city(slug)
-        capital_name = self._get_state_capital(state_name)
+        dc = self.get_domain_config()
+        edata = dc['entity_index'].get(slug, {})
+        state_name = edata.get('state', self._slug_to_state_name(slug))
+        city_name = edata.get('city', self._slug_to_city(slug))
+        capital_name = edata.get('capital',
+                                 edata.get(dc['answer_field'], '')
+                                 or self._get_state_capital(state_name))
         
         # Load graph.json to get the TOP logit by probability
         # The metrics CSV has incomplete/empty data for layer 27

@@ -14,32 +14,36 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 
+def _get_answer_field(concept_fields: Optional[List[str]] = None) -> str:
+    """Return the entity field that represents the expected model answer.
+
+    Convention: the last element of concept_fields is the answer.
+    Falls back to "capital" for backward-compatible USA behaviour.
+    """
+    if concept_fields and len(concept_fields) >= 1:
+        return concept_fields[-1]
+    return "capital"
+
+
 def evaluate_swap(
     result: Dict[str, Any],
     entity_from: Dict[str, str],
     entity_to: Dict[str, str],
+    concept_fields: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Capture all metrics for a swap result for later analysis.
-    
-    NOTE: exact_match is known to be imperfect for measuring swap success.
-    A steered output of "San Francisco" when targeting California is a
-    partial success, even though it's not the capital "Sacramento".
-    Semantic similarity analysis is deferred to post-processing.
-    
+
+    Domain-agnostic: uses ``concept_fields`` (from the swap config) to
+    decide which entity field is the "answer" for exact-match checks.
+    Falls back to ``capital`` when concept_fields is not provided (USA).
+
     Args:
-        result: Raw steering result with keys:
-            - steered: Steered output text
-            - default: Default output text
-            - steered_topk: List of {token, prob} for steered
-            - default_topk: List of {token, prob} for default
-            - intervention_count: Number of features modified
-            - logit_trajectory (optional): Full trajectory data
-            - baseline_logits (optional): Baseline logit info
-            - position_0_comparison (optional): Baseline vs steered at position 0
-        entity_from: Source entity {slug, city, state, capital}
-        entity_to: Target entity {slug, city, state, capital}
-    
+        result: Raw steering result (steered, default, topk, etc.)
+        entity_from: Source entity dict
+        entity_to: Target entity dict
+        concept_fields: Optional list of concept field names from swap config
+
     Returns:
         Dict with structured evaluation metrics
     """
@@ -47,43 +51,48 @@ def evaluate_swap(
     steered_out = result.get('steered', '')
     default_topk = result.get('default_topk', [])
     steered_topk = result.get('steered_topk', [])
-    
+
+    answer_field = _get_answer_field(concept_fields)
+    from_answer = entity_from.get(answer_field, '')
+    to_answer = entity_to.get(answer_field, '')
+
     evaluation = {
-        # Ground truth from entities (for later analysis)
-        'ground_truth': {
-            'from_state': entity_from['state'],
-            'from_capital': entity_from['capital'],
-            'from_city': entity_from['city'],
-            'to_state': entity_to['state'],
-            'to_capital': entity_to['capital'],
-            'to_city': entity_to['city'],
-        },
-        
-        # Simple exact match checks (known to be imperfect)
+        'ground_truth': {k: entity_from.get(k, '') for k in entity_from if k != 'slug'},
+        'ground_truth_to': {k: entity_to.get(k, '') for k in entity_to if k != 'slug'},
+        'answer_field': answer_field,
+        'from_answer': from_answer,
+        'to_answer': to_answer,
+
         'exact_match': {
-            'default_has_from_capital': entity_from['capital'] in default_out,
-            'steered_has_to_capital': entity_to['capital'] in steered_out,
-            'steered_has_from_capital': entity_from['capital'] in steered_out,
-            'from_suppressed': entity_from['capital'] not in steered_out,
+            'default_has_from_answer': bool(from_answer and from_answer in default_out),
+            'steered_has_to_answer': bool(to_answer and to_answer in steered_out),
+            'steered_has_from_answer': bool(from_answer and from_answer in steered_out),
+            'from_suppressed': bool(from_answer and from_answer not in steered_out),
+            # Backward-compatible aliases for USA-based analysis code
+            'default_has_from_capital': bool(from_answer and from_answer in default_out),
+            'steered_has_to_capital': bool(to_answer and to_answer in steered_out),
+            'steered_has_from_capital': bool(from_answer and from_answer in steered_out),
         },
-        
-        # First token prediction (most diagnostic for factual recall)
+
         'first_token': {
             'default': default_topk[0].get('token', '') if default_topk else '',
             'default_prob': default_topk[0].get('prob', 0) if default_topk else 0,
             'steered': steered_topk[0].get('token', '') if steered_topk else '',
             'steered_prob': steered_topk[0].get('prob', 0) if steered_topk else 0,
         },
-        
-        # Target token probability in topk
+
         'target_in_topk': {
-            'to_capital_in_default_topk': _find_token_prob(default_topk, entity_to['capital']),
-            'to_capital_in_steered_topk': _find_token_prob(steered_topk, entity_to['capital']),
-            'from_capital_in_default_topk': _find_token_prob(default_topk, entity_from['capital']),
-            'from_capital_in_steered_topk': _find_token_prob(steered_topk, entity_from['capital']),
+            'to_answer_in_default_topk': _find_token_prob(default_topk, to_answer),
+            'to_answer_in_steered_topk': _find_token_prob(steered_topk, to_answer),
+            'from_answer_in_default_topk': _find_token_prob(default_topk, from_answer),
+            'from_answer_in_steered_topk': _find_token_prob(steered_topk, from_answer),
+            # Backward-compatible aliases
+            'to_capital_in_default_topk': _find_token_prob(default_topk, to_answer),
+            'to_capital_in_steered_topk': _find_token_prob(steered_topk, to_answer),
+            'from_capital_in_default_topk': _find_token_prob(default_topk, from_answer),
+            'from_capital_in_steered_topk': _find_token_prob(steered_topk, from_answer),
         },
-        
-        # Raw outputs for semantic analysis later
+
         'raw': {
             'default_output': default_out,
             'steered_output': steered_out,
@@ -91,19 +100,14 @@ def evaluate_swap(
             'steered_topk': steered_topk,
         },
     }
-    
-    # Include logit trajectory if present (fine-grained metrics)
+
     if 'logit_trajectory' in result:
         evaluation['logit_trajectory'] = result['logit_trajectory']
-    
-    # Include baseline logits comparison if present
     if 'baseline_logits' in result:
         evaluation['baseline_logits'] = result['baseline_logits']
-    
-    # Include position 0 comparison if present
     if 'position_0_comparison' in result:
         evaluation['position_0_comparison'] = result['position_0_comparison']
-    
+
     return evaluation
 
 
@@ -161,23 +165,18 @@ def create_swap_result(
     """
     ct_config = config.get('ct_steering', {})
     
+    # Domain-agnostic: include full entity (state/capital/city for USA; character/book/author for books)
+    source_ent = dict(pair.from_entity)
+    target_ent = dict(pair.to_entity)
+    source_ent['slug'] = pair.from_slug
+    source_ent['prompt'] = raw_result.get('prompt', '')
+    source_ent['concept'] = pair.from_concept
+    target_ent['slug'] = pair.to_slug
+    target_ent['concept'] = pair.to_concept
     return {
         'swap_id': pair.swap_id,
-        'source': {
-            'slug': pair.from_slug,
-            'prompt': raw_result.get('prompt', ''),
-            'concept': pair.from_concept,
-            'state': pair.from_entity['state'],
-            'capital': pair.from_entity['capital'],
-            'city': pair.from_entity['city'],
-        },
-        'target': {
-            'slug': pair.to_slug,
-            'concept': pair.to_concept,
-            'state': pair.to_entity['state'],
-            'capital': pair.to_entity['capital'],
-            'city': pair.to_entity['city'],
-        },
+        'source': source_ent,
+        'target': target_ent,
         'interventions': {
             'ablate_count': raw_result.get('ablate_count', 0),
             'amplify_count': raw_result.get('amplify_count', 0),

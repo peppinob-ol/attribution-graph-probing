@@ -30,7 +30,7 @@ from pipeline.loader import (
 )
 from pipeline.graph import process_graph_step
 from pipeline.probes import process_probes_step
-from pipeline.activations_local import process_activations_step
+from pipeline.activations_local import process_activations_step, process_activations_batch_local
 from pipeline.remote import (
     process_remote_activation_step,
     process_remote_activation_batch,
@@ -188,21 +188,15 @@ def run_batch(config_path: str, dry_run: bool = False, force: bool = False, verb
                         state['success'] = False
                         state['error'] = "Probe prompts processing failed"
             
-            # Activations decision (execution deferred for remote batching)
+            # Activations: always deferred to batch pass (local or remote)
             if state['success'] and steps.get('activations'):
                 if paths['activations_dump_json'].exists() and not force:
                     print("  [SKIP] Activations already exist (use --force to overwrite)")
                     state['activations_done'] = True
                 else:
-                    if remote_enabled:
-                        state['activations_pending'] = True
-                        print("  [QUEUE] Activations scheduled for remote batch run")
-                    else:
-                        if process_activations_step(config, seed, paths, verbose=verbose):
-                            state['activations_done'] = True
-                        else:
-                            state['success'] = False
-                            state['error'] = "Activations processing failed"
+                    state['activations_pending'] = True
+                    target = "remote" if remote_enabled else "local"
+                    print(f"  [QUEUE] Activations scheduled for {target} batch run")
             elif state['success'] and not steps.get('activations'):
                 # Assume activations already exist when step disabled
                 if paths['activations_dump_json'].exists():
@@ -227,6 +221,22 @@ def run_batch(config_path: str, dry_run: bool = False, force: bool = False, verb
         
         seed_states.append(state)
     
+    # Local batch activations stage (model loaded once, all seeds processed)
+    if not remote_enabled:
+        pending_local = [s for s in seed_states if s['success'] and s['activations_pending']]
+        if pending_local:
+            print_banner(f"Local Batch Activations ({len(pending_local)} seed(s))")
+            results_map = process_activations_batch_local(config, pending_local, verbose=verbose)
+            for state in pending_local:
+                slug = state['seed']['slug']
+                if results_map.get(slug):
+                    state['activations_pending'] = False
+                    state['activations_done'] = True
+                else:
+                    state['success'] = False
+                    state['error'] = "Activations processing failed"
+                    state['activations_pending'] = False
+
     # Remote batch activations stage
     total_remote_requeues = 0
     remote_retry_limit = max(0, remote_config.get('max_retries', 1)) if remote_enabled else 0
@@ -309,32 +319,32 @@ def run_batch(config_path: str, dry_run: bool = False, force: bool = False, verb
                                 }
                                 failures.append(batch_state)
 
-                if not failures:
-                    break
+                    if not failures:
+                        break
 
-                next_attempt: List[Dict[str, Any]] = []
-                for failed_state in failures:
-                    failed_state['retry_attempts'] += 1
-                    if failed_state['retry_attempts'] <= remote_retry_limit:
-                        slug = failed_state['seed']['slug']
-                        print(f"  [RETRY] Re-queuing {slug} "
-                              f"(attempt {failed_state['retry_attempts']} of {remote_retry_limit})")
-                        failed_state['success'] = True
-                        failed_state['error'] = None
-                        failed_state['activations_pending'] = True
-                        failed_state['activations_done'] = False
-                        failed_state['remote_metadata'] = {}
-                        next_attempt.append(failed_state)
-                    else:
-                        if verbose:
-                            print(f"  [FAIL] Giving up on {failed_state['seed']['slug']} "
-                                  f"after {failed_state['retry_attempts']} failed remote attempt(s)")
+                    next_attempt: List[Dict[str, Any]] = []
+                    for failed_state in failures:
+                        failed_state['retry_attempts'] += 1
+                        if failed_state['retry_attempts'] <= remote_retry_limit:
+                            slug = failed_state['seed']['slug']
+                            print(f"  [RETRY] Re-queuing {slug} "
+                                  f"(attempt {failed_state['retry_attempts']} of {remote_retry_limit})")
+                            failed_state['success'] = True
+                            failed_state['error'] = None
+                            failed_state['activations_pending'] = True
+                            failed_state['activations_done'] = False
+                            failed_state['remote_metadata'] = {}
+                            next_attempt.append(failed_state)
+                        else:
+                            if verbose:
+                                print(f"  [FAIL] Giving up on {failed_state['seed']['slug']} "
+                                      f"after {failed_state['retry_attempts']} failed remote attempt(s)")
 
-                if not next_attempt:
-                    break
+                    if not next_attempt:
+                        break
 
-                total_remote_requeues += len(next_attempt)
-                pending_remote = next_attempt
+                    total_remote_requeues += len(next_attempt)
+                    pending_remote = next_attempt
             finally:
                 # Clean up SSH ControlMaster
                 if control_master:

@@ -14,14 +14,22 @@
   let fromSlug = null;
   let toSlug = null;
   
-  // Tier display info
+  // Cached subgraph URLs (slug -> url) to avoid repeated API calls
+  let subgraphUrlCache = {};
+  let sourceSubgraphUrl = null;
+  let targetSubgraphUrl = null;
+  
+  let domainConfig = null;
+  $: isUsaStates = domainConfig?.is_usa_states ?? true;
+  $: answerLabel = domainConfig?.answer_field || 'capital';
+
   const tierInfo = {
-    5: { name: 'PERFECT', color: 'bg-emerald-500', textColor: 'text-emerald-400', desc: 'Target capital found in output' },
-    4: { name: 'STATE + CITY', color: 'bg-lime-500', textColor: 'text-lime-400', desc: 'Target state city found (not capital)' },
-    3: { name: 'STATE ONLY', color: 'bg-yellow-500', textColor: 'text-yellow-400', desc: 'Target state mentioned only' },
+    5: { name: 'PERFECT', color: 'bg-emerald-500', textColor: 'text-emerald-400', desc: 'Target answer found in output' },
+    4: { name: 'PARTIAL + ANSWER', color: 'bg-lime-500', textColor: 'text-lime-400', desc: 'Target partial match found (not exact answer)' },
+    3: { name: 'PARTIAL', color: 'bg-yellow-500', textColor: 'text-yellow-400', desc: 'Target concept mentioned only' },
     2: { name: 'SUPPRESSED', color: 'bg-orange-400', textColor: 'text-orange-400', desc: 'Source suppressed, no target content' },
-    1: { name: 'SOURCE PERSISTS', color: 'bg-red-500', textColor: 'text-red-400', desc: 'Source capital still in output' },
-    0: { name: 'WRONG STATE', color: 'bg-slate-600', textColor: 'text-slate-400', desc: 'Unrelated state in output' },
+    1: { name: 'SOURCE PERSISTS', color: 'bg-red-500', textColor: 'text-red-400', desc: 'Source answer still in output' },
+    0: { name: 'WRONG ANSWER', color: 'bg-slate-600', textColor: 'text-slate-400', desc: 'Unrelated answer in output' },
   };
   
   function handleEscape(event) {
@@ -30,10 +38,16 @@
     }
   }
 
-  // Listen for cell selection events
-  onMount(() => {
+  onMount(async () => {
     document.addEventListener('cell-selected', handleCellSelected);
     document.addEventListener('keydown', handleEscape);
+    try {
+      const res = await fetch('/api/config');
+      if (res.ok) {
+        const cfg = await res.json();
+        domainConfig = cfg.domain || null;
+      }
+    } catch {}
     return () => {
       document.removeEventListener('cell-selected', handleCellSelected);
       document.removeEventListener('keydown', handleEscape);
@@ -48,6 +62,8 @@
     loading = true;
     error = null;
     data = null;
+    sourceSubgraphUrl = null;
+    targetSubgraphUrl = null;
     
     try {
       const res = await fetch(`/api/swap/${from}/${to}`);
@@ -55,6 +71,13 @@
         throw new Error('Swap data not found');
       }
       data = await res.json();
+      
+      // Resolve subgraph URLs in parallel (non-blocking)
+      Promise.all([fetchSubgraphUrl(from), fetchSubgraphUrl(to)])
+        .then(([srcUrl, tgtUrl]) => {
+          sourceSubgraphUrl = srcUrl;
+          targetSubgraphUrl = tgtUrl;
+        });
     } catch (e) {
       error = e.message;
     } finally {
@@ -62,11 +85,28 @@
     }
   }
   
+  async function fetchSubgraphUrl(slug) {
+    if (!slug) return null;
+    if (subgraphUrlCache[slug]) return subgraphUrlCache[slug];
+    try {
+      const res = await fetch(`/api/state/${slug}/subgraph-url?max_features=100`);
+      if (!res.ok) return null;
+      const d = await res.json();
+      if (d.url) {
+        subgraphUrlCache[slug] = d.url;
+        return d.url;
+      }
+    } catch {}
+    return null;
+  }
+  
   function close() {
     visible = false;
     data = null;
     fromSlug = null;
     toSlug = null;
+    sourceSubgraphUrl = null;
+    targetSubgraphUrl = null;
   }
   
   // Get tier from classification
@@ -84,15 +124,22 @@
     return 3;
   }
   
-  // Highlight capitals in output
-  function highlightOutput(text, sourceCapital, targetCapital) {
+  function getAnswerValue(entity) {
+    if (!entity) return '';
+    if (answerLabel && entity[answerLabel]) return entity[answerLabel];
+    return entity.capital || entity.answer || '';
+  }
+
+  function highlightOutput(text, sourceAnswer, targetAnswer) {
     if (!text) return '';
     let result = text;
-    if (targetCapital) {
-      result = result.replace(new RegExp(targetCapital, 'gi'), `<span class="text-emerald-400 font-bold">${targetCapital}</span>`);
+    if (targetAnswer) {
+      const escaped = targetAnswer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      result = result.replace(new RegExp(escaped, 'gi'), `<span class="text-emerald-400 font-bold">${targetAnswer}</span>`);
     }
-    if (sourceCapital) {
-      result = result.replace(new RegExp(sourceCapital, 'gi'), `<span class="text-red-400 font-bold">${sourceCapital}</span>`);
+    if (sourceAnswer) {
+      const escaped = sourceAnswer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      result = result.replace(new RegExp(escaped, 'gi'), `<span class="text-red-400 font-bold">${sourceAnswer}</span>`);
     }
     return result;
   }
@@ -285,17 +332,21 @@
         {@const firstToken = evaluation.first_token || {}}
         {@const exact = evaluation.exact_match || {}}
         
+        {@const sourceAnswer = getAnswerValue(source)}
+        {@const targetAnswer = getAnswerValue(target)}
+        {@const entityFields = domainConfig?.entity_fields || []}
+        
         <!-- Swap header -->
         <div class="mb-6">
           <div class="flex items-center gap-3 mb-2">
             <div class="text-center">
-              <div class="text-2xl font-bold">{source.state || 'Unknown'}</div>
-              <div class="text-xs text-slate-500">{source.city || ''}</div>
+              <div class="text-2xl font-bold">{source.label || source.state || source[domainConfig?.primary_field] || 'Unknown'}</div>
+              <div class="text-xs text-slate-500">{source.city || source[domainConfig?.primary_field] || ''}</div>
             </div>
             <div class="text-slate-600 text-2xl">-></div>
             <div class="text-center">
-              <div class="text-2xl font-bold">{target.state || 'Unknown'}</div>
-              <div class="text-xs text-slate-500">{target.city || ''}</div>
+              <div class="text-2xl font-bold">{target.label || target.state || target[domainConfig?.primary_field] || 'Unknown'}</div>
+              <div class="text-xs text-slate-500">{target.city || target[domainConfig?.primary_field] || ''}</div>
             </div>
           </div>
         </div>
@@ -330,41 +381,29 @@
           {/if}
         </div>
         
-        <!-- State cards -->
+        <!-- Entity cards -->
         <div class="grid grid-cols-2 gap-4 mb-6">
-          <!-- Source -->
-          <div class="p-3 rounded-lg bg-slate-800/50 border border-slate-700">
-            <div class="text-xs text-slate-500 uppercase mb-2">Source</div>
-            <div class="text-sm font-semibold">{source.state}</div>
-            <div class="text-xs text-slate-400">Capital: <span class="text-yellow-400">{source.capital}</span></div>
-            <div class="text-xs text-slate-400">City: {source.city}</div>
-            {#if source.neuronpedia_url}
-              <a 
-                href={source.neuronpedia_url} 
-                target="_blank"
-                class="inline-block mt-2 text-xs text-cyan-400 hover:underline"
-              >
-                Neuronpedia ->
-              </a>
-            {/if}
-          </div>
-          
-          <!-- Target -->
-          <div class="p-3 rounded-lg bg-slate-800/50 border border-slate-700">
-            <div class="text-xs text-slate-500 uppercase mb-2">Target</div>
-            <div class="text-sm font-semibold">{target.state}</div>
-            <div class="text-xs text-slate-400">Capital: <span class="text-emerald-400">{target.capital}</span></div>
-            <div class="text-xs text-slate-400">City: {target.city}</div>
-            {#if target.neuronpedia_url}
-              <a 
-                href={target.neuronpedia_url} 
-                target="_blank"
-                class="inline-block mt-2 text-xs text-cyan-400 hover:underline"
-              >
-                Neuronpedia ->
-              </a>
-            {/if}
-          </div>
+          {#each [['Source', source, 'text-yellow-400', sourceSubgraphUrl], ['Target', target, 'text-emerald-400', targetSubgraphUrl]] as [role, entity, answerColor, subgraphUrl]}
+            <div class="p-3 rounded-lg bg-slate-800/50 border border-slate-700">
+              <div class="text-xs text-slate-500 uppercase mb-2">{role}</div>
+              <div class="text-sm font-semibold">{entity.label || entity.state || entity[domainConfig?.primary_field] || entity.slug || ''}</div>
+              {#each entityFields.filter(f => f !== (domainConfig?.primary_field || '') && entity[f]) as field}
+                <div class="text-xs text-slate-400">
+                  <span class="capitalize">{field}:</span>
+                  <span class={field === answerLabel ? answerColor : ''}>{entity[field]}</span>
+                </div>
+              {/each}
+              {#if !entityFields.length && entity.capital}
+                <div class="text-xs text-slate-400">Capital: <span class={answerColor}>{entity.capital}</span></div>
+              {/if}
+              {#if subgraphUrl || entity.neuronpedia_url}
+                <a href={subgraphUrl || entity.neuronpedia_url} target="_blank"
+                   class="inline-block mt-2 text-xs text-cyan-400 hover:underline">
+                  Neuronpedia ->
+                </a>
+              {/if}
+            </div>
+          {/each}
         </div>
         
         <!-- Outputs -->
@@ -372,7 +411,7 @@
           <div>
             <div class="text-xs text-slate-500 uppercase mb-2">Default Output</div>
             <div class="p-3 rounded bg-slate-800 text-sm font-mono text-slate-300 overflow-x-auto">
-              {@html highlightOutput(raw.default_output?.slice(0, 200) || 'N/A', source.capital, target.capital)}
+              {@html highlightOutput(raw.default_output?.slice(0, 200) || 'N/A', sourceAnswer, targetAnswer)}
             </div>
           </div>
           
@@ -385,7 +424,7 @@
           <div>
             <div class="text-xs text-slate-500 uppercase mb-2">Steered Output</div>
             <div class="p-3 rounded bg-slate-800 text-sm font-mono text-slate-300 overflow-x-auto">
-              {@html highlightOutput(raw.steered_output?.slice(0, 200) || 'N/A', source.capital, target.capital)}
+              {@html highlightOutput(raw.steered_output?.slice(0, 200) || 'N/A', sourceAnswer, targetAnswer)}
             </div>
           </div>
         </div>
@@ -593,10 +632,12 @@
           <div class="text-xs text-slate-500 uppercase mb-3">Status</div>
           <div class="space-y-2">
             <div class="flex items-center justify-between text-sm">
-              <span class="text-slate-400">Target capital in steered:</span>
-              <span class={exact.steered_has_to_capital ? 'text-emerald-400' : 'text-red-400'}>
-                {exact.steered_has_to_capital ? 'Yes' : 'No'}
-              </span>
+              <span class="text-slate-400">Target {answerLabel} in steered:</span>
+              {#if exact.steered_has_to_capital || exact.steered_has_to_answer}
+                <span class="text-emerald-400">Yes</span>
+              {:else}
+                <span class="text-red-400">No</span>
+              {/if}
             </div>
             <div class="flex items-center justify-between text-sm">
               <span class="text-slate-400">Source suppressed:</span>
@@ -630,18 +671,18 @@
         
         <!-- Links -->
         <div class="mt-6 flex gap-2">
-          {#if source.neuronpedia_url}
+          {#if sourceSubgraphUrl || source.neuronpedia_url}
             <a 
-              href={source.neuronpedia_url}
+              href={sourceSubgraphUrl || source.neuronpedia_url}
               target="_blank"
               class="flex-1 py-2 px-4 rounded bg-slate-800 hover:bg-slate-700 text-center text-sm text-cyan-400 transition-colors"
             >
               Source Subgraph
             </a>
           {/if}
-          {#if target.neuronpedia_url}
+          {#if targetSubgraphUrl || target.neuronpedia_url}
             <a 
-              href={target.neuronpedia_url}
+              href={targetSubgraphUrl || target.neuronpedia_url}
               target="_blank"
               class="flex-1 py-2 px-4 rounded bg-slate-800 hover:bg-slate-700 text-center text-sm text-cyan-400 transition-colors"
             >

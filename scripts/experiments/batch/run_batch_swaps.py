@@ -30,9 +30,12 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import shutil
+import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -223,6 +226,209 @@ def prepare_swap_features(
     return features, ablate_count, amplify_count
 
 
+def _run_local_ct_steering(
+    ct_config: Dict[str, Any],
+    steering_cfg: Dict[str, Any],
+    prompts_path: Path,
+    features_path: Path,
+    output_path: Path,
+    gpu_id: Optional[int] = None,
+    verbose: bool = True,
+    timeout: int = 600,
+) -> bool:
+    """Run batch_steering_ct.py as a local subprocess."""
+    script_path = SCRIPTS_DIR / 'neuronpedia_steering' / 'batch_steering_ct.py'
+    if not script_path.exists():
+        print(f"  ERROR: batch_steering_ct.py not found at {script_path}")
+        return False
+
+    env = os.environ.copy()
+    # Load .env for HF_TOKEN etc. if not already set
+    env_file = Path(__file__).resolve().parents[3] / '.env'
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                k, v = line.split('=', 1)
+                env.setdefault(k.strip(), v.strip())
+    env['MODEL_ID'] = ct_config.get('model_id', 'google/gemma-2-2b')
+    env['TRANSCODER_SET'] = steering_cfg.get('transcoder_set', 'mntss/clt-gemma-2-2b-2.5M')
+    env['PROMPTS_JSON_PATH'] = str(prompts_path)
+    env['FEATURES_JSON_PATH'] = str(features_path)
+    env['OUT_JSON_PATH'] = str(output_path)
+    env['STEER_TEMPERATURE'] = str(steering_cfg.get('temperature', 0.3))
+    env['STEER_N_TOKENS'] = str(steering_cfg.get('n_tokens', 10))
+    env['STEER_FREQ_PENALTY'] = str(steering_cfg.get('freq_penalty', 2.0))
+    env['STEER_SEED'] = str(steering_cfg.get('seed', 42))
+    env['TOP_K'] = str(steering_cfg.get('top_k', 5))
+    env['FREEZE_ATTENTION'] = 'true' if steering_cfg.get('freeze_attention') else 'false'
+    if gpu_id is not None:
+        env['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+    env.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'expandable_segments:True')
+
+    try:
+        result = subprocess.run(
+            ['python3', str(script_path)],
+            env=env, capture_output=True, text=True, timeout=timeout,
+        )
+        if result.returncode != 0:
+            print(f"  ERROR: Local CT steering failed (rc={result.returncode})")
+            if result.stderr:
+                for line in result.stderr.strip().split('\n')[-5:]:
+                    print(f"    {line}")
+            return False
+        if verbose and result.stdout:
+            for line in result.stdout.strip().split('\n')[-3:]:
+                print(f"    {line}")
+        return True
+    except subprocess.TimeoutExpired:
+        print(f"  ERROR: Local CT steering timed out ({timeout}s)")
+        return False
+    except Exception as e:
+        print(f"  ERROR: Local CT steering failed: {e}")
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Batched local execution: prepare all pairs on CPU, then 1 subprocess/GPU
+# ---------------------------------------------------------------------------
+
+@dataclass
+class _PreparedPair:
+    """A pair whose prompts+features have been computed on CPU."""
+    pair: SwapPair
+    prompt: str
+    features: List[Dict[str, Any]]
+    ablate_count: int
+    amplify_count: int
+
+
+def _prepare_pairs_cpu(
+    ct_steering,
+    config: Dict[str, Any],
+    pairs: List[SwapPair],
+    verbose: bool = True,
+) -> Tuple[List[_PreparedPair], List[SwapPair]]:
+    """Prepare prompts and features for all pairs (CPU only, fast)."""
+    prepared: List[_PreparedPair] = []
+    skipped: List[SwapPair] = []
+    for i, pair in enumerate(pairs):
+        paths = get_swap_paths(config, pair)
+        try:
+            data_from = load_graph_data(paths['from_graph_dir'], verbose=False)
+            data_to = (
+                load_graph_data(paths['to_graph_dir'], verbose=False)
+                if pair.from_slug != pair.to_slug
+                else data_from
+            )
+        except FileNotFoundError as e:
+            if verbose:
+                print(f"  SKIP {pair.from_slug}->{pair.to_slug}: {e}")
+            skipped.append(pair)
+            continue
+
+        prompt = data_from.get('prompt')
+        if not prompt:
+            skipped.append(pair)
+            continue
+
+        features, abl, amp = prepare_swap_features(
+            ct_steering, config, pair, data_from, data_to
+        )
+        if not features:
+            skipped.append(pair)
+            continue
+
+        prepared.append(_PreparedPair(pair, prompt, features, abl, amp))
+
+    if verbose:
+        print(f"  Prepared {len(prepared)} pairs, skipped {len(skipped)}")
+    return prepared, skipped
+
+
+def _run_gpu_batch(
+    gpu_id: int,
+    batch: List[_PreparedPair],
+    config: Dict[str, Any],
+    work_root: Path,
+    verbose: bool = True,
+) -> List[Tuple[_PreparedPair, Optional[Dict[str, Any]]]]:
+    """Run a batch of prepared pairs on a single GPU (one model load)."""
+    ct_config = config.get('ct_steering', {})
+    swap_cfg = config.get('swap', {})
+    concept_fields = swap_cfg.get('concept_fields')
+
+    batch_dir = work_root / f"_gpu_batch_{gpu_id}"
+    batch_dir.mkdir(parents=True, exist_ok=True)
+
+    prompts = []
+    per_prompt_features: Dict[str, List] = {}
+    for pp in batch:
+        pid = pp.pair.swap_id
+        prompts.append({"id": pid, "text": pp.prompt})
+        per_prompt_features[pid] = pp.features
+
+    prompts_path = batch_dir / "prompts.json"
+    features_path = batch_dir / "features.json"
+    output_path = batch_dir / "steering_dump.json"
+
+    with open(prompts_path, "w", encoding="utf-8") as f:
+        json.dump(prompts, f)
+    with open(features_path, "w", encoding="utf-8") as f:
+        json.dump({"global": [], "per_prompt": per_prompt_features}, f)
+
+    steering_cfg = {
+        'transcoder_set': ct_config.get('transcoder_set', 'mntss/clt-gemma-2-2b-2.5M'),
+        'temperature': ct_config.get('temperature', 0.3),
+        'n_tokens': ct_config.get('n_tokens', 10),
+        'freq_penalty': ct_config.get('freq_penalty', 2.0),
+        'seed': ct_config.get('seed', 42),
+        'top_k': ct_config.get('top_k', 5),
+        'freeze_attention': ct_config.get('freeze_attention', False),
+    }
+
+    timeout = max(120, len(batch) * 30)
+    ok = _run_local_ct_steering(
+        ct_config, steering_cfg,
+        prompts_path, features_path, output_path,
+        gpu_id=gpu_id, verbose=verbose, timeout=timeout,
+    )
+
+    results: List[Tuple[_PreparedPair, Optional[Dict[str, Any]]]] = []
+    if not ok:
+        return [(pp, None) for pp in batch]
+
+    try:
+        with open(output_path, "r", encoding="utf-8") as f:
+            dump = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return [(pp, None) for pp in batch]
+
+    result_by_id = {r['probe_id']: r for r in dump.get('results', [])}
+    for pp in batch:
+        raw = result_by_id.get(pp.pair.swap_id)
+        if raw is None:
+            results.append((pp, None))
+            continue
+        raw['prompt'] = pp.prompt
+        raw['ablate_count'] = pp.ablate_count
+        raw['amplify_count'] = pp.amplify_count
+
+        evaluation = evaluate_swap(raw, pp.pair.from_entity, pp.pair.to_entity, concept_fields)
+        duration_ms = 0
+        swap_result = create_swap_result(pp.pair, raw, evaluation, config, duration_ms)
+
+        out_file = get_swap_paths(config, pp.pair)['output_file']
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(out_file, "w", encoding="utf-8") as f:
+            json.dump(swap_result, f, indent=2, ensure_ascii=False)
+
+        results.append((pp, swap_result))
+    return results
+
+
+
+
 def run_single_swap(
     ct_steering,
     config: Dict[str, Any],
@@ -298,53 +504,52 @@ def run_single_swap(
     # Execute steering
     ct_config = config.get('ct_steering', {})
     remote_config = config.get('compute', {}).get('remote', {})
-    
+    swap_cfg = config.get('swap', {})
+    concept_fields = swap_cfg.get('concept_fields')
+    answer_field = concept_fields[-1] if concept_fields else 'capital'
+
+    steering_cfg = {
+        'transcoder_set': ct_config.get('transcoder_set', 'mntss/clt-gemma-2-2b-2.5M'),
+        'temperature': ct_config.get('temperature', 0.3),
+        'n_tokens': ct_config.get('n_tokens', 6),
+        'freq_penalty': ct_config.get('freq_penalty', 2.0),
+        'seed': ct_config.get('seed', 42),
+        'top_k': ct_config.get('top_k', 5),
+        'freeze_attention': ct_config.get('freeze_attention', False),
+        'track_trajectory': ct_config.get('track_trajectory', False),
+        'target_token': pair.to_entity.get(answer_field, ''),
+        'source_token': pair.from_entity.get(answer_field, ''),
+        'control_tokens': ct_config.get('control_tokens'),
+    }
+
     if remote_config.get('enabled', False):
-        # Remote execution
-        steering_cfg = {
-            'transcoder_set': ct_config.get('transcoder_set', 'mntss/clt-gemma-2-2b-2.5M'),
-            'temperature': ct_config.get('temperature', 0.3),
-            'n_tokens': ct_config.get('n_tokens', 6),
-            'freq_penalty': ct_config.get('freq_penalty', 2.0),
-            'seed': ct_config.get('seed', 42),
-            'top_k': ct_config.get('top_k', 5),
-            'freeze_attention': ct_config.get('freeze_attention', False),
-            # Trajectory tracking (fine-grained logit metrics)
-            'track_trajectory': ct_config.get('track_trajectory', False),
-            'target_token': pair.to_entity.get('capital', ''),  # Target capital (what we want)
-            'source_token': pair.from_entity.get('capital', ''),  # Source capital (what we suppress)
-            'control_tokens': ct_config.get('control_tokens'),  # Optional control tokens
-        }
-        
-        # Build config for remote executor
         remote_exec_config = {
             'model': {'id': ct_config.get('model_id', 'google/gemma-2-2b')},
             'compute': config.get('compute', {}),
             'ct_steering': steering_cfg,
         }
-        
         local_paths = {
             'prompts_json': prompts_path,
             'steering_features_json': features_path,
             'steering_dump_json': output_path,
             'base': work_dir,
         }
-        
         seed = {'slug': pair.swap_id}
-        
         success, metadata = process_remote_ct_steering_step(
             remote_exec_config, seed, local_paths, verbose=verbose,
             control_socket=control_socket
         )
-        
         if not success:
             print(f"  ERROR: Remote steering failed")
             return None
     else:
-        # Local execution would go here
-        # For now, require remote execution
-        print("  ERROR: Local execution not yet implemented. Use remote.")
-        return None
+        success = _run_local_ct_steering(
+            ct_config, steering_cfg, prompts_path, features_path, output_path,
+            gpu_id=config.get('_local_gpu_id'),
+            verbose=verbose,
+        )
+        if not success:
+            return None
     
     # Load results
     if not output_path.exists():
@@ -366,7 +571,7 @@ def run_single_swap(
     raw_result['amplify_count'] = amplify_count
     
     # Evaluate
-    evaluation = evaluate_swap(raw_result, pair.from_entity, pair.to_entity)
+    evaluation = evaluate_swap(raw_result, pair.from_entity, pair.to_entity, concept_fields)
     
     duration_ms = (time.time() - start_time) * 1000
     
@@ -383,7 +588,7 @@ def run_single_swap(
         exact = evaluation['exact_match']
         print(f"  Default: {raw_result.get('default', '')[:50]}...")
         print(f"  Steered: {raw_result.get('steered', '')[:50]}...")
-        print(f"  Suppressed: {exact['from_suppressed']}, Target hit: {exact['steered_has_to_capital']}")
+        print(f"  Suppressed: {exact['from_suppressed']}, Target hit: {exact['steered_has_to_answer']}")
     
     return result
 
@@ -421,20 +626,25 @@ def run_swaps_parallel(
     worker_counter = [0]
     counter_lock = threading.Lock()
     
+    is_local = not config.get('compute', {}).get('remote', {}).get('enabled', False)
+    available_gpus = list(range(max_workers)) if is_local else []
+
     def run_swap_worker(pair: SwapPair) -> Tuple[SwapPair, Optional[Dict[str, Any]], Optional[str], float]:
         """Worker function for a single swap."""
-        # Stagger worker starts to avoid SSH connection storms (especially on Windows)
         with counter_lock:
             worker_idx = worker_counter[0]
             worker_counter[0] += 1
-        
-        # Small delay for first few workers to avoid simultaneous SSH connections
+
         if worker_idx < max_workers and not control_socket:
-            time.sleep(worker_idx * 0.5)  # 0, 0.5, 1.0, 1.5s delays
-        
+            time.sleep(worker_idx * 0.5)
+
+        worker_config = dict(config)
+        if available_gpus:
+            worker_config['_local_gpu_id'] = available_gpus[worker_idx % len(available_gpus)]
+
         swap_start = time.time()
         try:
-            result = run_single_swap(ct_steering, config, pair, verbose=False,
+            result = run_single_swap(ct_steering, worker_config, pair, verbose=False,
                                      control_socket=control_socket)
             return (pair, result, None, time.time() - swap_start)
         except Exception as e:
@@ -515,6 +725,7 @@ def run_batch_swaps(
     parallel: bool = False,
     max_workers: int = 8,
     run_id: Optional[str] = None,
+    gpu_ids: Optional[List[int]] = None,
 ):
     """
     Run batch swap experiments.
@@ -527,6 +738,7 @@ def run_batch_swaps(
         verbose: Print progress
         parallel: If True, run swaps in parallel (uses multiple GPUs)
         max_workers: Maximum parallel workers when parallel=True (default: 8)
+        gpu_ids: Explicit list of GPU IDs to use (default: 0..max_workers-1)
     """
     print_banner("Batch Swap Runner")
     print(f"Config: {config_path}")
@@ -677,8 +889,62 @@ def run_batch_swaps(
         extra={"timestamp_started": start_iso},
     )
     
-    if parallel:
-        # Start SSH ControlMaster for connection reuse (avoids SSH throttling)
+    is_local = not config.get('compute', {}).get('remote', {}).get('enabled', False)
+
+    if parallel and is_local:
+        # Batched local execution: prepare all pairs on CPU, then 1 process/GPU
+        actual_gpus = gpu_ids if gpu_ids else list(range(max_workers))
+        n_gpus = min(len(actual_gpus), max_workers)
+        actual_gpus = actual_gpus[:n_gpus]
+        print(f"  [LOCAL] Batched execution on {n_gpus} GPUs {actual_gpus}")
+        print(f"  [LOCAL] Phase 1: Preparing features (CPU)...")
+        prepared, prep_skipped = _prepare_pairs_cpu(
+            ct_steering, config, pending_pairs, verbose=verbose
+        )
+        failed = list(prep_skipped)
+
+        if not prepared:
+            print("  ERROR: No pairs could be prepared")
+            results = []
+        else:
+            import math
+            n_gpus = min(n_gpus, len(prepared))
+            batch_size = math.ceil(len(prepared) / n_gpus)
+            gpu_batches = [
+                prepared[i:i + batch_size] for i in range(0, len(prepared), batch_size)
+            ]
+            print(f"  [LOCAL] Phase 2: Running {len(prepared)} pairs across "
+                  f"{len(gpu_batches)} GPUs ({batch_size} pairs/GPU, 1 model load/GPU)")
+            run_start = time.time()
+
+            results = []
+            with ThreadPoolExecutor(max_workers=len(gpu_batches)) as executor:
+                work_root = Path(config['inputs']['graphs_root']) / '_swaps' / '_work'
+                futures = {
+                    executor.submit(
+                        _run_gpu_batch, actual_gpus[idx], batch, config, work_root, verbose=False
+                    ): actual_gpus[idx]
+                    for idx, batch in enumerate(gpu_batches)
+                }
+                for future in as_completed(futures):
+                    gpu_id = futures[future]
+                    try:
+                        batch_results = future.result()
+                    except Exception as e:
+                        print(f"  ERROR: GPU {gpu_id} batch failed: {e}")
+                        batch_results = []
+                    for pp, swap_result in batch_results:
+                        if swap_result:
+                            results.append(swap_result)
+                        else:
+                            failed.append(pp.pair)
+
+            elapsed = time.time() - run_start
+            print(f"  [LOCAL] Phase 2 done: {len(results)} OK, "
+                  f"{len(failed)} failed, {elapsed:.1f}s total")
+
+    elif parallel:
+        # Remote parallel execution using SSH ControlMaster
         print("  [SSH] Starting ControlMaster for parallel execution...")
         control_master = create_control_master_from_config(config, verbose=verbose)
         control_socket = control_master.socket_path if control_master else None
@@ -686,16 +952,12 @@ def run_batch_swaps(
         if control_socket:
             print(f"  [SSH] Connection multiplexing enabled")
         else:
-            # Without ControlMaster, limit workers to avoid SSH throttling
-            # But allow user-specified count (they know their setup)
             if max_workers > 8:
                 print(f"  [SSH] WARNING: ControlMaster unavailable, capping workers to 8")
                 max_workers = 8
         
-        # Clean up any stale GPU locks from previous failed runs
         print(f"  [SSH] Clearing stale GPU locks...")
         try:
-            import subprocess
             result = subprocess.run(
                 ['ssh', 'nodo207', 
                  'rmdir /mnt/ssd-1/soar-automated_interpretability/graphs/giuseppe/.locks/gpu* 2>/dev/null; echo cleared'],
@@ -707,14 +969,12 @@ def run_batch_swaps(
             print(f"  [SSH] Warning: Could not clear stale locks: {e}")
         
         try:
-            # Parallel execution using ThreadPoolExecutor
             results, failed = run_swaps_parallel(
                 ct_steering, config, pending_pairs, 
                 max_workers=max_workers, verbose=verbose,
                 control_socket=control_socket
             )
         finally:
-            # Clean up ControlMaster
             if control_master:
                 control_master.close()
                 print("  [SSH] ControlMaster closed")
@@ -875,6 +1135,13 @@ Examples:
     )
 
     parser.add_argument(
+        '--gpus',
+        type=str,
+        default=None,
+        help='Comma-separated GPU IDs to use (e.g. "4,5,6,7"). Default: 0..workers-1'
+    )
+
+    parser.add_argument(
         '--run-id',
         type=str,
         default=None,
@@ -887,6 +1154,10 @@ Examples:
     
     args = parser.parse_args()
     
+    parsed_gpus = None
+    if args.gpus:
+        parsed_gpus = [int(g.strip()) for g in args.gpus.split(',')]
+
     success = run_batch_swaps(
         config_path=args.config,
         dry_run=args.dry_run,
@@ -896,6 +1167,7 @@ Examples:
         parallel=args.parallel,
         max_workers=args.workers,
         run_id=args.run_id,
+        gpu_ids=parsed_gpus,
     )
     
     sys.exit(0 if success else 1)

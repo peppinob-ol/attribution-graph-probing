@@ -22,23 +22,44 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 _SWAPS_DIR_CONFIG_KEY = "_swaps_dir"
 
 
+def _primary_concept_from_entity(entity: Dict[str, str], swap_cfg: Dict[str, Any]) -> str:
+    """Get primary concept string for an entity using swap.concept_fields (domain-agnostic)."""
+    raw = swap_cfg.get("concept_fields", None)
+    if raw is None:
+        fields: List[str] = ["state"]
+    elif isinstance(raw, str):
+        fields = [raw]
+    else:
+        fields = [str(x) for x in raw if str(x).strip()] if isinstance(raw, list) else ["state"]
+    if not fields:
+        return (entity.get("state") or entity.get("slug") or "").strip().lower()
+    val = entity.get(fields[0], "")
+    return (val or "").strip().lower()
+
+
 @dataclass
 class SwapPair:
     """Represents a single swap experiment pair."""
     from_slug: str
     to_slug: str
-    from_entity: Dict[str, str]  # {slug, city, state, capital}
+    from_entity: Dict[str, str]
     to_entity: Dict[str, str]
-    
+    from_concept_str: Optional[str] = None
+    to_concept_str: Optional[str] = None
+
     @property
     def from_concept(self) -> str:
-        """Get concept name for source (state name lowercase)."""
-        return self.from_entity['state'].lower()
-    
+        """Get concept name for source (domain-agnostic via concept_fields or fallback state)."""
+        if self.from_concept_str is not None:
+            return self.from_concept_str
+        return (self.from_entity.get("state") or "").strip().lower()
+
     @property
     def to_concept(self) -> str:
-        """Get concept name for target (state name lowercase)."""
-        return self.to_entity['state'].lower()
+        """Get concept name for target (domain-agnostic via concept_fields or fallback state)."""
+        if self.to_concept_str is not None:
+            return self.to_concept_str
+        return (self.to_entity.get("state") or "").strip().lower()
     
     @property
     def swap_id(self) -> str:
@@ -196,12 +217,15 @@ def resolve_swap_pairs(config: Dict[str, Any]) -> List[SwapPair]:
                 # Skip identity swaps if not wanted
                 if from_entity['slug'] == to_entity['slug'] and not include_identity:
                     continue
-                
+                from_concept_str = _primary_concept_from_entity(from_entity, swap_config)
+                to_concept_str = _primary_concept_from_entity(to_entity, swap_config)
                 pairs.append(SwapPair(
                     from_slug=from_entity['slug'],
                     to_slug=to_entity['slug'],
                     from_entity=from_entity,
                     to_entity=to_entity,
+                    from_concept_str=from_concept_str or None,
+                    to_concept_str=to_concept_str or None,
                 ))
         
         n_identity = len(matrix_entities) if include_identity else 0
@@ -232,12 +256,17 @@ def resolve_swap_pairs(config: Dict[str, Any]) -> List[SwapPair]:
 
             from_slug = resolve_slug(from_slug, "source")
             to_slug = resolve_slug(to_slug, "target")
-            
+            from_entity = entity_by_slug[from_slug]
+            to_entity = entity_by_slug[to_slug]
+            from_concept_str = _primary_concept_from_entity(from_entity, swap_config)
+            to_concept_str = _primary_concept_from_entity(to_entity, swap_config)
             pairs.append(SwapPair(
                 from_slug=from_slug,
                 to_slug=to_slug,
-                from_entity=entity_by_slug[from_slug],
-                to_entity=entity_by_slug[to_slug],
+                from_entity=from_entity,
+                to_entity=to_entity,
+                from_concept_str=from_concept_str or None,
+                to_concept_str=to_concept_str or None,
             ))
         
         print(f"  [PAIRS] Defined pairs mode: {len(pairs)} pairs")

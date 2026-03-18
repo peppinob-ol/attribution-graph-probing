@@ -444,10 +444,11 @@ def get_topk_logits(
     """
     squeezed = logits.squeeze()
     if squeezed.dim() == 1:
-        # Already a single position's logits
         probs = torch.softmax(squeezed, dim=-1)
     else:
-        # Multiple positions - select the specified one
+        seq_len = squeezed.shape[0]
+        if position >= seq_len:
+            position = seq_len - 1
         probs = torch.softmax(squeezed[position], dim=-1)
     topk = torch.topk(probs, k)
     return [

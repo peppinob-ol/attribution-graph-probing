@@ -6,17 +6,51 @@ from fasthtml.common import Response
 from starlette.requests import Request
 
 
-def api_routes(app, rt, data_loader, annotate_mode: bool = False):
+def _sync_loader(target, source) -> None:
+    """Copy mutable state from source DataLoader into target in-place.
+
+    Routes hold a reference to the original data_loader object, so we update
+    that object directly instead of replacing the reference.
+    """
+    target.data_dir = source.data_dir
+    target.base_swaps_dir = source.base_swaps_dir
+    target.run_id = source.run_id
+    target.swaps_dir = source.swaps_dir
+    target._matrix_cache = None
+    target._states_cache = None
+    target._analysis_cache = None
+    target._stats_cache = None
+    target._domain_config_cache = None
+
+
+def api_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None):
     """Register API routes."""
     
     @rt("/api/config")
     def api_config():
-        """Return app configuration including annotation mode."""
+        """Return app configuration including domain and model metadata."""
+        dc = data_loader.get_domain_config()
         return Response(
             content=json.dumps({
                 "annotate_mode": annotate_mode,
                 "version": "1.0.0",
                 "current_run": data_loader.get_current_run(),
+                "domain": {
+                    "experiment_name": dc.get('experiment_name', ''),
+                    "display_name": dc.get('display_name', ''),
+                    "concept_fields": dc.get('concept_fields', []),
+                    "answer_field": dc.get('answer_field', ''),
+                    "primary_field": dc.get('primary_field', ''),
+                    "entity_fields": dc.get('entity_fields', []),
+                    "entity_count": dc.get('entity_count', 0),
+                    "is_usa_states": dc.get('is_usa_states', True),
+                    "model_id": dc.get('model_id', ''),
+                    "transcoder_set": dc.get('transcoder_set', ''),
+                    "m_ablate": dc.get('m_ablate', -2),
+                    "m_amplify": dc.get('m_amplify', 20),
+                    "temperature": dc.get('temperature', 0.3),
+                    "n_tokens": dc.get('n_tokens', 10),
+                },
             }),
             media_type="application/json"
         )
@@ -27,20 +61,29 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False):
     
     @rt("/api/runs")
     def api_runs():
-        """List available experiment runs."""
-        runs = data_loader.list_runs()
+        """List all available demo-enabled runs (across datasets when registry is active)."""
+        if registry is not None:
+            runs = registry.list_all_runs()
+        else:
+            runs = data_loader.list_runs()
         return Response(
             content=json.dumps({
                 "runs": runs,
                 "current": data_loader.get_current_run(),
+                "current_dataset": registry.active_dataset_id if registry else None,
             }),
             media_type="application/json"
         )
     
     @rt("/api/runs/{run_id}", methods=["POST"])
     def api_switch_run(run_id: str):
-        """Switch to a different experiment run."""
-        success = data_loader.set_run(run_id)
+        """Switch to any run (handles cross-dataset switching automatically)."""
+        if registry is not None:
+            success = registry.set_run_global(run_id)
+            if success:
+                _sync_loader(data_loader, registry.active_loader)
+        else:
+            success = data_loader.set_run(run_id)
         if not success:
             return Response(
                 content=json.dumps({"error": f"Run not found: {run_id}"}),
@@ -51,7 +94,69 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False):
             content=json.dumps({
                 "status": "ok",
                 "run_id": run_id,
-                "message": f"Switched to run: {run_id}",
+                "dataset_id": registry.active_dataset_id if registry else None,
+            }),
+            media_type="application/json"
+        )
+
+    # ============================================================
+    # Dataset endpoints (only active when registry is available)
+    # ============================================================
+
+    @rt("/api/datasets")
+    def api_datasets():
+        """List all demo-enabled datasets."""
+        if registry is None:
+            return Response(
+                content=json.dumps({"datasets": [], "current": None}),
+                media_type="application/json"
+            )
+        return Response(
+            content=json.dumps({
+                "datasets": registry.list_datasets(),
+                "current": registry.active_dataset_id,
+            }),
+            media_type="application/json"
+        )
+
+    @rt("/api/datasets/{dataset_id}", methods=["POST"])
+    def api_switch_dataset(dataset_id: str):
+        """Switch to a different dataset (resets to its best run)."""
+        if registry is None:
+            return Response(
+                content=json.dumps({"error": "Multi-dataset mode not active"}),
+                media_type="application/json",
+                status_code=404
+            )
+        success = registry.set_dataset(dataset_id)
+        if not success:
+            return Response(
+                content=json.dumps({"error": f"Dataset not found: {dataset_id}"}),
+                media_type="application/json",
+                status_code=404
+            )
+        # Propagate the new loader state into the shared data_loader object
+        _sync_loader(data_loader, registry.active_loader)
+        return Response(
+            content=json.dumps({
+                "status": "ok",
+                "dataset_id": dataset_id,
+                "run_id": registry.active_loader.get_current_run(),
+            }),
+            media_type="application/json"
+        )
+
+    @rt("/api/datasets/{dataset_id}/runs")
+    def api_dataset_runs(dataset_id: str):
+        """List runs for a specific dataset."""
+        if registry is None:
+            return Response(
+                content=json.dumps({"runs": []}),
+                media_type="application/json"
+            )
+        return Response(
+            content=json.dumps({
+                "runs": registry.list_runs_for_dataset(dataset_id),
             }),
             media_type="application/json"
         )
@@ -127,22 +232,34 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False):
     
     @rt("/api/state/{slug}/profile")
     def api_state_profile(slug: str):
-        """
-        Return comprehensive state profile with stats.
-        
-        Includes native probability, supernode count, feature layers,
-        attack/defense scores, and token overlap flag.
-        """
+        """Return comprehensive entity profile with stats."""
         profile = data_loader.get_state_profile(slug)
         if profile is None:
-            return Response(
-                content=json.dumps({"error": "State not found"}),
-                media_type="application/json",
-                status_code=404
-            )
+            # Entity directory may not exist for all domains;
+            # build a minimal profile from the entity index.
+            dc = data_loader.get_domain_config()
+            edata = dc['entity_index'].get(slug)
+            if edata is None:
+                return Response(
+                    content=json.dumps({"error": "Entity not found"}),
+                    media_type="application/json",
+                    status_code=404,
+                )
+            label = edata.get(dc['primary_field'], slug)
+            answer = edata.get(dc['answer_field'], '')
+            profile = {
+                'slug': slug,
+                'label': label,
+                'answer': answer,
+                'state': edata.get('state', label),
+                'city': edata.get('city', label),
+                'capital': edata.get('capital', answer),
+                'fields': {k: v for k, v in edata.items()
+                           if k != 'slug'},
+            }
         return Response(
             content=json.dumps(profile),
-            media_type="application/json"
+            media_type="application/json",
         )
     
     @rt("/api/analysis")

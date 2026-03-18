@@ -6,6 +6,7 @@
   // State
   let matrix = {};
   let states = [];
+  let domainConfig = null;
   let loading = true;
   let error = null;
   let selected = null;
@@ -13,6 +14,8 @@
   let sortBy = 'alpha';
   let hideOverlap = false;
   let hideCapitalNotTopLogit = false;
+
+  $: isUsaStates = domainConfig?.is_usa_states ?? true;
   
   const tierColors = {
     5:    { bg: '#0A4FFF', hover: '#3D7DFF' },
@@ -31,6 +34,7 @@
   }
   
   function hasNameOverlap(s) {
+    if (!isUsaStates) return false;
     const stateLower = (s.state || '').toLowerCase();
     const cityLower = (s.city || '').toLowerCase();
     if (!stateLower || !cityLower) return false;
@@ -39,11 +43,12 @@
   }
 
   function hasCapitalNotTopLogit(s) {
+    if (!isUsaStates) return false;
     return s.capital_is_top_logit === false;
   }
   
   $: sortedStates = [...states].sort((a, b) => {
-    if (sortBy === 'alpha') return a.state.localeCompare(b.state);
+    if (sortBy === 'alpha') return (a.label || a.state || '').localeCompare(b.label || b.state || '');
     if (sortBy === 'native_prob') return (b.native_prob || 0) - (a.native_prob || 0);
     if (sortBy === 'supernodes') return (b.supernodes || 0) - (a.supernodes || 0);
     if (sortBy === 'src_tier') return (b.src_tier || 0) - (a.src_tier || 0);
@@ -154,9 +159,10 @@
   onMount(async () => {
     document.addEventListener('keydown', handleKeydown);
     try {
-      const [matrixRes, statesRes] = await Promise.all([
+      const [matrixRes, statesRes, configRes] = await Promise.all([
         fetch('/api/matrix'),
         fetch('/api/states'),
+        fetch('/api/config'),
       ]);
       
       if (!matrixRes.ok || !statesRes.ok) {
@@ -165,6 +171,10 @@
       
       matrix = await matrixRes.json();
       states = await statesRes.json();
+      if (configRes.ok) {
+        const cfg = await configRes.json();
+        domainConfig = cfg.domain || null;
+      }
       loading = false;
     } catch (e) {
       error = e.message;
@@ -212,7 +222,7 @@
       {/each}
     </div>
     
-    {#if overlapCount > 0 || capitalNotTopLogitCount > 0}
+    {#if isUsaStates && (overlapCount > 0 || capitalNotTopLogitCount > 0)}
       <span class="text-slate-700 hidden sm:inline">|</span>
       {#if overlapCount > 0}
         <label class="flex items-center gap-2 cursor-pointer select-none">
@@ -265,7 +275,7 @@
         {#each visibleStates as state}
           <div 
             class="matrix-col-header"
-            title="{state.state} ({state.city})"
+            title="{state.label || state.state}{state.city ? ` (${state.city})` : ''}"
           >
             <button
               class="absolute bottom-0 left-1/2 -translate-x-1/2 origin-bottom-left -rotate-45 text-[10px] text-slate-500 hover:text-cyan-400 whitespace-nowrap bg-transparent border-none cursor-pointer p-0 transition-colors"
@@ -281,7 +291,7 @@
           <!-- Row label -->
           <div 
             class="matrix-row-label"
-            title="{rowState.state} ({rowState.city})"
+            title="{rowState.label || rowState.state}{rowState.city ? ` (${rowState.city})` : ''}"
           >
             <button
               class="text-[10px] text-slate-500 hover:text-cyan-400 transition-colors bg-transparent border-none cursor-pointer p-0"
@@ -318,9 +328,9 @@
       {@const toState = states.find(s => s.slug === hoveredCell.to)}
       {@const tier = getTier(hoveredCell.from, hoveredCell.to)}
       <div class="mt-4 p-3 bg-slate-800/50 rounded-lg text-sm">
-        <span class="text-slate-400">{fromState?.state || hoveredCell.from}</span>
+        <span class="text-slate-400">{fromState?.label || fromState?.state || hoveredCell.from}</span>
         <span class="text-slate-600 mx-2">-></span>
-        <span class="text-slate-400">{toState?.state || hoveredCell.to}</span>
+        <span class="text-slate-400">{toState?.label || toState?.state || hoveredCell.to}</span>
         {#if tier !== null}
           {@const badge = getTierStyle(tier)}
           <span class="ml-3 px-2 py-0.5 rounded text-xs font-bold"

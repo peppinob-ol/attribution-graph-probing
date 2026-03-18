@@ -25,6 +25,45 @@ probes:
         the director'
     - id: probe_relationship
       text: 'relationship: the person who directed a film is its director'
+get_activations:
+  backend: local
+  local:
+    chunk_by_layer: true
+    include_zero: false
+    gpus: [0, 1, 2, 3, 4, 5, 6, 7]
+    batch_size: 2
+
+grouping:
+  enabled: true
+  window: 7
+  blacklist_tokens:
+    - "<bos>"
+    - "entity"
+    - "attribute"
+    - "relationship"
+  thresholds:
+    dict_peak_consistency_min: 0.8
+    dict_n_distinct_peaks_max: 1
+    sayx_func_vs_sem_min: 50.0
+    sayx_layer_min: 7
+    rel_sparsity_max: 0.45
+    sem_layer_max: 3
+    sem_conf_s_min: 0.50
+    sem_func_vs_sem_max: 50.0
+  upload:
+    enabled: true
+    api_key_env: NEURONPEDIA_API_KEY
+    display_name_template: "{slug} (auto-grouped)"
+    overwrite_id: ""
+
+steps:
+  graph_generation: true
+  feature_export: true
+  probe_prompts: true
+  activations: true
+  grouping: true
+  upload_subgraph: true
+
 graph_generation:
   enabled: true
   seeds_mode: templated

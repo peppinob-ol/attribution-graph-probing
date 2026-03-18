@@ -55,6 +55,23 @@ def validate_config(config: Dict[str, Any]) -> List[str]:
         backend = config['get_activations'].get('backend')
         if backend not in ['local', 'api']:
             errors.append(f"Invalid get_activations.backend: {backend} (must be 'local' or 'api')")
+        if backend == 'local':
+            local_cfg = config['get_activations'].get('local', {})
+            gpus = local_cfg.get('gpus')
+            if gpus is not None:
+                if not isinstance(gpus, list) or not gpus:
+                    errors.append("get_activations.local.gpus must be a non-empty list of GPU indices")
+                else:
+                    try:
+                        for g in gpus:
+                            if not isinstance(g, int) or g < 0:
+                                raise ValueError("each element must be a non-negative integer")
+                    except (ValueError, TypeError):
+                        errors.append("get_activations.local.gpus must be a list of non-negative integers")
+            batch_size = local_cfg.get('batch_size')
+            if batch_size is not None:
+                if not isinstance(batch_size, int) or batch_size <= 0:
+                    errors.append("get_activations.local.batch_size must be a positive integer")
     
     # Validate steps
     if 'steps' in config:
