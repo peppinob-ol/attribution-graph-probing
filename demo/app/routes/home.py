@@ -89,7 +89,10 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                 # Main content
                 Main(cls="max-w-7xl mx-auto px-4 py-8")(
                     # Stats bar
-                    Div(id="kpi-bar", cls=f"grid grid-cols-1 {'md:grid-cols-5' if has_flip_data else 'md:grid-cols-4'} gap-4 mb-8")(
+                    Div(
+                        id="kpi-bar",
+                        cls=f"grid grid-cols-1 md:grid-cols-2 {'xl:grid-cols-5' if has_flip_data else 'xl:grid-cols-4'} gap-4 mb-8",
+                    )(
                         *_kpi_cards(stats, perfect_rate, state_correct_rate,
                                     suppression_rate, flip_at_01_rate, has_flip_data),
                     ),
