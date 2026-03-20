@@ -15,8 +15,9 @@ Usage:
 Then open http://localhost:8000
 
 Environment Variables:
-    OUTPUT_DIR - Path to output root for multi-dataset discovery
-    DATA_DIR   - Path to a single dataset directory (legacy / HF Spaces)
+    OUTPUT_DIR            - Path to output root for multi-dataset discovery
+    DATA_DIR              - Path to a single dataset directory (legacy / HF Spaces)
+    DEMO_DEFAULT_DATASET  - Preferred dataset ID inside OUTPUT_DIR (default: usa_states_batch)
 """
 import os
 import sys
@@ -100,7 +101,7 @@ state_routes(app, rt, data_loader)
 
 
 if __name__ == "__main__":
-    port = 8000
+    port = int(os.environ.get("PORT", "8000"))
     for i, arg in enumerate(sys.argv):
         if arg == "--port" and i + 1 < len(sys.argv):
             port = int(sys.argv[i + 1])

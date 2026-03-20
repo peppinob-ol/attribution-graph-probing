@@ -33,11 +33,23 @@ python main.py
 
 Open http://localhost:8000 in your browser.
 
+By default, the local demo auto-discovers demo-enabled runs in `../output/` and
+prefers `usa_states_batch` when it is available. To force a specific dataset,
+either point `DATA_DIR` at one dataset or set `DEMO_DEFAULT_DATASET`.
+
+Examples:
+
+```bash
+DEMO_DEFAULT_DATASET=book_characters_authors_batch python main.py
+DATA_DIR=../output/usa_states_batch python main.py
+```
+
 ## Project Structure
 
 ```
 demo/
 ├── main.py                    # FastHTML entry point
+├── Dockerfile                 # Hugging Face Spaces container
 ├── requirements.txt           # Python dependencies
 ├── app/
 │   ├── routes/
@@ -129,41 +141,125 @@ npx tailwindcss -i ./static/css/input.css -o ./static/css/tailwind.css --watch
 
 ### Hugging Face Spaces
 
-The live demo is deployed at: https://huggingface.co/spaces/Peppinob/state-swap-steering-explorer
+This demo is packaged for a Docker Space and can be synced into a small Hugging Face repo that keeps the experiment data in a top-level `data/` folder.
 
-**HF Spaces repo location:** `C:\Github\state-swap-steering-explorer`
+#### Files to sync
 
-#### To deploy updates:
+- `demo/main.py` -> `main.py`
+- `demo/Dockerfile` -> `Dockerfile`
+- `demo/requirements.txt` -> `requirements.txt`
+- `demo/README_HF.md` -> `README.md`
+- `demo/app/` -> `app/`
+- `demo/static/` -> `static/`
+- demo-enabled dataset folders from `output/` -> `data/`
 
-1. **Sync files from demo to HF repo:**
-   ```powershell
-   # Copy all source files
-   Copy-Item -Path "C:\Github\circuit_tracer-prompt_rover\demo\main.py" -Destination "C:\Github\state-swap-steering-explorer\main.py" -Force
-   Copy-Item -Path "C:\Github\circuit_tracer-prompt_rover\demo\Dockerfile" -Destination "C:\Github\state-swap-steering-explorer\Dockerfile" -Force
-   Copy-Item -Path "C:\Github\circuit_tracer-prompt_rover\demo\requirements.txt" -Destination "C:\Github\state-swap-steering-explorer\requirements.txt" -Force
-   Copy-Item -Path "C:\Github\circuit_tracer-prompt_rover\demo\README_HF.md" -Destination "C:\Github\state-swap-steering-explorer\README.md" -Force
-   Copy-Item -Path "C:\Github\circuit_tracer-prompt_rover\demo\app\*" -Destination "C:\Github\state-swap-steering-explorer\app\" -Recurse -Force
-   Copy-Item -Path "C:\Github\circuit_tracer-prompt_rover\demo\static\*" -Destination "C:\Github\state-swap-steering-explorer\static\" -Recurse -Force
-   ```
+The Space should mirror the same demo-enabled datasets that local development
+discovers in `output/`. After sync, the Space runs in multi-dataset mode with
+`OUTPUT_DIR=/app/data`, so its header and run selector should match local.
 
-2. **Commit and push:**
-   ```powershell
-   cd C:\Github\state-swap-steering-explorer
-   git add .
-   git commit -m "Sync updates from demo"
-   git push
-   ```
+#### Recommended sync workflow
 
-#### Important Notes:
+```bash
+python demo/sync_hf_space.py --space-dir /path/to/state-swap-steering-explorer
+```
 
-- **README.md frontmatter colors:** HF Spaces only accepts these values for `colorFrom`/`colorTo`:
-  `red`, `yellow`, `green`, `blue`, `indigo`, `purple`, `pink`, `gray`
-  
-  Do NOT use `emerald`, `amber`, etc. - they will cause push rejection.
+By default this script:
 
-- **Don't commit `__pycache__`** - already in `.gitignore`
+- syncs app code from `demo/`
+- syncs the Space landing page from `demo/README_HF.md`
+- scans local `output/` for `display_demo: true` runs
+- copies only those dataset directories into the Space `data/` root
+- removes binary analysis artifacts such as `.png` files that Hugging Face rejects on push
+- removes copied `__pycache__` directories
+- prints a quick data summary after the copy
 
-- The HF Spaces repo contains the `data/` folder with experiment results (not in this demo folder)
+Use `--skip-data` only when you intentionally want to preserve the existing
+Space dataset.
+
+#### Manual sync fallback
+
+```bash
+HF_REPO=/path/to/state-swap-steering-explorer
+
+cp demo/main.py "$HF_REPO/main.py"
+cp demo/Dockerfile "$HF_REPO/Dockerfile"
+cp demo/requirements.txt "$HF_REPO/requirements.txt"
+cp demo/README_HF.md "$HF_REPO/README.md"
+python3 -c 'from pathlib import Path; import shutil
+src = Path("demo")
+output_root = Path("output")
+dst = Path("'"$HF_REPO"'")
+for name in ("app", "static"):
+    target = dst / name
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(src / name, target)
+data_target = dst / "data"
+if data_target.exists():
+    shutil.rmtree(data_target)
+data_target.mkdir(parents=True, exist_ok=True)
+for dataset in (
+    "book_characters_authors_batch",
+    "paintings_painters_batch",
+    "products_founders_batch",
+    "sounds_colors_batch",
+    "usa_states_batch",
+):
+    shutil.copytree(output_root / dataset, data_target / dataset)
+for path in data_target.rglob("*"):
+    if path.is_file() and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf"}:
+        path.unlink()
+for path in dst.rglob("__pycache__"):
+    if path.is_dir():
+        shutil.rmtree(path)'
+```
+
+#### Verification
+
+Before pushing, verify the synced Space data from inside the Space checkout:
+
+```bash
+OUTPUT_DIR=./data python3 -c 'from app.data.loader import DemoRegistry; from pathlib import Path
+reg = DemoRegistry(Path("data"))
+print(reg.list_datasets())
+print(reg.list_all_runs())'
+```
+
+You should see the same demo datasets and runs that local `demo/main.py`
+discovers from `output/`.
+
+#### Local container check
+
+```bash
+cd "$HF_REPO"
+docker build -t state-swap-explorer .
+docker run --rm -p 7860:7860 state-swap-explorer
+```
+
+Open `http://localhost:7860`.
+
+#### Push to Hugging Face
+
+```bash
+cd "$HF_REPO"
+git status
+git add main.py Dockerfile requirements.txt README.md app static
+git commit -m "Update Space app from demo"
+git push
+```
+
+#### Notes
+
+- Local development reads `../output/` by default, while the Space reads `./data`.
+  The sync step above is what keeps those two worlds aligned.
+- The Space Docker image sets `OUTPUT_DIR=/app/data`, so `data/` must contain
+  dataset folders like `usa_states_batch/` and `book_characters_authors_batch/`,
+  not a single dataset unpacked directly at the root.
+- The Space app does not need analysis plot images from `_swaps`, and Hugging Face
+  rejects those binary files in regular git pushes. The sync script removes them.
+- `README.md` frontmatter colors in a Space must use supported values such as `blue`, `indigo`, `green`, or `yellow`.
+- Do not commit `__pycache__`.
+- The demo container listens on port `7860` and uses `uvicorn main:app --host 0.0.0.0`.
 
 ### Vercel / Railway
 

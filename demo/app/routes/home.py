@@ -91,7 +91,8 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                     # Stats bar
                     Div(
                         id="kpi-bar",
-                        cls=f"grid grid-cols-1 md:grid-cols-2 {'xl:grid-cols-5' if has_flip_data else 'xl:grid-cols-4'} gap-4 mb-8",
+                        cls="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8",
+                        style=f"--kpi-cols: {5 if has_flip_data else 4};",
                     )(
                         *_kpi_cards(stats, perfect_rate, state_correct_rate,
                                     suppression_rate, flip_at_01_rate, has_flip_data),
@@ -347,7 +348,7 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                 ),
                 
                 # Scripts
-                Script(src="/static/islands/islands.js?v=11", type="module"),
+                Script(src="/static/islands/islands.js?v=12", type="module"),
                 # Run selector script (handles cross-dataset switching)
                 Script("""
                     (function() {
@@ -555,7 +556,12 @@ def _run_selector(data_loader, registry=None):
         all_runs = data_loader.list_runs()
 
     if not all_runs:
-        return Span(cls="text-xs text-slate-500")("No runs available")
+        dc = data_loader.get_domain_config()
+        stats = data_loader.get_stats()
+        label = dc.get("display_name", "Dataset")
+        total_swaps = stats.get("total_swaps", 0)
+        text = f"{label} ({total_swaps} swaps)" if total_swaps else label
+        return Span(cls="text-xs text-slate-500 hidden-mobile")(f"Dataset: {text}")
 
     def _short_label(run):
         label = run.get("dataset_label", "")

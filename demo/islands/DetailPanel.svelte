@@ -120,6 +120,15 @@
     sourceSubgraphUrl = null;
     targetSubgraphUrl = null;
   }
+
+  function openConceptPanel(slug) {
+    if (!slug) return;
+    close();
+    document.dispatchEvent(new CustomEvent('show-state-card', {
+      detail: { slug },
+      bubbles: true,
+    }));
+  }
   
   // Get tier from classification
   function getTier() {
@@ -446,8 +455,20 @@
         
         <!-- Entity cards -->
         <div class="grid grid-cols-2 gap-4 mb-6">
-          {#each [['Source', source, 'text-yellow-400', sourceSubgraphUrl], ['Target', target, 'text-emerald-400', targetSubgraphUrl]] as [role, entity, answerColor, subgraphUrl]}
-            <div class="p-3 rounded-lg bg-slate-800/50 border border-slate-700">
+          {#each [['Source', source, 'text-yellow-400', sourceSubgraphUrl, fromSlug], ['Target', target, 'text-emerald-400', targetSubgraphUrl, toSlug]] as [role, entity, answerColor, subgraphUrl, entitySlug]}
+            <div
+              class="p-3 rounded-lg bg-slate-800/50 border border-slate-700 transition-colors cursor-pointer hover:bg-slate-800/80 hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/70"
+              role="button"
+              tabindex="0"
+              aria-label={`Open concept panel for ${entity.label || entity.state || entity[domainConfig?.primary_field] || entity.slug || role}`}
+              on:click={() => openConceptPanel(entity.slug || entitySlug)}
+              on:keydown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  openConceptPanel(entity.slug || entitySlug);
+                }
+              }}
+            >
               <div class="text-xs text-slate-500 uppercase mb-2">{role}</div>
               <div class="text-sm font-semibold">{entity.label || entity.state || entity[domainConfig?.primary_field] || entity.slug || ''}</div>
               {#each entityFields.filter(f => f !== (domainConfig?.primary_field || '') && entity[f]) as field}
@@ -461,7 +482,8 @@
               {/if}
               {#if subgraphUrl || entity.neuronpedia_url}
                 <a href={subgraphUrl || entity.neuronpedia_url} target="_blank"
-                   class="inline-block mt-2 text-xs text-cyan-400 hover:underline">
+                   class="inline-block mt-2 text-xs text-cyan-400 hover:underline"
+                   on:click|stopPropagation>
                   Neuronpedia ->
                 </a>
               {/if}
@@ -836,7 +858,9 @@
                       <div class="text-xs text-red-400/70 uppercase mb-1">Ablated ({srcAblated.length})</div>
                       <div class="space-y-0.5">
                         {#each srcAblated as g}
-                          <div class="text-xs text-slate-300 px-1 py-0.5 rounded bg-red-500/10 border border-red-500/20 truncate" title={g.name}>{g.name}</div>
+                          <div class="text-xs text-slate-300 px-1 py-0.5 rounded bg-red-500/10 border border-red-500/20 truncate" title={`${g.name} (${g.feature_count ?? 0})`}>
+                            {g.name} ({g.feature_count ?? 0})
+                          </div>
                         {/each}
                       </div>
                     </div>
@@ -846,7 +870,9 @@
                       <div class="text-xs text-slate-500 uppercase mb-1">Not ablated ({srcNotAblated.length})</div>
                       <div class="space-y-0.5">
                         {#each srcNotAblated as g}
-                          <div class="text-xs text-slate-500 px-1 py-0.5 rounded bg-slate-700/30 truncate" title={g.name}>{g.name}</div>
+                          <div class="text-xs text-slate-500 px-1 py-0.5 rounded bg-slate-700/30 truncate" title={`${g.name} (${g.feature_count ?? 0})`}>
+                            {g.name} ({g.feature_count ?? 0})
+                          </div>
                         {/each}
                       </div>
                     </div>
@@ -865,7 +891,9 @@
                       <div class="text-xs text-emerald-400/70 uppercase mb-1">Amplified ({tgtAmplified.length})</div>
                       <div class="space-y-0.5">
                         {#each tgtAmplified as g}
-                          <div class="text-xs text-slate-300 px-1 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 truncate" title={g.name}>{g.name}</div>
+                          <div class="text-xs text-slate-300 px-1 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 truncate" title={`${g.name} (${g.feature_count ?? 0})`}>
+                            {g.name} ({g.feature_count ?? 0})
+                          </div>
                         {/each}
                       </div>
                     </div>
@@ -875,7 +903,9 @@
                       <div class="text-xs text-slate-500 uppercase mb-1">Not amplified ({tgtNotAmplified.length})</div>
                       <div class="space-y-0.5">
                         {#each tgtNotAmplified as g}
-                          <div class="text-xs text-slate-500 px-1 py-0.5 rounded bg-slate-700/30 truncate" title={g.name}>{g.name}</div>
+                          <div class="text-xs text-slate-500 px-1 py-0.5 rounded bg-slate-700/30 truncate" title={`${g.name} (${g.feature_count ?? 0})`}>
+                            {g.name} ({g.feature_count ?? 0})
+                          </div>
                         {/each}
                       </div>
                     </div>

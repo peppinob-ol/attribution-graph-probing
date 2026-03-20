@@ -17,6 +17,7 @@ Multi-dataset discovery:
 """
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import os
 import json
 import csv
 import re
@@ -41,6 +42,8 @@ class DemoRegistry:
     The active dataset+run is exposed through ``active_loader``.
     """
 
+    DEFAULT_DATASET_ID = "usa_states_batch"
+
     def __init__(self, output_root: Path, initial_data_dir: Optional[Path] = None):
         self.output_root = Path(output_root)
         # {dataset_id: {"dir": Path, "label": str, "runs": [run_dict, ...]}}
@@ -52,17 +55,26 @@ class DemoRegistry:
 
         if self._datasets:
             # If a specific data_dir was given, prefer the dataset that matches it
-            preferred_id = None
-            if initial_data_dir is not None:
-                initial_data_dir = Path(initial_data_dir).resolve()
-                for ds_id, ds in self._datasets.items():
-                    if ds["dir"].resolve() == initial_data_dir:
-                        preferred_id = ds_id
-                        break
-            if preferred_id is None:
-                # Pick the dataset with the most recent run (first after sort)
-                preferred_id = next(iter(self._datasets))
+            preferred_id = self._resolve_preferred_dataset_id(initial_data_dir)
             self._activate_dataset(preferred_id)
+
+    def _resolve_preferred_dataset_id(self, initial_data_dir: Optional[Path]) -> str:
+        """Pick a deterministic default dataset for the demo."""
+        if initial_data_dir is not None:
+            initial_data_dir = Path(initial_data_dir).resolve()
+            for ds_id, ds in self._datasets.items():
+                if ds["dir"].resolve() == initial_data_dir:
+                    return ds_id
+
+        env_dataset_id = (os.environ.get("DEMO_DEFAULT_DATASET") or "").strip()
+        if env_dataset_id and env_dataset_id in self._datasets:
+            return env_dataset_id
+
+        if self.DEFAULT_DATASET_ID in self._datasets:
+            return self.DEFAULT_DATASET_ID
+
+        # Fall back to the first dataset after label sort.
+        return next(iter(self._datasets))
 
     # ------------------------------------------------------------------
     # Discovery
@@ -1146,25 +1158,28 @@ class DataLoader:
                 pass
             return result
 
-        def _load_all_groupings(slug: str) -> list:
-            """Return sorted list of unique supernode names for an entity."""
+        def _load_all_groupings(slug: str) -> List[Dict[str, Any]]:
+            """Return sorted groupings with total feature counts for an entity."""
             entity_dir = self._find_state_dir(slug)
             if not entity_dir:
                 return []
             grouping_path = entity_dir / "02 Node Grouping" / "node_grouping.csv"
             if not grouping_path.exists():
                 return []
-            names: set = set()
+            grouping_counts: Dict[str, int] = {}
             try:
                 with open(grouping_path, 'r', encoding='utf-8') as f:
                     reader = csv.DictReader(f)
                     for row in reader:
                         sn = row.get('supernode_name', '').strip()
                         if sn:
-                            names.add(sn)
+                            grouping_counts[sn] = grouping_counts.get(sn, 0) + 1
             except IOError:
                 pass
-            return sorted(names)
+            return [
+                {'name': name, 'feature_count': grouping_counts[name]}
+                for name in sorted(grouping_counts)
+            ]
 
         source_map = _load_grouping_map(from_slug)
         target_map = _load_grouping_map(to_slug)
@@ -1218,12 +1233,20 @@ class DataLoader:
         amplified.sort(key=lambda x: (x['layer'], x['index']))
 
         source_groupings = [
-            {'name': name, 'ablated': name in ablated_grouping_names}
-            for name in all_source_groupings
+            {
+                'name': grouping['name'],
+                'feature_count': grouping['feature_count'],
+                'ablated': grouping['name'] in ablated_grouping_names,
+            }
+            for grouping in all_source_groupings
         ]
         target_groupings = [
-            {'name': name, 'amplified': name in amplified_grouping_names}
-            for name in all_target_groupings
+            {
+                'name': grouping['name'],
+                'feature_count': grouping['feature_count'],
+                'amplified': grouping['name'] in amplified_grouping_names,
+            }
+            for grouping in all_target_groupings
         ]
 
         return {

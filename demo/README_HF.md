@@ -1,8 +1,7 @@
 ---
 title: State Swap Explorer
-emoji: 🗺️
-colorFrom: green
-colorTo: yellow
+colorFrom: blue
+colorTo: indigo
 sdk: docker
 app_port: 7860
 pinned: false
@@ -11,7 +10,7 @@ license: gpl-3.0
 
 # State Swap Explorer
 
-**Interactive visualization of circuit steering experiments across US states**
+Interactive visualization of circuit steering experiments across US states.
 
 Explore how knowledge circuits can be steered to change model predictions about US state capitals.
 
@@ -45,10 +44,31 @@ See detailed results including:
 
 ---
 
+## Space Layout
+
+This Docker Space expects the repo to include:
+
+- `main.py`
+- `Dockerfile`
+- `requirements.txt`
+- `app/`
+- `static/`
+- `data/` containing one folder per demo dataset, or an `OUTPUT_DIR` environment variable pointing at that multi-dataset root
+
+The canonical sync target for this Space is the subset of local `output/`
+containing all demo-enabled datasets, copied into `data/`.
+
+Binary analysis artifacts such as `.png` plots are intentionally excluded from
+the synced `data/` directory because the Space app does not need them and
+Hugging Face rejects those files in a normal git push.
+
+---
+
 ## Related Research
 
-- **Analysis Pipeline**: See the companion [Attribution Graph Probing](link-to-eda-space) Space for running your own analysis
-- [Circuit Tracer](https://github.com/safety-research/circuit-tracer) by Anthropic
+- [Attribution Graph Probing Space](https://huggingface.co/spaces/Peppinob/attribution-graph-probing)
+- [Attribution Graph Probing Repo](https://github.com/peppinob-ol/attribution-graph-probing)
+- [Circuit Tracer](https://github.com/safety-research/circuit-tracer)
 - [Attribution Graphs](https://transformer-circuits.pub/2025/attribution-graphs/)
 - [Neuronpedia](https://www.neuronpedia.org)
 
@@ -56,11 +76,11 @@ See detailed results including:
 
 ## Data
 
-This visualization shows results from 2,450 swap experiments (50 source states x 49 target states) using the Gemma-2-2B model with Cross-Layer Transcoders.
+This visualization shows 2,450 swap experiments (50 source states x 49 target states) using Gemma-2-2B with Cross-Layer Transcoders.
 
 ---
 
-**Version**: 1.0.0  
+**Version**: 1.1.0  
 **Model**: Gemma-2-2B  
 **License**: GPL-3.0
 
