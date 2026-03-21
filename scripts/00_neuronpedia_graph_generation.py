@@ -550,6 +550,36 @@ def extract_static_metrics_from_json(
     return df
 
 
+def compute_error_node_influence(df) -> dict:
+    """Compute error-node influence share from a static-metrics DataFrame.
+
+    Error nodes are identified by ``feature == -1`` (the convention used
+    throughout the pipeline for ``"mlp reconstruction error"`` nodes).
+
+    Returns a dict with:
+        error_node_count, total_node_count,
+        error_node_influence_sum, total_node_influence_sum,
+        error_node_influence_pct  (0-100 scale, or None on failure)
+    """
+    if df is None or df.empty or 'node_influence' not in df.columns:
+        return {'error_node_influence_pct': None}
+
+    is_error = df['feature'] == -1
+    total_influence = df['node_influence'].sum()
+    error_influence = df.loc[is_error, 'node_influence'].sum()
+    pct = (
+        round(error_influence / total_influence * 100, 2)
+        if total_influence > 0 else 0.0
+    )
+    return {
+        'error_node_count': int(is_error.sum()),
+        'total_node_count': len(df),
+        'error_node_influence_sum': round(float(error_influence), 6),
+        'total_node_influence_sum': round(float(total_influence), 6),
+        'error_node_influence_pct': pct,
+    }
+
+
 def generate_static_metrics_csv(
     json_path: str,
     output_csv_path: Optional[str] = None,

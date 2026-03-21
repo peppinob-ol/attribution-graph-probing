@@ -54,6 +54,8 @@
     if (np < 0.20 && np > 0) w.push({ text: 'Low native prob', color: '#fbbf24' });
     if (np > 0.50)           w.push({ text: 'High native prob', color: '#fbbf24' });
     if ((d.supernodes || 0) > 280) w.push({ text: 'High supernode count', color: '#fbbf24' });
+    if (d.error_node_influence_pct != null && d.error_node_influence_pct > 50)
+      w.push({ text: 'High error influence', color: '#fbbf24' });
     if (d.capital_is_top_logit === false && d.capital_in_logits === true)
       w.push({ text: `${answerLabel} not top logit`, color: '#f87171' });
     if (d.capital_in_logits === false)
@@ -353,6 +355,23 @@
             <div class="text-xs text-slate-600">{data.pinned_nodes || 0} pinned features / {data.supernodes || 0} supernodes</div>
           </div>
         </div>
+
+        <!-- Error-node influence -->
+        {#if data.error_node_influence_pct != null}
+          <div class="p-3 rounded-lg bg-slate-800/50 mb-4">
+            <div class="flex items-center justify-between mb-1">
+              <div class="text-xs text-slate-500 uppercase">Error Influence</div>
+              <div class="text-lg font-bold tabular-nums {data.error_node_influence_pct > 50 ? 'text-amber-400' : data.error_node_influence_pct > 30 ? 'text-slate-300' : 'text-emerald-400'}">
+                {data.error_node_influence_pct.toFixed(1)}%
+              </div>
+            </div>
+            <div class="text-xs text-slate-500 leading-relaxed">
+              Share of graph influence from CLT reconstruction-error nodes.
+              These represent computation the transcoder cannot explain.
+              Higher values mean more of the circuit is invisible, limiting steering effectiveness.
+            </div>
+          </div>
+        {/if}
 
         <!-- Attack / Drift -->
         <div class="grid grid-cols-2 gap-3 mb-4">

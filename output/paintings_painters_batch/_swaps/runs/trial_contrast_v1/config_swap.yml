@@ -1,0 +1,54 @@
+version: 0.1
+experiment_name: trial_contrast_paintings
+
+# Trial experiment: validate contrast-group trajectory metrics on paintings.
+# Uses 10 defined pairs from the small 10-entity dataset to test
+# behavior of contrastive controls in a clustered, small-N regime.
+
+inputs:
+  source_config: configs/paintings_painters_full.yml
+  graphs_root: output/paintings_painters_batch
+
+swap:
+  mode: defined_pairs
+  include_identity: false
+  concept_fields: [painter, first_name]
+  pairs:
+    # Cross-era pairs (different artistic periods)
+    - [water_lilies, campbells_soup]
+    - [guernica, birth_of_venus]
+    - [the_scream, grande_jatte]
+    # Same-ish era / close neighbors
+    - [starry_night, water_lilies]
+    - [grande_jatte, starry_night]
+    # Reverse of a cross-era pair
+    - [campbells_soup, water_lilies]
+    # Harder cases
+    - [persistence_of_memory, nighthawks]
+    - [girl_pearl_earring, guernica]
+    - [nighthawks, the_scream]
+    - [birth_of_venus, girl_pearl_earring]
+
+ct_steering:
+  model_id: google/gemma-2-2b
+  transcoder_set: mntss/clt-gemma-2-2b-2.5M
+  M_ablate: -2
+  M_amplify: 20
+  temperature: 0.3
+  n_tokens: 10
+  freq_penalty: 2.0
+  seed: 42
+  top_k: 5
+  freeze_attention: false
+  track_trajectory: true
+
+compute:
+  inherit_from_source: false
+  remote:
+    enabled: false
+
+steps:
+  validate_inputs: true
+  prepare_features: true
+  run_steering: true
+  aggregate_results: true

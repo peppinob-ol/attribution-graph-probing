@@ -32,6 +32,7 @@ spec.loader.exec_module(graph_gen_module)
 
 generate_attribution_graph = graph_gen_module.generate_attribution_graph
 extract_static_metrics_from_json = graph_gen_module.extract_static_metrics_from_json
+compute_error_node_influence = graph_gen_module.compute_error_node_influence
 
 
 def process_graph_step(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict[str, Path], 
@@ -145,7 +146,25 @@ def process_graph_step(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict
         if df is None or df.empty:
             print(f"ERROR: Failed to extract metrics from graph")
             return False
-    
+
+        # Persist error-node influence into manifest.json
+        error_info = compute_error_node_influence(df)
+        manifest_path = paths['base'] / 'manifest.json'
+        try:
+            manifest_data = {}
+            if manifest_path.exists():
+                with open(manifest_path, 'r', encoding='utf-8') as mf:
+                    manifest_data = json.load(mf)
+            manifest_data['graph_quality'] = error_info
+            with open(manifest_path, 'w', encoding='utf-8') as mf:
+                json.dump(manifest_data, mf, indent=2, ensure_ascii=False)
+            if verbose:
+                pct = error_info.get('error_node_influence_pct')
+                print(f"  Error-node influence: {pct}%")
+        except Exception as exc:
+            if verbose:
+                print(f"  WARNING: Could not write graph_quality to manifest: {exc}")
+
     except Exception as e:
         print(f"ERROR: Metrics computation failed: {e}")
         import traceback

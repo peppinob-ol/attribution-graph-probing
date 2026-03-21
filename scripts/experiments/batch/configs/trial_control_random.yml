@@ -1,0 +1,60 @@
+version: 0.1
+experiment_name: trial_control_random
+
+# Trial: random_feature_matched control on the same 10 pairs as trial_contrast.
+# Compares structurally matched random features against labeled supernodes.
+# Uses 3 replicates for a quick sanity check of the replicate machinery.
+
+inputs:
+  source_config: configs/usa_states_full.yml
+  graphs_root: output/usa_states_batch
+
+swap:
+  mode: defined_pairs
+  include_identity: false
+  concept_fields: [state, capital]
+  pairs:
+    - [texas_dallas, georgia_savannah]
+    - [california_oakland, florida_miami]
+    - [illinois_chicago, arizona_tucson]
+    - [massachusetts_worcester, maryland_baltimore]
+    - [louisiana_new_orleans, michigan_detroit]
+    - [ohio_cleveland, pennsylvania_philadelphia]
+    - [colorado_colorado_springs, new_york_new_york_city]
+    - [minnesota_minneapolis, iowa_cedar_rapids]
+    - [hawaii_hilo, alaska_anchorage]
+    - [georgia_savannah, texas_dallas]
+
+control:
+  mode: random_feature_matched
+  replicates: 3
+  seed: 42
+  matching:
+    match_layers: true
+  exclusions:
+    exclude_labeled_features: true
+    exclude_concept_matching_supernodes: true
+
+ct_steering:
+  model_id: google/gemma-2-2b
+  transcoder_set: mntss/clt-gemma-2-2b-2.5M
+  M_ablate: -2
+  M_amplify: 20
+  temperature: 0.3
+  n_tokens: 10
+  freq_penalty: 2.0
+  seed: 42
+  top_k: 5
+  freeze_attention: false
+  track_trajectory: true
+
+compute:
+  inherit_from_source: false
+  remote:
+    enabled: false
+
+steps:
+  validate_inputs: true
+  prepare_features: true
+  run_steering: true
+  aggregate_results: true

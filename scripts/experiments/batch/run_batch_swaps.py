@@ -66,9 +66,11 @@ from pipeline.swap_evaluator import (
     create_swap_result,
     create_summary,
     aggregate_results_to_matrix,
+    resolve_answer_field,
 )
 from pipeline.steering_remote_ct import process_remote_ct_steering_step
 from pipeline.remote import create_control_master_from_config, SSHControlMaster
+from pipeline.controls import create_intervention_builder
 
 
 def _load_ct_steering_module():
@@ -96,134 +98,25 @@ def prepare_swap_features(
     pair: SwapPair,
     data_from: Dict[str, Any],
     data_to: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+) -> Tuple[List[Dict[str, Any]], int, int, Dict[str, Any]]:
     """
     Prepare CT intervention features for a swap pair.
-    
-    Args:
-        ct_steering: The ct_steering module
-        config: Swap configuration
-        pair: The swap pair
-        data_from: Graph data for source (loaded via load_graph_data)
-        data_to: Graph data for target
-    
+
+    Delegates to the control builder selected by ``config["control"]["mode"]``
+    (defaults to ``"labeled"`` when absent).
+
     Returns:
-        List of intervention feature dicts for batch_steering_ct.py
+        (features, ablate_count, amplify_count, control_metadata)
     """
-    ct_config = config.get('ct_steering', {})
-    M_ablate = ct_config.get('M_ablate', 0.0)
-    M_amplify = ct_config.get('M_amplify', 2.0)
-    steer_generated = ct_config.get('steer_generated_tokens', False)
-    swap_cfg = config.get('swap', {})
-
-    def _concept_text(text: str) -> str:
-        # Normalization for matching against supernode_name.
-        # Note: avoid matching generic trailing "City" for multi-word capitals.
-        t = (text or "").strip().lower()
-        if t.endswith(" city"):
-            t = t[: -len(" city")].strip()
-        return t
-
-    def _dedupe_preserve_order(items: List[str]) -> List[str]:
-        seen = set()
-        out: List[str] = []
-        for x in items:
-            if not x or x in seen:
-                continue
-            seen.add(x)
-            out.append(x)
-        return out
-
-    def _get_concept_fields() -> List[str]:
-        """
-        Which entity fields should be used as "concept strings" for supernode matching.
-
-        This is domain-agnostic: for USA states we typically use ["state", "capital"].
-        For other domains you can point at other fields in your entity dict.
-
-        Backward compatibility:
-        - swap.include_capitals/include_capital (bool) adds "capital" to the list.
-        """
-        raw = swap_cfg.get("concept_fields", None)
-        if raw is None:
-            fields: List[str] = ["state"]
-        elif isinstance(raw, str):
-            fields = [raw]
-        elif isinstance(raw, list):
-            fields = [str(x) for x in raw if str(x).strip()]
-        else:
-            raise ValueError("swap.concept_fields must be a string or list of strings")
-
-        if bool(swap_cfg.get("include_capitals", False) or swap_cfg.get("include_capital", False)):
-            if "capital" not in fields:
-                fields.append("capital")
-
-        return fields
-    
-    features = []
-    ablate_count = 0
-    amplify_count = 0
-    
-    # Extract source supernodes for ABLATION
-    concept_fields = _get_concept_fields()
-    source_concepts = _dedupe_preserve_order(
-        [_concept_text(pair.from_entity.get(f, "")) for f in concept_fields]
+    builder = create_intervention_builder(config)
+    result = builder.build_for_pair(
+        ct_steering=ct_steering,
+        config=config,
+        pair=pair,
+        data_from=data_from,
+        data_to=data_to,
     )
-
-    for concept in source_concepts:
-        if not concept:
-            continue
-        try:
-            supernode_from = ct_steering.extract_ct_supernode(
-                grouping_df=data_from["grouping"],
-                metrics_df=data_from["metrics"],
-                concept=concept,
-                slug=pair.from_slug,
-            )
-            # MULTIPLICATION mode: use live activations from current prompt
-            from_interventions = ct_steering.compute_ct_interventions(
-                supernode_from,
-                M_ablate,
-                steer_generated_tokens=steer_generated,
-                activations_map=None,  # Use live activations
-                use_stored_as_base=False,
-            )
-            features.extend(from_interventions)
-            ablate_count += len(from_interventions)
-        except ValueError as e:
-            print(f"  Warning: Could not extract source supernode for concept '{concept}': {e}")
-    
-    # Extract target supernodes for AMPLIFICATION (from target graph)
-    if pair.from_slug != pair.to_slug:  # Skip for identity swaps
-        target_concepts = _dedupe_preserve_order(
-            [_concept_text(pair.to_entity.get(f, "")) for f in concept_fields]
-        )
-
-        for concept in target_concepts:
-            if not concept:
-                continue
-            try:
-                supernode_to = ct_steering.extract_ct_supernode(
-                    grouping_df=data_to["grouping"],
-                    metrics_df=data_to["metrics"],
-                    concept=concept,
-                    slug=pair.to_slug,
-                )
-                # INJECTION mode: use stored activations from target graph
-                activations_map_to = data_to.get("activations_map", {})
-                to_interventions = ct_steering.compute_ct_interventions(
-                    supernode_to,
-                    M_amplify,
-                    steer_generated_tokens=steer_generated,
-                    activations_map=activations_map_to if activations_map_to else None,
-                    use_stored_as_base=True,
-                )
-                features.extend(to_interventions)
-                amplify_count += len(to_interventions)
-            except ValueError as e:
-                print(f"  Warning: Could not extract target supernode for concept '{concept}': {e}")
-    
-    return features, ablate_count, amplify_count
+    return result.features, result.ablate_count, result.amplify_count, result.to_metadata()
 
 
 def _run_local_ct_steering(
@@ -309,6 +202,51 @@ class _PreparedPair:
     features: List[Dict[str, Any]]
     ablate_count: int
     amplify_count: int
+    control_metadata: Optional[Dict[str, Any]] = None
+    variant_suffix: str = ""
+
+
+def _expand_control_variants(config: Dict[str, Any]) -> List[Tuple[Dict[str, Any], str]]:
+    """
+    Expand control config into (modified_config, variant_suffix) tuples.
+
+    For labeled mode or single-replicate controls, returns a single entry
+    with no suffix.  For replicate controls, returns one entry per replicate.
+    For additivity with multiple ``runs``, returns one entry per variant.
+    """
+    import copy
+    control_cfg = config.get("control", {})
+    mode = control_cfg.get("mode", "labeled") if control_cfg else "labeled"
+    replicates = control_cfg.get("replicates", 1)
+
+    if mode == "additivity" and "runs" in control_cfg:
+        variants = []
+        for i, run_spec in enumerate(control_cfg["runs"]):
+            cfg = copy.deepcopy(config)
+            fields = run_spec.get("fields")
+            roles = run_spec.get("concept_subset", run_spec.get("roles"))
+
+            if fields is not None:
+                cfg["control"]["concept_subset"] = {"fields": fields}
+                suffix = "_".join(fields)
+            elif roles is not None and isinstance(roles, list):
+                cfg["control"]["concept_subset"] = {"roles": roles}
+                suffix = "_".join(roles)
+            else:
+                cfg["control"]["concept_subset"] = run_spec
+                suffix = f"v{i}"
+            variants.append((cfg, f"add_{suffix}"))
+        return variants
+
+    if replicates <= 1:
+        return [(config, "")]
+
+    variants = []
+    for r in range(replicates):
+        cfg = copy.deepcopy(config)
+        cfg["control"]["_current_replicate"] = r
+        variants.append((cfg, f"r{r}"))
+    return variants
 
 
 def _prepare_pairs_cpu(
@@ -318,8 +256,10 @@ def _prepare_pairs_cpu(
     verbose: bool = True,
 ) -> Tuple[List[_PreparedPair], List[SwapPair]]:
     """Prepare prompts and features for all pairs (CPU only, fast)."""
+    variants = _expand_control_variants(config)
     prepared: List[_PreparedPair] = []
     skipped: List[SwapPair] = []
+
     for i, pair in enumerate(pairs):
         paths = get_swap_paths(config, pair)
         try:
@@ -340,17 +280,22 @@ def _prepare_pairs_cpu(
             skipped.append(pair)
             continue
 
-        features, abl, amp = prepare_swap_features(
-            ct_steering, config, pair, data_from, data_to
-        )
-        if not features:
-            skipped.append(pair)
-            continue
+        for variant_config, variant_suffix in variants:
+            features, abl, amp, ctrl_meta = prepare_swap_features(
+                ct_steering, variant_config, pair, data_from, data_to
+            )
+            if not features:
+                if not variant_suffix:
+                    skipped.append(pair)
+                continue
 
-        prepared.append(_PreparedPair(pair, prompt, features, abl, amp))
+            prepared.append(_PreparedPair(
+                pair, prompt, features, abl, amp, ctrl_meta, variant_suffix,
+            ))
 
     if verbose:
-        print(f"  Prepared {len(prepared)} pairs, skipped {len(skipped)}")
+        print(f"  Prepared {len(prepared)} items ({len(pairs)} pairs x "
+              f"{len(variants)} variant(s)), skipped {len(skipped)}")
     return prepared, skipped
 
 
@@ -366,8 +311,19 @@ def _run_gpu_batch(
     swap_cfg = config.get('swap', {})
     concept_fields = swap_cfg.get('concept_fields')
 
-    answer_field = concept_fields[-1] if concept_fields else 'capital'
+    answer_field = resolve_answer_field(swap_cfg=swap_cfg, concept_fields=concept_fields)
     track_traj = ct_config.get('track_trajectory', False)
+
+    # Pre-compute full roster of answer tokens for contrastive controls
+    all_answer_tokens: List[str] = []
+    if track_traj:
+        entities = config.get('_entities', [])
+        seen: set = set()
+        for ent in entities:
+            val = ent.get(answer_field, '')
+            if val and val not in seen:
+                all_answer_tokens.append(val)
+                seen.add(val)
 
     batch_dir = work_root / f"_gpu_batch_{gpu_id}"
     batch_dir.mkdir(parents=True, exist_ok=True)
@@ -376,10 +332,17 @@ def _run_gpu_batch(
     per_prompt_features: Dict[str, List] = {}
     for pp in batch:
         pid = pp.pair.swap_id
+        if pp.variant_suffix:
+            pid = f"{pid}__{pp.variant_suffix}"
         entry: Dict[str, Any] = {"id": pid, "text": pp.prompt}
         if track_traj:
-            entry["target_token"] = pp.pair.to_entity.get(answer_field, '')
-            entry["source_token"] = pp.pair.from_entity.get(answer_field, '')
+            target_ans = pp.pair.to_entity.get(answer_field, '')
+            source_ans = pp.pair.from_entity.get(answer_field, '')
+            entry["target_token"] = target_ans
+            entry["source_token"] = source_ans
+            if all_answer_tokens:
+                exclude = {target_ans, source_ans}
+                entry["contrast_tokens"] = [t for t in all_answer_tokens if t not in exclude]
         prompts.append(entry)
         per_prompt_features[pid] = pp.features
 
@@ -422,7 +385,10 @@ def _run_gpu_batch(
 
     result_by_id = {r['probe_id']: r for r in dump.get('results', [])}
     for pp in batch:
-        raw = result_by_id.get(pp.pair.swap_id)
+        pid = pp.pair.swap_id
+        if pp.variant_suffix:
+            pid = f"{pid}__{pp.variant_suffix}"
+        raw = result_by_id.get(pid)
         if raw is None:
             results.append((pp, None))
             continue
@@ -430,11 +396,14 @@ def _run_gpu_batch(
         raw['ablate_count'] = pp.ablate_count
         raw['amplify_count'] = pp.amplify_count
 
-        evaluation = evaluate_swap(raw, pp.pair.from_entity, pp.pair.to_entity, concept_fields)
+        evaluation = evaluate_swap(raw, pp.pair.from_entity, pp.pair.to_entity, concept_fields, swap_cfg=swap_cfg)
         duration_ms = 0
-        swap_result = create_swap_result(pp.pair, raw, evaluation, config, duration_ms)
+        swap_result = create_swap_result(
+            pp.pair, raw, evaluation, config, duration_ms,
+            control_metadata=pp.control_metadata,
+        )
 
-        out_file = get_swap_paths(config, pp.pair)['output_file']
+        out_file = get_swap_paths(config, pp.pair, pp.variant_suffix)['output_file']
         out_file.parent.mkdir(parents=True, exist_ok=True)
         with open(out_file, "w", encoding="utf-8") as f:
             json.dump(swap_result, f, indent=2, ensure_ascii=False)
@@ -489,7 +458,7 @@ def run_single_swap(
         return None
     
     # Prepare features
-    features, ablate_count, amplify_count = prepare_swap_features(
+    features, ablate_count, amplify_count, ctrl_meta = prepare_swap_features(
         ct_steering, config, pair, data_from, data_to
     )
     
@@ -508,21 +477,45 @@ def run_single_swap(
     features_path = work_dir / "features.json"
     output_path = work_dir / "steering_dump.json"
     
-    # Write prompts.json
-    prompts = [{"id": "swap_prompt", "text": prompt}]
-    with open(prompts_path, "w", encoding="utf-8") as f:
-        json.dump(prompts, f, indent=2)
-    
-    # Write features.json
-    with open(features_path, "w", encoding="utf-8") as f:
-        json.dump(features, f, indent=2)
-    
     # Execute steering
     ct_config = config.get('ct_steering', {})
     remote_config = config.get('compute', {}).get('remote', {})
     swap_cfg = config.get('swap', {})
     concept_fields = swap_cfg.get('concept_fields')
-    answer_field = concept_fields[-1] if concept_fields else 'capital'
+    answer_field = resolve_answer_field(swap_cfg=swap_cfg, concept_fields=concept_fields)
+
+    target_ans = pair.to_entity.get(answer_field, '')
+    source_ans = pair.from_entity.get(answer_field, '')
+
+    # Build contrast token list from dataset entities
+    contrast_tokens_list: Optional[List[str]] = None
+    if ct_config.get('track_trajectory', False):
+        entities = config.get('_entities', [])
+        exclude = {target_ans, source_ans}
+        seen: set = set()
+        contrast_tokens_list = []
+        for ent in entities:
+            val = ent.get(answer_field, '')
+            if val and val not in exclude and val not in seen:
+                contrast_tokens_list.append(val)
+                seen.add(val)
+        if not contrast_tokens_list:
+            contrast_tokens_list = None
+
+    # Write prompts.json
+    prompt_entry: Dict[str, Any] = {"id": "swap_prompt", "text": prompt}
+    if ct_config.get('track_trajectory', False):
+        prompt_entry["target_token"] = target_ans
+        prompt_entry["source_token"] = source_ans
+        if contrast_tokens_list:
+            prompt_entry["contrast_tokens"] = contrast_tokens_list
+    prompts = [prompt_entry]
+    with open(prompts_path, "w", encoding="utf-8") as f:
+        json.dump(prompts, f, indent=2)
+
+    # Write features.json
+    with open(features_path, "w", encoding="utf-8") as f:
+        json.dump(features, f, indent=2)
 
     steering_cfg = {
         'transcoder_set': ct_config.get('transcoder_set', 'mntss/clt-gemma-2-2b-2.5M'),
@@ -533,8 +526,8 @@ def run_single_swap(
         'top_k': ct_config.get('top_k', 5),
         'freeze_attention': ct_config.get('freeze_attention', False),
         'track_trajectory': ct_config.get('track_trajectory', False),
-        'target_token': pair.to_entity.get(answer_field, ''),
-        'source_token': pair.from_entity.get(answer_field, ''),
+        'target_token': target_ans,
+        'source_token': source_ans,
         'control_tokens': ct_config.get('control_tokens'),
     }
 
@@ -587,14 +580,15 @@ def run_single_swap(
     raw_result['amplify_count'] = amplify_count
     
     # Evaluate
-    evaluation = evaluate_swap(raw_result, pair.from_entity, pair.to_entity, concept_fields)
+    evaluation = evaluate_swap(raw_result, pair.from_entity, pair.to_entity, concept_fields, swap_cfg=swap_cfg)
     
     duration_ms = (time.time() - start_time) * 1000
     
-    # Create complete result
-    result = create_swap_result(pair, raw_result, evaluation, config, duration_ms)
+    result = create_swap_result(
+        pair, raw_result, evaluation, config, duration_ms,
+        control_metadata=ctrl_meta,
+    )
     
-    # Save to output path
     output_file = paths['output_file']
     output_file.parent.mkdir(parents=True, exist_ok=True)
     with open(output_file, "w", encoding="utf-8") as f:
@@ -995,48 +989,69 @@ def run_batch_swaps(
                 control_master.close()
                 print("  [SSH] ControlMaster closed")
     else:
-        # Sequential execution (original behavior)
+        # Sequential execution (original behavior, variant-aware)
         results = []
         failed = []
-        
+        variants = _expand_control_variants(config)
+
         for i, pair in enumerate(pending_pairs, 1):
-            print(f"\n[{i}/{len(pending_pairs)}]", end="")
-            
-            try:
-                result = run_single_swap(ct_steering, config, pair, verbose=verbose)
-                if result:
-                    results.append(result)
-                else:
+            for variant_config, variant_suffix in variants:
+                label = f"\n[{i}/{len(pending_pairs)}]"
+                if variant_suffix:
+                    label += f" ({variant_suffix})"
+                print(label, end="")
+
+                try:
+                    result = run_single_swap(
+                        ct_steering, variant_config, pair, verbose=verbose,
+                    )
+                    if result:
+                        results.append(result)
+                    else:
+                        failed.append(pair)
+                except Exception as e:
+                    print(f"  ERROR: Exception during swap: {e}")
                     failed.append(pair)
-            except Exception as e:
-                print(f"  ERROR: Exception during swap: {e}")
-                failed.append(pair)
     
     # Aggregate results
     print_banner("Aggregating Results")
     
     swaps_dir = Path(config["_swaps_dir"])
     
-    # Create summary
+    # Partition results by control mode for separate aggregation
+    results_by_mode: Dict[str, List] = {}
+    for r in results:
+        mode = r.get("metadata", {}).get("control", {}).get("control_mode", "labeled")
+        results_by_mode.setdefault(mode, []).append(r)
+
     summary = create_summary(results, config)
     summary['failed_count'] = len(failed)
     summary['failed_pairs'] = [f"{p.from_slug}:{p.to_slug}" for p in failed]
+    if len(results_by_mode) > 1:
+        summary['control_modes'] = {
+            mode: len(mode_results) for mode, mode_results in results_by_mode.items()
+        }
     
     summary_path = swaps_dir / "_summary.json"
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
     print(f"  Summary saved to: {summary_path}")
     
-    # Create matrix if we have enough results
-    if len(results) > 1:
+    # Create matrix -- only safe for single-result-per-pair groups
+    entities = config.get('_entities', [])
+    for mode, mode_results in results_by_mode.items():
+        if len(mode_results) <= 1:
+            continue
         try:
-            entities = config.get('_entities', [])
-            matrix = aggregate_results_to_matrix(results, entities, 'steered_has_to_capital')
-            matrix_path = swaps_dir / "_matrix.csv"
+            suffix = f"_{mode}" if mode != "labeled" else ""
+            matrix = aggregate_results_to_matrix(
+                mode_results, entities, 'steered_has_to_capital',
+            )
+            matrix_path = swaps_dir / f"_matrix{suffix}.csv"
             matrix.to_csv(matrix_path)
-            print(f"  Matrix saved to: {matrix_path}")
+            print(f"  Matrix ({mode}): {matrix_path}")
         except Exception as e:
-            print(f"  Warning: Could not create matrix: {e}")
+            print(f"  Warning: Could not create matrix for {mode}: {e}")
     
     # Final summary
     print_banner("Batch Complete")
@@ -1044,11 +1059,14 @@ def run_batch_swaps(
     print(f"Processed: {len(results)}")
     print(f"Failed: {len(failed)}")
     print(f"Skipped: {len(skipped_pairs)}")
+    if len(results_by_mode) > 1:
+        for mode, mode_results in sorted(results_by_mode.items()):
+            print(f"  {mode}: {len(mode_results)} results")
     
     if results:
         exact_hits = sum(1 for r in results if r['evaluation']['exact_match']['steered_has_to_capital'])
         suppressed = sum(1 for r in results if r['evaluation']['exact_match']['from_suppressed'])
-        print(f"\nSuccess rates (exact match):")
+        print(f"\nSuccess rates (exact match, all modes):")
         print(f"  Target capital hit: {exact_hits}/{len(results)} ({100*exact_hits/len(results):.1f}%)")
         print(f"  Source suppressed: {suppressed}/{len(results)} ({100*suppressed/len(results):.1f}%)")
 

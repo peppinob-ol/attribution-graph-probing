@@ -480,6 +480,17 @@
               {#if !entityFields.length && entity.capital}
                 <div class="text-xs text-slate-400">Capital: <span class={answerColor}>{entity.capital}</span></div>
               {/if}
+              {#if entity.error_node_influence_pct != null}
+                <div
+                  class="mt-2 text-xs"
+                  title="Percentage of graph influence attributed to CLT reconstruction-error nodes. Higher values mean more of the computation is invisible to the pipeline."
+                >
+                  <span class="text-slate-500">Error Influence</span>
+                  <span class="font-mono ml-1 {entity.error_node_influence_pct > 50 ? 'text-amber-400' : entity.error_node_influence_pct > 30 ? 'text-slate-300' : 'text-emerald-400'}">
+                    {entity.error_node_influence_pct.toFixed(1)}%
+                  </span>
+                </div>
+              {/if}
               {#if subgraphUrl || entity.neuronpedia_url}
                 <a href={subgraphUrl || entity.neuronpedia_url} target="_blank"
                    class="inline-block mt-2 text-xs text-cyan-400 hover:underline"
@@ -687,11 +698,13 @@
               {#if trajectory?.trajectories?.target?.summary}
                 {@const targetSum = trajectory.trajectories.target.summary}
                 {@const targetBestRank = targetSum.min_rank}
-                {@const rankDelta = getRankDeltaInfo(targetSum.rank_improvement)}
+                {@const unsteeredRank = evaluation.baseline_logits?.target?.rank}
+                {@const rankDeltaVsUnsteered = (unsteeredRank != null && targetBestRank != null) ? unsteeredRank - targetBestRank : null}
+                {@const rankDelta = getRankDeltaInfo(rankDeltaVsUnsteered)}
                 <div class="mt-3 pt-3 border-t border-slate-700/50">
                   <div
                     class="flex items-center justify-between text-sm"
-                    title="Best target rank is the highest position the target token reaches anywhere in the tracked trajectory. The number in parentheses shows the improvement relative to the starting rank at pos 0."
+                    title="Best target rank is the highest position the target token reaches anywhere in the tracked trajectory. The number in parentheses shows the improvement relative to the unsteered logit rank of the target token."
                   >
                     <span class="text-slate-500">Best target rank:</span>
                     <span class="font-mono">

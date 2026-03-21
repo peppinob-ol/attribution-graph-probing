@@ -288,6 +288,9 @@ def find_matching_swaps(data_dir: Path, rules: List[AnnotationRule]) -> Dict[str
             continue
         
         for swap_file in sorted(source_dir.glob("to_*.json")):
+            stem = swap_file.stem
+            if re.search(r"__(?:r\d+|add_.+|ctrl_.+)$", stem.replace("to_", "", 1)):
+                continue
             total_files += 1
             swap = load_swap(swap_file)
             if swap is None:
@@ -296,7 +299,8 @@ def find_matching_swaps(data_dir: Path, rules: List[AnnotationRule]) -> Dict[str
             for rule in rules:
                 if rule.condition(swap):
                     from_slug = source_dir.name
-                    to_slug = swap_file.stem.replace("to_", "")
+                    raw = stem.replace("to_", "", 1)
+                    to_slug = re.sub(r"__(?:r\d+|add_.+|ctrl_.+)$", "", raw)
                     current_tier = swap.get('classification', {}).get('tier', '?')
                     steered_preview = swap.get('evaluation', {}).get('raw', {}).get('steered_output', '')[:100]
                     matches[rule.name].append((swap_file, from_slug, to_slug, current_tier, steered_preview, swap))

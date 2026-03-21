@@ -1,0 +1,53 @@
+version: 0.1
+experiment_name: trial_contrast_usa
+
+# Trial experiment: validate contrast-group trajectory metrics on USA states.
+# Picks 10 diverse pairs (easy, medium, hard) from the full 50-state dataset.
+
+inputs:
+  source_config: configs/usa_states_full.yml
+  graphs_root: output/usa_states_batch
+
+swap:
+  mode: defined_pairs
+  include_identity: false
+  concept_fields: [state, capital]
+  pairs:
+    # Easy: well-known single-token capitals, distinct states
+    - [texas_dallas, georgia_savannah]
+    - [california_oakland, florida_miami]
+    - [illinois_chicago, arizona_tucson]
+    # Medium: less common capitals, multi-word risk
+    - [massachusetts_worcester, maryland_baltimore]
+    - [louisiana_new_orleans, michigan_detroit]
+    - [ohio_cleveland, pennsylvania_philadelphia]
+    # Hard: token-overlap or obscure
+    - [colorado_colorado_springs, new_york_new_york_city]
+    - [minnesota_minneapolis, iowa_cedar_rapids]
+    - [hawaii_hilo, alaska_anchorage]
+    # Reverse of an easy pair (direction matters)
+    - [georgia_savannah, texas_dallas]
+
+ct_steering:
+  model_id: google/gemma-2-2b
+  transcoder_set: mntss/clt-gemma-2-2b-2.5M
+  M_ablate: -2
+  M_amplify: 20
+  temperature: 0.3
+  n_tokens: 10
+  freq_penalty: 2.0
+  seed: 42
+  top_k: 5
+  freeze_attention: false
+  track_trajectory: true
+
+compute:
+  inherit_from_source: false
+  remote:
+    enabled: false
+
+steps:
+  validate_inputs: true
+  prepare_features: true
+  run_steering: true
+  aggregate_results: true

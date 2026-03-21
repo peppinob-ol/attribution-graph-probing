@@ -26,6 +26,33 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
 # ---------------------------------------------------------------------------
+# Control variant helpers
+# ---------------------------------------------------------------------------
+
+_VARIANT_SUFFIX_RE = re.compile(r"__(?:r\d+|add_.+|ctrl_.+)$")
+
+
+def _parse_to_slug(filename_stem: str) -> tuple:
+    """
+    Extract ``(entity_slug, variant_suffix)`` from a swap result filename stem.
+
+    Normal files:  ``to_georgia_savannah``            -> ``("georgia_savannah", "")``
+    Variant files: ``to_georgia_savannah__r0``         -> ``("georgia_savannah", "r0")``
+                   ``to_georgia_savannah__add_source`` -> ``("georgia_savannah", "add_source")``
+    """
+    raw = filename_stem.replace("to_", "", 1)
+    m = _VARIANT_SUFFIX_RE.search(raw)
+    if m:
+        return raw[: m.start()], raw[m.start() + 2 :]
+    return raw, ""
+
+
+def _is_control_variant(filename_stem: str) -> bool:
+    """Return True if the filename contains a control variant suffix."""
+    return bool(_VARIANT_SUFFIX_RE.search(filename_stem.replace("to_", "", 1)))
+
+
+# ---------------------------------------------------------------------------
 # DemoRegistry  – multi-dataset discovery
 # ---------------------------------------------------------------------------
 
@@ -515,16 +542,16 @@ class DataLoader:
                 matrix[from_slug] = {}
                 
                 for swap_file in source_dir.glob("to_*.json"):
+                    if _is_control_variant(swap_file.stem):
+                        continue
                     try:
                         with open(swap_file, 'r', encoding='utf-8') as f:
                             swap_data = json.load(f)
                         
-                        # Extract target slug from filename or data
-                        to_slug = swap_file.stem.replace("to_", "")
+                        to_slug, _ = _parse_to_slug(swap_file.stem)
                         if not to_slug and swap_data.get('target'):
                             to_slug = swap_data['target'].get('slug', '')
                         
-                        # Get tier from classification or compute it
                         tier = self._get_tier_from_swap(swap_data)
                         matrix[from_slug][to_slug] = tier
                         
@@ -649,10 +676,12 @@ class DataLoader:
                 from_slug = source_dir.name
                 matrix[from_slug] = {}
                 for swap_file in source_dir.glob("to_*.json"):
+                    if _is_control_variant(swap_file.stem):
+                        continue
                     try:
                         with open(swap_file, 'r', encoding='utf-8') as f:
                             swap_data = json.load(f)
-                        to_slug = swap_file.stem.replace("to_", "")
+                        to_slug, _ = _parse_to_slug(swap_file.stem)
                         if not to_slug and swap_data.get('target'):
                             to_slug = swap_data['target'].get('slug', '')
                         matrix[from_slug][to_slug] = self._get_flip_position_from_swap(swap_data)
@@ -763,6 +792,8 @@ class DataLoader:
     def _get_entity_info_from_swap(self, source_dir: Path) -> Dict[str, str]:
         """Extract entity fields from a sample swap file's source section."""
         for swap_file in source_dir.glob("to_*.json"):
+            if _is_control_variant(swap_file.stem):
+                continue
             try:
                 with open(swap_file, 'r', encoding='utf-8') as f:
                     swap_data = json.load(f)
@@ -877,26 +908,32 @@ class DataLoader:
     
     def get_swap_detail(self, from_slug: str, to_slug: str) -> Optional[Dict[str, Any]]:
         """Load detailed swap result."""
+        data = None
         # Try by_source structure first
         by_source_path = self.swaps_dir / "by_source" / from_slug / f"to_{to_slug}.json"
         if by_source_path.exists():
             with open(by_source_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                # Enrich with Neuronpedia URLs
-                data['source']['neuronpedia_url'] = self._get_neuronpedia_url(from_slug)
-                data['target']['neuronpedia_url'] = self._get_neuronpedia_url(to_slug)
-                return data
-        
-        # Try work directory
-        work_path = self.swaps_dir / "work" / f"{from_slug}__to__{to_slug}.json"
-        if work_path.exists():
-            with open(work_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                data['source']['neuronpedia_url'] = self._get_neuronpedia_url(from_slug)
-                data['target']['neuronpedia_url'] = self._get_neuronpedia_url(to_slug)
-                return data
-        
-        return None
+        else:
+            # Try work directory
+            work_path = self.swaps_dir / "work" / f"{from_slug}__to__{to_slug}.json"
+            if work_path.exists():
+                with open(work_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+
+        if data is None:
+            return None
+
+        # Enrich source/target with per-entity metadata
+        data['source']['neuronpedia_url'] = self._get_neuronpedia_url(from_slug)
+        data['target']['neuronpedia_url'] = self._get_neuronpedia_url(to_slug)
+
+        for key, slug in (('source', from_slug), ('target', to_slug)):
+            pct = self._get_error_node_influence(slug)
+            if pct is not None:
+                data[key]['error_node_influence_pct'] = pct
+
+        return data
     
     def save_annotation(self, from_slug: str, to_slug: str, 
                         tier: Optional[int] = None, 
@@ -973,12 +1010,14 @@ class DataLoader:
                 from_slug = source_dir.name
                 
                 for swap_file in source_dir.glob("to_*.json"):
+                    if _is_control_variant(swap_file.stem):
+                        continue
                     try:
                         with open(swap_file, 'r', encoding='utf-8') as f:
                             data = json.load(f)
                         
                         if data.get('classification', {}).get('manually_edited'):
-                            to_slug = swap_file.stem.replace("to_", "")
+                            to_slug, _ = _parse_to_slug(swap_file.stem)
                             annotated.append({
                                 'from': from_slug,
                                 'to': to_slug,
@@ -1294,6 +1333,16 @@ class DataLoader:
                 profile['pinned_nodes'] = np_data.get('pinned_nodes', 0)
                 profile['neuronpedia_url'] = np_data.get('url', '')
 
+                gq = manifest.get('graph_quality', {})
+                pct = gq.get('error_node_influence_pct')
+                if pct is not None:
+                    profile['error_node_influence_pct'] = pct
+
+            if 'error_node_influence_pct' not in profile:
+                pct = self._get_error_node_influence(slug)
+                if pct is not None:
+                    profile['error_node_influence_pct'] = pct
+
             profile.update(
                 self._load_entity_logit_metadata(entity_dir, answer))
 
@@ -1436,6 +1485,41 @@ class DataLoader:
         summaries.sort(key=lambda x: -x['tier'])
         return summaries
     
+    def _get_error_node_influence(self, slug: str) -> Optional[float]:
+        """Return error_node_influence_pct for an entity, with CSV fallback."""
+        entity_dir = self._find_state_dir(slug)
+        if not entity_dir:
+            return None
+
+        manifest = self._load_manifest(entity_dir)
+        if manifest:
+            gq = manifest.get('graph_quality', {})
+            pct = gq.get('error_node_influence_pct')
+            if pct is not None:
+                return pct
+
+        # Fallback: compute from graph_feature_static_metrics.csv
+        csv_path = (entity_dir / "00 Graph Generation"
+                    / "graph_feature_static_metrics.csv")
+        if not csv_path.exists():
+            return None
+        try:
+            total = 0.0
+            error = 0.0
+            with open(csv_path, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    ni = float(row.get('node_influence', 0) or 0)
+                    total += ni
+                    feat = row.get('feature', '')
+                    if feat == '-1':
+                        error += ni
+            if total > 0:
+                return round(error / total * 100, 2)
+        except (IOError, ValueError):
+            pass
+        return None
+
     def _find_state_dir(self, slug: str) -> Optional[Path]:
         """Find the state directory, handling case variations."""
         state_dir = self.data_dir / slug

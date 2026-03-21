@@ -514,6 +514,7 @@ def extract_logit_trajectory(
     source_token: str,
     control_tokens: Optional[List[str]] = None,
     generated_token_ids: Optional[List[int]] = None,
+    contrast_tokens: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Extract logit trajectory for target/source/control tokens from generation logits.
@@ -534,6 +535,10 @@ def extract_logit_trajectory(
         source_token: Source token to track (e.g., "Austin")
         control_tokens: Optional control tokens for specificity check
         generated_token_ids: List of actually generated token IDs (for tracking)
+        contrast_tokens: Optional list of same-dataset alternative answer tokens
+            for computing contrastive specificity metrics (e.g. all other
+            capitals in the USA dataset).  Tokens that fail single-token
+            resolution or duplicate target/source are silently dropped.
     
     Returns:
         Dict with trajectory data suitable for JSON serialization
@@ -589,6 +594,20 @@ def extract_logit_trajectory(
         }
         for ctrl, (tid, resolved) in control_ids.items()
     }
+
+    # Resolve contrast-group tokens (same-dataset alternatives)
+    contrast_members: List[Dict[str, Any]] = []
+    if contrast_tokens:
+        skip_ids = {target_id, source_id} - {None}
+        for ct in contrast_tokens:
+            cid, cresolved = _resolve_token_id(tokenizer, ct)
+            if cid is not None and cid not in skip_ids:
+                contrast_members.append({
+                    "token": cresolved or ct,
+                    "token_id": cid,
+                    "logits": [],
+                })
+                skip_ids.add(cid)
     
     # Extract trajectory at each generation position
     with torch.inference_mode():
@@ -622,6 +641,10 @@ def extract_logit_trajectory(
                     traj["logits"].append(round(pos_logits[tid].item(), 4))
                     traj["probs"].append(round(probs[tid].item(), 6))
                     traj["ranks"].append(_compute_rank(probs, tid))
+
+            # Contrast group (logits only -- summaries computed below)
+            for cm in contrast_members:
+                cm["logits"].append(round(pos_logits[cm["token_id"]].item(), 4))
     
     # Compute summary metrics
     def first_below_threshold(ranks: List[int], threshold: int) -> Optional[int]:
@@ -696,8 +719,75 @@ def extract_logit_trajectory(
     generated_tokens = []
     if generated_token_ids:
         generated_tokens = [tokenizer.decode([tid]) for tid in generated_token_ids]
-    
-    return {
+
+    # Compute contrast-group summaries (per generation step)
+    contrast_group_output = None
+    if contrast_members and target_traj["logits"]:
+        n_steps = len(target_traj["logits"])
+        n_cm = len(contrast_members)
+
+        mean_logit_per_step: List[float] = []
+        max_logit_per_step: List[float] = []
+        target_minus_mean: List[float] = []
+        target_minus_max: List[float] = []
+        target_rank_within: List[int] = []
+
+        for s in range(n_steps):
+            cm_logits = [cm["logits"][s] for cm in contrast_members if s < len(cm["logits"])]
+            if not cm_logits:
+                continue
+            cm_mean = sum(cm_logits) / len(cm_logits)
+            cm_max = max(cm_logits)
+            t_logit = target_traj["logits"][s]
+            mean_logit_per_step.append(round(cm_mean, 4))
+            max_logit_per_step.append(round(cm_max, 4))
+            target_minus_mean.append(round(t_logit - cm_mean, 4))
+            target_minus_max.append(round(t_logit - cm_max, 4))
+            rank_within = 1 + sum(1 for v in cm_logits if v > t_logit)
+            target_rank_within.append(rank_within)
+
+        # Top-k mean (k = min(3, n_members))
+        topk_k = min(3, n_cm)
+        topk_mean_per_step: List[float] = []
+        target_minus_topk: List[float] = []
+        for s in range(n_steps):
+            cm_logits = sorted(
+                (cm["logits"][s] for cm in contrast_members if s < len(cm["logits"])),
+                reverse=True,
+            )
+            if not cm_logits:
+                continue
+            topk_vals = cm_logits[:topk_k]
+            topk_m = sum(topk_vals) / len(topk_vals)
+            topk_mean_per_step.append(round(topk_m, 4))
+            target_minus_topk.append(round(target_traj["logits"][s] - topk_m, 4))
+
+        contrast_group_output = {
+            "n_members": n_cm,
+            "topk_k": topk_k,
+            "members": [{"token": cm["token"], "token_id": cm["token_id"]} for cm in contrast_members],
+            "summary": {
+                "mean_logit": mean_logit_per_step,
+                "max_logit": max_logit_per_step,
+                "topk_mean_logit": topk_mean_per_step,
+                "target_minus_mean": target_minus_mean,
+                "target_minus_max": target_minus_max,
+                "target_minus_topk_mean": target_minus_topk,
+                "target_rank_within_group": target_rank_within,
+            },
+            "aggregate": {
+                "initial_target_minus_mean": target_minus_mean[0] if target_minus_mean else None,
+                "best_target_minus_mean": max(target_minus_mean) if target_minus_mean else None,
+                "initial_target_minus_max": target_minus_max[0] if target_minus_max else None,
+                "best_target_minus_max": max(target_minus_max) if target_minus_max else None,
+                "initial_target_minus_topk": target_minus_topk[0] if target_minus_topk else None,
+                "best_target_minus_topk": max(target_minus_topk) if target_minus_topk else None,
+                "best_rank_within": min(target_rank_within) if target_rank_within else None,
+                "initial_rank_within": target_rank_within[0] if target_rank_within else None,
+            },
+        }
+
+    result_dict: Dict[str, Any] = {
         "tokens": {
             "target": target_resolved or target_token,
             "source": source_resolved or source_token,
@@ -755,6 +845,9 @@ def extract_logit_trajectory(
             "control_stability_max": control_stability_max,
         },
     }
+    if contrast_group_output is not None:
+        result_dict["contrast_groups"] = {"same_dataset": contrast_group_output}
+    return result_dict
 
 
 def run_ct_generation(
@@ -773,6 +866,7 @@ def run_ct_generation(
     target_token: Optional[str] = None,
     source_token: Optional[str] = None,
     control_tokens: Optional[List[str]] = None,
+    contrast_tokens: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Run Circuit Tracer intervention and compare steered vs default generation.
@@ -791,6 +885,7 @@ def run_ct_generation(
         target_token: Token to track as target (e.g., target capital)
         source_token: Token to track as source (e.g., source capital)
         control_tokens: Tokens to track for specificity check
+        contrast_tokens: Same-dataset alternative answer tokens for contrastive metrics
 
     Returns:
         Dict with steered/default outputs, logprobs, and optionally trajectory
@@ -918,6 +1013,7 @@ def run_ct_generation(
             source_token=source_token,
             control_tokens=control_tokens,
             generated_token_ids=generated_token_ids,
+            contrast_tokens=contrast_tokens,
         )
         
         # Also extract baseline trajectory for comparison (single position)
@@ -1018,6 +1114,7 @@ def main() -> None:
         # Per-prompt tokens override global env vars
         item_target = item.get("target_token", target_token)
         item_source = item.get("source_token", source_token)
+        item_contrast = item.get("contrast_tokens")
 
         # Combine global and per-prompt features
         feats = list(global_features)
@@ -1039,6 +1136,7 @@ def main() -> None:
             target_token=item_target,
             source_token=item_source,
             control_tokens=control_tokens,
+            contrast_tokens=item_contrast,
         )
 
         result_entry = {

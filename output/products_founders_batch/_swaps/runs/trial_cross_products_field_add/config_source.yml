@@ -1,0 +1,122 @@
+version: 0.1
+experiment_name: products_founders_batch
+paths:
+  outputs_root: output/products_founders_batch
+model:
+  id: gemma-2-2b
+  source_set: clt-hp
+features:
+  selection: cumulative_influence
+  threshold: 0.95
+  post_filter:
+    node_threshold: 95
+probes:
+  mode: templated
+  templated:
+    templates:
+    - id: probe_product
+      text: 'entity: A famous product is {product}'
+    - id: probe_company
+      text: 'entity: A major technology company is {company}'
+    - id: probe_founder
+      text: 'entity: The founder of {company} is {founder}'
+    - id: probe_founder_concept
+      text: 'attribute: The person who started and created a company is called the
+        founder'
+    - id: probe_relationship
+      text: 'relationship: the person who established a company is its founder'
+get_activations:
+  backend: local
+  local:
+    chunk_by_layer: true
+    include_zero: false
+    gpus: [0, 1, 2, 3, 4, 5, 6, 7]
+    batch_size: 2
+
+grouping:
+  enabled: true
+  window: 7
+  blacklist_tokens:
+    - "<bos>"
+    - "entity"
+    - "attribute"
+    - "relationship"
+  thresholds:
+    dict_peak_consistency_min: 0.8
+    dict_n_distinct_peaks_max: 1
+    sayx_func_vs_sem_min: 50.0
+    sayx_layer_min: 7
+    rel_sparsity_max: 0.45
+    sem_layer_max: 3
+    sem_conf_s_min: 0.50
+    sem_func_vs_sem_max: 50.0
+  upload:
+    enabled: true
+    api_key_env: NEURONPEDIA_API_KEY
+    display_name_template: "{slug} (auto-grouped)"
+    overwrite_id: ""
+
+steps:
+  graph_generation: true
+  feature_export: true
+  probe_prompts: true
+  activations: true
+  grouping: true
+  upload_subgraph: true
+
+graph_generation:
+  enabled: true
+  seeds_mode: templated
+  templated:
+    seed_prompt: The company that makes {product} was founded by
+    slug_template: '{slug}'
+    entities:
+      items:
+      - slug: iphone
+        product: the iPhone
+        company: Apple
+        founder: Steve Jobs
+      - slug: windows
+        product: Windows
+        company: Microsoft
+        founder: Bill Gates
+      - slug: model_s
+        product: the Model S
+        company: Tesla
+        founder: Elon Musk
+      - slug: facebook
+        product: Facebook
+        company: Meta
+        founder: Mark Zuckerberg
+      - slug: oracle_db
+        product: Oracle Database
+        company: Oracle
+        founder: Larry Ellison
+      - slug: dell_xps
+        product: the Dell XPS
+        company: Dell
+        founder: Michael Dell
+      - slug: alibaba
+        product: Alibaba
+        company: Alibaba Group
+        founder: Jack Ma
+      - slug: nike_shoes
+        product: Nike shoes
+        company: Nike
+        founder: Phil Knight
+      - slug: twitter
+        product: Twitter
+        company: Twitter
+        founder: Jack Dorsey
+      - slug: dyson
+        product: Dyson vacuums
+        company: Dyson
+        founder: James Dyson
+      - slug: wordpress
+        product: WordPress
+        company: Automattic
+        founder: Matt Mullenweg
+      - slug: oculus
+        product: the Oculus Rift
+        company: Oculus
+        founder: Palmer Luckey

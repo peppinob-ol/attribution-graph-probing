@@ -90,13 +90,22 @@ def extract_trajectory_metrics(result: Dict[str, Any]) -> Optional[Dict[str, Any
     target_traj = trajectory.get('trajectories', {}).get('target')
     source_traj = trajectory.get('trajectories', {}).get('source')
     
+    evaluation = result.get('evaluation', {})
+    answer_field = evaluation.get('answer_field', 'capital')
+    from_answer = evaluation.get('from_answer', result.get('source', {}).get('capital', ''))
+    to_answer = evaluation.get('to_answer', result.get('target', {}).get('capital', ''))
+
     metrics = {
         # Identification
         'swap_id': result.get('swap_id'),
         'from_slug': result.get('source', {}).get('slug'),
         'to_slug': result.get('target', {}).get('slug'),
-        'from_capital': result.get('source', {}).get('capital'),
-        'to_capital': result.get('target', {}).get('capital'),
+        'from_answer': from_answer,
+        'to_answer': to_answer,
+        'answer_field': answer_field,
+        # Backward-compatible aliases
+        'from_capital': from_answer,
+        'to_capital': to_answer,
         
         # Trajectory summary
         'n_positions': trajectory.get('n_positions', 0),
@@ -157,6 +166,23 @@ def extract_trajectory_metrics(result: Dict[str, Any]) -> Optional[Dict[str, Any
             'baseline_source_rank': baseline_source.get('rank') if baseline_source else None,
             'baseline_target_prob': baseline_target.get('prob') if baseline_target else None,
             'baseline_source_prob': baseline_source.get('prob') if baseline_source else None,
+        })
+
+    # Contrast-group specificity (same-dataset alternative answers)
+    cg = trajectory.get('contrast_groups', {}).get('same_dataset')
+    if cg:
+        agg = cg.get('aggregate', {})
+        metrics.update({
+            'contrast_n_members': cg.get('n_members'),
+            'contrast_topk_k': cg.get('topk_k'),
+            'contrast_initial_target_minus_max': agg.get('initial_target_minus_max'),
+            'contrast_best_target_minus_max': agg.get('best_target_minus_max'),
+            'contrast_initial_target_minus_topk': agg.get('initial_target_minus_topk'),
+            'contrast_best_target_minus_topk': agg.get('best_target_minus_topk'),
+            'contrast_initial_rank_within': agg.get('initial_rank_within'),
+            'contrast_best_rank_within': agg.get('best_rank_within'),
+            'contrast_initial_target_minus_mean': agg.get('initial_target_minus_mean'),
+            'contrast_best_target_minus_mean': agg.get('best_target_minus_mean'),
         })
     
     return metrics
@@ -250,7 +276,50 @@ def compute_trajectory_summary(results: List[Dict[str, Any]]) -> Dict[str, Any]:
             'high_specificity_rate': sum(1 for s in stability_mean if s and s < 1.0) / total,
         },
     }
-    
+
+    # Contrast-group specificity (present only for runs with contrast_tokens)
+    has_contrast = [m for m in metrics_list if m.get('contrast_n_members') is not None]
+    if has_contrast:
+        n_cg = len(has_contrast)
+        rank_within_vals = [m['contrast_best_rank_within'] for m in has_contrast
+                           if m.get('contrast_best_rank_within') is not None]
+        summary['contrast_specificity'] = {
+            'n_results_with_contrast': n_cg,
+            'n_members_range': {
+                'min': min(m['contrast_n_members'] for m in has_contrast),
+                'max': max(m['contrast_n_members'] for m in has_contrast),
+            },
+            'topk_k': has_contrast[0].get('contrast_topk_k'),
+            'target_vs_max_other': {
+                'initial': safe_stats([m.get('contrast_initial_target_minus_max') for m in has_contrast]),
+                'best': safe_stats([m.get('contrast_best_target_minus_max') for m in has_contrast]),
+                'positive_rate': (
+                    sum(1 for m in has_contrast
+                        if (m.get('contrast_best_target_minus_max') or 0) > 0) / n_cg
+                ),
+            },
+            'target_vs_topk_other': {
+                'initial': safe_stats([m.get('contrast_initial_target_minus_topk') for m in has_contrast]),
+                'best': safe_stats([m.get('contrast_best_target_minus_topk') for m in has_contrast]),
+                'positive_rate': (
+                    sum(1 for m in has_contrast
+                        if (m.get('contrast_best_target_minus_topk') or 0) > 0) / n_cg
+                ),
+            },
+            'rank_within_group': {
+                'initial': safe_stats([m.get('contrast_initial_rank_within') for m in has_contrast]),
+                'best': safe_stats(rank_within_vals),
+                'top1_rate': (
+                    sum(1 for v in rank_within_vals if v == 1) / len(rank_within_vals)
+                    if rank_within_vals else 0
+                ),
+            },
+            'target_vs_mean_other': {
+                'initial': safe_stats([m.get('contrast_initial_target_minus_mean') for m in has_contrast]),
+                'best': safe_stats([m.get('contrast_best_target_minus_mean') for m in has_contrast]),
+            },
+        }
+
     return summary
 
 
@@ -270,16 +339,19 @@ def create_trajectory_dataframe(results: List[Dict[str, Any]]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def analyze_by_target_state(df: pd.DataFrame) -> pd.DataFrame:
+def analyze_by_target_entity(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Group trajectory metrics by target state.
+    Group trajectory metrics by target entity (slug).
+
+    For USA states the slug encodes state_city, so grouping by slug
+    effectively groups by entity.  For other domains the slug is the
+    full entity identifier (e.g. 'hermione_granger').
     """
     if df.empty or 'to_slug' not in df.columns:
         return pd.DataFrame()
-    
-    # Extract state from slug (e.g., "texas_dallas" -> "texas")
+
     df = df.copy()
-    df['target_state'] = df['to_slug'].apply(lambda x: x.split('_')[0] if x else '')
+    df['target_entity'] = df['to_slug']
     
     agg_funcs = {
         'gap_closure': ['mean', 'std', 'count'],
@@ -294,7 +366,11 @@ def analyze_by_target_state(df: pd.DataFrame) -> pd.DataFrame:
     if not valid_agg:
         return pd.DataFrame()
     
-    return df.groupby('target_state').agg(valid_agg)
+    return df.groupby('target_entity').agg(valid_agg)
+
+
+# Backward-compatible alias
+analyze_by_target_state = analyze_by_target_entity
 
 
 def visualize_gap_trajectories(
@@ -441,6 +517,19 @@ def main():
         action='store_true',
         help='Export detailed metrics to CSV'
     )
+    parser.add_argument(
+        '--primary-specificity',
+        type=str,
+        choices=['legacy', 'max', 'topk', 'rank'],
+        default='legacy',
+        help=(
+            'Which specificity metric to highlight in output. '
+            '"legacy" = stopword control stability (default), '
+            '"max" = target vs max(other dataset answers), '
+            '"topk" = target vs top-k mean(other), '
+            '"rank" = rank within dataset group'
+        ),
+    )
     
     args = parser.parse_args()
     
@@ -488,12 +577,11 @@ def main():
         df.to_csv(csv_path, index=False)
         print(f"  Exported to: {csv_path}")
         
-        # By-state analysis
-        by_state = analyze_by_target_state(df)
-        if not by_state.empty:
-            state_path = output_dir / "by_target_state.csv"
-            by_state.to_csv(state_path)
-            print(f"  By-state analysis: {state_path}")
+        by_entity = analyze_by_target_entity(df)
+        if not by_entity.empty:
+            entity_path = output_dir / "by_target_entity.csv"
+            by_entity.to_csv(entity_path)
+            print(f"  By-entity analysis: {entity_path}")
     
     # Visualizations
     if args.visualize:
@@ -501,8 +589,12 @@ def main():
         visualize_gap_trajectories(with_trajectory, output_dir)
     
     # Print summary
+    spec_mode = args.primary_specificity
     print("\n" + "="*60)
     print("TRAJECTORY ANALYSIS SUMMARY")
+    if spec_mode != 'legacy':
+        spec_labels = {'max': 'target vs max(other)', 'topk': 'target vs top-k mean(other)', 'rank': 'rank within group'}
+        print(f"  Primary specificity: {spec_labels.get(spec_mode, spec_mode)}")
     print("="*60)
     
     gc = summary.get('gap_closure', {})
@@ -532,10 +624,55 @@ def main():
     print(f"  Top-10: {_fmt(top_n.get('top10_rate', 0), '.1%')}")
     
     ctrl = summary.get('control_stability', {})
-    print(f"\nControl Stability:")
+    print(f"\nControl Stability (stopword-based, legacy):")
     print(f"  Mean stability: {_fmt(ctrl.get('mean', {}).get('mean'))}")
     print(f"  High specificity rate: {_fmt(ctrl.get('high_specificity_rate', 0), '.1%')}")
-    
+
+    cs = summary.get('contrast_specificity')
+    if cs:
+        n_cg = cs.get('n_results_with_contrast', 0)
+        mr = cs.get('n_members_range', {})
+        topk_k = cs.get('topk_k', '?')
+        print(f"\nContrast Specificity ({n_cg} results, "
+              f"{mr.get('min','?')}-{mr.get('max','?')} dataset alternatives, "
+              f"topk_k={topk_k}):")
+
+        vm = cs.get('target_vs_max_other', {})
+        print(f"  Target vs max(other):")
+        print(f"    Initial: mean={_fmt(vm.get('initial', {}).get('mean'))}")
+        print(f"    Best:    mean={_fmt(vm.get('best', {}).get('mean'))}, "
+              f"positive_rate={_fmt(vm.get('positive_rate', 0), '.1%')}")
+
+        vt = cs.get('target_vs_topk_other', {})
+        print(f"  Target vs top-{topk_k} mean(other):")
+        print(f"    Initial: mean={_fmt(vt.get('initial', {}).get('mean'))}")
+        print(f"    Best:    mean={_fmt(vt.get('best', {}).get('mean'))}, "
+              f"positive_rate={_fmt(vt.get('positive_rate', 0), '.1%')}")
+
+        rw = cs.get('rank_within_group', {})
+        print(f"  Rank within dataset group:")
+        print(f"    Initial: mean={_fmt(rw.get('initial', {}).get('mean'))}")
+        print(f"    Best:    mean={_fmt(rw.get('best', {}).get('mean'))}, "
+              f"top1_rate={_fmt(rw.get('top1_rate', 0), '.1%')}")
+
+    if spec_mode != 'legacy' and cs:
+        print(f"\n--- Primary Specificity Metric ---")
+        if spec_mode == 'max':
+            block = cs.get('target_vs_max_other', {})
+            print(f"  target vs max(other dataset answers)")
+            print(f"  Best mean: {_fmt(block.get('best', {}).get('mean'))}")
+            print(f"  Positive rate: {_fmt(block.get('positive_rate', 0), '.1%')}")
+        elif spec_mode == 'topk':
+            block = cs.get('target_vs_topk_other', {})
+            print(f"  target vs top-{cs.get('topk_k', '?')} mean(other)")
+            print(f"  Best mean: {_fmt(block.get('best', {}).get('mean'))}")
+            print(f"  Positive rate: {_fmt(block.get('positive_rate', 0), '.1%')}")
+        elif spec_mode == 'rank':
+            block = cs.get('rank_within_group', {})
+            print(f"  rank within dataset group")
+            print(f"  Best mean rank: {_fmt(block.get('best', {}).get('mean'))}")
+            print(f"  Top-1 rate: {_fmt(block.get('top1_rate', 0), '.1%')}")
+
     print(f"\nOutputs saved to: {output_dir}")
     print("="*60)
     

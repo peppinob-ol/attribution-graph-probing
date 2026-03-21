@@ -36,7 +36,7 @@ def load_prompts(path: str) -> List[Dict[str, str]]:
                 raise ValueError(f"Prompt #{i} invalid: expected 'text' field")
             pid = str(item.get("id", f"p{i}"))
             entry: Dict[str, str] = {"id": pid, "text": text}
-            for key in ("target_token", "source_token"):
+            for key in ("target_token", "source_token", "contrast_tokens"):
                 if key in item:
                     entry[key] = item[key]
             prompts.append(entry)

@@ -43,15 +43,29 @@ def _first_token_matches(steered_topk: List[Dict[str, Any]],
     return steered_first in answer_norm
 
 
-def _get_answer_field(concept_fields: Optional[List[str]] = None) -> str:
+def resolve_answer_field(
+    swap_cfg: Optional[Dict[str, Any]] = None,
+    concept_fields: Optional[List[str]] = None,
+) -> str:
     """Return the entity field that represents the expected model answer.
 
-    Convention: the last element of concept_fields is the answer.
-    Falls back to "capital" for backward-compatible USA behaviour.
+    Resolution order:
+    1. Explicit ``swap.answer_field`` in the swap config (if provided).
+    2. Last element of ``concept_fields``.
+    3. Fallback ``"capital"`` for backward-compatible USA behaviour.
     """
+    if swap_cfg:
+        explicit = swap_cfg.get("answer_field")
+        if explicit:
+            return str(explicit)
     if concept_fields and len(concept_fields) >= 1:
         return concept_fields[-1]
     return "capital"
+
+
+def _get_answer_field(concept_fields: Optional[List[str]] = None) -> str:
+    """Backward-compatible wrapper around :func:`resolve_answer_field`."""
+    return resolve_answer_field(concept_fields=concept_fields)
 
 
 def evaluate_swap(
@@ -59,6 +73,7 @@ def evaluate_swap(
     entity_from: Dict[str, str],
     entity_to: Dict[str, str],
     concept_fields: Optional[List[str]] = None,
+    swap_cfg: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Capture all metrics for a swap result for later analysis.
@@ -67,11 +82,15 @@ def evaluate_swap(
     decide which entity field is the "answer" for exact-match checks.
     Falls back to ``capital`` when concept_fields is not provided (USA).
 
+    If ``swap_cfg`` is provided, an explicit ``answer_field`` in the
+    swap config takes priority over the concept_fields convention.
+
     Args:
         result: Raw steering result (steered, default, topk, etc.)
         entity_from: Source entity dict
         entity_to: Target entity dict
         concept_fields: Optional list of concept field names from swap config
+        swap_cfg: Optional full swap config dict (for answer_field override)
 
     Returns:
         Dict with structured evaluation metrics
@@ -81,7 +100,7 @@ def evaluate_swap(
     default_topk = result.get('default_topk', [])
     steered_topk = result.get('steered_topk', [])
 
-    answer_field = _get_answer_field(concept_fields)
+    answer_field = resolve_answer_field(swap_cfg=swap_cfg, concept_fields=concept_fields)
     from_answer = entity_from.get(answer_field, '')
     to_answer = entity_to.get(answer_field, '')
 
@@ -182,6 +201,7 @@ def create_swap_result(
     evaluation: Dict[str, Any],
     config: Dict[str, Any],
     duration_ms: Optional[float] = None,
+    control_metadata: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Create a complete swap result record for storage.
@@ -192,13 +212,13 @@ def create_swap_result(
         evaluation: Output of evaluate_swap()
         config: Swap configuration
         duration_ms: Execution time in milliseconds
+        control_metadata: Optional dict from InterventionResult.to_metadata()
     
     Returns:
         Complete result dict ready for JSON serialization
     """
     ct_config = config.get('ct_steering', {})
     
-    # Domain-agnostic: include full entity (state/capital/city for USA; character/book/author for books)
     source_ent = dict(pair.from_entity)
     target_ent = dict(pair.to_entity)
     source_ent['slug'] = pair.from_slug
@@ -206,6 +226,15 @@ def create_swap_result(
     source_ent['concept'] = pair.from_concept
     target_ent['slug'] = pair.to_slug
     target_ent['concept'] = pair.to_concept
+
+    metadata: Dict[str, Any] = {
+        'timestamp': datetime.now().isoformat(),
+        'duration_ms': duration_ms,
+        'is_identity': pair.is_identity,
+    }
+    if control_metadata:
+        metadata['control'] = control_metadata
+
     return {
         'swap_id': pair.swap_id,
         'source': source_ent,
@@ -223,11 +252,7 @@ def create_swap_result(
             'seed': ct_config.get('seed', 42),
             'freeze_attention': ct_config.get('freeze_attention', False),
         },
-        'metadata': {
-            'timestamp': datetime.now().isoformat(),
-            'duration_ms': duration_ms,
-            'is_identity': pair.is_identity,
-        },
+        'metadata': metadata,
     }
 
 

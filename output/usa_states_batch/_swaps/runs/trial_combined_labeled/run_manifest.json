@@ -1,0 +1,104 @@
+{
+  "run_id": "trial_combined_labeled",
+  "run_dir": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch/_swaps/runs/trial_combined_labeled",
+  "status": "completed",
+  "timestamp": "2026-03-21T09:00:41.052391",
+  "argv": [
+    "run_batch_swaps.py",
+    "--config",
+    "configs/trial_combined_labeled.yml",
+    "--run-id",
+    "trial_combined_labeled",
+    "--parallel",
+    "--workers",
+    "1",
+    "--gpus",
+    "0"
+  ],
+  "git": {
+    "commit": "79de268161759a6f2c9babae780263b65584e864",
+    "branch": "control-refactor",
+    "dirty": true
+  },
+  "platform": {
+    "python": "3.10.12",
+    "os": "posix",
+    "platform": "linux"
+  },
+  "config": {
+    "experiment_name": "trial_combined_labeled",
+    "swap": {
+      "mode": "defined_pairs",
+      "include_identity": false,
+      "concept_fields": [
+        "state",
+        "capital",
+        "city"
+      ],
+      "pairs": [
+        [
+          "new_mexico_albuquerque",
+          "pennsylvania_philadelphia"
+        ],
+        [
+          "texas_dallas",
+          "georgia_savannah"
+        ],
+        [
+          "california_oakland",
+          "florida_miami"
+        ],
+        [
+          "colorado_colorado_springs",
+          "new_york_new_york_city"
+        ],
+        [
+          "georgia_savannah",
+          "texas_dallas"
+        ]
+      ]
+    },
+    "ct_steering": {
+      "model_id": "google/gemma-2-2b",
+      "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",
+      "M_ablate": -2,
+      "M_amplify": 20,
+      "temperature": 0.3,
+      "n_tokens": 10,
+      "freq_penalty": 2.0,
+      "seed": 42,
+      "top_k": 5,
+      "freeze_attention": false,
+      "track_trajectory": true
+    },
+    "compute": {
+      "inherit_from_source": false,
+      "remote": {
+        "enabled": false
+      }
+    },
+    "inputs": {
+      "source_config": "configs/usa_states_full.yml",
+      "graphs_root": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch"
+    }
+  },
+  "hashes": {
+    "combined_config_sha1": "8c952e04ee4f5d5e8ab5e026f10bd97009b8142e",
+    "files": {
+      "swap_config": "7886b78f3b28651cb565fd47452f6e8455297f31",
+      "source_config": "251f955cd944dda24e0a954d26316acfd4f9bdfa"
+    }
+  },
+  "timestamp_started": "2026-03-21T09:00:09.705614",
+  "timestamp_completed": "2026-03-21T09:00:41.052361",
+  "counts": {
+    "total_pairs": 5,
+    "processed": 5,
+    "failed": 0,
+    "skipped": 0
+  },
+  "outputs": {
+    "summary_path": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch/_swaps/runs/trial_combined_labeled/_summary.json",
+    "matrix_path": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch/_swaps/runs/trial_combined_labeled/_matrix.csv"
+  }
+}

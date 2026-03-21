@@ -324,15 +324,17 @@ def validate_swap_inputs(
 def get_swap_output_path(
     config: Dict[str, Any],
     pair: SwapPair,
+    variant_suffix: str = "",
 ) -> Path:
     """
     Get the output file path for a swap result.
     
-    Structure: {outputs_root}/_swaps/by_source/{from_slug}/to_{to_slug}.json
+    Structure: {outputs_root}/_swaps/by_source/{from_slug}/to_{to_slug}[__{suffix}].json
     
     Args:
         config: Loaded swap configuration
         pair: The swap pair
+        variant_suffix: Optional suffix for replicate/variant disambiguation
     
     Returns:
         Path to the output JSON file
@@ -341,7 +343,10 @@ def get_swap_output_path(
     swaps_dir = Path(config.get(_SWAPS_DIR_CONFIG_KEY) or (graphs_root / "_swaps"))
     
     output_dir = swaps_dir / "by_source" / pair.from_slug
-    output_file = output_dir / f"to_{pair.to_slug}.json"
+    stem = f"to_{pair.to_slug}"
+    if variant_suffix:
+        stem = f"{stem}__{variant_suffix}"
+    output_file = output_dir / f"{stem}.json"
     
     return output_file
 
@@ -384,6 +389,7 @@ def _find_graph_dir_case_insensitive(graphs_root: Path, slug: str) -> Path:
 def get_swap_paths(
     config: Dict[str, Any],
     pair: SwapPair,
+    variant_suffix: str = "",
 ) -> Dict[str, Path]:
     """
     Get all relevant paths for a swap experiment.
@@ -391,6 +397,7 @@ def get_swap_paths(
     Args:
         config: Loaded swap configuration
         pair: The swap pair
+        variant_suffix: Optional suffix for replicate/variant disambiguation
     
     Returns:
         Dict with keys: from_graph_dir, to_graph_dir, output_file, work_dir
@@ -398,11 +405,15 @@ def get_swap_paths(
     graphs_root = Path(config.get('inputs', {}).get('graphs_root', 'output/usa_states_batch'))
     swaps_dir = Path(config.get(_SWAPS_DIR_CONFIG_KEY) or (graphs_root / "_swaps"))
     
+    work_id = pair.swap_id
+    if variant_suffix:
+        work_id = f"{work_id}__{variant_suffix}"
+
     return {
         'from_graph_dir': _find_graph_dir_case_insensitive(graphs_root, pair.from_slug),
         'to_graph_dir': _find_graph_dir_case_insensitive(graphs_root, pair.to_slug),
-        'output_file': get_swap_output_path(config, pair),
-        'work_dir': swaps_dir / "work" / pair.swap_id,
+        'output_file': get_swap_output_path(config, pair, variant_suffix),
+        'work_dir': swaps_dir / "work" / work_id,
     }
 
 
