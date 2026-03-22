@@ -1,0 +1,743 @@
+{
+  "swap_id": "facebook__to__twitter",
+  "source": {
+    "slug": "facebook",
+    "product": "Facebook",
+    "company": "Meta",
+    "founder": "Mark Zuckerberg",
+    "prompt": "<bos>The company that makes Facebook was founded by",
+    "concept": "facebook"
+  },
+  "target": {
+    "slug": "twitter",
+    "product": "Twitter",
+    "company": "Twitter",
+    "founder": "Jack Dorsey",
+    "concept": "twitter"
+  },
+  "interventions": {
+    "ablate_count": 67,
+    "amplify_count": 76,
+    "total_count": 143
+  },
+  "evaluation": {
+    "ground_truth": {
+      "product": "Facebook",
+      "company": "Meta",
+      "founder": "Mark Zuckerberg"
+    },
+    "ground_truth_to": {
+      "product": "Twitter",
+      "company": "Twitter",
+      "founder": "Jack Dorsey"
+    },
+    "answer_field": "founder",
+    "from_answer": "Mark Zuckerberg",
+    "to_answer": "Jack Dorsey",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": false,
+      "steered_has_to_answer_fuzzy": false,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": false,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Mark",
+      "default_prob": 0.48046875,
+      "steered": ",",
+      "steered_prob": 0.22265625
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": null,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The company that makes Facebook was founded by Mark Zuckerberg in 2004. The",
+      "steered_output": "<bos><bos>The company that makes Facebook was founded by, and the company that makes Instagram was founded.\n\n",
+      "default_topk": [
+        {
+          "token": " Mark",
+          "prob": 0.48046875
+        },
+        {
+          "token": " a",
+          "prob": 0.1376953125
+        },
+        {
+          "token": " two",
+          "prob": 0.12158203125
+        },
+        {
+          "token": " ",
+          "prob": 0.034912109375
+        },
+        {
+          "token": " the",
+          "prob": 0.03076171875
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": ",",
+          "prob": 0.22265625
+        },
+        {
+          "token": "'",
+          "prob": 0.1533203125
+        },
+        {
+          "token": ".",
+          "prob": 0.0927734375
+        },
+        {
+          "token": " and",
+          "prob": 0.05615234375
+        },
+        {
+          "token": " Direct",
+          "prob": 0.0341796875
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Jack",
+        "source": " Mark",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        ",",
+        " and",
+        " the",
+        " company",
+        " that",
+        " makes",
+        " Instagram",
+        " was",
+        " founded",
+        ".",
+        "\n\n"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Jack",
+          "token_id": 6592,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              18.125,
+              20.0,
+              21.5,
+              16.375,
+              15.8125,
+              11.375,
+              16.5,
+              14.25,
+              12.5,
+              19.125,
+              22.25
+            ],
+            "probs": [
+              0.003601,
+              0.000192,
+              0.000117,
+              2e-06,
+              1e-06,
+              0.0,
+              4e-06,
+              0.0,
+              1e-06,
+              1.2e-05,
+              0.000278
+            ],
+            "ranks": [
+              20,
+              221,
+              219,
+              1449,
+              896,
+              2842,
+              958,
+              1087,
+              871,
+              278,
+              123
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "first_top5_position": null,
+            "first_top10_position": null,
+            "max_prob": 0.003601,
+            "min_rank": 20,
+            "final_rank": 123,
+            "rank_improvement": 0
+          }
+        },
+        "source": {
+          "token": " Mark",
+          "token_id": 4082,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              15.5625,
+              24.875,
+              25.625,
+              21.375,
+              20.625,
+              14.25,
+              22.125,
+              18.75,
+              13.125,
+              19.875,
+              26.375
+            ],
+            "probs": [
+              0.000277,
+              0.025024,
+              0.007263,
+              0.000239,
+              0.000119,
+              1e-06,
+              0.00116,
+              2.1e-05,
+              1e-06,
+              2.5e-05,
+              0.017212
+            ],
+            "ranks": [
+              211,
+              11,
+              20,
+              171,
+              120,
+              1084,
+              55,
+              201,
+              679,
+              209,
+              13
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 11,
+            "final_rank": 13,
+            "max_prob": 0.025024
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                13.625,
+                25.125,
+                28.75,
+                19.75,
+                22.625,
+                20.125,
+                26.625,
+                21.5,
+                19.75,
+                26.625,
+                23.125
+              ],
+              "probs": [
+                4e-05,
+                0.032227,
+                0.165039,
+                4.7e-05,
+                0.000877,
+                0.000376,
+                0.104492,
+                0.000322,
+                0.000828,
+                0.021606,
+                0.000668
+              ],
+              "ranks": [
+                808,
+                8,
+                1,
+                377,
+                41,
+                94,
+                3,
+                54,
+                29,
+                7,
+                89
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                17.75,
+                23.875,
+                27.875,
+                16.875,
+                26.125,
+                23.875,
+                17.5,
+                26.25,
+                14.9375,
+                23.5,
+                21.125
+              ],
+              "probs": [
+                0.002472,
+                0.009216,
+                0.068848,
+                3e-06,
+                0.029053,
+                0.015991,
+                1.1e-05,
+                0.037354,
+                7e-06,
+                0.00095,
+                9.1e-05
+              ],
+              "ranks": [
+                33,
+                23,
+                3,
+                1202,
+                2,
+                6,
+                653,
+                3,
+                322,
+                65,
+                222
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                14.9375,
+                24.5,
+                26.25,
+                15.375,
+                19.375,
+                16.75,
+                23.875,
+                21.75,
+                20.125,
+                26.125,
+                21.5
+              ],
+              "probs": [
+                0.000149,
+                0.017212,
+                0.01355,
+                1e-06,
+                3.4e-05,
+                1.3e-05,
+                0.006683,
+                0.000414,
+                0.001205,
+                0.013123,
+                0.000132
+              ],
+              "ranks": [
+                341,
+                15,
+                14,
+                2059,
+                215,
+                398,
+                21,
+                45,
+                23,
+                9,
+                180
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                13.0625,
+                24.875,
+                22.875,
+                14.3125,
+                23.5,
+                12.25,
+                15.375,
+                19.25,
+                14.0625,
+                19.5,
+                18.25
+              ],
+              "probs": [
+                2.3e-05,
+                0.025024,
+                0.000463,
+                0.0,
+                0.002106,
+                0.0,
+                1e-06,
+                3.4e-05,
+                3e-06,
+                1.7e-05,
+                5e-06
+              ],
+              "ranks": [
+                1209,
+                11,
+                134,
+                2984,
+                19,
+                2152,
+                1666,
+                166,
+                470,
+                241,
+                666
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": null,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 2.5625,
+        "best_gap": 2.5625,
+        "final_gap": -4.125,
+        "gap_closure": 0.0,
+        "gap_trajectory": [
+          2.5625,
+          -4.875,
+          -4.125,
+          -5.0,
+          -4.8125,
+          -2.875,
+          -5.625,
+          -4.5,
+          -0.625,
+          -0.75,
+          -4.125
+        ],
+        "control_stability_mean": 6.7891,
+        "control_stability_max": 15.125
+      },
+      "contrast_groups": {
+        "same_dataset": {
+          "n_members": 9,
+          "topk_k": 3,
+          "members": [
+            {
+              "token": " Steve",
+              "token_id": 15717
+            },
+            {
+              "token": " Bill",
+              "token_id": 8352
+            },
+            {
+              "token": " Elon",
+              "token_id": 77342
+            },
+            {
+              "token": " Larry",
+              "token_id": 32365
+            },
+            {
+              "token": " Michael",
+              "token_id": 7939
+            },
+            {
+              "token": " Phil",
+              "token_id": 19580
+            },
+            {
+              "token": " James",
+              "token_id": 6110
+            },
+            {
+              "token": " Matt",
+              "token_id": 17769
+            },
+            {
+              "token": " Palmer",
+              "token_id": 36808
+            }
+          ],
+          "summary": {
+            "mean_logit": [
+              10.6181,
+              15.7083,
+              18.4514,
+              13.4444,
+              14.6319,
+              11.0486,
+              13.8056,
+              11.2708,
+              9.7639,
+              15.0451,
+              18.6319
+            ],
+            "max_logit": [
+              14.4375,
+              19.75,
+              22.125,
+              17.5,
+              18.125,
+              14.6875,
+              17.875,
+              13.9375,
+              12.6875,
+              17.5,
+              21.75
+            ],
+            "topk_mean_logit": [
+              13.3125,
+              19.5,
+              21.9583,
+              15.9167,
+              17.4167,
+              13.375,
+              16.4583,
+              13.2708,
+              11.6667,
+              17.25,
+              20.4167
+            ],
+            "target_minus_mean": [
+              7.5069,
+              4.2917,
+              3.0486,
+              2.9306,
+              1.1806,
+              0.3264,
+              2.6944,
+              2.9792,
+              2.7361,
+              4.0799,
+              3.6181
+            ],
+            "target_minus_max": [
+              3.6875,
+              0.25,
+              -0.625,
+              -1.125,
+              -2.3125,
+              -3.3125,
+              -1.375,
+              0.3125,
+              -0.1875,
+              1.625,
+              0.5
+            ],
+            "target_minus_topk_mean": [
+              4.8125,
+              0.5,
+              -0.4583,
+              0.4583,
+              -1.6042,
+              -2.0,
+              0.0417,
+              0.9792,
+              0.8333,
+              1.875,
+              1.8333
+            ],
+            "target_rank_within_group": [
+              1,
+              1,
+              4,
+              2,
+              4,
+              6,
+              2,
+              1,
+              2,
+              1,
+              1
+            ]
+          },
+          "aggregate": {
+            "initial_target_minus_mean": 7.5069,
+            "best_target_minus_mean": 7.5069,
+            "initial_target_minus_max": 3.6875,
+            "best_target_minus_max": 3.6875,
+            "initial_target_minus_topk": 4.8125,
+            "best_target_minus_topk": 4.8125,
+            "best_rank_within": 1,
+            "initial_rank_within": 1
+          }
+        }
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 17.125,
+        "prob": 4.1e-05,
+        "rank": 197
+      },
+      "source": {
+        "logit": 26.5,
+        "prob": 0.480469,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": 1.0,
+      "source_logit_delta": -10.9375,
+      "baseline_gap": -9.375,
+      "steered_gap_0": 2.5625,
+      "gap_closure_0": 11.9375,
+      "target_rank_improvement": 177,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-03-21T17:02:44.142852",
+    "duration_ms": 0,
+    "is_identity": false,
+    "control": {
+      "control_mode": "additivity",
+      "ablate_count": 67,
+      "amplify_count": 76,
+      "concept_subsets_used": [
+        "product",
+        "company",
+        "founder"
+      ],
+      "diagnostics": {
+        "selection_mode": "fields",
+        "requested_fields": [
+          "product",
+          "company",
+          "founder"
+        ],
+        "active_fields": [
+          "product",
+          "company",
+          "founder"
+        ],
+        "ablate_fields": [
+          "product",
+          "company",
+          "founder"
+        ],
+        "amplify_fields": [
+          "product",
+          "company",
+          "founder"
+        ]
+      }
+    }
+  }
+}

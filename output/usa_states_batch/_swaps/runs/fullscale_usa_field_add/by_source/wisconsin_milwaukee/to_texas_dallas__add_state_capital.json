@@ -1,0 +1,894 @@
+{
+  "swap_id": "wisconsin_milwaukee__to__texas_dallas",
+  "source": {
+    "slug": "wisconsin_milwaukee",
+    "city": "Milwaukee",
+    "state": "Wisconsin",
+    "capital": "Madison",
+    "prompt": "<bos>The capital of the state containing Milwaukee is",
+    "concept": "wisconsin"
+  },
+  "target": {
+    "slug": "texas_dallas",
+    "city": "Dallas",
+    "state": "Texas",
+    "capital": "Austin",
+    "concept": "texas"
+  },
+  "interventions": {
+    "ablate_count": 55,
+    "amplify_count": 49,
+    "total_count": 104
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Milwaukee",
+      "state": "Wisconsin",
+      "capital": "Madison"
+    },
+    "ground_truth_to": {
+      "city": "Dallas",
+      "state": "Texas",
+      "capital": "Austin"
+    },
+    "answer_field": "capital",
+    "from_answer": "Madison",
+    "to_answer": "Austin",
+    "exact_match": {
+      "default_has_from_answer": false,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": false,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Madison",
+      "default_prob": 0.2412109375,
+      "steered": "LookAnd",
+      "steered_prob": 0.3203125
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": 0.2412109375,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.2412109375,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Milwaukee is Milwaukee.\n\nThe capital of the state containing Milwaukee",
+      "steered_output": "<bos><bos>The capital of the state containing Milwaukee isLookAnd the largest city in Texas, Austin.\n\nThe",
+      "default_topk": [
+        {
+          "token": " Madison",
+          "prob": 0.2412109375
+        },
+        {
+          "token": " Milwaukee",
+          "prob": 0.146484375
+        },
+        {
+          "token": " Wisconsin",
+          "prob": 0.0888671875
+        },
+        {
+          "token": " the",
+          "prob": 0.078125
+        },
+        {
+          "token": " ",
+          "prob": 0.0537109375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": "LookAnd",
+          "prob": 0.3203125
+        },
+        {
+          "token": " Efq",
+          "prob": 0.0810546875
+        },
+        {
+          "token": " College",
+          "prob": 0.0810546875
+        },
+        {
+          "token": "anskje",
+          "prob": 0.043212890625
+        },
+        {
+          "token": "MessageTagHelper",
+          "prob": 0.03369140625
+        }
+      ]
+    },
+    "logit_trajectory": {
+      "tokens": {
+        "target": " Austin",
+        "source": " Madison",
+        "controls": [
+          " the",
+          " is",
+          " a",
+          " of"
+        ]
+      },
+      "n_positions": 11,
+      "generated_tokens": [
+        "LookAnd",
+        " the",
+        " largest",
+        " city",
+        " in",
+        " Texas",
+        ",",
+        " Austin",
+        ".",
+        "\n\n",
+        "The"
+      ],
+      "trajectories": {
+        "target": {
+          "token": " Austin",
+          "token_id": 22605,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              19.25,
+              23.375,
+              21.75,
+              13.6875,
+              21.25,
+              21.0,
+              23.0,
+              25.375,
+              23.875,
+              27.625,
+              18.75
+            ],
+            "probs": [
+              0.018066,
+              0.034424,
+              0.000599,
+              2e-06,
+              0.000129,
+              0.001205,
+              0.000469,
+              0.263672,
+              0.001167,
+              0.069336,
+              1.9e-05
+            ],
+            "ranks": [
+              6,
+              2,
+              133,
+              1133,
+              98,
+              28,
+              71,
+              1,
+              35,
+              4,
+              636
+            ]
+          },
+          "summary": {
+            "first_top1_position": 7,
+            "first_top5_position": 1,
+            "first_top10_position": 0,
+            "max_prob": 0.263672,
+            "min_rank": 1,
+            "final_rank": 636,
+            "rank_improvement": 5
+          }
+        },
+        "source": {
+          "token": " Madison",
+          "token_id": 28428,
+          "trajectory": {
+            "positions": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "logits": [
+              4.8438,
+              20.25,
+              16.5,
+              11.3125,
+              17.375,
+              13.3125,
+              17.75,
+              13.6875,
+              15.25,
+              16.75,
+              3.5156
+            ],
+            "probs": [
+              0.0,
+              0.001518,
+              3e-06,
+              0.0,
+              3e-06,
+              1e-06,
+              2e-06,
+              2e-06,
+              0.0,
+              1e-06,
+              0.0
+            ],
+            "ranks": [
+              47424,
+              76,
+              1842,
+              3364,
+              638,
+              1333,
+              875,
+              1508,
+              2904,
+              1461,
+              112986
+            ]
+          },
+          "summary": {
+            "first_top1_position": null,
+            "min_rank": 76,
+            "final_rank": 112986,
+            "max_prob": 0.001518
+          }
+        },
+        "controls": {
+          " the": {
+            "token": " the",
+            "token_id": 573,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                6.3125,
+                24.875,
+                22.25,
+                18.625,
+                23.875,
+                27.25,
+                25.25,
+                23.75,
+                24.125,
+                23.875,
+                19.75
+              ],
+              "probs": [
+                0.0,
+                0.154297,
+                0.000984,
+                0.00025,
+                0.001778,
+                0.625,
+                0.004456,
+                0.052002,
+                0.001495,
+                0.001633,
+                5.1e-05
+              ],
+              "ranks": [
+                28699,
+                1,
+                95,
+                75,
+                20,
+                1,
+                17,
+                4,
+                25,
+                53,
+                366
+              ]
+            }
+          },
+          " is": {
+            "token": " is",
+            "token_id": 603,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                10.875,
+                22.125,
+                19.875,
+                21.0,
+                28.125,
+                19.875,
+                29.0,
+                24.5,
+                29.375,
+                25.0,
+                17.125
+              ],
+              "probs": [
+                4e-06,
+                0.009888,
+                9.2e-05,
+                0.002701,
+                0.124512,
+                0.000391,
+                0.189453,
+                0.109863,
+                0.285156,
+                0.005035,
+                4e-06
+              ],
+              "ranks": [
+                3319,
+                12,
+                331,
+                21,
+                2,
+                58,
+                3,
+                2,
+                2,
+                25,
+                1462
+              ]
+            }
+          },
+          " a": {
+            "token": " a",
+            "token_id": 476,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                0.007,
+                22.875,
+                18.875,
+                16.75,
+                21.125,
+                21.75,
+                22.375,
+                22.125,
+                22.875,
+                21.75,
+                15.375
+              ],
+              "probs": [
+                0.0,
+                0.020874,
+                3.4e-05,
+                3.8e-05,
+                0.000113,
+                0.002548,
+                0.000252,
+                0.010254,
+                0.000429,
+                0.000195,
+                1e-06
+              ],
+              "ranks": [
+                145403,
+                7,
+                567,
+                202,
+                103,
+                11,
+                87,
+                15,
+                66,
+                150,
+                3334
+              ]
+            }
+          },
+          " of": {
+            "token": " of",
+            "token_id": 576,
+            "trajectory": {
+              "positions": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+              ],
+              "logits": [
+                4.7188,
+                21.75,
+                19.75,
+                23.0,
+                27.5,
+                18.75,
+                23.0,
+                19.5,
+                22.125,
+                20.125,
+                12.5
+              ],
+              "probs": [
+                0.0,
+                0.006775,
+                8.1e-05,
+                0.019897,
+                0.066895,
+                0.000127,
+                0.000469,
+                0.00074,
+                0.000203,
+                3.8e-05,
+                0.0
+              ],
+              "ranks": [
+                49244,
+                17,
+                359,
+                3,
+                4,
+                92,
+                71,
+                73,
+                101,
+                320,
+                9690
+              ]
+            }
+          }
+        }
+      },
+      "summary": {
+        "target_appears_at": 7,
+        "source_appears_at": null,
+        "flip_position": 0,
+        "initial_gap": 14.4062,
+        "best_gap": 15.2344,
+        "final_gap": 15.2344,
+        "gap_closure": 0.8282000000000007,
+        "gap_trajectory": [
+          14.4062,
+          3.125,
+          5.25,
+          2.375,
+          3.875,
+          7.6875,
+          5.25,
+          11.6875,
+          8.625,
+          10.875,
+          15.2344
+        ],
+        "control_stability_mean": 16.6092,
+        "control_stability_max": 22.868
+      },
+      "contrast_groups": {
+        "same_dataset": {
+          "n_members": 48,
+          "topk_k": 3,
+          "members": [
+            {
+              "token": " Montgomery",
+              "token_id": 42163
+            },
+            {
+              "token": " Juneau",
+              "token_id": 219013
+            },
+            {
+              "token": " Phoenix",
+              "token_id": 29738
+            },
+            {
+              "token": " Little",
+              "token_id": 11709
+            },
+            {
+              "token": " Sacramento",
+              "token_id": 43939
+            },
+            {
+              "token": " Denver",
+              "token_id": 31045
+            },
+            {
+              "token": " Hartford",
+              "token_id": 64682
+            },
+            {
+              "token": " Dover",
+              "token_id": 68672
+            },
+            {
+              "token": " Tallahassee",
+              "token_id": 161316
+            },
+            {
+              "token": " Atlanta",
+              "token_id": 27192
+            },
+            {
+              "token": " Honolulu",
+              "token_id": 82824
+            },
+            {
+              "token": " Boise",
+              "token_id": 112583
+            },
+            {
+              "token": " Springfield",
+              "token_id": 46777
+            },
+            {
+              "token": " Indianapolis",
+              "token_id": 53097
+            },
+            {
+              "token": " Des",
+              "token_id": 2481
+            },
+            {
+              "token": " Topeka",
+              "token_id": 161949
+            },
+            {
+              "token": " Frankfort",
+              "token_id": 176201
+            },
+            {
+              "token": " Baton",
+              "token_id": 120099
+            },
+            {
+              "token": " Augusta",
+              "token_id": 73128
+            },
+            {
+              "token": " Annapolis",
+              "token_id": 149090
+            },
+            {
+              "token": " Boston",
+              "token_id": 12965
+            },
+            {
+              "token": " Lansing",
+              "token_id": 83496
+            },
+            {
+              "token": " Saint",
+              "token_id": 10606
+            },
+            {
+              "token": " Jackson",
+              "token_id": 13280
+            },
+            {
+              "token": " Jefferson",
+              "token_id": 33197
+            },
+            {
+              "token": " Helena",
+              "token_id": 57159
+            },
+            {
+              "token": " Lincoln",
+              "token_id": 21284
+            },
+            {
+              "token": " Carson",
+              "token_id": 56649
+            },
+            {
+              "token": " Concord",
+              "token_id": 70810
+            },
+            {
+              "token": " Trenton",
+              "token_id": 112353
+            },
+            {
+              "token": " Santa",
+              "token_id": 10955
+            },
+            {
+              "token": " Albany",
+              "token_id": 48794
+            },
+            {
+              "token": " Raleigh",
+              "token_id": 74100
+            },
+            {
+              "token": " Bismarck",
+              "token_id": 113673
+            },
+            {
+              "token": " Columbus",
+              "token_id": 34602
+            },
+            {
+              "token": " Oklahoma",
+              "token_id": 28239
+            },
+            {
+              "token": " Salem",
+              "token_id": 51094
+            },
+            {
+              "token": " Harrisburg",
+              "token_id": 132168
+            },
+            {
+              "token": " Providence",
+              "token_id": 45100
+            },
+            {
+              "token": " Columbia",
+              "token_id": 17909
+            },
+            {
+              "token": " Pierre",
+              "token_id": 23476
+            },
+            {
+              "token": " Nashville",
+              "token_id": 47882
+            },
+            {
+              "token": " Salt",
+              "token_id": 21757
+            },
+            {
+              "token": " Mont",
+              "token_id": 9475
+            },
+            {
+              "token": " Richmond",
+              "token_id": 32941
+            },
+            {
+              "token": " Olympia",
+              "token_id": 85687
+            },
+            {
+              "token": " Charleston",
+              "token_id": 58271
+            },
+            {
+              "token": " Cheyenne",
+              "token_id": 137867
+            }
+          ],
+          "summary": {
+            "mean_logit": [
+              11.5775,
+              17.9518,
+              15.056,
+              7.1431,
+              14.2318,
+              11.7148,
+              14.8932,
+              15.4948,
+              11.6302,
+              16.5391,
+              4.1062
+            ],
+            "max_logit": [
+              16.625,
+              21.75,
+              19.75,
+              14.4375,
+              20.875,
+              22.375,
+              21.5,
+              21.5,
+              18.5,
+              22.625,
+              9.9375
+            ],
+            "topk_mean_logit": [
+              16.5833,
+              21.5,
+              19.5,
+              13.1042,
+              18.875,
+              18.125,
+              19.0,
+              19.9167,
+              17.6667,
+              21.0833,
+              9.4375
+            ],
+            "target_minus_mean": [
+              7.6725,
+              5.4232,
+              6.694,
+              6.5444,
+              7.0182,
+              9.2852,
+              8.1068,
+              9.8802,
+              12.2448,
+              11.0859,
+              14.6438
+            ],
+            "target_minus_max": [
+              2.625,
+              1.625,
+              2.0,
+              -0.75,
+              0.375,
+              -1.375,
+              1.5,
+              3.875,
+              5.375,
+              5.0,
+              8.8125
+            ],
+            "target_minus_topk_mean": [
+              2.6667,
+              1.875,
+              2.25,
+              0.5833,
+              2.375,
+              2.875,
+              4.0,
+              5.4583,
+              6.2083,
+              6.5417,
+              9.3125
+            ],
+            "target_rank_within_group": [
+              1,
+              1,
+              1,
+              2,
+              1,
+              2,
+              1,
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          "aggregate": {
+            "initial_target_minus_mean": 7.6725,
+            "best_target_minus_mean": 14.6438,
+            "initial_target_minus_max": 2.625,
+            "best_target_minus_max": 8.8125,
+            "initial_target_minus_topk": 2.6667,
+            "best_target_minus_topk": 9.3125,
+            "best_rank_within": 1,
+            "initial_rank_within": 1
+          }
+        }
+      }
+    },
+    "baseline_logits": {
+      "target": {
+        "logit": 17.75,
+        "prob": 4.3e-05,
+        "rank": 291
+      },
+      "source": {
+        "logit": 26.375,
+        "prob": 0.241211,
+        "rank": 1
+      }
+    },
+    "position_0_comparison": {
+      "target_logit_delta": 1.5,
+      "source_logit_delta": -21.5312,
+      "baseline_gap": -8.625,
+      "steered_gap_0": 14.4062,
+      "gap_closure_0": 23.0312,
+      "target_rank_improvement": 285,
+      "flip_at_0": true
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-03-21T19:50:56.225857",
+    "duration_ms": 0,
+    "is_identity": false,
+    "control": {
+      "control_mode": "additivity",
+      "ablate_count": 55,
+      "amplify_count": 49,
+      "concept_subsets_used": [
+        "state",
+        "capital"
+      ],
+      "diagnostics": {
+        "selection_mode": "fields",
+        "requested_fields": [
+          "state",
+          "capital"
+        ],
+        "active_fields": [
+          "state",
+          "capital"
+        ],
+        "ablate_fields": [
+          "state",
+          "capital"
+        ],
+        "amplify_fields": [
+          "state",
+          "capital"
+        ]
+      }
+    }
+  }
+}

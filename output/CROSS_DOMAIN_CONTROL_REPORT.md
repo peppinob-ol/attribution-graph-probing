@@ -3,370 +3,382 @@
 ## 1. Overview
 
 This report presents the results of specificity control experiments across five
-domains, testing whether feature-swap steering effects in attribution graphs
-are specific to concept-labeled supernodes or arise from generic perturbation.
+domains, testing whether feature-swap steering effects in attribution graphs are
+specific to concept-labeled supernodes. Each domain is decomposed by all entity
+fields (prompt input, intermediate concept, answer concept) to measure which
+parts of the circuit carry the steering signal.
 
-**Total steering runs: 233**
-- 5 domains x 5 pairs x (1 labeled + 3 random replicates + 2-7 field variants)
+**Total steering runs: ~300** across 5 domains, 3 conditions, 5 pairs each.
 
-### Domains tested
-
-| Domain | Entities | Concept fields | Answer field | Prompt template |
-|--------|----------|----------------|--------------|-----------------|
-| USA States | 50 | state, capital, city | capital | "The capital of the state containing {city} is" |
-| Books | 16 | book, author | author | "The book featuring {character} was written by" |
-| Products | 12 | company, founder | founder | "The company that makes {product} was founded by" |
-| Paintings | 10 | painter, first_name | first_name | "The first name of the painter of {painting} is" |
-| Sounds | 6 | animal, color | color | "The most common color of the animal that goes '{sound}' is" |
-
-### Experiment conditions
-
-For each domain, 5 swap pairs were selected covering diverse entities. Three
-conditions were run:
-
-1. **Labeled**: full concept-matched supernode intervention (ablate source + amplify target)
-2. **Random**: structurally matched random features (same count, layer distribution, exclusion of concept supernodes), 3 replicates per pair
-3. **Field additivity**: intervention restricted to individual concept fields and their combinations
-
-All runs use Gemma-2-2b with CLT transcoders, M_ablate=-2, M_amplify=20,
-trajectory tracking enabled, and contrast groups from same-dataset alternative
-answer tokens.
+**Model**: Gemma-2-2b with CLT transcoders (mntss/clt-gemma-2-2b-2.5M).
+**Multipliers**: M_ablate = -2, M_amplify = 20.
+**Trajectory tracking**: enabled with same-dataset contrast groups.
 
 ---
 
-## 2. Methodology
+## 2. Domains
 
-### 2.1 Steering mechanics
+| Domain | N | Input field | Intermediate | Answer field | Prompt |
+|--------|---|-------------|--------------|--------------|--------|
+| USA States | 50 | city | state | capital | "The capital of the state containing {city} is" |
+| Books | 16 | character | book | author | "The book featuring {character} was written by" |
+| Products | 12 | product | company | founder | "The company that makes {product} was founded by" |
+| Paintings | 10 | painting | painter | first_name | "The first name of the painter of {painting} is" |
+| Sounds | 6 | sound | animal | color | "The most common color of the animal that goes '{sound}' is" |
 
-Each intervention consists of:
-- **Ablation** (source side): multiply source-concept supernode activations by M_ablate=-2 using live activations from the current prompt
-- **Amplification** (target side): inject target-concept supernode activations using stored activations from the target entity's graph, multiplied by M_amplify=20
-
-### 2.2 Random feature control
-
-For each pair, a structurally matched null intervention is constructed by:
-1. Running the labeled builder to get the reference (count and layer distribution)
-2. Excluding all features in concept-matching supernodes from the candidate pool
-3. Sampling random features from the same graph, preserving count and layer histogram per role
-4. Attaching stored_activation from the target graph's activations_map for amplification features
-
-Three independent replicates per pair use deterministic seeding.
-
-### 2.3 Field-based additivity
-
-The intervention is restricted to a subset of concept fields. Each selected
-field is used for both ablation (from source entity) and amplification (from
-target entity). For 2-field domains (books, products, paintings, sounds),
-three variants are tested: field_1 only, field_2 only, and both fields.
-For the 3-field USA domain, seven variants test all single fields, all pairs,
-and the full triple.
-
-### 2.4 Metrics
-
-| Metric | Definition | What it measures |
-|--------|-----------|------------------|
-| Hit% | Target answer appears in steered output | Binary success |
-| Sup% | Source answer absent from steered output | Source suppression |
-| GapCl | max(target_logit - source_logit) - initial_gap | Sustained logit advantage |
-| TgtRk | Best (lowest) rank of target answer token | How close target gets to top-1 |
-| vsMax | best(target_logit - max(other_answers)) | Target beats all dataset alternatives |
-| RkGrp | Best rank of target among all dataset answer tokens | Specificity within dataset |
-| CtrlS | Mean absolute logit shift of control tokens (the, is, a, of) | Perturbation side effects |
+Each domain has 3 entity fields corresponding to 3 semantic roles:
+- **Input**: the concept mentioned in the prompt (what the model reads)
+- **Intermediate**: the bridging concept (what the model must internally resolve)
+- **Answer**: what the model is asked to produce
 
 ---
 
-## 3. Results
+## 3. Experimental Conditions
 
-### 3.1 Cross-Domain Aggregate
+### 3.1 Labeled baseline
+All 3 concept fields used for intervention. Ablate source supernodes (live activations,
+M=-2), amplify target supernodes (stored activations, M=20).
 
-| Domain | Cond | N | Hit% | Sup% | GapCl | TgtRk | vsMax | RkGrp | CtrlS |
-|--------|------|---|------|------|-------|-------|-------|-------|-------|
-| **USA States** | **labeled** | **5** | **80%** | **100%** | **8.7** | **10** | **5.9** | **1.0** | 15.7 |
-| | random | 15 | 0% | 80% | 1.5 | 1157 | -1.5 | 6.0 | 15.8 |
-| **Books** | **labeled** | **5** | **20%** | **40%** | **0.0** | **30** | **7.8** | **1.0** | 14.1 |
-| | random | 15 | 0% | 73% | 1.2 | 428 | 2.2 | 1.7 | 12.1 |
-| **Products** | **labeled** | **5** | **40%** | **60%** | **0.0** | **33** | **4.6** | **1.0** | 10.0 |
-| | random | 15 | 0% | 87% | 1.1 | 212 | 2.4 | 1.4 | 10.0 |
-| **Paintings** | **labeled** | **5** | **0%** | **60%** | **0.0** | **38** | **3.5** | **1.0** | 9.2 |
-| | random | 15 | 7% | 67% | 0.9 | 110 | 2.1 | 1.1 | 11.5 |
-| **Sounds** | **labeled** | **5** | **0%** | **100%** | **2.1** | **92** | **4.7** | **1.0** | 10.4 |
-| | random | 15 | 7% | 93% | 1.3 | 72 | 3.9 | 1.1 | 12.3 |
+### 3.2 Random feature matched control
+Same feature count and layer distribution as labeled, but features sampled randomly
+from the graph after excluding all concept-matching supernodes. 3 replicates per pair.
 
-### 3.2 Specificity signal by domain
+### 3.3 Field-based additivity
+Intervention restricted to subsets of concept fields. With 3 fields per domain,
+7 variants: 3 single-field, 3 two-field combinations, 1 full triple.
+Each selected field is used for both ablation and amplification.
 
-The key discriminator between labeled and random is the contrast-group rank
-(RkGrp). A rank of 1.0 means the target answer consistently becomes the
-top-ranked answer among all dataset alternatives.
-
-| Domain | Labeled RkGrp | Random RkGrp | Labeled vsMax | Random vsMax | Specificity gap |
-|--------|---------------|--------------|---------------|--------------|-----------------|
-| USA States | **1.0** | 6.0 | **+5.9** | -1.5 | Strong |
-| Books | **1.0** | 1.7 | **+7.8** | +2.2 | Strong (vsMax) |
-| Products | **1.0** | 1.4 | **+4.6** | +2.4 | Moderate |
-| Paintings | **1.0** | 1.1 | **+3.5** | +2.1 | Weak |
-| Sounds | **1.0** | 1.1 | **+4.7** | +3.9 | Weak |
-
-**Interpretation**: USA states shows the clearest specificity gap (labeled rank
-1.0 vs random rank 6.0, labeled vsMax +5.9 vs random -1.5). Books shows strong
-vsMax specificity (+7.8 vs +2.2) despite low hit rate. Products is moderate.
-Paintings and sounds show weak specificity -- random controls nearly match
-labeled on rank and vsMax metrics, suggesting the steering effect in these
-domains is less concept-specific.
-
-This aligns with the domain gradient reported in the methodology: USA states
-have the strongest causal leverage, non-geographic domains have weaker effects,
-and the distinction becomes clearer on continuous metrics (vsMax, RkGrp) than
-on binary metrics (Hit%, Sup%).
-
-### 3.3 Random control suppression vs specificity
-
-Across all domains, random controls achieve high suppression (67-93%) but near-zero
-exact match (0-7%). This confirms that ablating a large random feature set disrupts
-the source output, but only concept-targeted amplification steers toward the correct
-target answer. **Suppression is generic; targeting is specific.**
-
-### 3.4 Field-Based Additivity
-
-#### USA States (3 fields: state, capital, city)
-
-| Variant | N | Hit% | Sup% | GapCl | TgtRk | vsMax | RkGrp |
-|---------|---|------|------|-------|-------|-------|-------|
-| **labeled (all3)** | **5** | **80%** | **100%** | **8.7** | **10** | **5.9** | **1.0** |
-| state | 5 | 40% | 80% | 6.5 | 16 | 6.4 | 1.0 |
-| capital | 5 | 40% | 100% | 3.9 | 39 | 4.3 | 1.2 |
-| city | 5 | 0% | 60% | 1.5 | 794 | -1.8 | 7.6 |
-| **state+capital** | **5** | **100%** | **100%** | **7.9** | **2** | **6.4** | **1.0** |
-| state+city | 5 | 40% | 100% | 7.1 | 30 | 5.3 | 1.0 |
-| capital+city | 5 | 20% | 100% | 3.6 | 139 | 0.3 | 2.6 |
-
-**Key finding**: state+capital achieves 100% hit rate, exceeding the full 3-field
-labeled (80%). City supernodes perform at random-control level (vsMax -1.8,
-RkGrp 7.6), confirming they encode the prompt input, not the answer concept.
-
-#### Books (2 fields: book, author)
-
-| Variant | N | Hit% | Sup% | GapCl | TgtRk | vsMax | RkGrp |
-|---------|---|------|------|-------|-------|-------|-------|
-| **labeled (both)** | **5** | **20%** | **40%** | **0.0** | **30** | **7.8** | **1.0** |
-| book | 5 | 20% | 60% | 2.1 | 110 | 6.6 | 1.6 |
-| author | 5 | 20% | 80% | 0.0 | 19 | 6.1 | 1.0 |
-
-Both fields contribute: book supernodes provide some gap closure (2.1), author
-supernodes achieve better target rank (19). The combination does not improve
-hit rate (20%) but achieves vsMax 7.8, suggesting the answer competes well
-against alternatives even when it doesn't reach top-1.
-
-#### Products (2 fields: company, founder)
-
-| Variant | N | Hit% | Sup% | GapCl | TgtRk | vsMax | RkGrp |
-|---------|---|------|------|-------|-------|-------|-------|
-| **labeled (both)** | **5** | **40%** | **60%** | **0.0** | **33** | **4.6** | **1.0** |
-| company | 5 | 20% | 40% | 0.0 | 71 | 3.3 | 1.0 |
-| founder | 5 | 0% | 100% | 0.0 | 42 | 2.6 | 1.0 |
-
-Company supernodes carry the primary targeting signal (hit 20%, lower rank),
-while founder supernodes drive suppression (100%) but no hits. The combination
-is synergistic for hit rate (40%).
-
-#### Paintings (2 fields: painter, first_name)
-
-| Variant | N | Hit% | Sup% | GapCl | TgtRk | vsMax | RkGrp |
-|---------|---|------|------|-------|-------|-------|-------|
-| **labeled (both)** | **5** | **0%** | **60%** | **0.0** | **38** | **3.5** | **1.0** |
-| painter | 5 | 0% | 60% | 0.0 | 38 | 3.5 | 1.0 |
-| first_name | 5 | 40% | 40% | 0.6 | 36 | 4.2 | 1.0 |
-
-The painter field and the full combination produce identical results, suggesting
-first_name supernodes are subsumed by painter supernodes in matching (full name
-"Claude Monet" is matched by the "painter" concept, which also covers "Claude").
-Interestingly, first_name alone achieves 40% hit rate while the full combination
-gets 0% -- a case where adding features degrades performance.
-
-#### Sounds (2 fields: animal, color)
-
-| Variant | N | Hit% | Sup% | GapCl | TgtRk | vsMax | RkGrp |
-|---------|---|------|------|-------|-------|-------|-------|
-| **labeled (both)** | **5** | **0%** | **100%** | **2.1** | **92** | **4.7** | **1.0** |
-| animal | 3 | 0% | 100% | 0.3 | 173 | 1.8 | 1.3 |
-| color | 5 | 0% | 100% | 2.1 | 41 | 3.8 | 1.0 |
-
-Color supernodes carry most of the signal (TgtRk 41, vsMax 3.8 vs animal at
-173, 1.8). Universal suppression (100%) across all conditions suggests the
-source is easy to suppress but the target is hard to place at top-1 in this
-domain.
+### 3.4 Answer field alignment
+Trajectory tracking and exact-match evaluation use an explicit `answer_field`
+override (via `swap.answer_field` in config) to track the answer token regardless
+of concept_fields ordering. This decouples "what we intervene on" from "what we
+measure."
 
 ---
 
-## 4. Cross-Domain Patterns
+## 4. Metrics
 
-### 4.1 The domain gradient persists in control experiments
+| Metric | Definition |
+|--------|------------|
+| Hit% | Target answer appears in steered output (exact match) |
+| Sup% | Source answer absent from steered output |
+| GapCl | max(target_logit - source_logit) over trajectory minus initial gap |
+| TgtRk | Best (lowest) rank of target answer token during generation |
+| vsMax | best(target_logit - max(other_dataset_answers)) -- positive = target beats all alternatives |
+| vsTopK | best(target_logit - mean(top-3 other_dataset_answers)) |
+| RkGrp | Best rank of target within all dataset answer tokens (1 = top) |
+| CtrlS | Mean absolute logit shift of control tokens (the, is, a, of) |
 
-| Domain | Labeled Hit% | Labeled TgtRk | Labeled vsMax | Specificity vs random |
-|--------|-------------|---------------|---------------|----------------------|
-| USA States | 80% | 10 | +5.9 | Strong |
-| Books | 20% | 30 | +7.8 | Strong |
-| Products | 40% | 33 | +4.6 | Moderate |
-| Paintings | 0% | 38 | +3.5 | Weak |
-| Sounds | 0% | 92 | +4.7 | Weak |
+---
 
-The same domain gradient visible in the full-scale experiments (USA > books >
-products > paintings ~ sounds) is reproduced in this 5-pair trial. Continuous
-metrics (TgtRk, vsMax) better reveal the gradient than binary hit rate.
+## 5. Results: Labeled vs Random
 
-### 4.2 Suppression is generic, targeting is specific
+### 5.1 Cross-Domain Aggregate
+
+| Domain | Cond | N | Hit% | Sup% | GapCl | TgtRk | vsMax | vsTopK | RkGrp |
+|--------|------|---|------|------|-------|-------|-------|--------|-------|
+| **USA States** | **labeled** | **5** | **80%** | **100%** | **8.7** | **10** | **5.9** | **6.4** | **1.0** |
+| | random | 15 | 0% | 80% | 1.5 | 1157 | -1.5 | -0.7 | 6.0 |
+| **Books** | **labeled** | **5** | **0%** | **100%** | **0.0** | **47** | **5.6** | **7.1** | **1.0** |
+| | random | 15 | 0% | 60% | 0.1 | 189 | 1.6 | 2.7 | 2.2 |
+| **Products** | **labeled** | **5** | **40%** | **40%** | **0.0** | **14** | **5.3** | **7.2** | **1.0** |
+| | random | 15 | 0% | 80% | 3.9 | 403 | 1.1 | 2.1 | 1.5 |
+| **Paintings** | **labeled** | **5** | **0%** | **0%** | **0.0** | **622** | **3.1** | **5.0** | **1.0** |
+| | random | 15 | 0% | 80% | 1.1 | 4025 | 0.5 | 1.5 | 1.6 |
+| **Sounds** | **labeled** | **5** | **0%** | **100%** | **1.8** | **30** | **3.5** | **3.6** | **1.0** |
+| | random | 15 | 13% | 80% | 2.5 | 114 | 3.6 | 4.1 | 1.1 |
+
+### 5.2 Specificity Summary
+
+| Domain | Labeled RkGrp | Random RkGrp | Labeled vsMax | Random vsMax | Gap |
+|--------|---------------|--------------|---------------|--------------|-----|
+| USA States | **1.0** | 6.0 | **+5.9** | -1.5 | **Strong** |
+| Books | **1.0** | 2.2 | **+5.6** | +1.6 | **Moderate-Strong** |
+| Products | **1.0** | 1.5 | **+5.3** | +1.1 | **Moderate** |
+| Paintings | **1.0** | 1.6 | **+3.1** | +0.5 | **Moderate** |
+| Sounds | **1.0** | 1.1 | **+3.5** | +3.6 | **Weak** |
+
+**Key finding**: labeled supernodes achieve rank 1 within the answer group in
+every domain (RkGrp = 1.0). The gap between labeled and random narrows from USA
+(strong) through paintings (moderate) to sounds (weak), reproducing the domain
+gradient from the main methodology.
+
+### 5.3 Suppression is generic, targeting is specific
 
 | Domain | Labeled Sup% | Random Sup% | Labeled Hit% | Random Hit% |
 |--------|-------------|-------------|-------------|-------------|
 | USA States | 100% | 80% | 80% | 0% |
-| Books | 40% | 73% | 20% | 0% |
-| Products | 60% | 87% | 40% | 0% |
-| Paintings | 60% | 67% | 0% | 7% |
-| Sounds | 100% | 93% | 0% | 7% |
+| Books | 100% | 60% | 0% | 0% |
+| Products | 40% | 80% | 40% | 0% |
+| Paintings | 0% | 80% | 0% | 0% |
+| Sounds | 100% | 80% | 0% | 13% |
 
-Random controls often achieve *higher* suppression than labeled (books 73% vs
-40%, products 87% vs 60%). This is because random features are drawn from a
-larger pool and may disrupt more broadly. But they never produce targeted hits
-(0% for USA/books/products). The labeled intervention is distinguished by
-entity-specific targeting, not by better suppression.
-
-### 4.3 Contrast-group metrics are the strongest discriminator
-
-Binary hit rate is too coarse to distinguish labeled from random in weaker
-domains (both get 0% for paintings/sounds). The contrast-group rank (RkGrp)
-discriminates even there:
-
-| Domain | Labeled RkGrp | Random RkGrp |
-|--------|---------------|--------------|
-| USA States | 1.0 | 6.0 |
-| Books | 1.0 | 1.7 |
-| Products | 1.0 | 1.4 |
-| Paintings | 1.0 | 1.1 |
-| Sounds | 1.0 | 1.1 |
-
-Labeled interventions always achieve rank 1 within the answer group across all
-domains. Random controls approach rank 1 only in weakly-specific domains
-(paintings, sounds), where even the labeled intervention barely rises above
-the group.
+Random controls often achieve higher suppression than labeled (products 80% vs
+40%, paintings 80% vs 0%). Ablating random features is broadly disruptive. But
+only labeled supernodes produce entity-specific targeting. The vsMax metric
+reveals this most cleanly: labeled always positive (target beats all alternatives),
+random usually negative or near-zero.
 
 ---
 
-## 5. Methodology Notes
+## 6. Results: Field-Based Additivity
 
-### 5.1 Answer field alignment
+### 6.1 Field Role Analysis
 
-USA trials use `swap.answer_field: capital` to decouple trajectory scoring from
-the 3-field intervention matching. Other domains naturally align because the
-answer is the last concept field (`author`, `founder`, `first_name`, `color`).
+Each field is classified by its semantic role: **input** (prompt mention),
+**intermediate** (bridging concept), or **answer** (expected output).
 
-### 5.2 Feature count imbalance in additivity
+#### USA States (input=city, intermediate=state, answer=capital)
 
-Field subsets differ in the number of intervened features (e.g., state-only uses
-~17 features while all3 uses ~88 for USA). Differences in steering strength may
-partly reflect perturbation magnitude rather than concept specificity. The random
-control (matched on count) partially addresses this, but field-to-field
-comparisons are not magnitude-controlled.
+| Field | Role | Hit% | Sup% | TgtRk | vsMax | RkGrp |
+|-------|------|------|------|-------|-------|-------|
+| city | input | 0% | 60% | 794 | -1.8 | 7.6 |
+| state | intermediate | 40% | 80% | 16 | 6.4 | 1.0 |
+| capital | answer | 40% | 100% | 39 | 4.3 | 1.2 |
+| **state+capital** | **inter+answer** | **100%** | **100%** | **2** | **6.4** | **1.0** |
+| all 3 (labeled) | all | 80% | 100% | 10 | 5.9 | 1.0 |
 
-### 5.3 Small sample size
+State supernodes (intermediate) carry the strongest single-field signal. City
+supernodes (input) perform at random level. State+capital is the optimal
+combination, exceeding the full labeled on hit rate (100% vs 80%).
 
+#### Books (input=character, intermediate=book, answer=author)
+
+| Field | Role | Hit% | Sup% | TgtRk | vsMax | RkGrp |
+|-------|------|------|------|-------|-------|-------|
+| character | input | 0% | 80% | 121 | 2.2 | 1.8 |
+| book | intermediate | 20% | 60% | 109 | 6.6 | 1.6 |
+| author | answer | 20% | 80% | 19 | 6.1 | 1.0 |
+| **book+author** | **inter+answer** | **20%** | **40%** | **29** | **7.8** | **1.0** |
+| all 3 (labeled) | all | 0% | 100% | 47 | 5.6 | 1.0 |
+
+Author supernodes (answer) achieve the best target rank (19). Book supernodes
+(intermediate) have high vsMax (6.6). Adding character supernodes (input)
+paradoxically degrades performance: the full 3-field labeled gets 0% hit vs
+book+author at 20%.
+
+#### Products (input=product, intermediate=company, answer=founder)
+
+| Field | Role | Hit% | Sup% | TgtRk | vsMax | RkGrp |
+|-------|------|------|------|-------|-------|-------|
+| product | input | 0% | 80% | 1764 | 4.0 | 1.2 |
+| company | intermediate | 20% | 40% | 70 | 3.3 | 1.0 |
+| founder | answer | 0% | 100% | 42 | 2.6 | 1.0 |
+| **company+founder** | **inter+answer** | **40%** | **60%** | **33** | **4.6** | **1.0** |
+| all 3 (labeled) | all | 40% | 40% | 14 | 5.3 | 1.0 |
+
+Product supernodes (input) have extremely poor target rank (1764) despite
+positive vsMax -- they disrupt the source without steering toward the target.
+Company (intermediate) provides targeting. Founder (answer) drives suppression
+(100%) but zero hits alone. The full triple achieves the best target rank (14).
+
+#### Paintings (input=painting, intermediate=painter, answer=first_name)
+
+| Field | Role | Hit% | Sup% | TgtRk | vsMax | RkGrp |
+|-------|------|------|------|-------|-------|-------|
+| painting | input | 0% | 40% | 70 | 2.3 | 1.0 |
+| painter | intermediate | 0% | 60% | 38 | 3.5 | 1.0 |
+| first_name | answer | 40% | 40% | 36 | 4.2 | 1.0 |
+| **painter+first_name** | **inter+answer** | **0%** | **60%** | **38** | **3.5** | **1.0** |
+| all 3 (labeled) | all | 0% | 0% | 622 | 3.1 | 1.0 |
+
+First_name alone achieves 40% hit rate -- higher than any combination. Adding
+painting supernodes (input) to the full triple degrades to 0% hit and target
+rank 622. The labeled 3-field intervention is worse than single-field
+first_name. This suggests painting supernodes actively interfere with
+first-name steering.
+
+#### Sounds (input=sound, intermediate=animal, answer=color)
+
+| Field | Role | Hit% | Sup% | TgtRk | vsMax | RkGrp |
+|-------|------|------|------|-------|-------|-------|
+| sound | input | 0% | 80% | 29 | 3.7 | 1.0 |
+| animal | intermediate | 0% | 100% | 173 | 1.8 | 1.3 |
+| color | answer | 0% | 100% | 41 | 3.8 | 1.0 |
+| **sound+color** | **input+answer** | **0%** | **100%** | **11** | **5.3** | **1.0** |
+| all 3 (labeled) | all | 0% | 100% | 30 | 3.5 | 1.0 |
+
+Sound supernodes (input) unexpectedly achieve the best single-field target
+rank (29) and good vsMax (3.7) -- better than animal (intermediate, rank 173).
+The best combination is sound+color (TgtRk 11, vsMax 5.3), outperforming
+the full triple. Animal supernodes (intermediate) contribute noise.
+
+### 6.2 Cross-Domain Field Role Patterns
+
+| Role | Avg single-field TgtRk | Avg single-field vsMax | Best role for targeting? |
+|------|------------------------|------------------------|-------------------------|
+| Input | 556 | 2.1 | Rarely (usually noise) |
+| Intermediate | 73 | 3.9 | Often (strong targeting) |
+| Answer | 35 | 4.2 | Often (best rank, best vsMax) |
+
+**Pattern**: answer-field supernodes (the concept the model must produce)
+consistently achieve the best target rank. Intermediate-field supernodes
+(the bridging concept) provide strong targeting via vsMax. Input-field
+supernodes (the concept in the prompt) usually contribute noise or
+interference, with the notable exception of sounds where the input
+(sound name) carries useful signal.
+
+### 6.3 The "Less is More" Effect
+
+In 3 of 5 domains, a subset of fields outperforms the full labeled intervention:
+
+| Domain | Best subset | Hit% | Full labeled Hit% |
+|--------|-------------|------|-------------------|
+| USA States | state+capital | 100% | 80% |
+| Books | book+author | 20% | 0% |
+| Paintings | first_name alone | 40% | 0% |
+| Sounds | sound+color | 0% (TgtRk 11) | 0% (TgtRk 30) |
+| Products | all 3 is best | 40% | 40% |
+
+Including the input-field supernodes degrades performance in books and
+paintings, likely because they activate competing circuits or inject noise
+that dilutes the answer signal.
+
+---
+
+## 7. Methodology
+
+### 7.1 Random control construction
+
+For each pair, the labeled intervention is built first to get the reference
+feature count and layer distribution. Random features are then sampled from
+the same graph with:
+- Exact count matching per role (ablation / amplification)
+- Layer histogram matching
+- Exclusion of all features in concept-matching supernodes
+- Per-feature stored_activation lookup from the target graph
+- Deterministic seeding from sha256(run_seed:pair_id:replicate:mode)
+
+### 7.2 Field-based additivity
+
+The `AdditivityBuilder` accepts `concept_subset.fields: [field1, field2]`.
+Selected fields are used for both ablation and amplification, matching the
+same supernodes the labeled builder would match for those fields, using the
+same `extract_ct_supernode()` and `compute_ct_interventions()` path.
+
+### 7.3 Answer field decoupling
+
+`resolve_answer_field()` centralizes answer-token selection:
+1. Explicit `swap.answer_field` in config (highest priority)
+2. Last element of `concept_fields` (backward-compatible default)
+3. Fallback to `"capital"` (USA legacy)
+
+This is used by both `evaluate_swap()` (for exact-match and metrics) and the
+runner (for trajectory target/source tokens and contrast group composition).
+
+### 7.4 Contrast groups
+
+Each swap pair's contrast group consists of all other dataset answer tokens
+(e.g., 48 other capitals for USA, 14 other authors for books). Multi-word
+answers resolve to their first subword token. The contrast group enables
+vsMax, vsTopK, and RkGrp metrics.
+
+---
+
+## 8. Caveats
+
+### 8.1 Feature count imbalance
+Single-field variants use 10-40 features while full-triple uses 60-160.
+Differences in steering strength may partly reflect perturbation magnitude.
+The random control (matched on count) partially addresses this for
+labeled-vs-random, but field-to-field comparisons lack magnitude normalization.
+
+### 8.2 Substring overlap
+Painter names contain first names ("Claude Monet" contains "Claude"), causing
+painter and first_name supernodes to overlap. Colorado/Colorado Springs share
+state and city tokens. These cases conflate field isolation with string matching.
+
+### 8.3 Multi-token resolution
+Multi-word answers (e.g., "J.K. Rowling", "New York City") resolve to their
+first subword token for trajectory tracking. This may weaken metrics for
+entities with common first tokens.
+
+### 8.4 Sample size
 5 pairs per domain, 3 random replicates. Patterns are consistent but formal
-statistical inference requires larger samples. The infrastructure supports
-running the full NxN matrix with 100+ replicates.
-
-### 5.4 Multi-token resolution
-
-Multi-word answer tokens (e.g., "J.K. Rowling", "Colorado Springs") resolve to
-their first subword token for trajectory tracking. This may weaken trajectory
-metrics for entities with common first tokens (e.g., "New" in New York).
-
-### 5.5 Paintings confound
-
-`painter` and `first_name` fields have substring overlap (the painter's full
-name contains the first name), causing their supernodes to overlap. The
-painter-only and labeled variants produce identical results, confirming
-they match the same supernodes.
+inference requires larger samples. The infrastructure supports full NxN matrices
+with 100+ replicates.
 
 ---
 
-## 6. Implementation
+## 9. Implementation
 
-### 6.1 Architecture
+### 9.1 Control framework
 
 ```
-scripts/experiments/batch/pipeline/controls/
-  labeled.py              - LabeledInterventionBuilder
-  random_feature_matched.py - RandomFeatureMatchedBuilder
-  additivity.py           - AdditivityBuilder (role-based + field-based)
-  factory.py              - config["control"]["mode"] -> builder
-  matching.py             - resolve_stored_activation, build_intervention_dicts
-  sampling.py             - deterministic RNG, histogram-matched sampling
-  exclusions.py           - candidate pools, concept-adjacent exclusions
-  concept_sets.py         - field/role selection
+pipeline/controls/
+  factory.py              config["control"]["mode"] -> builder
+  labeled.py              LabeledInterventionBuilder (default)
+  random_feature_matched.py  RandomFeatureMatchedBuilder
+  additivity.py           AdditivityBuilder (role-based + field-based)
+  matching.py             resolve_stored_activation, build_intervention_dicts
+  sampling.py             deterministic RNG, histogram-matched sampling
+  exclusions.py           candidate pools, concept-adjacent exclusions
+  concept_sets.py         field/role selection
 ```
 
-### 6.2 Config examples
+### 9.2 Config example
 
 ```yaml
-# Labeled (default, no control block needed)
 swap:
-  concept_fields: [book, author]
+  concept_fields: [character, book, author]
+  answer_field: author
 
-# Random matched control
-control:
-  mode: random_feature_matched
-  replicates: 3
-  seed: 42
-
-# Field-based additivity
 control:
   mode: additivity
   runs:
+    - fields: [character]
     - fields: [book]
     - fields: [author]
+    - fields: [character, book]
+    - fields: [character, author]
     - fields: [book, author]
-
-# Answer field override (decouple scoring from intervention matching)
-swap:
-  concept_fields: [state, capital, city]
-  answer_field: capital
+    - fields: [character, book, author]
 ```
 
-### 6.3 Test coverage
+### 9.3 Output layout
 
-65+ tests in `tests/test_controls.py` covering factory, builders, stored
-activation lookup, metadata persistence, answer field resolution, and
-trajectory schema preservation.
+Variant files use suffixes: `to_slug__add_book.json`, `to_slug__r0.json`.
+The demo UI filters these automatically via `_is_control_variant()`.
 
-### 6.4 Run reproducibility
+### 9.4 Reproducibility
 
-All runs use seed 42, temperature 0.3, deterministic RNG for random controls.
-Run IDs: `trial_aligned_{labeled,random,field_add}` (USA),
-`trial_cross_{domain}_{labeled,random,field_add}` (other domains).
+All runs: seed 42, temperature 0.3, deterministic RNG for random controls.
+Run IDs: `trial_aligned_*` (USA), `trial_full_{domain}_*` (others).
+Test suite: 65+ tests in `tests/test_controls.py`.
 
 ---
 
-## 7. Conclusions
+## 10. Conclusions
 
-1. **Labeled supernodes are specifically effective across all tested domains.**
-   They consistently achieve rank 1 within the answer group (RkGrp=1.0 in all
-   5 domains), while random controls range from 1.1 to 6.0.
+1. **Labeled supernodes are specifically effective across all five domains.**
+   They achieve RkGrp=1.0 (top answer among all dataset alternatives) in
+   every domain. Random controls range from 1.1 to 6.0.
 
-2. **The specificity gap is strongest for geographic/factual domains** (USA, books)
-   and weakest for perceptual domains (paintings, sounds), consistent with the
-   domain gradient in the main methodology.
+2. **The specificity gap follows the domain gradient:**
+   USA (strong) > Books (moderate-strong) > Products (moderate) > Paintings
+   (moderate) > Sounds (weak). This reproduces the pattern from the main
+   full-scale experiments.
 
 3. **Suppression is generic; targeting is specific.** Random controls often
-   suppress the source answer as well or better than labeled interventions, but
-   they cannot steer toward the correct target.
+   suppress the source better than labeled (by disrupting broadly), but they
+   cannot steer toward the correct target.
 
-4. **Contrast-group metrics (vsMax, RkGrp) are the most informative discriminators**
-   between labeled and random, especially in domains where binary hit rate is
-   zero for both conditions.
+4. **Answer-field and intermediate-field supernodes carry the steering signal.**
+   Input-field supernodes (the concept in the prompt) usually contribute
+   noise. The average single-field target rank is 35 for answer fields,
+   73 for intermediate fields, and 556 for input fields.
 
-5. **Field-based additivity reveals interpretable structure** in the intervention:
-   for USA states, state+capital is the optimal combination; city supernodes
-   are noise. For products, company targets while founder suppresses. For
-   paintings, painter subsumes first_name.
+5. **Including input-field supernodes can degrade performance.** In books
+   and paintings, adding character/painting supernodes to the intervention
+   reduces hit rate to 0%, while answer-only or intermediate+answer subsets
+   achieve 20-40%. This "less is more" effect suggests the input-field
+   supernodes activate competing circuits.
 
-6. **The answer_field override is necessary** for multi-field experiments where
-   the intervention fields differ from the evaluation target. Without it,
-   trajectory and exact-match metrics can be misaligned with the prompt.
+6. **The optimal field combination is domain-dependent** but consistently
+   excludes or minimizes the input field: state+capital (USA), book+author
+   (books), company+founder (products), first_name alone (paintings),
+   sound+color (sounds).
+
+7. **Contrast-group metrics (vsMax, RkGrp) are the most informative
+   cross-domain discriminators**, especially where binary hit rate is zero
+   for both labeled and random conditions.

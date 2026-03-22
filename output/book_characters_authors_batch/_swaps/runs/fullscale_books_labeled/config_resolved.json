@@ -1,0 +1,142 @@
+{
+  "version": 0.1,
+  "inputs": {
+    "source_config": "configs/book_characters_authors_full.yml",
+    "graphs_root": "/home/giuseppe/attribution-graph-probing/output/book_characters_authors_batch"
+  },
+  "swap": {
+    "mode": "matrix",
+    "include_identity": true,
+    "concept_fields": [
+      "character",
+      "book",
+      "author"
+    ],
+    "answer_field": "author"
+  },
+  "ct_steering": {
+    "model_id": "google/gemma-2-2b",
+    "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "top_k": 5,
+    "freeze_attention": false,
+    "track_trajectory": true
+  },
+  "compute": {
+    "inherit_from_source": false,
+    "remote": {
+      "enabled": false
+    }
+  },
+  "steps": {
+    "validate_inputs": true,
+    "prepare_features": true,
+    "run_steering": true,
+    "aggregate_results": true
+  },
+  "experiment_name": "fullscale_books_labeled",
+  "_entities": [
+    {
+      "slug": "hermione_granger",
+      "character": "Hermione Granger",
+      "book": "Harry Potter",
+      "author": "J.K. Rowling"
+    },
+    {
+      "slug": "frodo_baggins",
+      "character": "Frodo Baggins",
+      "book": "The Lord of the Rings",
+      "author": "J.R.R. Tolkien"
+    },
+    {
+      "slug": "jay_gatsby",
+      "character": "Jay Gatsby",
+      "book": "The Great Gatsby",
+      "author": "F. Scott Fitzgerald"
+    },
+    {
+      "slug": "holden_caulfield",
+      "character": "Holden Caulfield",
+      "book": "The Catcher in the Rye",
+      "author": "J.D. Salinger"
+    },
+    {
+      "slug": "atticus_finch",
+      "character": "Atticus Finch",
+      "book": "To Kill a Mockingbird",
+      "author": "Harper Lee"
+    },
+    {
+      "slug": "elizabeth_bennet",
+      "character": "Elizabeth Bennet",
+      "book": "Pride and Prejudice",
+      "author": "Jane Austen"
+    },
+    {
+      "slug": "huckleberry_finn",
+      "character": "Huckleberry Finn",
+      "book": "Adventures of Huckleberry Finn",
+      "author": "Mark Twain"
+    },
+    {
+      "slug": "captain_ahab",
+      "character": "Captain Ahab",
+      "book": "Moby Dick",
+      "author": "Herman Melville"
+    },
+    {
+      "slug": "raskolnikov",
+      "character": "Raskolnikov",
+      "book": "Crime and Punishment",
+      "author": "Fyodor Dostoevsky"
+    },
+    {
+      "slug": "don_quixote",
+      "character": "Don Quixote",
+      "book": "Don Quixote",
+      "author": "Miguel de Cervantes"
+    },
+    {
+      "slug": "oliver_twist",
+      "character": "Oliver Twist",
+      "book": "Oliver Twist",
+      "author": "Charles Dickens"
+    },
+    {
+      "slug": "dracula",
+      "character": "Count Dracula",
+      "book": "Dracula",
+      "author": "Bram Stoker"
+    },
+    {
+      "slug": "anna_karenina",
+      "character": "Anna Karenina",
+      "book": "Anna Karenina",
+      "author": "Leo Tolstoy"
+    },
+    {
+      "slug": "katniss_everdeen",
+      "character": "Katniss Everdeen",
+      "book": "The Hunger Games",
+      "author": "Suzanne Collins"
+    },
+    {
+      "slug": "scout_finch",
+      "character": "Scout Finch",
+      "book": "To Kill a Mockingbird",
+      "author": "Harper Lee"
+    },
+    {
+      "slug": "winston_smith",
+      "character": "Winston Smith",
+      "book": "1984",
+      "author": "George Orwell"
+    }
+  ],
+  "_swaps_dir": "/home/giuseppe/attribution-graph-probing/output/book_characters_authors_batch/_swaps/runs/fullscale_books_labeled"
+}

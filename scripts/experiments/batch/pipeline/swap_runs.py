@@ -293,10 +293,22 @@ def write_run_artifacts(
     Write run manifest and top-level tracking files.
     """
     swaps_container = Path(run_meta["swaps_container_dir"])
+    existing_display_demo = False
+    existing_manifest_path = run_dir / "run_manifest.json"
+    if existing_manifest_path.exists():
+        try:
+            with open(existing_manifest_path, "r", encoding="utf-8") as fh:
+                existing_manifest = json.load(fh)
+            existing_display_demo = bool(existing_manifest.get("display_demo", False))
+        except (json.JSONDecodeError, OSError):
+            existing_display_demo = False
 
     manifest = {
         "run_id": run_meta["run_id"],
         "run_dir": run_meta["run_dir"],
+        "display_demo": bool(
+            loaded_config.get("display_demo", existing_display_demo)
+        ),
         "status": status,
         "timestamp": datetime.now().isoformat(),
         "argv": list(argv),

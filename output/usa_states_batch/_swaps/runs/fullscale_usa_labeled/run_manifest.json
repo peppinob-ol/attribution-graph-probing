@@ -1,0 +1,84 @@
+{
+  "run_id": "fullscale_usa_labeled",
+  "display_demo": true,
+  "run_dir": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch/_swaps/runs/fullscale_usa_labeled",
+  "status": "completed",
+  "timestamp": "2026-03-21T17:43:35.156499",
+  "argv": [
+    "run_batch_swaps.py",
+    "--config",
+    "configs/fullscale_usa_labeled.yml",
+    "--run-id",
+    "fullscale_usa_labeled",
+    "--parallel",
+    "--workers",
+    "8",
+    "--gpus",
+    "0,1,2,3,4,5,6,7"
+  ],
+  "git": {
+    "commit": "36d337b96b7abf74754f07578e0905693f068dd2",
+    "branch": "control-refactor",
+    "dirty": true
+  },
+  "platform": {
+    "python": "3.10.12",
+    "os": "posix",
+    "platform": "linux"
+  },
+  "config": {
+    "experiment_name": "fullscale_usa_labeled",
+    "swap": {
+      "mode": "matrix",
+      "include_identity": true,
+      "concept_fields": [
+        "state",
+        "capital",
+        "city"
+      ],
+      "answer_field": "capital"
+    },
+    "ct_steering": {
+      "model_id": "google/gemma-2-2b",
+      "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",
+      "M_ablate": -2,
+      "M_amplify": 20,
+      "temperature": 0.3,
+      "n_tokens": 10,
+      "freq_penalty": 2.0,
+      "seed": 42,
+      "top_k": 5,
+      "freeze_attention": false,
+      "track_trajectory": true
+    },
+    "compute": {
+      "inherit_from_source": false,
+      "remote": {
+        "enabled": false
+      }
+    },
+    "inputs": {
+      "source_config": "configs/usa_states_full.yml",
+      "graphs_root": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch"
+    }
+  },
+  "hashes": {
+    "combined_config_sha1": "1965c6dd446ce02d8c51ffbe5c0a528620c2ffab",
+    "files": {
+      "swap_config": "9b9051689bd863276fdc0c3954fee05c6f15fbf3",
+      "source_config": "251f955cd944dda24e0a954d26316acfd4f9bdfa"
+    }
+  },
+  "timestamp_started": "2026-03-21T17:29:00.973264",
+  "timestamp_completed": "2026-03-21T17:43:35.156464",
+  "counts": {
+    "total_pairs": 2500,
+    "processed": 2500,
+    "failed": 0,
+    "skipped": 0
+  },
+  "outputs": {
+    "summary_path": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch/_swaps/runs/fullscale_usa_labeled/_summary.json",
+    "matrix_path": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch/_swaps/runs/fullscale_usa_labeled/_matrix.csv"
+  }
+}
