@@ -410,3 +410,158 @@ Higher values mean more of the circuit is invisible to the pipeline.
 - **Scan times**: `q.search()` on a full run takes 2-3 seconds.
   `s.compare()` with random controls (7350 files) takes ~30 seconds.
   `t.entity_profile()` takes < 2 seconds.
+
+---
+
+## 8. Epistemic Guidelines
+
+The purpose of this research is to probe, stress-test, and potentially
+falsify claims made in `METHODOLOGY_REPORT.md` and
+`output/FULLSCALE_CONTROL_REPORT.md`. The default posture is suspicion,
+not confirmation.
+
+### 8.1 Default to suspicion
+
+Every result could be an artifact of:
+- The pipeline (concept matching quirks, blacklist gaps, fallback classifications)
+- The metric definition (fuzzy T5 matching, mechanical flip@0, arbitrary thresholds)
+- The data (small N, entity-specific confounds, token overlap)
+- Coincidence (cherry-picked examples, multiple comparisons)
+
+Before reporting a finding, ask: "What is the simplest boring explanation
+for this result?" If a boring explanation exists and has not been ruled
+out, state it prominently.
+
+### 8.2 Claim / Evidence / Reasoning separation
+
+Never mix what the data shows with what it means. In every investigation
+entry and report:
+
+1. **State the numbers first** (rates, effect sizes, CIs, sample details).
+2. **Interpret second**, explicitly labeling the interpretive step.
+3. **State the confidence level**: Low / Medium / High.
+4. **State the epistemic level** the finding addresses:
+   - L1: Operationally useful labels
+   - L2: Downstream causal effects
+   - L3: Full mechanistic explanation (this project does not claim L3)
+
+### 8.3 Actively seek disconfirmation
+
+After finding something that appears to support a claim:
+1. Search for counterexamples (entities/pairs where the pattern breaks).
+2. Check if the same pattern holds under a different condition (labeled vs
+   random, different domain, different field subset).
+3. Test whether a simpler mechanism explains the result (e.g., does
+   feature count alone predict outcome as well as the "correct label"
+   hypothesis?).
+4. Check the pipeline trace to verify the intervention is what you think
+   it is.
+
+### 8.4 Check the denominator
+
+Any rate (hit%, suppression%, flip%) must be accompanied by:
+- N (how many samples)
+- The population it is drawn from (which run, which variant, which filter)
+- Whether identity swaps are included or excluded
+
+A 100% hit rate on N=3 is noise. A 25% hit rate on N=2450 is signal.
+
+### 8.5 Trace before concluding
+
+Before attributing a swap outcome to feature quality, label correctness,
+or domain difficulty:
+
+1. Run `t.trace_swap_matching()` to check what actually gets matched.
+   Watch for reverse substring confounds ("is" in "mississippi").
+2. Check `error_node_influence_pct` for the source and target entities.
+3. Verify `ablate_count` / `amplify_count` are in the expected range
+   for the variant.
+4. Read the raw `steered_output` -- metrics can miss important context.
+
+### 8.6 Distinguish mechanical from meaningful
+
+| Metric | Type | Interpretation |
+|--------|------|----------------|
+| flip@0 | **Mechanical** | Near-universal (~90-98%), reflects ablation+amplification arithmetic, not steering success |
+| suppression rate | **Mostly mechanical** | Random controls achieve ~80%+ suppression; it is generic disruption |
+| gap closure | **Meaningful** | Sustained logit improvement; 3.79 for USA vs 0.04 for books |
+| vsMax | **Best discriminator** | Target logit minus strongest competitor in answer group |
+| RkGrp | **Meaningful** | Rank within answer contrast group; labeled median 5 vs random 566 |
+| Hit% | **Meaningful but noisy** | Binary; misses near-misses entirely |
+
+Do not cite flip@0 or suppression as evidence of label quality.
+These metrics succeed even with random features.
+
+### 8.7 Report negative and null results
+
+Findings that something is NOT significant, that a confound DOES explain
+a result, or that a hypothesis FAILS are at least as valuable as positive
+results. Do not omit them or bury them.
+
+If an investigation yields "no clear signal," that is a finding. Write it up.
+
+### 8.8 Write for a skeptical reader
+
+Every claim in a report should survive the question: "But couldn't this
+just be because of X?" If you cannot answer that question, the claim is
+not ready to report. Move it to "Remaining uncertainties" instead.
+
+---
+
+## 9. Report Writing
+
+### 9.1 Where reports live
+
+All investigation output goes in `output/research/`.
+
+| File | Purpose |
+|------|---------|
+| `_LOG.md` | Running investigation log (append-only, newest first) |
+| `_TEMPLATE.md` | Template for summary reports (copy, don't edit) |
+| `<topic>_report.md` | Periodic summary reports on specific claims |
+
+### 9.2 Investigation log entries
+
+Every investigation session should produce at least one entry in
+`_LOG.md`. Copy the template block in that file and fill it in.
+
+Required sections per entry:
+- **Question**: what are we testing?
+- **Method**: what queries were run?
+- **Raw findings**: numbers only, no interpretation
+- **Interpretation**: what it means, with confidence level
+- **Threats to validity**: what could make this wrong (checklist)
+- **Follow-up**: what to check next
+
+Do not edit past entries. If a previous finding was wrong, add a new
+entry that references and corrects it.
+
+### 9.3 Summary reports
+
+When an investigation topic has accumulated enough log entries to support
+a conclusion (typically 3-5 entries exploring a claim from different
+angles), write a summary report:
+
+1. Copy `_TEMPLATE.md` to `<topic>_report.md`.
+2. Fill in all sections, pulling evidence from log entries.
+3. The "Alternative Explanations" table (Section 4) is mandatory -- if you
+   cannot fill it, the investigation is not complete.
+4. Write the Summary section last, after all evidence is assembled.
+
+### 9.4 Naming conventions
+
+- Log entries: use date + short topic in the heading
+- Summary reports: `<topic>_report.md` where topic is snake_case
+  (e.g., `field_additivity_less_is_more_report.md`,
+  `error_node_predictiveness_report.md`,
+  `reverse_substring_confound_report.md`)
+
+### 9.5 What not to do
+
+- Do not write a report that only confirms the methodology report's claims.
+  The purpose is adversarial probing.
+- Do not report aggregate statistics without checking individual samples.
+  Aggregates hide important structure.
+- Do not conclude based on a single entity, pair, or domain.
+- Do not skip the "Threats to validity" section. If you have no threats,
+  you have not thought hard enough.
