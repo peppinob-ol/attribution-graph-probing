@@ -564,10 +564,13 @@ def _run_selector(data_loader, registry=None):
         return Span(cls="text-xs text-slate-500 hidden-mobile")(f"Dataset: {text}")
 
     def _short_label(run):
-        label = run.get("dataset_label", "")
+        ds = run.get("dataset_label", "")
+        sem = run.get("semantic_label", "")
         count = run.get("swap_count", 0)
-        if label:
-            return f"{label} ({count} swaps)"
+        if ds and sem:
+            return f"{ds} - {sem} ({count} swaps)"
+        if ds:
+            return f"{ds} ({count} swaps)"
         name = run.get("name", run["id"])
         return f"{name} ({count})"
 

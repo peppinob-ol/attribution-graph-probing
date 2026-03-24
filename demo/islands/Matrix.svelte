@@ -17,6 +17,12 @@
   let hideCapitalNotTopLogit = false;
   let colorMode = 'tier';
 
+  // Global variant selector
+  let availableVariants = [];
+  let selectedVariant = null;
+  let variantLoading = false;
+  let matrixGeneration = 0;
+
   $: isUsaStates = domainConfig?.is_usa_states ?? true;
   
   const tierColors = {
@@ -226,15 +232,43 @@
     colorMode = e.detail?.mode || 'tier';
   }
 
+  function variantLabel(suffix) {
+    if (!suffix) return 'Best';
+    if (suffix.startsWith('r')) return `Rep ${suffix.slice(1)}`;
+    if (suffix.startsWith('add_')) return suffix.slice(4).replace(/_/g, ' + ');
+    return suffix.replace(/_/g, ' ');
+  }
+
+  async function switchMatrixVariant(varSuffix) {
+    selectedVariant = varSuffix;
+    variantLoading = true;
+    document.dispatchEvent(new CustomEvent('variant-changed', {
+      detail: { variant: varSuffix },
+      bubbles: true,
+    }));
+    try {
+      const qs = varSuffix ? `?variant=${encodeURIComponent(varSuffix)}` : '';
+      const [mRes, fRes] = await Promise.all([
+        fetch(`/api/matrix${qs}`),
+        fetch(`/api/flip-matrix${qs}`),
+      ]);
+      if (mRes.ok) matrix = await mRes.json();
+      if (fRes.ok) flipMatrix = await fRes.json();
+      matrixGeneration++;
+    } catch {}
+    variantLoading = false;
+  }
+
   onMount(async () => {
     document.addEventListener('keydown', handleKeydown);
     document.addEventListener('color-mode-changed', handleColorModeChanged);
     try {
-      const [matrixRes, statesRes, configRes, flipRes] = await Promise.all([
+      const [matrixRes, statesRes, configRes, flipRes, varRes] = await Promise.all([
         fetch('/api/matrix'),
         fetch('/api/states'),
         fetch('/api/config'),
         fetch('/api/flip-matrix'),
+        fetch('/api/run-variants'),
       ]);
       
       if (!matrixRes.ok || !statesRes.ok) {
@@ -249,6 +283,10 @@
       }
       if (flipRes.ok) {
         flipMatrix = await flipRes.json();
+      }
+      if (varRes.ok) {
+        const vd = await varRes.json();
+        availableVariants = vd.variants || [];
       }
       loading = false;
     } catch (e) {
@@ -318,7 +356,23 @@
       {/if}
     {/if}
   </div>
-  
+
+  {#if availableVariants.length > 0}
+    <div class="flex items-center flex-wrap gap-2 mb-3 text-xs {variantLoading ? 'opacity-50 pointer-events-none' : ''}">
+      <span class="text-slate-500">Variant:</span>
+      <button
+        class="px-2 py-1 rounded transition-colors {selectedVariant === null ? 'bg-indigo-900/50 text-indigo-400 border border-indigo-500/40' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border border-transparent'}"
+        on:click={() => switchMatrixVariant(null)}
+      >Best</button>
+      {#each availableVariants as v}
+        <button
+          class="px-2 py-1 rounded transition-colors {selectedVariant === v ? 'bg-indigo-900/50 text-indigo-400 border border-indigo-500/40' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border border-transparent'}"
+          on:click={() => switchMatrixVariant(v)}
+        >{variantLabel(v)}</button>
+      {/each}
+    </div>
+  {/if}
+
   {#if selected}
     <div class="mb-3 text-center text-xs text-slate-600">
       <kbd class="px-1 py-0.5 rounded bg-slate-800 text-slate-500">&#8592;</kbd>
@@ -344,7 +398,7 @@
     </div>
   {:else}
     <div class="overflow-x-auto">
-      {#key colorMode}
+      {#key `${colorMode}-${matrixGeneration}`}
       <div class="matrix-grid" style="grid-template-columns: 64px repeat({visibleStates.length}, 16px);">
         <!-- Empty corner cell -->
         <div class="matrix-corner"></div>

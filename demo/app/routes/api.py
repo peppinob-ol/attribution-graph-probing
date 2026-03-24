@@ -40,6 +40,7 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None)
                     "entity_fields": dc.get('entity_fields', []),
                     "entity_count": dc.get('entity_count', 0),
                     "is_usa_states": dc.get('is_usa_states', True),
+                    "tier_word_blacklist": dc.get('tier_word_blacklist', []),
                     "model_id": dc.get('model_id', ''),
                     "transcoder_set": dc.get('transcoder_set', ''),
                     "m_ablate": dc.get('m_ablate', -2),
@@ -158,21 +159,32 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None)
         )
     
     @rt("/api/matrix")
-    def api_matrix():
-        """Return tier matrix as JSON."""
-        matrix = data_loader.get_matrix()
+    def api_matrix(request: Request):
+        """Return tier matrix as JSON.  Optional ``?variant=`` filter."""
+        variant = (request.query_params.get("variant") or "").strip() or None
+        matrix = data_loader.get_matrix(variant=variant)
         return Response(
             content=json.dumps(matrix),
             media_type="application/json"
         )
 
     @rt("/api/flip-matrix")
-    def api_flip_matrix():
-        """Return logit-flip position matrix as JSON."""
-        matrix = data_loader.get_flip_matrix()
+    def api_flip_matrix(request: Request):
+        """Return logit-flip position matrix as JSON.  Optional ``?variant=``."""
+        variant = (request.query_params.get("variant") or "").strip() or None
+        matrix = data_loader.get_flip_matrix(variant=variant)
         return Response(
             content=json.dumps(matrix),
             media_type="application/json"
+        )
+
+    @rt("/api/run-variants")
+    def api_run_variants():
+        """Return distinct variant suffixes for the current run."""
+        variants = data_loader.get_run_variant_suffixes()
+        return Response(
+            content=json.dumps({"variants": variants}),
+            media_type="application/json",
         )
     
     @rt("/api/states")
@@ -194,9 +206,14 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None)
         )
     
     @rt("/api/swap/{from_slug}/{to_slug}")
-    def api_swap(from_slug: str, to_slug: str):
-        """Return detailed swap result."""
-        swap = data_loader.get_swap_detail(from_slug, to_slug)
+    def api_swap(from_slug: str, to_slug: str, request: Request):
+        """Return detailed swap result.
+
+        Optional query param ``variant`` selects a specific control variant
+        (e.g. ``?variant=r0`` or ``?variant=add_book``).
+        """
+        variant = (request.query_params.get("variant") or "").strip() or None
+        swap = data_loader.get_swap_detail(from_slug, to_slug, variant=variant)
         if swap is None:
             return Response(
                 content=json.dumps({"error": "Swap not found"}),
@@ -206,6 +223,15 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None)
         return Response(
             content=json.dumps(swap),
             media_type="application/json"
+        )
+
+    @rt("/api/swap/{from_slug}/{to_slug}/variants")
+    def api_swap_variants(from_slug: str, to_slug: str):
+        """Return available variants for a given (from, to) pair."""
+        variants = data_loader.get_variants_for_pair(from_slug, to_slug)
+        return Response(
+            content=json.dumps({"variants": variants}),
+            media_type="application/json",
         )
     
     @rt("/api/state/{slug}")
@@ -361,14 +387,16 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None)
         )
     
     @rt("/api/swap/{from_slug}/{to_slug}/features")
-    def api_swap_features(from_slug: str, to_slug: str):
+    def api_swap_features(from_slug: str, to_slug: str, request: Request):
         """
         Return intervention features for a swap.
         
+        Optional query param ``variant`` selects a specific control variant.
         Returns list of features grouped by type (ablate/amplify) and layer.
         Each feature includes Neuronpedia link.
         """
-        features = data_loader.get_swap_features(from_slug, to_slug)
+        variant = (request.query_params.get("variant") or "").strip() or None
+        features = data_loader.get_swap_features(from_slug, to_slug, variant=variant)
         if features is None:
             return Response(
                 content=json.dumps({"error": "Features not found", "features": []}),

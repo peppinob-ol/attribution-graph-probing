@@ -220,8 +220,10 @@ def _build_full_config(dataset: dict, *, skip_graph_generation: bool = False) ->
 
 
 def _build_swap_config(name: str, concept_fields: list[str]) -> dict:
+    answer_field = concept_fields[-1] if concept_fields else "capital"
     return {
         "version": 0.1,
+        "display_demo": True,
         "experiment_name": f"{name}_swap",
         "inputs": {
             "source_config": f"configs/{name}_full.yml",
@@ -231,6 +233,7 @@ def _build_swap_config(name: str, concept_fields: list[str]) -> dict:
             "mode": "matrix",
             "include_identity": True,
             "concept_fields": concept_fields,
+            "answer_field": answer_field,
         },
         "ct_steering": {
             "model_id": "google/gemma-2-2b",

@@ -403,10 +403,16 @@ def _run_gpu_batch(
             control_metadata=pp.control_metadata,
         )
 
-        out_file = get_swap_paths(config, pp.pair, pp.variant_suffix)['output_file']
+        paths = get_swap_paths(config, pp.pair, pp.variant_suffix)
+        out_file = paths['output_file']
         out_file.parent.mkdir(parents=True, exist_ok=True)
         with open(out_file, "w", encoding="utf-8") as f:
             json.dump(swap_result, f, indent=2, ensure_ascii=False)
+
+        per_swap_features_path = paths['work_dir'] / "features.json"
+        per_swap_features_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(per_swap_features_path, "w", encoding="utf-8") as f:
+            json.dump(pp.features, f, indent=2)
 
         results.append((pp, swap_result))
     return results

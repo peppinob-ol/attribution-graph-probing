@@ -53,6 +53,64 @@ def _is_control_variant(filename_stem: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Run metadata helpers
+# ---------------------------------------------------------------------------
+
+_CONTROL_MODE_LABELS = {
+    "labeled": "Labeled",
+    "random_feature_matched": "Random x3",
+    "additivity": "Field Additivity",
+}
+
+
+def _extract_control_mode(manifest: Dict[str, Any], run_dir: Optional[Path] = None) -> str:
+    """Return the control mode from run metadata.
+
+    Checks the manifest config first, then falls back to
+    ``config_resolved.json`` on disk (which contains the full YAML config).
+    """
+    mode = manifest.get("config", {}).get("control", {}).get("mode", "")
+    if mode:
+        return mode
+
+    if run_dir is not None:
+        resolved_path = run_dir / "config_resolved.json"
+        if resolved_path.exists():
+            try:
+                with open(resolved_path, "r", encoding="utf-8") as fh:
+                    resolved = json.load(fh)
+                mode = resolved.get("control", {}).get("mode", "")
+                if mode:
+                    return mode
+            except (json.JSONDecodeError, IOError):
+                pass
+
+    return "labeled"
+
+
+def _semantic_run_label(
+    run_id: str, manifest: Dict[str, Any], run_dir: Optional[Path] = None,
+) -> str:
+    """Build a concise, human-readable label that distinguishes control modes."""
+    mode = _extract_control_mode(manifest, run_dir=run_dir)
+    mode_label = _CONTROL_MODE_LABELS.get(mode, mode.replace("_", " ").title())
+
+    exp_name = manifest.get("config", {}).get("experiment_name", "")
+    if exp_name.startswith("fullscale_"):
+        return mode_label
+
+    if exp_name:
+        pretty = exp_name.replace("_", " ").title()
+        pretty = pretty.replace("50states", "50 States").replace("6states", "6 States")
+        return pretty
+
+    pretty = run_id.replace("_", " ").title()
+    pretty = pretty.replace("50states", "50 States").replace("6states", "6 States")
+    pretty = pretty.replace("Gpu", "GPU")
+    return pretty
+
+
+# ---------------------------------------------------------------------------
 # DemoRegistry  – multi-dataset discovery
 # ---------------------------------------------------------------------------
 
@@ -161,10 +219,13 @@ class DemoRegistry:
                 1 for _ in (manifest_path.parent / "by_source").glob("*/to_*.json")
             ) if (manifest_path.parent / "by_source").exists() else 0
 
+            run_dir = manifest_path.parent
             datasets[dataset_dir]["runs"].append({
                 "id": run_id,
                 "manifest": manifest,
                 "swap_count": swap_count,
+                "control_mode": _extract_control_mode(manifest, run_dir=run_dir),
+                "semantic_label": _semantic_run_label(run_id, manifest, run_dir=run_dir),
             })
 
         # Build ordered dict: datasets sorted by label, runs already reverse-sorted
@@ -207,6 +268,8 @@ class DemoRegistry:
                 "dataset_id": dataset_id,
                 "dataset_label": ds["label"],
                 "name": self._format_run_name(r["id"]),
+                "semantic_label": r.get("semantic_label", ""),
+                "control_mode": r.get("control_mode", "labeled"),
                 "swap_count": r["swap_count"],
                 "status": manifest.get("status", "unknown"),
                 "timestamp": manifest.get("timestamp_started", manifest.get("timestamp", "")),
@@ -281,8 +344,9 @@ class DataLoader:
         self.base_swaps_dir = self.data_dir / "_swaps"
         self.run_id = run_id
         self._set_swaps_dir()
-        self._matrix_cache: Optional[Dict] = None
-        self._flip_matrix_cache: Optional[Dict] = None
+        self._matrix_cache: Dict[Optional[str], Dict] = {}
+        self._flip_matrix_cache: Dict[Optional[str], Dict] = {}
+        self._variant_index_cache: Optional[Dict] = None
         self._states_cache: Optional[List[Dict]] = None
         self._analysis_cache: Optional[Dict] = None
         self._stats_cache: Optional[Dict] = None
@@ -363,6 +427,8 @@ class DataLoader:
             runs.append({
                 'id': run_dir.name,
                 'name': self._format_run_name(run_dir.name),
+                'semantic_label': _semantic_run_label(run_dir.name, manifest, run_dir=run_dir),
+                'control_mode': _extract_control_mode(manifest, run_dir=run_dir),
                 'swap_count': swap_count,
                 'has_trajectory': has_trajectory,
                 'timestamp': manifest.get('timestamp_started', ''),
@@ -402,14 +468,22 @@ class DataLoader:
     
     def _clear_caches(self):
         """Clear all cached data."""
-        self._matrix_cache = None
-        self._flip_matrix_cache = None
+        self._matrix_cache = {}
+        self._flip_matrix_cache = {}
+        self._variant_index_cache = None
         self._states_cache = None
         self._analysis_cache = None
         self._stats_cache = None
         self._domain_config_cache = None
         self._gpu_batch_features_index = None
     
+    # Per-domain blacklists of common words that should be ignored by the
+    # word-boundary tier heuristic (e.g. "city" in "Salt Lake City" would
+    # otherwise match generic geography text like "is a city").
+    TIER_WORD_BLACKLIST: Dict[str, List[str]] = {
+        'usa_states': ['city'],
+    }
+
     # ------------------------------------------------------------------
     # Domain & model configuration (loaded from config_resolved.json)
     # ------------------------------------------------------------------
@@ -454,6 +528,12 @@ class DataLoader:
         is_usa_states = 'usa_states' in experiment_name or 'state' in concept_fields
         display_name = experiment_name.replace('_swap', '').replace('_', ' ').title()
 
+        blacklist: List[str] = []
+        for key, words in self.TIER_WORD_BLACKLIST.items():
+            if key in experiment_name:
+                blacklist = [w.lower() for w in words]
+                break
+
         self._domain_config_cache = {
             'experiment_name': experiment_name,
             'display_name': display_name,
@@ -467,6 +547,7 @@ class DataLoader:
             'transcoder_set': transcoder_set,
             'np_model': np_model,
             'is_usa_states': is_usa_states,
+            'tier_word_blacklist': blacklist,
             'm_ablate': ct.get('M_ablate', -2),
             'm_amplify': ct.get('M_amplify', 20),
             'temperature': ct.get('temperature', 0.3),
@@ -500,6 +581,7 @@ class DataLoader:
             'transcoder_set': 'mntss/clt-gemma-2-2b-2.5M',
             'np_model': 'gemma-2-2b',
             'is_usa_states': True,
+            'tier_word_blacklist': ['city'],
             'm_ablate': -2,
             'm_amplify': 20,
             'temperature': 0.3,
@@ -522,67 +604,188 @@ class DataLoader:
         return slug[:3].upper()
 
     # ------------------------------------------------------------------
+    # Variant index
+    # ------------------------------------------------------------------
+
+    def _build_variant_index(self) -> Dict:
+        """Group swap files by canonical (from_slug, to_slug) pair.
+
+        Returns ``{from_slug: {to_slug: [record, ...]}}``.
+        Each record is::
+
+            {
+                "path": Path,
+                "variant_suffix": str,  # "" for canonical, "r0" / "add_book" / etc.
+                "is_canonical": bool,
+            }
+        """
+        if self._variant_index_cache is not None:
+            return self._variant_index_cache
+
+        index: Dict[str, Dict[str, list]] = {}
+        by_source_dir = self.swaps_dir / "by_source"
+        if not by_source_dir.exists():
+            self._variant_index_cache = index
+            return index
+
+        for source_dir in by_source_dir.iterdir():
+            if not source_dir.is_dir():
+                continue
+            from_slug = source_dir.name
+            if from_slug not in index:
+                index[from_slug] = {}
+
+            for swap_file in source_dir.glob("to_*.json"):
+                to_slug, variant_suffix = _parse_to_slug(swap_file.stem)
+                if not to_slug:
+                    continue
+                index[from_slug].setdefault(to_slug, []).append({
+                    "path": swap_file,
+                    "variant_suffix": variant_suffix,
+                    "is_canonical": variant_suffix == "",
+                })
+
+        self._variant_index_cache = index
+        return index
+
+    def get_variants_for_pair(
+        self, from_slug: str, to_slug: str
+    ) -> List[Dict[str, Any]]:
+        """Return lightweight variant descriptors for a single pair.
+
+        Each item includes ``variant_suffix``, ``tier``, ``flip_position``,
+        and control metadata extracted from the swap JSON.
+        """
+        idx = self._build_variant_index()
+        records = idx.get(from_slug, {}).get(to_slug, [])
+        variants: List[Dict[str, Any]] = []
+        for rec in records:
+            if rec["is_canonical"]:
+                continue
+            try:
+                with open(rec["path"], "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+            except (json.JSONDecodeError, IOError):
+                continue
+            ctrl = data.get("metadata", {}).get("control", {})
+            variants.append({
+                "variant_suffix": rec["variant_suffix"],
+                "tier": self._get_tier_from_swap(data),
+                "flip_position": self._get_flip_position_from_swap(data),
+                "control_mode": ctrl.get("control_mode", ""),
+                "concept_subsets_used": ctrl.get("concept_subsets_used", []),
+                "replicate_id": ctrl.get("replicate_id"),
+            })
+        return variants
+
+    def get_run_variant_suffixes(self) -> List[str]:
+        """Return sorted list of distinct variant suffixes across the entire run."""
+        idx = self._build_variant_index()
+        suffixes: set = set()
+        for targets in idx.values():
+            for records in targets.values():
+                for r in records:
+                    if r["variant_suffix"]:
+                        suffixes.add(r["variant_suffix"])
+        return sorted(suffixes)
+
+    def _best_variant_path(
+        self, from_slug: str, to_slug: str
+    ) -> Optional[Path]:
+        """Return the path of the best variant file for a pair (highest tier)."""
+        idx = self._build_variant_index()
+        records = idx.get(from_slug, {}).get(to_slug, [])
+        variants = [r for r in records if not r["is_canonical"]]
+        if not variants:
+            return None
+
+        best_path = None
+        best_tier = -1
+        for rec in variants:
+            try:
+                with open(rec["path"], "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+                tier = self._get_tier_from_swap(data) or 0
+                if tier > best_tier:
+                    best_tier = tier
+                    best_path = rec["path"]
+            except (json.JSONDecodeError, IOError):
+                continue
+        return best_path
+
+    # ------------------------------------------------------------------
     # Matrix
     # ------------------------------------------------------------------
 
-    def get_matrix(self) -> Dict[str, Dict[str, Optional[int]]]:
-        """Build tier matrix dynamically from individual swap JSON files."""
-        if self._matrix_cache is not None:
-            return self._matrix_cache
-        
-        matrix = {}
-        
-        # Scan by_source directory for swap results
-        by_source_dir = self.swaps_dir / "by_source"
-        if by_source_dir.exists():
-            for source_dir in by_source_dir.iterdir():
-                if not source_dir.is_dir():
+    def get_matrix(self, variant: Optional[str] = None) -> Dict[str, Dict[str, Optional[int]]]:
+        """Build tier matrix dynamically from individual swap JSON files.
+
+        When *variant* is None (default), canonical files take priority and
+        variant-only pairs aggregate using the best (highest) tier.
+        When *variant* is set, only files matching that suffix are used.
+        """
+        if variant in self._matrix_cache:
+            return self._matrix_cache[variant]
+
+        idx = self._build_variant_index()
+        matrix: Dict[str, Dict[str, Optional[int]]] = {}
+
+        for from_slug, targets in idx.items():
+            matrix[from_slug] = {}
+            for to_slug, records in targets.items():
+                if variant is not None:
+                    matched = [r for r in records if r["variant_suffix"] == variant]
+                    if matched:
+                        try:
+                            with open(matched[0]["path"], "r", encoding="utf-8") as f:
+                                swap_data = json.load(f)
+                            matrix[from_slug][to_slug] = self._get_tier_from_swap(swap_data)
+                        except (json.JSONDecodeError, IOError):
+                            pass
                     continue
-                from_slug = source_dir.name
-                matrix[from_slug] = {}
-                
-                for swap_file in source_dir.glob("to_*.json"):
-                    if _is_control_variant(swap_file.stem):
-                        continue
+
+                canonical = [r for r in records if r["is_canonical"]]
+                variants = [r for r in records if not r["is_canonical"]]
+
+                if canonical:
                     try:
-                        with open(swap_file, 'r', encoding='utf-8') as f:
+                        with open(canonical[0]["path"], "r", encoding="utf-8") as f:
                             swap_data = json.load(f)
-                        
-                        to_slug, _ = _parse_to_slug(swap_file.stem)
-                        if not to_slug and swap_data.get('target'):
-                            to_slug = swap_data['target'].get('slug', '')
-                        
-                        tier = self._get_tier_from_swap(swap_data)
-                        matrix[from_slug][to_slug] = tier
-                        
+                        matrix[from_slug][to_slug] = self._get_tier_from_swap(swap_data)
+                    except (json.JSONDecodeError, IOError):
+                        pass
+                elif variants:
+                    best_tier: Optional[float] = None
+                    for rec in variants:
+                        try:
+                            with open(rec["path"], "r", encoding="utf-8") as f:
+                                swap_data = json.load(f)
+                            tier = self._get_tier_from_swap(swap_data)
+                            if tier is not None and (best_tier is None or tier > best_tier):
+                                best_tier = tier
+                        except (json.JSONDecodeError, IOError):
+                            continue
+                    if best_tier is not None:
+                        matrix[from_slug][to_slug] = best_tier
+
+        if variant is None:
+            work_dir = self.swaps_dir / "work"
+            if work_dir.exists():
+                for swap_file in work_dir.glob("*.json"):
+                    try:
+                        with open(swap_file, "r", encoding="utf-8") as f:
+                            swap_data = json.load(f)
+                        swap_id = swap_file.stem
+                        if "__to__" in swap_id:
+                            from_slug, to_slug = swap_id.split("__to__")
+                            if from_slug not in matrix:
+                                matrix[from_slug] = {}
+                            if to_slug not in matrix[from_slug]:
+                                matrix[from_slug][to_slug] = self._get_tier_from_swap(swap_data)
                     except (json.JSONDecodeError, IOError):
                         continue
-        
-        # Also check work directory for additional swaps
-        work_dir = self.swaps_dir / "work"
-        if work_dir.exists():
-            for swap_file in work_dir.glob("*.json"):
-                try:
-                    with open(swap_file, 'r', encoding='utf-8') as f:
-                        swap_data = json.load(f)
-                    
-                    # Parse swap_id: from_slug__to__to_slug
-                    swap_id = swap_file.stem
-                    if "__to__" in swap_id:
-                        from_slug, to_slug = swap_id.split("__to__")
-                        
-                        if from_slug not in matrix:
-                            matrix[from_slug] = {}
-                        
-                        # Only add if not already in by_source
-                        if to_slug not in matrix[from_slug]:
-                            tier = self._get_tier_from_swap(swap_data)
-                            matrix[from_slug][to_slug] = tier
-                            
-                except (json.JSONDecodeError, IOError):
-                    continue
-        
-        self._matrix_cache = matrix
+
+        self._matrix_cache[variant] = matrix
         return matrix
     
     def _get_tier_from_swap(self, swap_data: Dict) -> Optional[float]:
@@ -626,9 +829,10 @@ class DataLoader:
                     hit = True
 
         if not hit and to_answer and steered_out:
+            blacklist = set(self.get_domain_config().get('tier_word_blacklist', []))
             out_lower = steered_out.lower()
             for word in to_answer.replace('.', '').split():
-                if len(word) >= 3:
+                if len(word) >= 3 and word.lower() not in blacklist:
                     pattern = r'\b' + re.escape(word.lower()) + r'\b'
                     if re.search(pattern, out_lower):
                         hit = True
@@ -656,55 +860,79 @@ class DataLoader:
             return -1
         return traj['summary'].get('flip_position')
 
-    def get_flip_matrix(self) -> Dict[str, Dict[str, Optional[int]]]:
+    def get_flip_matrix(self, variant: Optional[str] = None) -> Dict[str, Dict[str, Optional[int]]]:
         """Build flip-position matrix from swap JSON files.
 
         Same structure as ``get_matrix()`` but values are the generation
         position where the logit flip first occurs (0, 1, 2 ...) or
         ``None`` when no flip is observed.
-        """
-        if self._flip_matrix_cache is not None:
-            return self._flip_matrix_cache
 
+        When *variant* is None, canonical files take priority and variant-only
+        pairs pick the earliest non-null flip.  When *variant* is set, only
+        files matching that suffix are used.
+        """
+        if variant in self._flip_matrix_cache:
+            return self._flip_matrix_cache[variant]
+
+        idx = self._build_variant_index()
         matrix: Dict[str, Dict[str, Optional[int]]] = {}
 
-        by_source_dir = self.swaps_dir / "by_source"
-        if by_source_dir.exists():
-            for source_dir in by_source_dir.iterdir():
-                if not source_dir.is_dir():
+        for from_slug, targets in idx.items():
+            matrix[from_slug] = {}
+            for to_slug, records in targets.items():
+                if variant is not None:
+                    matched = [r for r in records if r["variant_suffix"] == variant]
+                    if matched:
+                        try:
+                            with open(matched[0]["path"], "r", encoding="utf-8") as f:
+                                swap_data = json.load(f)
+                            matrix[from_slug][to_slug] = self._get_flip_position_from_swap(swap_data)
+                        except (json.JSONDecodeError, IOError):
+                            pass
                     continue
-                from_slug = source_dir.name
-                matrix[from_slug] = {}
-                for swap_file in source_dir.glob("to_*.json"):
-                    if _is_control_variant(swap_file.stem):
-                        continue
+
+                canonical = [r for r in records if r["is_canonical"]]
+                variants = [r for r in records if not r["is_canonical"]]
+
+                if canonical:
                     try:
-                        with open(swap_file, 'r', encoding='utf-8') as f:
+                        with open(canonical[0]["path"], "r", encoding="utf-8") as f:
                             swap_data = json.load(f)
-                        to_slug, _ = _parse_to_slug(swap_file.stem)
-                        if not to_slug and swap_data.get('target'):
-                            to_slug = swap_data['target'].get('slug', '')
                         matrix[from_slug][to_slug] = self._get_flip_position_from_swap(swap_data)
+                    except (json.JSONDecodeError, IOError):
+                        pass
+                elif variants:
+                    best_flip = None
+                    for rec in variants:
+                        try:
+                            with open(rec["path"], "r", encoding="utf-8") as f:
+                                swap_data = json.load(f)
+                            fp = self._get_flip_position_from_swap(swap_data)
+                            if fp is not None and fp >= 0:
+                                if best_flip is None or fp < best_flip:
+                                    best_flip = fp
+                        except (json.JSONDecodeError, IOError):
+                            continue
+                    matrix[from_slug][to_slug] = best_flip
+
+        if variant is None:
+            work_dir = self.swaps_dir / "work"
+            if work_dir.exists():
+                for swap_file in work_dir.glob("*.json"):
+                    try:
+                        with open(swap_file, "r", encoding="utf-8") as f:
+                            swap_data = json.load(f)
+                        swap_id = swap_file.stem
+                        if "__to__" in swap_id:
+                            from_slug, to_slug = swap_id.split("__to__")
+                            if from_slug not in matrix:
+                                matrix[from_slug] = {}
+                            if to_slug not in matrix[from_slug]:
+                                matrix[from_slug][to_slug] = self._get_flip_position_from_swap(swap_data)
                     except (json.JSONDecodeError, IOError):
                         continue
 
-        work_dir = self.swaps_dir / "work"
-        if work_dir.exists():
-            for swap_file in work_dir.glob("*.json"):
-                try:
-                    with open(swap_file, 'r', encoding='utf-8') as f:
-                        swap_data = json.load(f)
-                    swap_id = swap_file.stem
-                    if "__to__" in swap_id:
-                        from_slug, to_slug = swap_id.split("__to__")
-                        if from_slug not in matrix:
-                            matrix[from_slug] = {}
-                        if to_slug not in matrix[from_slug]:
-                            matrix[from_slug][to_slug] = self._get_flip_position_from_swap(swap_data)
-                except (json.JSONDecodeError, IOError):
-                    continue
-
-        self._flip_matrix_cache = matrix
+        self._flip_matrix_cache[variant] = matrix
         return matrix
 
     def get_states(self) -> List[Dict[str, Any]]:
@@ -790,10 +1018,12 @@ class DataLoader:
         return entities
 
     def _get_entity_info_from_swap(self, source_dir: Path) -> Dict[str, str]:
-        """Extract entity fields from a sample swap file's source section."""
-        for swap_file in source_dir.glob("to_*.json"):
-            if _is_control_variant(swap_file.stem):
-                continue
+        """Extract entity fields from a sample swap file's source section.
+
+        Tries canonical files first, falls back to variant files for
+        variant-only runs.
+        """
+        for swap_file in sorted(source_dir.glob("to_*.json")):
             try:
                 with open(swap_file, 'r', encoding='utf-8') as f:
                     swap_data = json.load(f)
@@ -906,23 +1136,41 @@ class DataLoader:
         self._analysis_cache = analysis
         return analysis
     
-    def get_swap_detail(self, from_slug: str, to_slug: str) -> Optional[Dict[str, Any]]:
-        """Load detailed swap result."""
+    def get_swap_detail(
+        self, from_slug: str, to_slug: str, variant: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Load detailed swap result with variant resolution.
+
+        Resolution order:
+        1. Explicit *variant* requested -> load that variant file.
+        2. Canonical file exists -> load it.
+        3. Otherwise -> load the best variant for the pair.
+        """
         data = None
-        # Try by_source structure first
-        by_source_path = self.swaps_dir / "by_source" / from_slug / f"to_{to_slug}.json"
-        if by_source_path.exists():
-            with open(by_source_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+        swap_path = None
+
+        if variant:
+            swap_path = (
+                self.swaps_dir / "by_source" / from_slug
+                / f"to_{to_slug}__{variant}.json"
+            )
         else:
-            # Try work directory
+            canonical = self.swaps_dir / "by_source" / from_slug / f"to_{to_slug}.json"
+            if canonical.exists():
+                swap_path = canonical
+            else:
+                swap_path = self._best_variant_path(from_slug, to_slug)
+
+        if swap_path is None or not swap_path.exists():
             work_path = self.swaps_dir / "work" / f"{from_slug}__to__{to_slug}.json"
             if work_path.exists():
-                with open(work_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
+                swap_path = work_path
 
-        if data is None:
+        if swap_path is None or not swap_path.exists():
             return None
+
+        with open(swap_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
 
         # Enrich source/target with per-entity metadata
         data['source']['neuronpedia_url'] = self._get_neuronpedia_url(from_slug)
@@ -932,6 +1180,42 @@ class DataLoader:
             pct = self._get_error_node_influence(slug)
             if pct is not None:
                 data[key]['error_node_influence_pct'] = pct
+
+        # Inject derived metrics block (additive, null-safe)
+        ctrl = data.get("metadata", {}).get("control", {})
+        traj_summary = data.get("evaluation", {}).get("logit_trajectory", {}).get("summary", {})
+        contrast = data.get("evaluation", {}).get("logit_trajectory", {}).get("contrast_groups", {})
+        pos0 = data.get("evaluation", {}).get("position_0_comparison", {})
+
+        data["_derived"] = {
+            "control_mode": ctrl.get("control_mode"),
+            "fields_used": ctrl.get("concept_subsets_used"),
+            "replicate_id": ctrl.get("replicate_id"),
+            "flip_position": traj_summary.get("flip_position"),
+            "gap_closure": traj_summary.get("gap_closure"),
+            "initial_gap": traj_summary.get("initial_gap"),
+            "best_gap": traj_summary.get("best_gap"),
+            "vs_max": None,
+            "vs_topk": None,
+            "rank_in_group": None,
+        }
+        if isinstance(contrast, dict):
+            grp = contrast.get("same_dataset", {})
+            if isinstance(grp, dict):
+                agg = grp.get("aggregate", {}) if isinstance(grp, dict) else {}
+                data["_derived"]["vs_max"] = agg.get("best_target_minus_max")
+                data["_derived"]["vs_topk"] = agg.get("best_target_minus_topk")
+                data["_derived"]["rank_in_group"] = agg.get("best_rank_within")
+                data["_derived"]["contrast_members"] = grp.get("members", [])
+                data["_derived"]["contrast_n"] = grp.get("n_members", 0)
+                data["_derived"]["contrast_topk_k"] = grp.get("topk_k", 3)
+
+        # Variant availability summary
+        variants = self.get_variants_for_pair(from_slug, to_slug)
+        data["_variants"] = variants
+
+        _, loaded_suffix = _parse_to_slug(swap_path.stem)
+        data["_loaded_variant"] = loaded_suffix or None
 
         return data
     
@@ -1141,12 +1425,47 @@ class DataLoader:
         self._gpu_batch_features_index = index
         return index
 
-    def get_swap_features(self, from_slug: str, to_slug: str) -> Optional[Dict]:
+    def _resolve_features_path(
+        self, from_slug: str, to_slug: str, variant: Optional[str] = None,
+    ) -> Optional[Path]:
+        """Find the features.json path for a swap, handling variant suffixes.
+
+        Resolution order:
+        1. Explicit variant -> ``work/{swap_id}__{variant}/features.json``
+        2. Base path (labeled runs) -> ``work/{swap_id}/features.json``
+        3. Best variant (mirroring ``get_swap_detail``) work dir.
+        """
+        base_swap_id = f"{from_slug}__to__{to_slug}"
+        work_dir = self.swaps_dir / "work"
+
+        if variant:
+            p = work_dir / f"{base_swap_id}__{variant}" / "features.json"
+            return p if p.exists() else None
+
+        # Try the base path first (works for labeled runs with no suffix)
+        p = work_dir / base_swap_id / "features.json"
+        if p.exists():
+            return p
+
+        # Resolve via best variant (same logic as get_swap_detail)
+        best_path = self._best_variant_path(from_slug, to_slug)
+        if best_path is not None:
+            _, variant_suffix = _parse_to_slug(best_path.stem)
+            if variant_suffix:
+                p = work_dir / f"{base_swap_id}__{variant_suffix}" / "features.json"
+                if p.exists():
+                    return p
+
+        return None
+
+    def get_swap_features(
+        self, from_slug: str, to_slug: str, variant: Optional[str] = None,
+    ) -> Optional[Dict]:
         """
         Get intervention features for a swap.
 
-        Tries two locations in order:
-          1. Per-swap file: _swaps/work/{swap_id}/features.json  (usa_states style)
+        Tries locations in order:
+          1. Per-swap file via variant resolution (see ``_resolve_features_path``)
           2. GPU batch index: _swaps/_work/_gpu_batch_N/features.json  (per_prompt keyed)
 
         Returns structured data with ablated/amplified features grouped by layer,
@@ -1155,10 +1474,9 @@ class DataLoader:
         """
         swap_id = f"{from_slug}__to__{to_slug}"
 
-        # Try per-swap file first (usa_states / older format)
         raw_features: Optional[List] = None
-        features_path = self.swaps_dir / "work" / swap_id / "features.json"
-        if features_path.exists():
+        features_path = self._resolve_features_path(from_slug, to_slug, variant)
+        if features_path is not None:
             try:
                 with open(features_path, 'r', encoding='utf-8') as f:
                     raw_features = json.load(f)

@@ -13,6 +13,7 @@
   let data = null;
   let fromSlug = null;
   let toSlug = null;
+  let selectedVariant = null;
   
   // Cached subgraph URLs (slug -> url) to avoid repeated API calls
   let subgraphUrlCache = {};
@@ -22,6 +23,18 @@
   // Swap features (ablated/amplified per layer)
   let features = null;
   let featuresExpanded = false;
+  let contrastGroupExpanded = false;
+  let topkExpanded = false;
+
+  // Global variant from the matrix selector (persists across cell selections)
+  let globalVariant = null;
+
+  // Variant & control derived data from backend
+  $: variants = data?._variants || [];
+  $: derived = data?._derived || {};
+  $: loadedVariant = data?._loaded_variant || null;
+  $: controlMode = derived?.control_mode || null;
+  $: fieldsUsed = derived?.fields_used || null;
   
   let domainConfig = null;
   $: isUsaStates = domainConfig?.is_usa_states ?? true;
@@ -42,9 +55,14 @@
     }
   }
 
+  function handleVariantChanged(event) {
+    globalVariant = event.detail?.variant || null;
+  }
+
   onMount(async () => {
     document.addEventListener('cell-selected', handleCellSelected);
     document.addEventListener('keydown', handleEscape);
+    document.addEventListener('variant-changed', handleVariantChanged);
     try {
       const res = await fetch('/api/config');
       if (res.ok) {
@@ -55,6 +73,7 @@
     return () => {
       document.removeEventListener('cell-selected', handleCellSelected);
       document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('variant-changed', handleVariantChanged);
     };
   });
   
@@ -62,27 +81,30 @@
     const { from, to } = event.detail;
     fromSlug = from;
     toSlug = to;
+    selectedVariant = globalVariant;
     visible = true;
     loading = true;
     error = null;
     data = null;
     features = null;
     featuresExpanded = false;
+    contrastGroupExpanded = false;
+    topkExpanded = false;
     sourceSubgraphUrl = null;
     targetSubgraphUrl = null;
     
+    const qs = globalVariant ? `?variant=${encodeURIComponent(globalVariant)}` : '';
     try {
-      const res = await fetch(`/api/swap/${from}/${to}`);
+      const res = await fetch(`/api/swap/${from}/${to}${qs}`);
       if (!res.ok) {
         throw new Error('Swap data not found');
       }
       data = await res.json();
       
-      // Resolve subgraph URLs and features in parallel (non-blocking)
       Promise.all([
         fetchSubgraphUrl(from),
         fetchSubgraphUrl(to),
-        fetch(`/api/swap/${from}/${to}/features`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`/api/swap/${from}/${to}/features${qs}`).then(r => r.ok ? r.json() : null).catch(() => null),
       ]).then(([srcUrl, tgtUrl, feat]) => {
         sourceSubgraphUrl = srcUrl;
         targetSubgraphUrl = tgtUrl;
@@ -94,6 +116,42 @@
       loading = false;
     }
   }
+
+  async function switchVariant(variantSuffix) {
+    if (!fromSlug || !toSlug) return;
+    selectedVariant = variantSuffix;
+    loading = true;
+    error = null;
+    features = null;
+    featuresExpanded = false;
+    try {
+      const qs = variantSuffix ? `?variant=${encodeURIComponent(variantSuffix)}` : '';
+      const res = await fetch(`/api/swap/${fromSlug}/${toSlug}${qs}`);
+      if (!res.ok) throw new Error('Variant not found');
+      data = await res.json();
+      fetch(`/api/swap/${fromSlug}/${toSlug}/features${qs}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(feat => { if (feat && !feat.error) features = feat; })
+        .catch(() => {});
+    } catch (e) {
+      error = e.message;
+    } finally {
+      loading = false;
+    }
+  }
+
+  function variantLabel(suffix) {
+    if (!suffix) return 'Best';
+    if (suffix.startsWith('r')) return `Replicate ${suffix.slice(1)}`;
+    if (suffix.startsWith('add_')) return suffix.slice(4).replace(/_/g, ' + ');
+    return suffix.replace(/_/g, ' ');
+  }
+
+  const controlModeLabels = {
+    labeled: 'Labeled',
+    random_feature_matched: 'Random Control',
+    additivity: 'Field Additivity',
+  };
   
   async function fetchSubgraphUrl(slug) {
     if (!slug) return null;
@@ -115,8 +173,10 @@
     data = null;
     features = null;
     featuresExpanded = false;
+    topkExpanded = false;
     fromSlug = null;
     toSlug = null;
+    selectedVariant = null;
     sourceSubgraphUrl = null;
     targetSubgraphUrl = null;
   }
@@ -160,9 +220,9 @@
     }
 
     if (!hit && toAnswer && steeredOut) {
-      const outLower = steeredOut.toLowerCase();
+      const blacklist = new Set((domainConfig?.tier_word_blacklist || []).map(w => w.toLowerCase()));
       for (const word of toAnswer.replace(/\./g, '').split(/\s+/)) {
-        if (word.length >= 3 && new RegExp('\\b' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(steeredOut)) {
+        if (word.length >= 3 && !blacklist.has(word.toLowerCase()) && new RegExp('\\b' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(steeredOut)) {
           hit = true;
           break;
         }
@@ -423,9 +483,42 @@
           </div>
         </div>
         
+        <!-- Control + Variant (merged block) -->
+        {#if (controlMode && controlMode !== 'labeled') || variants.length > 0}
+          <div class="mb-4 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/30">
+            {#if controlMode && controlMode !== 'labeled'}
+              <div class="flex items-center gap-2 flex-wrap {variants.length > 0 ? 'mb-2' : ''}">
+                <span class="px-2 py-0.5 rounded text-xs font-bold bg-indigo-500/30 text-indigo-300">
+                  {controlModeLabels[controlMode] || controlMode}
+                </span>
+                {#if fieldsUsed && fieldsUsed.length > 0}
+                  <span class="text-xs text-slate-400">Fields: {fieldsUsed.join(', ')}</span>
+                {/if}
+                {#if derived.replicate_id != null}
+                  <span class="text-xs text-slate-500">Replicate #{derived.replicate_id}</span>
+                {/if}
+              </div>
+            {/if}
+            {#if variants.length > 0}
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  class="px-2 py-1 text-xs rounded transition-colors {!selectedVariant ? 'bg-cyan-900/50 text-cyan-400 border border-cyan-500/40' : 'bg-slate-700 text-slate-400 hover:bg-slate-600 border border-transparent'}"
+                  on:click={() => switchVariant(null)}
+                >Best</button>
+                {#each variants as v}
+                  <button
+                    class="px-2 py-1 text-xs rounded transition-colors {selectedVariant === v.variant_suffix ? 'bg-cyan-900/50 text-cyan-400 border border-cyan-500/40' : 'bg-slate-700 text-slate-400 hover:bg-slate-600 border border-transparent'}"
+                    on:click={() => switchVariant(v.variant_suffix)}
+                    title="Tier {v.tier ?? '?'} | Flip {v.flip_position ?? 'N/A'}"
+                  >{variantLabel(v.variant_suffix)}</button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
         <!-- Tier badge + Flip badge -->
         {@const flipStatus = SHOW_TRAJECTORY_FEATURES ? getFlipStatus() : null}
-        <div class="mb-6 p-4 rounded-lg bg-slate-800/50 border border-slate-700">
+        <div class="mb-4 p-4 rounded-lg bg-slate-800/50 border border-slate-700">
           <div class="flex items-center gap-3 mb-2 flex-wrap">
             <div class="px-3 py-1 rounded {info.color} text-white font-bold text-sm">
               TIER {tier}
@@ -452,6 +545,56 @@
             </p>
           {/if}
         </div>
+
+        <!-- Contrast metrics -->
+        {#if derived.vs_max != null || derived.vs_topk != null || derived.rank_in_group != null}
+          <div class="mb-4 p-3 rounded-lg bg-slate-800/50 border border-slate-700">
+            <div class="text-xs text-slate-500 uppercase mb-2">Contrast Metrics</div>
+            <div class="grid grid-cols-3 gap-2">
+              {#if derived.vs_max != null}
+                <div class="p-2 rounded bg-slate-900/30" title="Best (target logit - max other dataset answer). Positive = target beats all alternatives.">
+                  <div class="text-xs text-slate-500 mb-0.5">vsMax</div>
+                  <div class="text-sm font-mono {derived.vs_max > 0 ? 'text-emerald-400' : derived.vs_max > -2 ? 'text-yellow-400' : 'text-red-400'}">{formatNum(derived.vs_max)}</div>
+                </div>
+              {/if}
+              {#if derived.vs_topk != null}
+                <div class="p-2 rounded bg-slate-900/30" title="Best (target logit - mean top-{derived.contrast_topk_k ?? 3} other dataset answers). Positive = target beats the strongest cluster.">
+                  <div class="text-xs text-slate-500 mb-0.5">vsTopK</div>
+                  <div class="text-sm font-mono {derived.vs_topk > 0 ? 'text-emerald-400' : derived.vs_topk > -2 ? 'text-yellow-400' : 'text-red-400'}">{formatNum(derived.vs_topk)}</div>
+                </div>
+              {/if}
+              {#if derived.rank_in_group != null}
+                <div class="p-2 rounded bg-slate-900/30" title="Best rank of target within all {derived.contrast_n ?? '?'} dataset answer tokens (1 = top).">
+                  <div class="text-xs text-slate-500 mb-0.5">RkGrp</div>
+                  <div class="text-sm font-mono {derived.rank_in_group === 1 ? 'text-emerald-400' : derived.rank_in_group <= 3 ? 'text-yellow-400' : 'text-red-400'}">{derived.rank_in_group}</div>
+                </div>
+              {/if}
+            </div>
+
+            <!-- Contrast group members (collapsible) -->
+            {#if derived.contrast_members && derived.contrast_members.length > 0}
+              <div class="mt-3 pt-2 border-t border-slate-700/50">
+                <button
+                  class="text-xs text-slate-500 hover:text-slate-300 transition-colors w-full text-left"
+                  on:click={() => contrastGroupExpanded = !contrastGroupExpanded}
+                >
+                  {contrastGroupExpanded ? 'Hide' : 'Show'} competing answers ({derived.contrast_n})
+                </button>
+                {#if contrastGroupExpanded}
+                  <div class="mt-2 flex flex-wrap gap-1">
+                    {#each derived.contrast_members as member}
+                      <span
+                        class="px-1.5 py-0.5 rounded text-xs font-mono {member.token.trim() === (data?.target?.answer || data?.evaluation?.to_answer || '').trim() ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700/50 text-slate-400'}"
+                        title="token_id: {member.token_id}"
+                      >{member.token.trim()}</span>
+                    {/each}
+                  </div>
+                  <div class="text-xs text-slate-600 mt-1">Target must outrank these to achieve RkGrp = 1</div>
+                {/if}
+              </div>
+            {/if}
+          </div>
+        {/if}
         
         <!-- Entity cards -->
         <div class="grid grid-cols-2 gap-4 mb-6">
@@ -526,6 +669,9 @@
         </div>
         
         <!-- First token analysis -->
+        {@const defaultTopk = raw.default_topk || []}
+        {@const steeredTopk = raw.steered_topk || []}
+        {@const hasTopk = defaultTopk.length > 0 || steeredTopk.length > 0}
         <div class="p-4 rounded-lg bg-slate-800/50 border border-slate-700 mb-6">
           <div class="text-xs text-slate-500 uppercase mb-3">First Token Analysis</div>
           <div class="grid grid-cols-2 gap-4">
@@ -540,6 +686,41 @@
               <div class="text-xs text-slate-600">prob: {(firstToken.steered_prob || 0).toFixed(3)}</div>
             </div>
           </div>
+
+          {#if hasTopk}
+            <button
+              class="w-full flex items-center justify-between mt-3 pt-2 border-t border-slate-700/50 hover:bg-slate-700/20 rounded px-1 py-1 transition-colors text-left"
+              on:click={() => topkExpanded = !topkExpanded}
+            >
+              <span class="text-xs text-slate-500">Top {Math.max(defaultTopk.length, steeredTopk.length)} tokens</span>
+              <svg class="w-4 h-4 text-slate-500 transition-transform {topkExpanded ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {#if topkExpanded}
+              <div class="grid grid-cols-2 gap-4 mt-2">
+                <div class="space-y-1">
+                  {#each defaultTopk as tok, i}
+                    <div class="flex items-baseline gap-1.5">
+                      <span class="text-xs text-slate-600 w-3 text-right shrink-0">{i + 1}.</span>
+                      <span class="text-xs font-mono text-yellow-400 truncate" title={tok.token}>'{tok.token}'</span>
+                      <span class="text-xs text-slate-600 ml-auto shrink-0">{(tok.prob || 0).toFixed(3)}</span>
+                    </div>
+                  {/each}
+                </div>
+                <div class="space-y-1">
+                  {#each steeredTopk as tok, i}
+                    <div class="flex items-baseline gap-1.5">
+                      <span class="text-xs text-slate-600 w-3 text-right shrink-0">{i + 1}.</span>
+                      <span class="text-xs font-mono text-cyan-400 truncate" title={tok.token}>'{tok.token}'</span>
+                      <span class="text-xs text-slate-600 ml-auto shrink-0">{(tok.prob || 0).toFixed(3)}</span>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          {/if}
         </div>
         
         <!-- Trajectory Metrics (new) -->
