@@ -2,73 +2,68 @@
 
 **Automated Attribution Graph Analysis through Probe Prompting**
 
-This repository implements an automated pipeline for interpreting attribution graphs produced by transformer models equipped with Sparse Autoencoders (SAEs) or Cross-Layer Transcoders (CLTs). It builds directly on Anthropic’s open-source Circuit Tracer framework
- https://github.com/safety-research/circuit-tracer
+This repository implements an automated pipeline for interpreting attribution graphs produced by transformer models with Cross-Layer Transcoders (CLTs). It builds on Anthropic's [Circuit Tracer](https://github.com/safety-research/circuit-tracer) and is intended as a downstream analysis layer that systematizes and scales feature-level interpretation.
 
-and is intended as a downstream analysis layer that systematizes and scales feature-level interpretation.
-
-The core idea—developed and motivated in the accompanying LessWrong post
- https://www.lesswrong.com/posts/zQqGhKPqaCBZZDCge/automated-circuit-interpretation-via-probe-prompting
-
-is to treat attribution graphs not as static artifacts to be manually inspected, but as objects that can be experimentally probed. Instead of inferring feature semantics from decoder geometry or corpus examples alone, this library measures how features behave under controlled semantic variation.
+The core idea -- developed in the [accompanying paper](https://www.lesswrong.com/posts/zQqGhKPqaCBZZDCge/automated-circuit-interpretation-via-probe-prompting) -- is to treat attribution graphs as objects that can be experimentally probed, measuring how features behave under controlled semantic variation rather than relying on decoder geometry or corpus examples alone.
 
 ---
 
 ## Overview
 
-The pipeline automates a workflow that is typically performed manually in circuit-tracing analyses, replacing ad-hoc inspection with reproducible, behavior-based measurements.
+The project has three layers:
 
-It performs three main tasks:
+1. **Interpretation pipeline** (Stages 0-2): graph generation, probe prompting, and supernode construction.
+2. **Causal testing framework** (Stage 3): feature swapping with labeled, random, and field-additivity controls across 5 domains and 33,387 steering runs.
+3. **Research toolkit**: programmatic query, aggregation, statistical comparison, and pipeline tracing for qualitative and quantitative analysis of swap results.
 
-1. Attribution graph extraction (upstream).
-Given a prompt and target logit, we rely on Circuit Tracer to compute the attribution graph induced by a replacement model (SAE or CLT). Nodes correspond to transcoder features and input token embeddings; edges represent direct causal influence. Standard cumulative-influence pruning is applied to obtain a tractable subgraph.
-(This repository does not re-implement circuit tracing; it consumes Circuit Tracer outputs.)
+### Key results
 
-2. Feature probing via concept-aligned prompts.
-For a selected attribution graph, the library generates or accepts a small set of probe prompts that vary semantic content while preserving syntactic structure. Feature activations are measured across these probes, producing cross-prompt behavioral signatures (e.g. peak token consistency, sparsity, functional vs. semantic preference). These signatures distinguish features that may look similar geometrically but play different computational roles.
-
-3. Automated interpretation and supernode construction.
-Using transparent, testable heuristics over behavioral signatures, features are classified into functional types (e.g. entity detectors, relational binders, output-promotion “Say X” features). Features with aligned behavior are grouped into concept-aligned supernodes and assigned interpretable names grounded in measured activation behavior rather than assumed semantics. The resulting supernode graph can be exported to Neuronpedia for visualization and quantitative evaluation (Replacement and Completeness).
-
-In effect, this library leverages Circuit Tracer for causal extraction and adds a behavioral analysis layer on top. The contribution is not a new attribution method, but a systematic way to interpret attribution graphs using probe prompting—reducing manual effort, enabling cross-prompt robustness checks, and making circuit analysis more scalable and falsifiable.
-
-### Results
-
-- Automatic classification into 4 categories: **Semantic (Dictionary/Concept)**, **Say "X"**, **Relationship**
-- Automatic naming based on activation patterns and peak tokens
-- Export to Neuronpedia for interactive visualization
-- Automatic checkpoint and resume for long analyses
+- **Labeled supernodes outperform random controls** in 4 of 5 domains (Cohen's d = 1.97 for vsMax in USA states)
+- **Intermediate + answer fields** consistently outperform the full 3-field intervention ("less is more" effect: +14pp USA, +33pp books)
+- **Suppression is generic; targeting is specific** -- random controls achieve equal suppression (83%) but near-zero hit rate (0.1%) vs labeled (24.7%)
+- Full methodology: `METHODOLOGY_REPORT.md`
+- Control experiment results: `output/FULLSCALE_CONTROL_REPORT.md`
 
 ---
 
 ## Quick Start
 
-### 1. Setup
+### Setup
 
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-
-# Or use automatic script (Windows)
-.\setup_venv.ps1
 ```
 
-### 2. API Keys Configuration
-
-Create a `.env` file in the root:
+Create a `.env` file with API keys (needed for graph generation and probe prompting only):
 
 ```env
-NEURONPEDIA_API_KEY='your-neuronpedia-key-here'
-OPENAI_API_KEY='your-openai-key-here'
+NEURONPEDIA_API_KEY='your-key'
+OPENAI_API_KEY='your-key'
 ```
 
-### 3. Launch the application
+### Interactive UIs
 
 ```bash
+# Streamlit app (pipeline stages 0-2)
 streamlit run eda/app.py
+
+# Swap Explorer (FastHTML demo -- reads from output/)
+python demo/main.py
 ```
 
-The app will open at `http://localhost:8501`
+### Research toolkit (programmatic access)
+
+```python
+from scripts.utils.swap_query import SwapQuery
+from scripts.utils.swap_stats import SwapStats
+from scripts.utils.pipeline_tracer import PipelineTracer
+
+q = SwapQuery()
+s = SwapStats(q)
+t = PipelineTracer()
+```
+
+Full usage and agentic research guidelines: `scripts/utils/AGENTIC_RESEARCH_GUIDE.md`
 
 ---
 
@@ -76,276 +71,216 @@ The app will open at `http://localhost:8501`
 
 ```
 attribution-graph-probing/
-├── eda/                                    # Streamlit application
-│   ├── app.py                              # Main app
-│   ├── pages/
-│   │   ├── 00_Graph_Generation.py          # Stage 1
-│   │   ├── 01_Probe_Prompts.py             # Stage 2
-│   │   └── 02_Node_Grouping.py             # Stage 3
-│   └── README.md                           # Complete documentation
+├── scripts/
+│   ├── 00_neuronpedia_graph_generation.py  # Stage 0: graph extraction
+│   ├── 01_probe_prompts.py                 # Stage 1: probe prompting
+│   ├── 02_node_grouping.py                 # Stage 2: classification + supernodes
+│   ├── 03_ct_steering.py                   # Stage 3: feature swapping engine
+│   ├── experiments/batch/                  # Batch runner + configs + analysis
+│   │   ├── run_batch_from_yaml.py          # Graph + grouping batch runner
+│   │   ├── run_batch_swaps.py              # Swap batch runner (parallel, multi-GPU)
+│   │   ├── configs/                        # YAML configs per domain/control mode
+│   │   ├── pipeline/controls/              # Labeled, random, additivity builders
+│   │   └── analyze_*.py                    # Analysis scripts
+│   └── utils/                              # Research toolkit
+│       ├── swap_query.py                   # Individual sample query + search
+│       ├── swap_stats.py                   # Aggregation, comparison, statistics
+│       ├── pipeline_tracer.py              # Upstream pipeline tracing
+│       └── AGENTIC_RESEARCH_GUIDE.md       # LLM agentic research guidelines
 │
-├── scripts/                                # Standalone Python scripts
-│   ├── 00_neuronpedia_graph_generation.py  # Graph generation
-│   ├── 01_probe_prompts.py                 # Probe prompting
-│   ├── 02_node_grouping.py                 # Node classification and naming
-│   └── causal_utils.py                     # Utilities
+├── demo/                                   # FastHTML Swap Explorer
+│   ├── main.py                             # App entry point
+│   ├── app/data/loader.py                  # Data loader (JSON + CSV)
+│   ├── app/routes/                         # API and page routes
+│   └── islands/                            # Svelte interactive components
+│
+├── eda/                                    # Streamlit application (pipeline UI)
+│   ├── app.py
+│   ├── pages/
+│   └── README.md
+│
+├── output/                                 # Experiment data (per-domain)
+│   ├── usa_states_batch/                   # 50 entities, 2450 pairs
+│   ├── book_characters_authors_batch/      # 16 entities, 240 pairs
+│   ├── products_founders_batch/            # 12 entities, 132 pairs
+│   ├── paintings_painters_batch/           # 10 entities, 90 pairs
+│   ├── sounds_colors_batch/               # 6 entities, 30 pairs
+│   └── FULLSCALE_CONTROL_REPORT.md
 │
 ├── tests/                                  # Test suite
-│   ├── test_node_naming.py
-│   ├── test_probe_prompts_api.py
-│   └── ...
-│
-├── output/                                 # Files generated by pipeline
-│   ├── graph_data/                         # Attribution graphs JSON
-│   ├── checkpoints/                        # Probe prompts checkpoints
-│   └── *.csv                               # Exports and results
-│
-├── docs/                                   # Documentation
-│   ├── Anthropic_circuit_tracing.md.txt    # Paper reference
-│   └── archive_old_pipeline/               # Old pipeline (archived)
-│
-├── .env                                    # API keys (do not commit)
-├── requirements.txt                        # Python dependencies
+├── METHODOLOGY_REPORT.md                   # Full methodology + epistemic status
+├── requirements.txt
 └── readme.md                               # This file
 ```
 
 ---
 
-## Detailed Pipeline
+## Interpretation Pipeline (Stages 0-2)
 
-### Stage 1: Graph Generation
+### Stage 0: Graph Generation
 
-**Script**: `scripts/00_neuronpedia_graph_generation.py`  
-**UI**: `eda/pages/00_Graph_Generation.py`
+**Script**: `scripts/00_neuronpedia_graph_generation.py`
 
-**What it does:**
-- Generates attribution graphs on Neuronpedia via API
-- Extracts static metrics (node_influence, cumulative_influence, frac_external)
-- Visualizes feature distribution (layer × context position)
-- Selects relevant features for Stage 2
+Generates attribution graphs via Neuronpedia API. Extracts per-node static metrics (`node_influence`, `cumulative_influence`, `frac_external_raw`). Applies cumulative influence pruning to select features for probing.
 
-**Output:**
-- `output/graph_data/*.json` - Complete attribution graph
-- `output/*_static_metrics.csv` - Metrics per feature
-- `output/*_selected_features.json` - Selected features
+### Stage 1: Probe Prompting
 
-**Key parameters:**
-- Model ID (gemma-2-2b, gpt2-small, etc.)
-- Node/Edge thresholds
-- Max feature nodes
+**Script**: `scripts/01_probe_prompts.py`
 
----
+Generates concept-aligned probe prompts that vary semantic content while preserving syntactic structure. Measures per-feature activations across probes, producing cross-prompt behavioral signatures (peak token consistency, sparsity, functional vs semantic preference).
 
-### Stage 2: Probe Prompts
+### Stage 2: Node Grouping
 
-**Script**: `scripts/01_probe_prompts.py`  
-**UI**: `eda/pages/01_Probe_Prompts.py`
+**Script**: `scripts/02_node_grouping.py`
 
-**What it does:**
-- Generates semantically related concepts via OpenAI
-- Gets activations for each feature on each concept via Neuronpedia API
-- Calculates activation pattern metrics (peak tokens, consistency, sparsity)
-- Automatic checkpoints every N features (resume from interruptions)
+Classifies features into functional types using a transparent decision tree:
 
-**Output:**
-- `output/*_export.csv` - Complete dataset with metrics
-- `output/*_export_ENRICHED.csv` - With aggregated metrics
-- `output/checkpoints/*.json` - Checkpoints for resume
+| Category | Criterion | Examples |
+|----------|-----------|----------|
+| **Semantic (Dictionary)** | peak_consistency >= 0.80, n_distinct_peaks <= 1 | "capital", "of" |
+| **Say "X"** | func_vs_sem_pct >= 50, conf_F >= 0.90, layer >= 7 | Say (Austin) |
+| **Relationship** | sparsity_median < 0.45 | (entity) related |
+| **Semantic (Concept)** | layer <= 3 or conf_S >= 0.50 | "Texas", "Dallas" |
 
-**Calculated metrics:**
-- Peak tokens (functional vs semantic)
-- Sparsity (median activations)
-- Consistency (peak token stability)
-- Confidence scores
-
-**Features:**
-- Automatic retry with exponential backoff
-- Intelligent rate limiting (2 req/sec)
-- Real-time progress tracking
-- Automatic resume from interruptions
+Features sharing classification and name are grouped into supernodes.
 
 ---
 
-### Stage 3: Node Grouping
+## Causal Testing Framework (Stage 3)
 
-**Script**: `scripts/02_node_grouping.py`  
-**UI**: `eda/pages/02_Node_Grouping.py`
+### Feature Swapping
 
-**What it does:**
-- **Step 1**: Classifies peak tokens (functional vs semantic), finds target tokens
-- **Step 2**: Classifies features into supernodes using decision tree
-- **Step 3**: Assigns automatic names based on activation patterns
-- **Optional**: Upload to Neuronpedia for interactive visualization
+For a swap from entity A to entity B: ablate A's supernodes (M=-2) and amplify B's supernodes (M=20) via additive delta injection. Attention is **not** frozen during intervention.
 
-**Output:**
-- `output/*_GROUPED.csv` - Complete CSV with classification and naming
-- `output/*_SUMMARY.json` - Statistics and parameters used
+### Control Modes
 
-**Supernode Categories:**
+| Mode | Description | Purpose |
+|------|-------------|---------|
+| **Labeled** | All concept-matched supernodes | Baseline intervention |
+| **Random x3** | Layer-matched random features, concept-excluded | Specificity control |
+| **Field additivity** | 7 field subsets per pair (3 single, 3 pair, 1 triple) | Decomposition analysis |
 
-1. **Semantic (Dictionary)**
-   - Always activates on the same specific token
-   - High peak consistency (≥0.8), few distinct peaks (≤1)
-   - Examples: "capital", "of", "the"
+### Datasets
 
-2. **Semantic (Concept)**
-   - Activates on semantically related tokens
-   - Low layers (≤3) or high semantic confidence
-   - Examples: "Capital", "Texas", "Dallas"
+| Dataset | Template | Fields | Entities | Pairs |
+|---------|----------|--------|----------|-------|
+| USA States | "The capital of the state containing {city} is" | state, capital, city | 50 | 2,450 |
+| Books | "The book featuring {character} was written by" | book, author, character | 16 | 240 |
+| Products | "The company that makes {product} was founded by" | company, founder, product | 12 | 132 |
+| Paintings | "The first name of the painter of {painting} is" | painting, painter, first_name | 10 | 90 |
+| Sounds | "The most common color of the animal that goes '{sound}' is" | sound, animal, color | 6 | 30 |
 
-3. **Say "X"**
-   - Predicts a specific output token
-   - High layers (≥7), functional dominance (≥50%), high confidence
-   - Examples: 'Say "Austin"', 'Say "Capital"'
+### Evaluation Metrics
 
-4. **Relationship**
-   - Encodes relationships between entities
-   - Low sparsity (<0.45), diffuse activation
-   - Naming based on semantic target pairs
+- **Hit%**: target answer in steered output
+- **Sup%**: source answer absent from steered output
+- **vsMax**: target logit minus max other answer logit (best over trajectory)
+- **RkGrp**: best rank within full answer contrast group
+- **Gap closure**: max logit gap improvement over trajectory
 
-**Decision Tree (V4 Final):**
+---
+
+## Research Toolkit
+
+Three modules in `scripts/utils/` enable programmatic exploration of the full experimental dataset.
+
+### `swap_query.py` -- Individual sample access
 
 ```python
-IF peak_consistency >= 0.8 AND n_distinct_peaks <= 1:
-    → Semantic (Dictionary)
-ELIF func_vs_sem_pct >= 50 AND conf_F >= 0.90 AND layer >= 7:
-    → Say "X"
-ELIF sparsity_median < 0.45:
-    → Relationship
-ELIF layer <= 3 OR conf_S >= 0.50 OR func_vs_sem_pct < 50:
-    → Semantic (Concept)
-ELSE:
-    → Review
+q = SwapQuery()
+
+# Search with filtering and sorting
+results = q.search(
+    dataset="usa_states_batch",
+    run="fullscale_usa_field_add",
+    variant="add_state",
+    sort_by="source_error_node_pct",
+    top_n=5,
+)
+
+# Full detail for one sample
+detail = q.get("usa_states_batch", "fullscale_usa_field_add",
+                "mississippi_gulfport", "arizona_tucson", variant="add_state")
+q.describe(detail)
 ```
 
----
+### `swap_stats.py` -- Aggregation and comparison
 
-## Command Line Usage
+```python
+s = SwapStats(q)
 
-### Graph Generation
+# Labeled vs random with bootstrap CIs and Cohen's d
+comp = s.compare(
+    a=dict(dataset="usa_states_batch", run="fullscale_usa_labeled", label="labeled"),
+    b=dict(dataset="usa_states_batch", run="fullscale_usa_random", label="random"),
+)
+s.print_comparison(comp)
 
-```bash
-python scripts/00_neuronpedia_graph_generation.py \
-  --model gemma-2-2b \
-  --source gemmascope-transcoder-16k \
-  --prompt "The capital of Texas is" \
-  --target " Austin"
+# Per-entity breakdown
+rows = s.per_entity("usa_states_batch", "fullscale_usa_field_add",
+                     variant="add_state", role="source")
+s.print_entity_table(rows)
 ```
 
-### Probe Prompts
+### `pipeline_tracer.py` -- Upstream debugging
 
-```bash
-python scripts/01_probe_prompts.py \
-  --graph output/graph_data/my_graph.json \
-  --api-key $NEURONPEDIA_API_KEY \
-  --concepts "Dallas,Texas,Capital,city,state" \
-  --checkpoint-every 10
+```python
+t = PipelineTracer()
+
+# Graph quality + supernode breakdown for one entity
+gp, grp = t.entity_profile("usa_states_batch", "mississippi_gulfport")
+t.print_entity_profile(gp, grp)
+
+# Trace concept-to-supernode matching
+trace = t.trace_swap_matching(
+    "usa_states_batch", "mississippi_gulfport", "arizona_tucson",
+    concept_fields=["state"],
+)
+t.print_matching_trace(trace)
 ```
 
-### Node Grouping
-
-```bash
-python scripts/02_node_grouping.py \
-  --input output/my_export_ENRICHED.csv \
-  --output output/my_GROUPED.csv \
-  --json output/activations.json \
-  --graph output/graph_data/my_graph.json
-```
+See `scripts/utils/AGENTIC_RESEARCH_GUIDE.md` for complete LLM agentic research guidelines.
 
 ---
 
 ## Documentation
 
-- **Complete Streamlit Guide**: `eda/README.md` (600+ lines)
-- **Node Grouping Guide**: `eda/pages/README_NODE_GROUPING.md`
-- **Environment Setup**: `SETUP.md`
-- **Tests**: `tests/` (10+ test units)
+- **Methodology**: `METHODOLOGY_REPORT.md` -- claims, evidence, epistemic status
+- **Control results**: `output/FULLSCALE_CONTROL_REPORT.md` -- 33k-run analysis
+- **Batch experiments**: `scripts/experiments/batch/README.md`
+- **Agentic research**: `scripts/utils/AGENTIC_RESEARCH_GUIDE.md`
+- **Streamlit guide**: `eda/README.md`
+- **Demo app**: `demo/README.md`
 
 ### External References
 
-- **Circuit Tracer** (Anthropic): https://github.com/safety-research/circuit-tracer
-- **Paper**: https://transformer-circuits.pub/2025/attribution-graphs/
-- **Neuronpedia**: https://www.neuronpedia.org
-
----
-
-## FAQ
-
-**Q: How long does a complete analysis take?**
-
-A: Depends on the number of features and concepts:
-- Graph Generation: 1-5 minutes
-- Probe Prompts (100 features × 5 concepts): ~10 minutes
-- Node Grouping: < 1 minute
-
-**Q: What happens if Probe Prompting is interrupted?**
-
-A: Thanks to automatic checkpoints, you can resume exactly where you left off. Select the checkpoint from the dropdown and click "Resume".
-
-**Q: Can I modify classification thresholds?**
-
-A: Yes! In the Node Grouping sidebar you can modify all thresholds and re-run Step 2 without redoing Step 1.
-
-**Q: How do I visualize results on Neuronpedia?**
-
-A: In the Node Grouping page, after Step 3, use the "Upload Neuronpedia" section to upload the subgraph with named supernodes.
-
-**Q: Is the old "anthropological" pipeline (cicciotti, influence-first, etc.) still available?**
-
-A: No, it has been deprecated. Documentation is archived in `docs/archive_old_pipeline/` for historical reference.
-
----
-
-## Troubleshooting
-
-**Error: "API key not found"**
-
-Solution: Create `.env` with API keys (see Setup)
-
-**Error: "No checkpoint found"**
-
-Solution: Normal for first run. Checkpoints are created automatically during analysis.
-
-**Error: UnicodeEncodeError (Windows)**
-
-Solution:
-```powershell
-$env:PYTHONIOENCODING='utf-8'
-streamlit run eda/app.py
-```
-
-**Error: "Rate limit exceeded"**
-
-Solution: Automatic retry handles rate limits. If it persists, increase wait times in `scripts/01_probe_prompts.py`.
-
----
-
-## Contributing
-
-This project is part of a research application for MATS (AI Safety).
-
-For questions or contributions:
-- Consult documentation in `eda/README.md`
-- Run tests in `tests/`
+- [Circuit Tracer](https://github.com/safety-research/circuit-tracer) (Anthropic)
+- [Attribution Graphs paper](https://transformer-circuits.pub/2025/attribution-graphs/) (Ameisen et al., 2025)
+- [Neuronpedia](https://www.neuronpedia.org)
 
 ---
 
 ## Changelog
 
-### v2.0.0-clean (October 2025)
-- Completely renewed pipeline (3 stages)
-- Migration to Neuronpedia API
-- Automated probe prompting
-- Automatic supernode classification and naming
-- Checkpoints and resume for long analyses
-- Interactive Streamlit UI
+### v3.0.0 (March 2026)
+- Full-scale control experiment framework (labeled, random, field-additivity)
+- 33,387 steering runs across 5 domains
+- Research toolkit: swap_query, swap_stats, pipeline_tracer
+- FastHTML Swap Explorer demo with multi-dataset support
+- Logit trajectory tracking and contrast group analysis
+- Methodology report with epistemic framing
+
+### v2.0.0 (October 2025)
+- Renewed pipeline (3 stages)
+- Neuronpedia API integration
+- Automated probe prompting and supernode classification
+- Streamlit UI
 
 ### v1.x (Archived)
-- Old "anthropological" pipeline (cicciotti, influence-first)
 - Documentation in `docs/archive_old_pipeline/`
 
 ---
 
-**Version**: 2.0.0-clean  
-**License**: GPL-3.0  
-**Last Updated**: October 2025
+**Version**: 3.0.0
+**License**: GPL-3.0
+**Last Updated**: March 2026
