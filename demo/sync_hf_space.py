@@ -71,6 +71,16 @@ def remove_pycache(root: Path) -> None:
             shutil.rmtree(path)
 
 
+def remove_work_dirs(root: Path) -> int:
+    """Remove _work directories (GPU batch artifacts not needed for the demo)."""
+    removed = 0
+    for path in root.rglob("_work"):
+        if path.is_dir():
+            shutil.rmtree(path)
+            removed += 1
+    return removed
+
+
 def remove_hf_blocked_binaries(root: Path) -> int:
     removed = 0
     for path in root.rglob("*"):
@@ -163,9 +173,11 @@ def main() -> int:
         require_dir(output_root, "Output root")
         data_copy_info = copy_demo_datasets(output_root, space_dir / "data")
         removed_binary_count = remove_hf_blocked_binaries(space_dir / "data")
+        removed_work_count = remove_work_dirs(space_dir / "data")
     else:
         data_copy_info = None
         removed_binary_count = 0
+        removed_work_count = 0
 
     remove_pycache(space_dir)
 
@@ -176,6 +188,8 @@ def main() -> int:
         print(f"Data sync: demo-enabled datasets from {output_root} -> {space_dir / 'data'}")
         print(f"Datasets copied: {data_copy_info['dataset_count']} ({', '.join(data_copy_info['dataset_labels'])})")
         print(f"Removed HF-blocked binaries: {removed_binary_count}")
+        if removed_work_count:
+            print(f"Removed _work dirs: {removed_work_count}")
         print(f"Data summary: {summarize_output_root(space_dir / 'data')}")
     print("Next steps:")
     print(f"  cd {space_dir}")

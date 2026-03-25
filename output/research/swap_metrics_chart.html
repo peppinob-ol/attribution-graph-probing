@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swap Metrics: Best vs Labeled vs Random</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --border: #2a2d3a;
+  --text: #e4e4e7;
+  --muted: #71717a;
+  --best: #22d3ee;
+  --labeled: #a78bfa;
+  --random: #f87171;
+  --best-bg: rgba(34,211,238,0.15);
+  --labeled-bg: rgba(167,139,250,0.15);
+  --random-bg: rgba(248,113,113,0.15);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  padding: 32px 24px;
+}
+h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+.subtitle {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-bottom: 28px;
+}
+.legend-row {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  max-width: 1200px;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+.card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.card-desc {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 16px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.chart-wrap {
+  position: relative;
+  height: 340px;
+}
+.n-table {
+  margin-top: 20px;
+  grid-column: 1 / -1;
+}
+.n-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  font-family: 'JetBrains Mono', monospace;
+}
+.n-table th, .n-table td {
+  padding: 8px 12px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+.n-table th {
+  color: var(--muted);
+  font-weight: 500;
+  text-align: right;
+}
+.n-table th:first-child, .n-table td:first-child { text-align: left; }
+.n-table tr:last-child td { border-bottom: none; }
+.best-val { color: var(--best); }
+.labeled-val { color: var(--labeled); }
+.random-val { color: var(--random); }
+@media (max-width: 800px) {
+  .grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<h1>Swap Steering Metrics by Domain</h1>
+<p class="subtitle">Best field-add variant vs full labeled vs random controls -- 95% bootstrap CIs (N=2,000 resamples)</p>
+
+<div class="legend-row">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--best)"></div>Best variant</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--labeled)"></div>Full labeled</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--random)"></div>Random</div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="card-title">vsMax (logit shift)</div>
+    <div class="card-desc">mean target logit gain vs unsteered max</div>
+    <div class="chart-wrap"><canvas id="chartVsMax"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Hit% (exact match rate)</div>
+    <div class="card-desc">% of swaps where steered output contains target answer</div>
+    <div class="chart-wrap"><canvas id="chartHit"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">RkGrp (rank in group)</div>
+    <div class="card-desc">mean rank of target among grouped alternatives (1 = best)</div>
+    <div class="chart-wrap"><canvas id="chartRk"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">MedRk (median rank)</div>
+    <div class="card-desc">median rank of target token in full vocabulary</div>
+    <div class="chart-wrap"><canvas id="chartMedRk"></canvas></div>
+  </div>
+
+  <div class="card n-table">
+    <div class="card-title" style="margin-bottom:12px">Sample sizes & best variant details</div>
+    <table>
+      <tr>
+        <th>Domain</th>
+        <th>Best variant</th>
+        <th>N (best)</th>
+        <th>N (labeled)</th>
+        <th>N (random)</th>
+      </tr>
+      <tr>
+        <td>USA</td><td>state + capital</td>
+        <td class="best-val">2,450</td><td class="labeled-val">2,450</td><td class="random-val">7,350</td>
+      </tr>
+      <tr>
+        <td>Books</td><td>book + author</td>
+        <td class="best-val">240</td><td class="labeled-val">240</td><td class="random-val">720</td>
+      </tr>
+      <tr>
+        <td>Products</td><td>company + founder</td>
+        <td class="best-val">132</td><td class="labeled-val">132</td><td class="random-val">396</td>
+      </tr>
+      <tr>
+        <td>Paintings</td><td>first_name</td>
+        <td class="best-val">90</td><td class="labeled-val">90</td><td class="random-val">270</td>
+      </tr>
+      <tr>
+        <td>Sounds</td><td>sound + animal</td>
+        <td class="best-val">30</td><td class="labeled-val">30</td><td class="random-val">90</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<script>
+Chart.register(ChartDataLabels);
+Chart.defaults.color = '#e4e4e7';
+Chart.defaults.font.family = "'DM Sans', sans-serif";
+
+const DOMAINS = ['USA', 'Books', 'Products', 'Paintings', 'Sounds'];
+const BEST  = 'rgba(34,211,238,1)';
+const LAB   = 'rgba(167,139,250,1)';
+const RAND  = 'rgba(248,113,113,1)';
+const BEST_BG  = 'rgba(34,211,238,0.7)';
+const LAB_BG   = 'rgba(167,139,250,0.7)';
+const RAND_BG  = 'rgba(248,113,113,0.7)';
+
+const data = {
+  vsMax: {
+    best:    { val: [4.003, 7.764, 3.062, 1.460, 4.690], lo: [3.892, 7.250, 2.417, 1.013, 3.291], hi: [4.127, 8.299, 3.722, 1.905, 6.146] },
+    labeled: { val: [2.856, 5.981, 3.460, 1.551, 3.277], lo: [2.706, 5.564, 2.788, 1.046, 2.526], hi: [3.002, 6.400, 4.147, 2.062, 4.154] },
+    random:  { val: [-2.314, -0.155, 0.231, -0.031, 3.140], lo: [-2.361, -0.340, -0.057, -0.271, 2.601], hi: [-2.268, 0.022, 0.537, 0.227, 3.705] },
+  },
+  hit: {
+    best:    { val: [38.78, 37.08, 24.24, 6.67, 20.00], lo: [36.90, 30.83, 16.67, 2.22, 6.67], hi: [40.82, 43.33, 31.82, 12.22, 36.67] },
+    labeled: { val: [24.73, 3.75, 15.15, 4.44, 0.00], lo: [23.10, 1.67, 9.09, 1.11, 0.00], hi: [26.45, 6.25, 21.21, 8.89, 0.00] },
+    random:  { val: [0.10, 0.28, 0.25, 0.00, 12.22], lo: [0.03, 0.00, 0.00, 0.00, 5.56], hi: [0.18, 0.69, 0.76, 0.00, 18.89] },
+  },
+  rkGrp: {
+    best:    { val: [1.474, 1.021, 1.273, 1.411, 1.067], lo: [1.362, 1.000, 1.189, 1.256, 1.000], hi: [1.596, 1.050, 1.371, 1.600, 1.167] },
+    labeled: { val: [1.721, 1.029, 1.197, 1.311, 1.000], lo: [1.636, 1.008, 1.136, 1.189, 1.000], hi: [1.815, 1.054, 1.273, 1.444, 1.000] },
+    random:  { val: [9.001, 2.429, 2.250, 1.959, 1.078], lo: [8.820, 2.292, 2.088, 1.822, 1.033], hi: [9.185, 2.574, 2.422, 2.107, 1.144] },
+  },
+  medRk: {
+    best:    { val: [3, 2, 18, 90, 5] },
+    labeled: { val: [5, 17, 26, 66, 20] },
+    random:  { val: [566, 283, 354, 196, 24] },
+  },
+};
+
+const Ns = {
+  best:    [2450, 240, 132, 90, 30],
+  labeled: [2450, 240, 132, 90, 30],
+  random:  [7350, 720, 396, 270, 90],
+};
+
+function makeErrorBars(d) {
+  return d.val.map((v, i) => {
+    if (d.lo && d.hi) return { min: d.lo[i], max: d.hi[i] };
+    return { min: v, max: v };
+  });
+}
+
+function makeDataset(label, d, color, bgColor) {
+  const eb = makeErrorBars(d);
+  return {
+    label,
+    data: d.val,
+    backgroundColor: bgColor,
+    borderColor: color,
+    borderWidth: 2,
+    borderRadius: 4,
+    errorBars: eb,
+  };
+}
+
+const errorBarPlugin = {
+  id: 'errorBars',
+  afterDatasetsDraw(chart) {
+    const ctx = chart.ctx;
+    chart.data.datasets.forEach((ds, di) => {
+      if (!ds.errorBars) return;
+      const meta = chart.getDatasetMeta(di);
+      meta.data.forEach((bar, i) => {
+        const eb = ds.errorBars[i];
+        if (!eb || eb.min === eb.max) return;
+        const x = bar.x;
+        const yScale = chart.scales.y;
+        const yMin = yScale.getPixelForValue(eb.min);
+        const yMax = yScale.getPixelForValue(eb.max);
+        ctx.save();
+        ctx.strokeStyle = ds.borderColor;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, yMin);
+        ctx.lineTo(x, yMax);
+        ctx.stroke();
+        const capW = 5;
+        ctx.beginPath();
+        ctx.moveTo(x - capW, yMin);
+        ctx.lineTo(x + capW, yMin);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x - capW, yMax);
+        ctx.lineTo(x + capW, yMax);
+        ctx.stroke();
+        ctx.restore();
+      });
+    });
+  }
+};
+
+Chart.register(errorBarPlugin);
+
+function makeChart(canvasId, metric, yLabel, opts = {}) {
+  const d = data[metric];
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: DOMAINS,
+      datasets: [
+        makeDataset('Best', d.best, BEST, BEST_BG),
+        makeDataset('Labeled', d.labeled, LAB, LAB_BG),
+        makeDataset('Random', d.random, RAND, RAND_BG),
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        datalabels: {
+          display: function(ctx) {
+            return Math.abs(ctx.dataset.data[ctx.dataIndex]) > (opts.dlThreshold || 0.3);
+          },
+          anchor: function(ctx) {
+            return ctx.dataset.data[ctx.dataIndex] >= 0 ? 'end' : 'start';
+          },
+          align: function(ctx) {
+            return ctx.dataset.data[ctx.dataIndex] >= 0 ? 'top' : 'bottom';
+          },
+          color: function(ctx) {
+            return ctx.dataset.borderColor;
+          },
+          font: { size: 10, family: "'JetBrains Mono', monospace", weight: 500 },
+          formatter: function(value) {
+            if (opts.pct) return value.toFixed(1) + '%';
+            if (opts.int) return Math.round(value);
+            return value.toFixed(2);
+          },
+          offset: 2,
+        },
+        tooltip: {
+          backgroundColor: '#1a1d27',
+          borderColor: '#2a2d3a',
+          borderWidth: 1,
+          titleFont: { family: "'DM Sans'" },
+          bodyFont: { family: "'JetBrains Mono', monospace", size: 12 },
+          callbacks: {
+            afterLabel: function(ctx) {
+              const di = ctx.datasetIndex;
+              const i = ctx.dataIndex;
+              const cond = ['best','labeled','random'][di];
+              const eb = data[metric][cond];
+              let s = 'N = ' + Ns[cond][i].toLocaleString();
+              if (eb.lo && eb.hi) {
+                s += '\n95% CI: [' + eb.lo[i].toFixed(2) + ', ' + eb.hi[i].toFixed(2) + ']';
+              }
+              return s;
+            }
+          }
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { font: { size: 12, weight: 500 } },
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.07)' },
+          title: { display: true, text: yLabel, font: { size: 12 } },
+          ...(opts.yOpts || {}),
+        },
+      },
+    },
+  });
+}
+
+makeChart('chartVsMax', 'vsMax', 'logit shift (vsMax)');
+makeChart('chartHit', 'hit', 'Hit %', { pct: true, dlThreshold: 0.5 });
+makeChart('chartRk', 'rkGrp', 'rank in group', { dlThreshold: 0.05 });
+makeChart('chartMedRk', 'medRk', 'median rank', {
+  int: true,
+  dlThreshold: 1,
+  yOpts: { type: 'logarithmic', min: 1 }
+});
+</script>
+</body>
+</html>

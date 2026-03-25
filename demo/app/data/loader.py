@@ -110,8 +110,17 @@ def _semantic_run_label(
     return pretty
 
 
+def _is_subpath(child: Path, parent: Path) -> bool:
+    """Return True if *child* is equal to or nested under *parent*."""
+    try:
+        child.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
 # ---------------------------------------------------------------------------
-# DemoRegistry  – multi-dataset discovery
+# DemoRegistry  -- multi-dataset discovery
 # ---------------------------------------------------------------------------
 
 class DemoRegistry:
@@ -196,9 +205,9 @@ class DemoRegistry:
                 candidate = Path(graphs_root_raw)
                 if not candidate.is_absolute():
                     candidate = self.output_root.parent / candidate
-                if candidate.exists():
+                resolved_root = self.output_root.resolve()
+                if candidate.exists() and _is_subpath(candidate.resolve(), resolved_root):
                     dataset_dir = candidate
-                # Windows path on a Linux machine: fall through to physical parent
 
             if dataset_dir is None:
                 # Physical fallback: output/<ds>/_swaps/runs/<run_id>/run_manifest.json
