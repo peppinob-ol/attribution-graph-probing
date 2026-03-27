@@ -25,6 +25,7 @@
   let featuresExpanded = false;
   let contrastGroupExpanded = false;
   let topkExpanded = false;
+  let trajectoryExpanded = false;
 
   // Global variant from the matrix selector (persists across cell selections)
   let globalVariant = null;
@@ -35,6 +36,8 @@
   $: loadedVariant = data?._loaded_variant || null;
   $: controlMode = derived?.control_mode || null;
   $: fieldsUsed = derived?.fields_used || null;
+  $: hasContrastMetrics = derived?.vs_max != null || derived?.rank_in_group != null || derived?.vs_topk != null;
+  $: hasTrajMetrics = derived?.initial_gap != null || derived?.best_gap != null || derived?.gap_closure != null;
   
   let domainConfig = null;
   $: isUsaStates = domainConfig?.is_usa_states ?? true;
@@ -48,6 +51,21 @@
     1: { name: 'SOURCE PERSISTS', color: 'bg-red-500', textColor: 'text-red-400', desc: 'Source answer still in output' },
     0: { name: 'WRONG ANSWER', color: 'bg-slate-600', textColor: 'text-slate-400', desc: 'Unrelated answer in output' },
   };
+
+  const regimeInfo = {
+    A: { label: 'Clean Redirection', color: 'text-emerald-400', bgColor: 'bg-emerald-500/20', borderColor: 'border-emerald-500/30' },
+    B: { label: 'Both Boosted', color: 'text-blue-400', bgColor: 'bg-blue-500/20', borderColor: 'border-blue-500/30' },
+    C: { label: 'Differential Disruption', color: 'text-yellow-400', bgColor: 'bg-yellow-500/20', borderColor: 'border-yellow-500/30' },
+    D: { label: 'Generic Disruption', color: 'text-red-400', bgColor: 'bg-red-500/20', borderColor: 'border-red-500/30' },
+    E: { label: 'Pure Suppression', color: 'text-slate-400', bgColor: 'bg-slate-500/20', borderColor: 'border-slate-500/30' },
+  };
+
+  function getRegimeInfo() {
+    const regime = derived?.regime;
+    if (!regime || !regimeInfo[regime]) return null;
+    const info = regimeInfo[regime];
+    return { regime, ...info };
+  }
   
   function handleEscape(event) {
     if (visible && event.key === 'Escape') {
@@ -90,6 +108,7 @@
     featuresExpanded = false;
     contrastGroupExpanded = false;
     topkExpanded = false;
+    trajectoryExpanded = false;
     sourceSubgraphUrl = null;
     targetSubgraphUrl = null;
     
@@ -124,6 +143,7 @@
     error = null;
     features = null;
     featuresExpanded = false;
+    trajectoryExpanded = false;
     try {
       const qs = variantSuffix ? `?variant=${encodeURIComponent(variantSuffix)}` : '';
       const res = await fetch(`/api/swap/${fromSlug}/${toSlug}${qs}`);
@@ -174,6 +194,7 @@
     features = null;
     featuresExpanded = false;
     topkExpanded = false;
+    trajectoryExpanded = false;
     fromSlug = null;
     toSlug = null;
     selectedVariant = null;
@@ -483,97 +504,94 @@
           </div>
         </div>
         
-        <!-- Control + Variant (merged block) -->
-        {#if (controlMode && controlMode !== 'labeled') || variants.length > 0}
-          <div class="mb-4 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/30">
-            {#if controlMode && controlMode !== 'labeled'}
-              <div class="flex items-center gap-2 flex-wrap {variants.length > 0 ? 'mb-2' : ''}">
-                <span class="px-2 py-0.5 rounded text-xs font-bold bg-indigo-500/30 text-indigo-300">
-                  {controlModeLabels[controlMode] || controlMode}
-                </span>
-                {#if fieldsUsed && fieldsUsed.length > 0}
-                  <span class="text-xs text-slate-400">Fields: {fieldsUsed.join(', ')}</span>
-                {/if}
-                {#if derived.replicate_id != null}
-                  <span class="text-xs text-slate-500">Replicate #{derived.replicate_id}</span>
-                {/if}
-              </div>
-            {/if}
-            {#if variants.length > 0}
-              <div class="flex flex-wrap gap-1.5">
-                <button
-                  class="px-2 py-1 text-xs rounded transition-colors {!selectedVariant ? 'bg-cyan-900/50 text-cyan-400 border border-cyan-500/40' : 'bg-slate-700 text-slate-400 hover:bg-slate-600 border border-transparent'}"
-                  on:click={() => switchVariant(null)}
-                >Best</button>
-                {#each variants as v}
-                  <button
-                    class="px-2 py-1 text-xs rounded transition-colors {selectedVariant === v.variant_suffix ? 'bg-cyan-900/50 text-cyan-400 border border-cyan-500/40' : 'bg-slate-700 text-slate-400 hover:bg-slate-600 border border-transparent'}"
-                    on:click={() => switchVariant(v.variant_suffix)}
-                    title="Tier {v.tier ?? '?'} | Flip {v.flip_position ?? 'N/A'}"
-                  >{variantLabel(v.variant_suffix)}</button>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        {/if}
-        <!-- Tier badge + Flip badge -->
+        <!-- Outcome Summary: Tier + Regime + Flip + Primary Metrics (merged) -->
         {@const flipStatus = SHOW_TRAJECTORY_FEATURES ? getFlipStatus() : null}
-        <div class="mb-4 p-4 rounded-lg bg-slate-800/50 border border-slate-700">
-          <div class="flex items-center gap-3 mb-2 flex-wrap">
-            <div class="px-3 py-1 rounded {info.color} text-white font-bold text-sm">
-              TIER {tier}
+        {@const regimeStatus = getRegimeInfo()}
+        <div class="mb-4 p-3 rounded-lg bg-slate-800/50 border border-slate-700">
+          <!-- Badges row -->
+          <div class="flex items-center gap-2 mb-2 flex-wrap">
+            <div class="px-2.5 py-0.5 rounded {info.color} text-white font-bold text-sm">
+              T{tier}
             </div>
-            <div class="{info.textColor} font-semibold">{info.name}</div>
-            
-            <!-- Flip badge (new) -->
+            <div class="{info.textColor} font-semibold text-sm">{info.name}</div>
             {#if flipStatus}
               <div
-                class="px-2 py-1 rounded {flipStatus.bgColor} {flipStatus.color} font-mono text-xs border border-current/30"
+                class="px-2 py-0.5 rounded {flipStatus.bgColor} {flipStatus.color} font-mono text-xs border border-current/30"
                 title={flipStatus.description}
               >
                 {flipStatus.badgeLabel}
               </div>
             {/if}
           </div>
-          <p class="text-sm text-slate-400">{info.desc}</p>
+          <!-- Regime display: badge + label on first row, logit direction on second -->
+          {#if regimeStatus}
+            {@const tgtDir = derived.target_logit_delta > 0 ? 'UP' : derived.target_logit_delta < -1 ? 'DOWN' : 'FLAT'}
+            {@const srcDir = derived.source_logit_delta < -1 ? 'DOWN' : derived.source_logit_delta > 0 ? 'UP' : 'FLAT'}
+            {@const tgtColor = tgtDir === 'UP' ? 'text-emerald-400' : tgtDir === 'DOWN' ? 'text-red-400' : 'text-slate-400'}
+            {@const srcColor = srcDir === 'UP' ? 'text-emerald-400' : srcDir === 'DOWN' ? 'text-red-400' : 'text-slate-400'}
+            <div
+              class="mb-2 cursor-help"
+              title="Regime {regimeStatus.regime}: {regimeStatus.label}&#10;&#10;A  Tgt UP   Src DOWN  flip=yes  Clean redirection&#10;B  Tgt UP   Src UP    flip=--   Both boosted&#10;C  Tgt DOWN  Src DOWN  flip=yes  Differential disruption&#10;D  Tgt DOWN  Src DOWN  flip=no   Generic disruption&#10;E  Tgt FLAT  Src DOWN  flip=yes  Pure suppression"
+            >
+              <div class="flex items-center gap-2 text-xs">
+                <span class="px-1.5 py-0.5 rounded {regimeStatus.bgColor} {regimeStatus.color} font-bold border {regimeStatus.borderColor}">{regimeStatus.regime}</span>
+                <span class="{regimeStatus.color} font-medium">{regimeStatus.label}</span>
+              </div>
+              <div class="flex items-center gap-4 text-xs mt-1 ml-7">
+                <span class="text-slate-500">Target <span class="{tgtColor} font-mono font-bold">{tgtDir}</span></span>
+                <span class="text-slate-500">Source <span class="{srcColor} font-mono font-bold">{srcDir}</span></span>
+              </div>
+            </div>
+          {/if}
           {#if data.classification?.notes}
-            <p class="text-sm text-slate-500 mt-2">{data.classification.notes}</p>
+            <p class="text-xs text-slate-500 mb-1">{data.classification.notes}</p>
           {/if}
-          {#if data.classification?.cities_found}
-            <p class="text-xs text-slate-600 mt-2">
-              Found: {Array.isArray(data.classification.cities_found) ? data.classification.cities_found.join(', ') : data.classification.cities_found}
-            </p>
-          {/if}
-        </div>
-
-        <!-- Contrast metrics -->
-        {#if derived.vs_max != null || derived.vs_topk != null || derived.rank_in_group != null}
-          <div class="mb-4 p-3 rounded-lg bg-slate-800/50 border border-slate-700">
-            <div class="text-xs text-slate-500 uppercase mb-2">Contrast Metrics</div>
-            <div class="grid grid-cols-3 gap-2">
-              {#if derived.vs_max != null}
-                <div class="p-2 rounded bg-slate-900/30" title="Best (target logit - max other dataset answer). Positive = target beats all alternatives.">
-                  <div class="text-xs text-slate-500 mb-0.5">vsMax</div>
-                  <div class="text-sm font-mono {derived.vs_max > 0 ? 'text-emerald-400' : derived.vs_max > -2 ? 'text-yellow-400' : 'text-red-400'}">{formatNum(derived.vs_max)}</div>
-                </div>
-              {/if}
-              {#if derived.vs_topk != null}
-                <div class="p-2 rounded bg-slate-900/30" title="Best (target logit - mean top-{derived.contrast_topk_k ?? 3} other dataset answers). Positive = target beats the strongest cluster.">
-                  <div class="text-xs text-slate-500 mb-0.5">vsTopK</div>
-                  <div class="text-sm font-mono {derived.vs_topk > 0 ? 'text-emerald-400' : derived.vs_topk > -2 ? 'text-yellow-400' : 'text-red-400'}">{formatNum(derived.vs_topk)}</div>
-                </div>
-              {/if}
-              {#if derived.rank_in_group != null}
-                <div class="p-2 rounded bg-slate-900/30" title="Best rank of target within all {derived.contrast_n ?? '?'} dataset answer tokens (1 = top).">
-                  <div class="text-xs text-slate-500 mb-0.5">RkGrp</div>
-                  <div class="text-sm font-mono {derived.rank_in_group === 1 ? 'text-emerald-400' : derived.rank_in_group <= 3 ? 'text-yellow-400' : 'text-red-400'}">{derived.rank_in_group}</div>
-                </div>
+          <!-- Primary metrics row -->
+          {#if hasContrastMetrics || hasTrajMetrics}
+            <div class="flex items-center gap-3 pt-2 border-t border-slate-700/50 flex-wrap">
+              {#if hasContrastMetrics}
+                {#if derived.vs_max != null}
+                  <div class="flex items-baseline gap-1" title="Best (target logit - max other dataset answer). Positive = target beats all alternatives.">
+                    <span class="text-[10px] text-slate-500 uppercase">vsMax</span>
+                    <span class="text-sm font-mono font-bold {derived.vs_max > 0 ? 'text-emerald-400' : derived.vs_max > -2 ? 'text-yellow-400' : 'text-red-400'}">{derived.vs_max > 0 ? '+' : ''}{formatNum(derived.vs_max)}</span>
+                  </div>
+                {/if}
+                {#if derived.rank_in_group != null}
+                  <div class="flex items-baseline gap-1" title="Best rank of target within all {derived.contrast_n ?? '?'} dataset answer tokens (1 = top).">
+                    <span class="text-[10px] text-slate-500 uppercase">RkGrp</span>
+                    <span class="text-sm font-mono font-bold {derived.rank_in_group === 1 ? 'text-emerald-400' : derived.rank_in_group <= 3 ? 'text-yellow-400' : 'text-red-400'}">{derived.rank_in_group}</span>
+                  </div>
+                {/if}
+                {#if derived.vs_topk != null}
+                  <div class="flex items-baseline gap-1" title="Best (target logit - mean top-{derived.contrast_topk_k ?? 3} other dataset answers).">
+                    <span class="text-[10px] text-slate-500 uppercase">vsTopK</span>
+                    <span class="text-sm font-mono font-bold {derived.vs_topk > 0 ? 'text-emerald-400' : derived.vs_topk > -2 ? 'text-yellow-400' : 'text-red-400'}">{derived.vs_topk > 0 ? '+' : ''}{formatNum(derived.vs_topk)}</span>
+                  </div>
+                {/if}
+              {:else}
+                {#if derived.initial_gap != null}
+                  <div class="flex items-baseline gap-1" title="Target logit minus source logit at generation position 0.">
+                    <span class="text-[10px] text-slate-500 uppercase">Gap0</span>
+                    <span class="text-sm font-mono font-bold {derived.initial_gap > 0 ? 'text-emerald-400' : derived.initial_gap < 0 ? 'text-red-400' : 'text-slate-400'}">{derived.initial_gap > 0 ? '+' : ''}{formatNum(derived.initial_gap)}</span>
+                  </div>
+                {/if}
+                {#if derived.best_gap != null}
+                  <div class="flex items-baseline gap-1" title="Maximum target-minus-source margin across all generation positions.">
+                    <span class="text-[10px] text-slate-500 uppercase">BestGap</span>
+                    <span class="text-sm font-mono font-bold {derived.best_gap > 0 ? 'text-emerald-400' : derived.best_gap < 0 ? 'text-red-400' : 'text-slate-400'}">{derived.best_gap > 0 ? '+' : ''}{formatNum(derived.best_gap)}</span>
+                  </div>
+                {/if}
+                {#if derived.gap_closure != null}
+                  <div class="flex items-baseline gap-1" title="Best gap minus initial gap. Positive = target gained advantage.">
+                    <span class="text-[10px] text-slate-500 uppercase">Closure</span>
+                    <span class="text-sm font-mono font-bold {derived.gap_closure > 0 ? 'text-emerald-400' : derived.gap_closure < 0 ? 'text-red-400' : 'text-slate-400'}">{derived.gap_closure > 0 ? '+' : ''}{formatNum(derived.gap_closure)}</span>
+                  </div>
+                {/if}
               {/if}
             </div>
-
             <!-- Contrast group members (collapsible) -->
             {#if derived.contrast_members && derived.contrast_members.length > 0}
-              <div class="mt-3 pt-2 border-t border-slate-700/50">
+              <div class="mt-2 pt-1">
                 <button
                   class="text-xs text-slate-500 hover:text-slate-300 transition-colors w-full text-left"
                   on:click={() => contrastGroupExpanded = !contrastGroupExpanded}
@@ -593,8 +611,8 @@
                 {/if}
               </div>
             {/if}
-          </div>
-        {/if}
+          {/if}
+        </div>
         
         <!-- Entity cards -->
         <div class="grid grid-cols-2 gap-4 mb-6">
@@ -644,7 +662,41 @@
             </div>
           {/each}
         </div>
-        
+
+        <!-- Control + Variant selector -->
+        {#if (controlMode && controlMode !== 'labeled') || variants.length > 0}
+          <div class="mb-4 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/30">
+            {#if controlMode && controlMode !== 'labeled'}
+              <div class="flex items-center gap-2 flex-wrap {variants.length > 0 ? 'mb-2' : ''}">
+                <span class="px-2 py-0.5 rounded text-xs font-bold bg-indigo-500/30 text-indigo-300">
+                  {controlModeLabels[controlMode] || controlMode}
+                </span>
+                {#if fieldsUsed && fieldsUsed.length > 0}
+                  <span class="text-xs text-slate-400">Fields: {fieldsUsed.join(', ')}</span>
+                {/if}
+                {#if derived.replicate_id != null}
+                  <span class="text-xs text-slate-500">Replicate #{derived.replicate_id}</span>
+                {/if}
+              </div>
+            {/if}
+            {#if variants.length > 0}
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  class="px-2 py-1 text-xs rounded transition-colors {!selectedVariant ? 'bg-cyan-900/50 text-cyan-400 border border-cyan-500/40' : 'bg-slate-700 text-slate-400 hover:bg-slate-600 border border-transparent'}"
+                  on:click={() => switchVariant(null)}
+                >Best</button>
+                {#each variants as v}
+                  <button
+                    class="px-2 py-1 text-xs rounded transition-colors {selectedVariant === v.variant_suffix ? 'bg-cyan-900/50 text-cyan-400 border border-cyan-500/40' : 'bg-slate-700 text-slate-400 hover:bg-slate-600 border border-transparent'}"
+                    on:click={() => switchVariant(v.variant_suffix)}
+                    title="Tier {v.tier ?? '?'} | Flip {v.flip_position ?? 'N/A'}"
+                  >{variantLabel(v.variant_suffix)}</button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
+
         <!-- Outputs -->
         <div class="space-y-4 mb-6">
           <div>
@@ -723,185 +775,128 @@
           {/if}
         </div>
         
-        <!-- Trajectory Metrics (new) -->
+        <!-- Trajectory section -->
         {#if SHOW_TRAJECTORY_FEATURES}
           {@const trajSummary = getTrajectorySummary()}
           {@const trajectory = getTrajectory()}
-          
+
           {#if trajSummary}
             <div class="p-4 rounded-lg bg-slate-800/50 border border-slate-700 mb-6">
-              <div class="flex items-start justify-between gap-3 mb-3">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <div class="text-xs text-slate-500 uppercase">Trajectory Metrics</div>
-                  {#if flipStatus}
-                    <div
-                      class="px-2 py-1 rounded {flipStatus.bgColor} {flipStatus.color} font-mono text-xs border border-current/30"
-                      title={flipStatus.description}
-                    >
-                      {flipStatus.badgeLabel}
-                    </div>
-                  {/if}
-                </div>
+              <!-- Always-visible: target rank + initial/best gap summary -->
+              <div class="flex items-start justify-between gap-3 mb-2">
+                <div class="text-xs text-slate-500 uppercase">Trajectory</div>
                 <div
                   class="w-5 h-5 rounded-full border border-slate-600 text-slate-400 flex items-center justify-center text-[11px] cursor-help shrink-0"
-                  title="Trajectory metrics compare the target token against the source token across generation positions. Positive gap means the target logit is ahead of the source logit. Flip position is the first step where the target outranks the source. Initial gap is the step-0 margin, best gap is the strongest margin reached later, gap closure measures extra gain after step 0, and specificity measures how much unrelated control tokens drift during the intervention, where lower is better."
-                >
-                  ?
-                </div>
+                  title="Trajectory metrics compare the target token against the source token across generation positions. Positive gap = target logit ahead of source."
+                >?</div>
               </div>
-              
-              <!-- Sparkline -->
-              {#if trajSummary.gap_trajectory?.length > 1}
-                {@const spark = generateSparklinePath(trajSummary.gap_trajectory)}
-                {#if spark}
-                  <div
-                    class="mb-4 p-3 rounded bg-slate-900/50"
-                    title="Gap trajectory tracks target logit minus source logit across generation positions. Above the dashed zero line, the target token is ahead. Below the dashed line, the source token is ahead."
-                  >
-                    <div class="flex items-center justify-between mb-2">
-                      <span class="text-xs text-slate-500">Gap Trajectory</span>
-                    </div>
-                    <div class="flex justify-between items-center mb-1">
-                      <span class="text-[11px] font-medium text-sky-200">
-                        {formatTokenLabel(trajectory?.tokens?.target, 'Target')} (Target)
-                      </span>
-                      <span></span>
-                    </div>
-                    <svg 
-                      class="w-full h-20"
-                      viewBox="0 0 {spark.width} {spark.height}"
-                      aria-label="Gap trajectory chart"
-                    >
-                      <!-- Zero reference line -->
-                      <line 
-                        x1="{spark.padding}" 
-                        y1="{spark.zeroY}" 
-                        x2="{spark.width - spark.padding}" 
-                        y2="{spark.zeroY}" 
-                        stroke="rgb(100 116 139)" 
-                        stroke-width="1" 
-                        stroke-dasharray="2,2"
-                      />
-                      
-                      <!-- Gap trajectory line -->
-                      <path 
-                        d="{spark.pathD}" 
-                        fill="none" 
-                        stroke="rgb(56 189 248)" 
-                        stroke-width="1.1"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                      
-                      <!-- Flip point marker -->
-                      {#if spark.flipPoint}
-                        <circle 
-                          cx="{spark.flipPoint.x}" 
-                          cy="{spark.flipPoint.y}" 
-                          r="1.8" 
-                          fill="rgb(56 189 248)"
-                          stroke="rgb(224 242 254)"
-                          stroke-width="0.8"
-                        />
-                      {/if}
-                    </svg>
-                    <div class="flex justify-between items-center text-xs text-slate-600 mt-1">
-                      <div class="flex flex-col items-start gap-1">
-                        <span class="text-slate-100">pos 0</span>
-                        <span class="text-[11px] text-slate-400">
-                          {formatTokenLabel(trajectory?.tokens?.source, 'Source')} (Source)
-                        </span>
-                      </div>
-                      <span>pos {trajSummary.gap_trajectory.length - 1}</span>
-                    </div>
-                  </div>
-                {/if}
-              {/if}
-              
-              <!-- Metrics grid -->
-              <div class="grid grid-cols-2 gap-3">
-                <!-- Initial Gap -->
-                <div
-                  class="p-2 rounded bg-slate-900/30"
-                  title="Initial gap is the target logit minus the source logit at generation position 0. Positive means the target starts ahead."
-                >
-                  <div class="text-xs text-slate-500 mb-1">Initial Gap</div>
+
+              <!-- Compact always-visible summary row -->
+              <div class="grid grid-cols-2 gap-2 mb-2">
+                <div class="p-2 rounded bg-slate-900/30" title="Target logit minus source logit at position 0.">
+                  <div class="text-xs text-slate-500 mb-0.5">Initial Gap</div>
                   <div class="text-sm font-mono {trajSummary.initial_gap > 0 ? 'text-emerald-400' : trajSummary.initial_gap < 0 ? 'text-red-400' : 'text-slate-400'}">
                     {trajSummary.initial_gap > 0 ? '+' : ''}{formatNum(trajSummary.initial_gap)}
                   </div>
                 </div>
-                
-                <!-- Best Gap -->
-                <div
-                  class="p-2 rounded bg-slate-900/30"
-                  title="Best gap is the maximum target-minus-source margin reached anywhere in the tracked trajectory."
-                >
-                  <div class="text-xs text-slate-500 mb-1">Best Gap</div>
+                <div class="p-2 rounded bg-slate-900/30" title="Maximum target-minus-source margin across all positions.">
+                  <div class="text-xs text-slate-500 mb-0.5">Best Gap</div>
                   <div class="text-sm font-mono {trajSummary.best_gap > 0 ? 'text-emerald-400' : trajSummary.best_gap < 0 ? 'text-red-400' : 'text-slate-400'}">
                     {trajSummary.best_gap > 0 ? '+' : ''}{formatNum(trajSummary.best_gap)}
                   </div>
                 </div>
-
-                <!-- Gap Closure -->
-                <div
-                  class="p-2 rounded bg-slate-900/30"
-                  title="Gap closure is best gap minus initial gap. Positive means the target gained additional advantage after position 0. Zero means the trajectory never improved beyond its starting margin."
-                >
-                  <div class="text-xs text-slate-500 mb-1">Gap Closure</div>
-                  <div class="flex items-baseline gap-2">
-                    <span class="text-sm font-mono {trajSummary.gap_closure > 0 ? 'text-emerald-400' : trajSummary.gap_closure < 0 ? 'text-red-400' : 'text-slate-400'}">
-                      {trajSummary.gap_closure > 0 ? '+' : ''}{formatNum(trajSummary.gap_closure)}
-                    </span>
-                    <span class="text-xs {getGapClosureQuality(trajSummary.gap_closure).color}">
-                      {getGapClosureQuality(trajSummary.gap_closure).label}
-                    </span>
-                  </div>
-                </div>
-                
-                <!-- Specificity -->
-                <div
-                  class="p-2 rounded bg-slate-900/30"
-                  title="Specificity measures how much unrelated control tokens drift during the intervention. Lower is better because it means the steering is more selective."
-                >
-                  <div class="text-xs text-slate-500 mb-1">Specificity</div>
-                  <div class="flex items-baseline gap-2">
-                    <span class="text-sm font-mono text-slate-300">
-                      {formatNum(trajSummary.control_stability_mean)}
-                    </span>
-                    <span class="text-xs {getSpecificityQuality(trajSummary.control_stability_mean).color}">
-                      {getSpecificityQuality(trajSummary.control_stability_mean).label}
-                    </span>
-                  </div>
-                </div>
               </div>
-              
-              <!-- Target rank improvement (if available) -->
+
+              <!-- Target rank (always visible) -->
               {#if trajectory?.trajectories?.target?.summary}
                 {@const targetSum = trajectory.trajectories.target.summary}
                 {@const targetBestRank = targetSum.min_rank}
                 {@const unsteeredRank = evaluation.baseline_logits?.target?.rank}
                 {@const rankDeltaVsUnsteered = (unsteeredRank != null && targetBestRank != null) ? unsteeredRank - targetBestRank : null}
                 {@const rankDelta = getRankDeltaInfo(rankDeltaVsUnsteered)}
-                <div class="mt-3 pt-3 border-t border-slate-700/50">
-                  <div
-                    class="flex items-center justify-between text-sm"
-                    title="Best target rank is the highest position the target token reaches anywhere in the tracked trajectory. The number in parentheses shows the improvement relative to the unsteered logit rank of the target token."
-                  >
-                    <span class="text-slate-500">Best target rank:</span>
-                    <span class="font-mono">
-                      <span class="text-slate-400">#{targetBestRank ?? '?'}</span>
-                      <span class="{rankDelta.color} ml-2">{rankDelta.text}</span>
-                    </span>
-                  </div>
-                  <div
-                    class="flex items-center justify-between text-sm mt-1"
-                    title="First top-5 is the earliest generation position where the target token enters the model's top-5 candidates. 'never' means it never reached top-5 during the tracked steps."
-                  >
-                    <span class="text-slate-500">First top-5:</span>
-                    <span class="font-mono text-cyan-400">{getFirstTop5Label(targetSum.first_top5_position)}</span>
-                  </div>
+                <div class="flex items-center justify-between text-sm mb-1" title="Best position the target token reaches in the trajectory.">
+                  <span class="text-slate-500">Best target rank:</span>
+                  <span class="font-mono">
+                    <span class="text-slate-400">#{targetBestRank ?? '?'}</span>
+                    <span class="{rankDelta.color} ml-2">{rankDelta.text}</span>
+                  </span>
+                </div>
+                <div class="flex items-center justify-between text-sm" title="Earliest position where target enters model's top-5.">
+                  <span class="text-slate-500">First top-5:</span>
+                  <span class="font-mono text-cyan-400">{getFirstTop5Label(targetSum.first_top5_position)}</span>
                 </div>
               {/if}
+
+              <!-- Collapsible: Sparkline + Gap Closure + Specificity -->
+              <div class="mt-3 pt-2 border-t border-slate-700/50">
+                <button
+                  class="w-full flex items-center justify-between hover:bg-slate-700/20 rounded px-1 py-1 transition-colors text-left"
+                  on:click={() => trajectoryExpanded = !trajectoryExpanded}
+                >
+                  <span class="text-xs text-slate-500">Gap trajectory & details</span>
+                  <svg class="w-4 h-4 text-slate-500 transition-transform {trajectoryExpanded ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {#if trajectoryExpanded}
+                  <!-- Sparkline -->
+                  {#if trajSummary.gap_trajectory?.length > 1}
+                    {@const spark = generateSparklinePath(trajSummary.gap_trajectory)}
+                    {#if spark}
+                      <div class="mt-3 p-3 rounded bg-slate-900/50">
+                        <div class="flex items-center justify-between mb-2">
+                          <span class="text-xs text-slate-500">Gap Trajectory</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-1">
+                          <span class="text-[11px] font-medium text-sky-200">
+                            {formatTokenLabel(trajectory?.tokens?.target, 'Target')} (Target)
+                          </span>
+                          <span></span>
+                        </div>
+                        <svg class="w-full h-20" viewBox="0 0 {spark.width} {spark.height}" aria-label="Gap trajectory chart">
+                          <line x1="{spark.padding}" y1="{spark.zeroY}" x2="{spark.width - spark.padding}" y2="{spark.zeroY}" stroke="rgb(100 116 139)" stroke-width="1" stroke-dasharray="2,2" />
+                          <path d="{spark.pathD}" fill="none" stroke="rgb(56 189 248)" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" />
+                          {#if spark.flipPoint}
+                            <circle cx="{spark.flipPoint.x}" cy="{spark.flipPoint.y}" r="1.8" fill="rgb(56 189 248)" stroke="rgb(224 242 254)" stroke-width="0.8" />
+                          {/if}
+                        </svg>
+                        <div class="flex justify-between items-center text-xs text-slate-600 mt-1">
+                          <div class="flex flex-col items-start gap-1">
+                            <span class="text-slate-100">pos 0</span>
+                            <span class="text-[11px] text-slate-400">{formatTokenLabel(trajectory?.tokens?.source, 'Source')} (Source)</span>
+                          </div>
+                          <span>pos {trajSummary.gap_trajectory.length - 1}</span>
+                        </div>
+                      </div>
+                    {/if}
+                  {/if}
+
+                  <!-- Gap Closure + Specificity -->
+                  <div class="grid grid-cols-2 gap-3 mt-3">
+                    <div class="p-2 rounded bg-slate-900/30" title="Best gap minus initial gap. Positive = target gained advantage after pos 0.">
+                      <div class="text-xs text-slate-500 mb-1">Gap Closure</div>
+                      <div class="flex items-baseline gap-2">
+                        <span class="text-sm font-mono {trajSummary.gap_closure > 0 ? 'text-emerald-400' : trajSummary.gap_closure < 0 ? 'text-red-400' : 'text-slate-400'}">
+                          {trajSummary.gap_closure > 0 ? '+' : ''}{formatNum(trajSummary.gap_closure)}
+                        </span>
+                        <span class="text-xs {getGapClosureQuality(trajSummary.gap_closure).color}">
+                          {getGapClosureQuality(trajSummary.gap_closure).label}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="p-2 rounded bg-slate-900/30" title="Control token drift during intervention. Lower is better.">
+                      <div class="text-xs text-slate-500 mb-1">Specificity</div>
+                      <div class="flex items-baseline gap-2">
+                        <span class="text-sm font-mono text-slate-300">{formatNum(trajSummary.control_stability_mean)}</span>
+                        <span class="text-xs {getSpecificityQuality(trajSummary.control_stability_mean).color}">
+                          {getSpecificityQuality(trajSummary.control_stability_mean).label}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                {/if}
+              </div>
             </div>
           {/if}
         {/if}

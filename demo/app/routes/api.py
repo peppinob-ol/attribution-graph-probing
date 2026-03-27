@@ -293,6 +293,15 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None)
             media_type="application/json",
         )
     
+    @rt("/api/methodology-stats")
+    def api_methodology_stats():
+        """Return dynamic aggregate stats for the About / methodology panel."""
+        mstats = data_loader.get_methodology_stats()
+        return Response(
+            content=json.dumps(mstats),
+            media_type="application/json"
+        )
+
     @rt("/api/analysis")
     def api_analysis():
         """Return full analysis data."""

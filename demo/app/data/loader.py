@@ -32,6 +32,53 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 _VARIANT_SUFFIX_RE = re.compile(r"__(?:r\d+|add_.+|ctrl_.+)$")
 
 
+# ---------------------------------------------------------------------------
+# Logit-shift regime classification (Section 4.4 of METHODOLOGY_REPORT.md)
+# ---------------------------------------------------------------------------
+
+_REGIME_FLAT_THRESHOLD = 1.0  # |delta| below this is considered FLAT
+
+_REGIME_INFO = {
+    "A": {"label": "Clean Redirection", "short": "A"},
+    "B": {"label": "Both Boosted", "short": "B"},
+    "C": {"label": "Differential Disruption", "short": "C"},
+    "D": {"label": "Generic Disruption", "short": "D"},
+    "E": {"label": "Pure Suppression", "short": "E"},
+}
+
+
+def _classify_regime(pos0: Dict[str, Any]) -> Optional[str]:
+    """Classify a swap into a logit-shift regime from position-0 comparison.
+
+    Returns one of A/B/C/D/E or None if classification is impossible.
+    """
+    if not pos0:
+        return None
+    tgt = pos0.get("target_logit_delta")
+    src = pos0.get("source_logit_delta")
+    flip = pos0.get("flip_at_0", False)
+
+    if tgt is None or src is None:
+        return None
+
+    tgt_up = tgt > _REGIME_FLAT_THRESHOLD
+    tgt_down = tgt < -_REGIME_FLAT_THRESHOLD
+    src_down = src < -_REGIME_FLAT_THRESHOLD
+    src_up = src > _REGIME_FLAT_THRESHOLD
+
+    if tgt_up and src_down and flip:
+        return "A"
+    if tgt_up and src_up:
+        return "B"
+    if tgt_down and src_down and flip:
+        return "C"
+    if tgt_down and src_down and not flip:
+        return "D"
+    if not tgt_up and not tgt_down and src_down and flip:
+        return "E"
+    return None
+
+
 def _parse_to_slug(filename_stem: str) -> tuple:
     """
     Extract ``(entity_slug, variant_suffix)`` from a swap result filename stem.
@@ -137,6 +184,7 @@ class DemoRegistry:
     """
 
     DEFAULT_DATASET_ID = "usa_states_batch"
+    DEFAULT_RUN_ID = "full_50states_v1"
 
     def __init__(self, output_root: Path, initial_data_dir: Optional[Path] = None):
         self.output_root = Path(output_root)
@@ -333,10 +381,39 @@ class DemoRegistry:
 
     def _activate_dataset(self, dataset_id: str) -> None:
         ds = self._datasets[dataset_id]
-        # Pick best run: first in list (already sorted newest-first)
-        best_run_id = ds["runs"][0]["id"] if ds["runs"] else None
+        best_run_id = self._pick_default_run(ds["runs"])
         self.active_loader = DataLoader(ds["dir"], run_id=best_run_id)
         self._active_dataset_id = dataset_id
+
+    @classmethod
+    def _pick_default_run(cls, runs: List[Dict[str, Any]]) -> Optional[str]:
+        """Choose the default run for a dataset.
+
+        Priority:
+        1. ``DEMO_DEFAULT_RUN`` env var (exact run id match)
+        2. Class constant ``DEFAULT_RUN_ID``
+        3. First run with control_mode == "labeled" (highest swap count)
+        4. First run in list (newest)
+        """
+        if not runs:
+            return None
+
+        env_run = (os.environ.get("DEMO_DEFAULT_RUN") or "").strip()
+        if env_run:
+            for r in runs:
+                if r["id"] == env_run:
+                    return r["id"]
+
+        if cls.DEFAULT_RUN_ID:
+            for r in runs:
+                if r["id"] == cls.DEFAULT_RUN_ID:
+                    return r["id"]
+
+        labeled = [r for r in runs if r.get("control_mode") == "labeled"]
+        if labeled:
+            return max(labeled, key=lambda r: r.get("swap_count", 0))["id"]
+
+        return runs[0]["id"]
 
     @staticmethod
     def _format_run_name(run_id: str) -> str:
@@ -485,6 +562,7 @@ class DataLoader:
         self._stats_cache = None
         self._domain_config_cache = None
         self._gpu_batch_features_index = None
+        self._methodology_stats = None
     
     # Per-domain blacklists of common words that should be ignored by the
     # word-boundary tier heuristic (e.g. "city" in "Salt Lake City" would
@@ -1196,6 +1274,9 @@ class DataLoader:
         contrast = data.get("evaluation", {}).get("logit_trajectory", {}).get("contrast_groups", {})
         pos0 = data.get("evaluation", {}).get("position_0_comparison", {})
 
+        regime = _classify_regime(pos0)
+        regime_info = _REGIME_INFO.get(regime) if regime else None
+
         data["_derived"] = {
             "control_mode": ctrl.get("control_mode"),
             "fields_used": ctrl.get("concept_subsets_used"),
@@ -1204,6 +1285,10 @@ class DataLoader:
             "gap_closure": traj_summary.get("gap_closure"),
             "initial_gap": traj_summary.get("initial_gap"),
             "best_gap": traj_summary.get("best_gap"),
+            "regime": regime,
+            "regime_label": regime_info["label"] if regime_info else None,
+            "target_logit_delta": pos0.get("target_logit_delta"),
+            "source_logit_delta": pos0.get("source_logit_delta"),
             "vs_max": None,
             "vs_topk": None,
             "rank_in_group": None,
@@ -1404,7 +1489,99 @@ class DataLoader:
         }
         self._stats_cache = stats
         return stats
-    
+
+    def get_methodology_stats(self) -> Dict[str, Any]:
+        """Compute dynamic stats for the About / methodology panel.
+
+        Scans the current run's swap files for regime distribution,
+        aggregate vsMax, and target recovery rates.  Results are cached.
+        """
+        cache_key = "_methodology_stats"
+        if hasattr(self, cache_key) and getattr(self, cache_key) is not None:
+            return getattr(self, cache_key)
+
+        stats = self.get_stats()
+        dc = self.get_domain_config()
+        total_swaps = stats.get("total_swaps", 0)
+        aggregate = stats.get("aggregate", {})
+
+        regime_counts: Dict[str, int] = {}
+        vs_max_values: list = []
+        recovery_count = 0
+        recovery_total = 0
+
+        by_source = self.swaps_dir / "by_source"
+        if by_source.exists():
+            for swap_path in by_source.glob("*/to_*.json"):
+                if _is_control_variant(swap_path.stem):
+                    continue
+                try:
+                    with open(swap_path, "r", encoding="utf-8") as fh:
+                        d = json.load(fh)
+                except (json.JSONDecodeError, IOError):
+                    continue
+
+                pos0 = d.get("evaluation", {}).get("position_0_comparison", {})
+                regime = _classify_regime(pos0)
+                if regime:
+                    regime_counts[regime] = regime_counts.get(regime, 0) + 1
+
+                contrast = (
+                    d.get("evaluation", {})
+                    .get("logit_trajectory", {})
+                    .get("contrast_groups", {})
+                    .get("same_dataset", {})
+                    .get("aggregate", {})
+                )
+                vm = contrast.get("best_target_minus_max")
+                if vm is not None:
+                    vs_max_values.append(vm)
+
+                traj_sum = d.get("evaluation", {}).get("logit_trajectory", {}).get("summary", {})
+                baseline = d.get("evaluation", {}).get("baseline_logits", {})
+                if traj_sum and baseline:
+                    recovery_total += 1
+                    tgt_baseline_logit = baseline.get("target", {}).get("logit")
+                    best_gap = traj_sum.get("best_gap")
+                    initial_gap = traj_sum.get("initial_gap")
+                    if tgt_baseline_logit is not None and best_gap is not None:
+                        recovery_count += 1
+
+        regime_total = sum(regime_counts.values()) or 1
+
+        result = {
+            "display_name": dc.get("display_name", ""),
+            "total_swaps": total_swaps,
+            "entity_count": dc.get("entity_count", 0),
+            "model_id": dc.get("model_id", ""),
+            "concept_fields": dc.get("concept_fields", []),
+            "answer_field": dc.get("answer_field", ""),
+            "m_ablate": dc.get("m_ablate", -2),
+            "m_amplify": dc.get("m_amplify", 20),
+            "n_tokens": dc.get("n_tokens", 10),
+            "temperature": dc.get("temperature", 0.3),
+            "hit_rate": aggregate.get("perfect_rate", 0),
+            "suppression_rate": aggregate.get("suppression_rate", 0),
+            "flip_at_01_rate": aggregate.get("flip_at_01_rate", 0),
+            "avg_tier": aggregate.get("avg_tier", 0),
+            "vs_max_mean": (
+                sum(vs_max_values) / len(vs_max_values)
+                if vs_max_values else None
+            ),
+            "vs_max_positive_pct": (
+                sum(1 for v in vs_max_values if v > 0) / len(vs_max_values)
+                if vs_max_values else None
+            ),
+            "regime_counts": regime_counts,
+            "regime_pcts": {
+                k: round(v / regime_total * 100, 1)
+                for k, v in regime_counts.items()
+            },
+            "regime_labels": {k: v["label"] for k, v in _REGIME_INFO.items()},
+        }
+        setattr(self, cache_key, result)
+        return result
+
     def _get_gpu_batch_features_index(self) -> Dict[str, List]:
         """
         Build and cache a swap_id -> feature_list index from GPU batch files.

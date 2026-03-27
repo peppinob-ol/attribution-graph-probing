@@ -208,144 +208,7 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                 Div(id="state-card-mount"),
                 
                 # About modal
-                Div(
-                    id="about-modal",
-                    cls="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-start justify-center",
-                    style="display: none; padding: 5.5rem 1.5rem 2rem 1.5rem;"
-                )(
-                    Div(cls="bg-slate-900 border border-slate-700 rounded-xl max-w-2xl w-full shadow-2xl flex flex-col", style="max-height: calc(100vh - 8rem);")(
-                        # Modal header (fixed)
-                        Div(cls="flex-shrink-0 bg-slate-900 border-b border-slate-800 rounded-t-xl flex items-center justify-between", style="padding: 1.25rem 2rem;")(
-                            H2(cls="text-xl font-semibold text-white")("About This Experiment"),
-                            Button(
-                                id="about-close",
-                                cls="text-slate-400 hover:text-white text-2xl leading-none"
-                            )("x"),
-                        ),
-                        # Modal content (scrollable)
-                        Div(cls="flex-1 overflow-y-auto space-y-6", style="padding: 1.5rem 2rem 2.5rem 2rem;")(
-                            # Intro
-                            Div(cls="space-y-3")(
-                                P(cls="text-slate-300 leading-relaxed")(
-                                    "An interactive demo exploring whether ",
-                                    Span(cls="text-cyan-400 font-medium")("internal-state swaps"),
-                                    " can redirect model outputs from one concept to another."
-                                ),
-                                P(cls="text-slate-400 text-sm leading-relaxed")(
-                                    "The matrix visualizes pairwise steering experiments. ",
-                                    "Each cell represents an attempt to redirect the model from a source entity (row) to a target entity (column), ",
-                                    "evaluated on a tiered scale from T5 (perfect redirection) to T1 (source persists)."
-                                ),
-                                P(cls="text-slate-400 text-sm leading-relaxed")(
-                                    "This is a working investigation into the geometry and causal structure of concept steering in LLMs, ",
-                                    "with focus on how latent representations respond to controlled interventions."
-                                ),
-                            ),
-                            # Steering method
-                            Div(cls="bg-slate-800/50 rounded-lg p-4 border border-slate-700")(
-                                H3(cls="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3")("Steering Method"),
-                                P(cls="text-slate-300 text-sm leading-relaxed mb-2")(
-                                    "Each swap uses ",
-                                    A(href="https://www.lesswrong.com/posts/zQqGhKPqaCBZZDCge/automated-circuit-interpretation-via-probe-prompting", target="_blank", cls="text-cyan-400 hover:underline")("Probe Prompting"),
-                                    " to identify concept-related features via CLT transcoders. We then use ",
-                                    A(href="https://github.com/safety-research/circuit-tracer", target="_blank", cls="text-cyan-400 hover:underline")("Circuit Tracer"),
-                                    " to suppress source activations while amplifying target features during generation."
-                                ),
-                                P(cls="text-slate-500 text-xs mb-3")(
-                                    "Model: ",
-                                    Span(cls="text-slate-400")(dc.get('model_id', '') or "N/A"),
-                                ),
-                                Div(cls="font-mono text-xs bg-slate-900/50 rounded p-3 space-y-1")(
-                                    Div(cls="flex items-center gap-3")(
-                                        Span(cls="text-slate-500 w-28")("Source features"),
-                                        Span(cls="text-red-400")(f"ablate {dc.get('m_ablate', -2)}x"),
-                                        Span(cls="text-slate-600 text-[10px]")("(reverse direction)"),
-                                    ),
-                                    Div(cls="flex items-center gap-3")(
-                                        Span(cls="text-slate-500 w-28")("Target features"),
-                                        Span(cls="text-emerald-400")(f"amplify +{dc.get('m_amplify', 20)}x"),
-                                        Span(cls="text-slate-600 text-[10px]")("(boost activation)"),
-                                    ),
-                                    Div(cls="flex items-center gap-3")(
-                                        Span(cls="text-slate-500 w-28")("Generation"),
-                                        Span(cls="text-slate-300")(f"{dc.get('n_tokens', 10)} tokens, temp {dc.get('temperature', 0.3)}"),
-                                    ),
-                                ),
-                            ),
-                            # Links section
-                            Div(cls="space-y-4")(
-                                H3(cls="text-sm font-semibold text-slate-400 uppercase tracking-wide")("Resources"),
-                                Div(cls="grid grid-cols-2 gap-3 about-links")(
-                                    _about_link(
-                                        "arXiv Preprint",
-                                        "Full paper with methods & results",
-                                        "https://arxiv.org/abs/2511.07002",
-                                        "paper"
-                                    ),
-                                    _about_link(
-                                        "LessWrong Post",
-                                        "Discussion & community feedback",
-                                        "https://www.lesswrong.com/posts/zQqGhKPqaCBZZDCge",
-                                        "blog"
-                                    ),
-                                    _about_link(
-                                        "HuggingFace Demo",
-                                        "Try probe-prompting yourself",
-                                        "https://huggingface.co/spaces/Peppinob/attribution-graph-probing",
-                                        "demo"
-                                    ),
-                                    _about_link(
-                                        "GitHub Repo",
-                                        "Probe-prompting pipeline code",
-                                        "https://github.com/peppinob-ol/attribution-graph-probing",
-                                        "code"
-                                    ),
-                                ),
-                            ),
-                            # References
-                            Div(cls="space-y-4")(
-                                H3(cls="text-sm font-semibold text-slate-400 uppercase tracking-wide")("References"),
-                                Div(cls="grid grid-cols-2 gap-3 about-links")(
-                                    _about_link(
-                                        "Neuronpedia",
-                                        "Interactive graph exploration",
-                                        "https://www.neuronpedia.org/graph/info",
-                                        "demo"
-                                    ),
-                                    _about_link(
-                                        "Circuit Tracing",
-                                        "Attribution graphs (Anthropic)",
-                                        "https://transformer-circuits.pub/2025/attribution-graphs/methods.html",
-                                        "paper"
-                                    ),
-                                ),
-                            ),
-                            # Author
-                            Div(cls="border-t border-slate-800 pt-4")(
-                                P(cls="text-xs text-slate-500")(
-                                    "Built by ",
-                                    A(
-                                        href="https://www.linkedin.com/in/giuseppe-birardi-18a7b011/",
-                                        target="_blank",
-                                        cls="text-slate-400 hover:text-white"
-                                    )("Giuseppe Birardi"),
-                                    " | Orma Lab Srl"
-                                ),
-                            ),
-                            Div(cls="border-t border-slate-800 pt-4")(
-                                P(cls="text-xs text-slate-500")(
-                                    "Thanks to ",
-                                    A(
-                                        href="https://www.eleuther.ai/",
-                                        target="_blank",
-                                        cls="text-slate-400 hover:text-white"
-                                    )("eleuther.ai"),
-                                    " for infrastructure"
-                                ),
-                            ),                            
-                        ),
-                    ),
-                ),
+                _about_modal(dc),
                 
                 # Scripts
                 Script(src="/static/islands/islands.js?v=12", type="module"),
@@ -404,15 +267,15 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                         };
                     })();
                 """),
-                # About modal script
+                # About modal script (with dynamic stats fetching)
                 Script("""
                     (function() {
-                        const modal = document.getElementById('about-modal');
-                        const openBtn = document.getElementById('about-btn');
-                        const closeBtn = document.getElementById('about-close');
-                        
+                        var modal = document.getElementById('about-modal');
+                        var openBtn = document.getElementById('about-btn');
+                        var closeBtn = document.getElementById('about-close');
+                        var statsFetched = false;
+
                         function resetMatrixCells() {
-                            // Reset any selected/highlighted matrix cells
                             document.querySelectorAll('.matrix-cell').forEach(function(cell) {
                                 cell.style.transform = '';
                                 cell.style.zIndex = '';
@@ -422,28 +285,52 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                                 cell.classList.remove('selected');
                             });
                         }
-                        
+
+                        function setEl(id, text) {
+                            var el = document.getElementById(id);
+                            if (el) el.textContent = text;
+                        }
+
+                        function loadMethodologyStats() {
+                            if (statsFetched) return;
+                            statsFetched = true;
+                            fetch('/api/methodology-stats')
+                                .then(function(r) { return r.ok ? r.json() : null; })
+                                .then(function(d) {
+                                    if (!d) return;
+                                    setEl('about-kpi-swaps', String(d.total_swaps || 0));
+                                    setEl('about-kpi-hit', ((d.hit_rate || 0) * 100).toFixed(1) + '%');
+                                    setEl('about-kpi-vsmax', d.vs_max_mean != null ? (d.vs_max_mean > 0 ? '+' : '') + d.vs_max_mean.toFixed(2) : 'N/A');
+                                    setEl('about-kpi-flip', ((d.flip_at_01_rate || 0) * 100).toFixed(0) + '%');
+                                    if (d.model_id) setEl('about-model', d.model_id);
+                                    if (d.m_ablate) setEl('about-ablate', 'ablate ' + d.m_ablate + 'x');
+                                    if (d.m_amplify) setEl('about-amplify', 'amplify +' + d.m_amplify + 'x');
+                                    if (d.n_tokens) setEl('about-gen', d.n_tokens + ' tokens, temp ' + d.temperature);
+                                    var regimes = ['A','B','C','D','E'];
+                                    for (var i = 0; i < regimes.length; i++) {
+                                        var r = regimes[i];
+                                        var pct = (d.regime_pcts && d.regime_pcts[r]) || 0;
+                                        setEl('about-regime-' + r, pct > 0 ? pct.toFixed(1) + '%' : '--');
+                                    }
+                                })
+                                .catch(function() {});
+                        }
+
                         if (openBtn) {
                             openBtn.onclick = function() {
                                 resetMatrixCells();
                                 modal.style.display = 'flex';
+                                loadMethodologyStats();
                             };
                         }
-                        
                         if (closeBtn) {
-                            closeBtn.onclick = function() {
-                                modal.style.display = 'none';
-                            };
+                            closeBtn.onclick = function() { modal.style.display = 'none'; };
                         }
-                        
                         if (modal) {
                             modal.onclick = function(e) {
-                                if (e.target === modal) {
-                                    modal.style.display = 'none';
-                                }
+                                if (e.target === modal) modal.style.display = 'none';
                             };
                         }
-                        
                         document.onkeydown = function(e) {
                             if (e.key === 'Escape' && modal && modal.style.display === 'flex') {
                                 modal.style.display = 'none';
@@ -541,6 +428,252 @@ def _about_link(title: str, desc: str, url: str, icon_type: str):
             Div()(
                 Div(cls="text-sm font-medium text-slate-200 group-hover:text-white")(title),
                 Div(cls="text-xs text-slate-500")(desc),
+            ),
+        ),
+    )
+
+
+def _about_modal(dc: dict):
+    """Render the About modal with full methodology summary and dynamic stats."""
+    return Div(
+        id="about-modal",
+        cls="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-start justify-center",
+        style="display: none; padding: 5.5rem 1.5rem 2rem 1.5rem;"
+    )(
+        Div(
+            cls="bg-slate-900 border border-slate-700 rounded-xl max-w-2xl w-full shadow-2xl flex flex-col",
+            style="max-height: calc(100vh - 8rem);"
+        )(
+            # Modal header
+            Div(
+                cls="flex-shrink-0 bg-slate-900 border-b border-slate-800 rounded-t-xl flex items-center justify-between",
+                style="padding: 1.25rem 2rem;"
+            )(
+                H2(cls="text-xl font-semibold text-white")("About This Experiment"),
+                Button(
+                    id="about-close",
+                    cls="text-slate-400 hover:text-white text-2xl leading-none"
+                )("x"),
+            ),
+            # Modal content (scrollable)
+            Div(
+                cls="flex-1 overflow-y-auto space-y-6",
+                style="padding: 1.5rem 2rem 2.5rem 2rem;"
+            )(
+                # Dynamic KPI strip (populated by JS)
+                Div(id="about-kpis", cls="grid grid-cols-4 gap-2 text-center")(
+                    *[Div(cls="p-2 rounded bg-slate-800/50")(
+                        P(cls="text-[10px] text-slate-500 uppercase")(lbl),
+                        P(id=f"about-kpi-{kid}", cls="text-lg font-bold text-slate-300")("--"),
+                    ) for kid, lbl in [
+                        ("swaps", "Swaps"),
+                        ("hit", "Hit%"),
+                        ("vsmax", "Avg vsMax"),
+                        ("flip", "Flip @0-1"),
+                    ]],
+                ),
+                # Intro
+                Div(cls="space-y-3")(
+                    P(cls="text-slate-300 leading-relaxed")(
+                        "An interactive demo exploring whether ",
+                        Span(cls="text-cyan-400 font-medium")("labeled feature swaps"),
+                        " can redirect model outputs from one concept to another, ",
+                        "with entity-specific causal leverage beyond generic perturbation."
+                    ),
+                    P(cls="text-slate-400 text-sm leading-relaxed")(
+                        "The matrix visualizes pairwise steering experiments. ",
+                        "Each cell represents an attempt to redirect the model from a source entity (row) to a target entity (column), ",
+                        "evaluated on a tiered scale from T5 (perfect redirection) to T1 (source persists)."
+                    ),
+                ),
+                # Steering method
+                Div(cls="bg-slate-800/50 rounded-lg p-4 border border-slate-700")(
+                    H3(cls="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3")(
+                        "Steering Method"
+                    ),
+                    P(cls="text-slate-300 text-sm leading-relaxed mb-2")(
+                        "Each swap uses ",
+                        A(
+                            href="https://www.lesswrong.com/posts/zQqGhKPqaCBZZDCge/automated-circuit-interpretation-via-probe-prompting",
+                            target="_blank", cls="text-cyan-400 hover:underline"
+                        )("Probe Prompting"),
+                        " to identify concept-related features via CLT transcoders. We then use ",
+                        A(
+                            href="https://github.com/safety-research/circuit-tracer",
+                            target="_blank", cls="text-cyan-400 hover:underline"
+                        )("Circuit Tracer"),
+                        " to suppress source activations while amplifying target features during generation."
+                    ),
+                    P(cls="text-slate-500 text-xs mb-3")(
+                        "Model: ",
+                        Span(id="about-model", cls="text-slate-400")(
+                            dc.get('model_id', '') or "N/A"
+                        ),
+                    ),
+                    Div(cls="font-mono text-xs bg-slate-900/50 rounded p-3 space-y-1")(
+                        Div(cls="flex items-center gap-3")(
+                            Span(cls="text-slate-500 w-28")("Source features"),
+                            Span(id="about-ablate", cls="text-red-400")(
+                                f"ablate {dc.get('m_ablate', -2)}x"
+                            ),
+                            Span(cls="text-slate-600 text-[10px]")("(reverse direction)"),
+                        ),
+                        Div(cls="flex items-center gap-3")(
+                            Span(cls="text-slate-500 w-28")("Target features"),
+                            Span(id="about-amplify", cls="text-emerald-400")(
+                                f"amplify +{dc.get('m_amplify', 20)}x"
+                            ),
+                            Span(cls="text-slate-600 text-[10px]")("(boost activation)"),
+                        ),
+                        Div(cls="flex items-center gap-3")(
+                            Span(cls="text-slate-500 w-28")("Generation"),
+                            Span(id="about-gen", cls="text-slate-300")(
+                                f"{dc.get('n_tokens', 10)} tokens, temp {dc.get('temperature', 0.3)}"
+                            ),
+                        ),
+                    ),
+                ),
+                # Primary metrics explanation
+                Div(cls="bg-slate-800/50 rounded-lg p-4 border border-slate-700")(
+                    H3(cls="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3")(
+                        "Primary Metrics"
+                    ),
+                    P(cls="text-slate-400 text-sm leading-relaxed mb-3")(
+                        "Three metrics best discriminate labeled interventions from random controls:"
+                    ),
+                    Div(cls="space-y-2 text-xs")(
+                        Div(cls="flex gap-2")(
+                            Span(cls="text-cyan-400 font-bold w-14 shrink-0")("Hit%"),
+                            Span(cls="text-slate-400")(
+                                "Target answer appears in steered output. Zero for random controls in strong domains."
+                            ),
+                        ),
+                        Div(cls="flex gap-2")(
+                            Span(cls="text-cyan-400 font-bold w-14 shrink-0")("vsMax"),
+                            Span(cls="text-slate-400")(
+                                "Best (target logit - max other dataset answer). Positive = target beats all same-domain alternatives."
+                            ),
+                        ),
+                        Div(cls="flex gap-2")(
+                            Span(cls="text-cyan-400 font-bold w-14 shrink-0")("RkGrp"),
+                            Span(cls="text-slate-400")(
+                                "Best rank within all dataset answer tokens (1 = top)."
+                            ),
+                        ),
+                    ),
+                ),
+                # Regime taxonomy
+                Div(cls="bg-slate-800/50 rounded-lg p-4 border border-slate-700")(
+                    H3(cls="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3")(
+                        "Logit-Shift Regime Taxonomy"
+                    ),
+                    P(cls="text-slate-400 text-sm leading-relaxed mb-3")(
+                        "Each swap is classified by what happens to target and source logits at position 0:"
+                    ),
+                    # Regime table
+                    Div(cls="overflow-x-auto")(
+                        NotStr(
+                            '<table class="w-full text-xs">'
+                            '<thead><tr class="border-b border-slate-700">'
+                            '<th class="text-left py-1.5 px-2 text-slate-500">Regime</th>'
+                            '<th class="text-left py-1.5 px-2 text-slate-500">Target</th>'
+                            '<th class="text-left py-1.5 px-2 text-slate-500">Source</th>'
+                            '<th class="text-left py-1.5 px-2 text-slate-500">Flip?</th>'
+                            '<th class="text-left py-1.5 px-2 text-slate-500">Intuition</th>'
+                            '<th class="text-right py-1.5 px-2 text-slate-500" id="about-regime-pct-hdr">%</th>'
+                            '</tr></thead><tbody>'
+                            '<tr class="border-b border-slate-800">'
+                            '  <td class="py-1.5 px-2 font-bold text-emerald-400">A</td>'
+                            '  <td class="py-1.5 px-2 text-emerald-400">UP</td>'
+                            '  <td class="py-1.5 px-2 text-red-400">DOWN</td>'
+                            '  <td class="py-1.5 px-2 text-emerald-400">yes</td>'
+                            '  <td class="py-1.5 px-2 text-slate-300">Clean redirection</td>'
+                            '  <td class="py-1.5 px-2 text-right font-mono text-slate-400" id="about-regime-A">--</td>'
+                            '</tr>'
+                            '<tr class="border-b border-slate-800">'
+                            '  <td class="py-1.5 px-2 font-bold text-blue-400">B</td>'
+                            '  <td class="py-1.5 px-2 text-emerald-400">UP</td>'
+                            '  <td class="py-1.5 px-2 text-emerald-400">UP</td>'
+                            '  <td class="py-1.5 px-2 text-slate-500">--</td>'
+                            '  <td class="py-1.5 px-2 text-slate-300">Both boosted</td>'
+                            '  <td class="py-1.5 px-2 text-right font-mono text-slate-400" id="about-regime-B">--</td>'
+                            '</tr>'
+                            '<tr class="border-b border-slate-800">'
+                            '  <td class="py-1.5 px-2 font-bold text-yellow-400">C</td>'
+                            '  <td class="py-1.5 px-2 text-red-400">DOWN</td>'
+                            '  <td class="py-1.5 px-2 text-red-400">DOWN</td>'
+                            '  <td class="py-1.5 px-2 text-emerald-400">yes</td>'
+                            '  <td class="py-1.5 px-2 text-slate-300">Differential disruption</td>'
+                            '  <td class="py-1.5 px-2 text-right font-mono text-slate-400" id="about-regime-C">--</td>'
+                            '</tr>'
+                            '<tr class="border-b border-slate-800">'
+                            '  <td class="py-1.5 px-2 font-bold text-red-400">D</td>'
+                            '  <td class="py-1.5 px-2 text-red-400">DOWN</td>'
+                            '  <td class="py-1.5 px-2 text-red-400">DOWN</td>'
+                            '  <td class="py-1.5 px-2 text-red-400">no</td>'
+                            '  <td class="py-1.5 px-2 text-slate-300">Generic disruption</td>'
+                            '  <td class="py-1.5 px-2 text-right font-mono text-slate-400" id="about-regime-D">--</td>'
+                            '</tr>'
+                            '<tr>'
+                            '  <td class="py-1.5 px-2 font-bold text-slate-400">E</td>'
+                            '  <td class="py-1.5 px-2 text-slate-500">FLAT</td>'
+                            '  <td class="py-1.5 px-2 text-red-400">DOWN</td>'
+                            '  <td class="py-1.5 px-2 text-emerald-400">yes</td>'
+                            '  <td class="py-1.5 px-2 text-slate-300">Pure suppression</td>'
+                            '  <td class="py-1.5 px-2 text-right font-mono text-slate-400" id="about-regime-E">--</td>'
+                            '</tr>'
+                            '</tbody></table>'
+                        ),
+                    ),
+                ),
+                # Links section
+                Div(cls="space-y-4")(
+                    H3(cls="text-sm font-semibold text-slate-400 uppercase tracking-wide")(
+                        "Resources"
+                    ),
+                    Div(cls="grid grid-cols-2 gap-3 about-links")(
+                        _about_link("arXiv Preprint", "Full paper with methods & results",
+                                    "https://arxiv.org/abs/2511.07002", "paper"),
+                        _about_link("LessWrong Post", "Discussion & community feedback",
+                                    "https://www.lesswrong.com/posts/zQqGhKPqaCBZZDCge", "blog"),
+                        _about_link("HuggingFace Demo", "Try probe-prompting yourself",
+                                    "https://huggingface.co/spaces/Peppinob/attribution-graph-probing", "demo"),
+                        _about_link("GitHub Repo", "Probe-prompting pipeline code",
+                                    "https://github.com/peppinob-ol/attribution-graph-probing", "code"),
+                    ),
+                ),
+                # References
+                Div(cls="space-y-4")(
+                    H3(cls="text-sm font-semibold text-slate-400 uppercase tracking-wide")(
+                        "References"
+                    ),
+                    Div(cls="grid grid-cols-2 gap-3 about-links")(
+                        _about_link("Neuronpedia", "Interactive graph exploration",
+                                    "https://www.neuronpedia.org/graph/info", "demo"),
+                        _about_link("Circuit Tracing", "Attribution graphs (Anthropic)",
+                                    "https://transformer-circuits.pub/2025/attribution-graphs/methods.html",
+                                    "paper"),
+                    ),
+                ),
+                # Author
+                Div(cls="border-t border-slate-800 pt-4")(
+                    P(cls="text-xs text-slate-500")(
+                        "Built by ",
+                        A(href="https://www.linkedin.com/in/giuseppe-birardi-18a7b011/",
+                          target="_blank", cls="text-slate-400 hover:text-white")(
+                            "Giuseppe Birardi"
+                        ),
+                        " | Orma Lab Srl"
+                    ),
+                ),
+                Div(cls="border-t border-slate-800 pt-4")(
+                    P(cls="text-xs text-slate-500")(
+                        "Thanks to ",
+                        A(href="https://www.eleuther.ai/", target="_blank",
+                          cls="text-slate-400 hover:text-white")("eleuther.ai"),
+                        " for infrastructure"
+                    ),
+                ),
             ),
         ),
     )
