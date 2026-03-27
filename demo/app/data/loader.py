@@ -1292,6 +1292,9 @@ class DataLoader:
             "vs_max": None,
             "vs_topk": None,
             "rank_in_group": None,
+            "vs_max_pos0": None,
+            "vs_topk_pos0": None,
+            "rank_in_group_pos0": None,
         }
         if isinstance(contrast, dict):
             grp = contrast.get("same_dataset", {})
@@ -1300,6 +1303,9 @@ class DataLoader:
                 data["_derived"]["vs_max"] = agg.get("best_target_minus_max")
                 data["_derived"]["vs_topk"] = agg.get("best_target_minus_topk")
                 data["_derived"]["rank_in_group"] = agg.get("best_rank_within")
+                data["_derived"]["vs_max_pos0"] = agg.get("initial_target_minus_max")
+                data["_derived"]["vs_topk_pos0"] = agg.get("initial_target_minus_topk")
+                data["_derived"]["rank_in_group_pos0"] = agg.get("initial_rank_within")
                 data["_derived"]["contrast_members"] = grp.get("members", [])
                 data["_derived"]["contrast_n"] = grp.get("n_members", 0)
                 data["_derived"]["contrast_topk_k"] = grp.get("topk_k", 3)

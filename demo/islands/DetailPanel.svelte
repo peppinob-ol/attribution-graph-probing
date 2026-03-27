@@ -37,6 +37,7 @@
   $: controlMode = derived?.control_mode || null;
   $: fieldsUsed = derived?.fields_used || null;
   $: hasContrastMetrics = derived?.vs_max != null || derived?.rank_in_group != null || derived?.vs_topk != null;
+  $: hasPos0Metrics = derived?.vs_max_pos0 != null || derived?.rank_in_group_pos0 != null;
   $: hasTrajMetrics = derived?.initial_gap != null || derived?.best_gap != null || derived?.gap_closure != null;
   
   let domainConfig = null;
@@ -546,71 +547,99 @@
           {#if data.classification?.notes}
             <p class="text-xs text-slate-500 mb-1">{data.classification.notes}</p>
           {/if}
-          <!-- Primary metrics row -->
-          {#if hasContrastMetrics || hasTrajMetrics}
+          <!-- Primary metrics: dual-row table (pos0 / best) when contrast data exists, inline fallback otherwise -->
+          {#if hasContrastMetrics}
+            <div class="pt-2 border-t border-slate-700/50">
+              <table class="w-full text-xs">
+                <thead>
+                  <tr>
+                    <th class="text-left text-[10px] text-slate-600 uppercase font-normal pb-1 w-14"></th>
+                    <th class="text-right text-[10px] text-slate-500 uppercase font-normal pb-1 pr-2"
+                        title="Value at generation position 0 -- the direct causal effect before autoregressive feedback.">pos0</th>
+                    <th class="text-right text-[10px] text-slate-500 uppercase font-normal pb-1"
+                        title="Best value across the full generation trajectory (typically 11 positions).">best</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#if derived.vs_max != null}
+                    <tr title="Target logit minus max other dataset answer. Positive = target beats all alternatives.">
+                      <td class="text-slate-500 uppercase py-0.5">vsMax</td>
+                      <td class="text-right font-mono font-bold pr-2 {derived.vs_max_pos0 != null ? (derived.vs_max_pos0 > 0 ? 'text-emerald-400/80' : derived.vs_max_pos0 > -2 ? 'text-yellow-400/80' : 'text-red-400/80') : 'text-slate-600'}">
+                        {derived.vs_max_pos0 != null ? (derived.vs_max_pos0 > 0 ? '+' : '') + formatNum(derived.vs_max_pos0) : '--'}
+                      </td>
+                      <td class="text-right font-mono font-bold {derived.vs_max > 0 ? 'text-emerald-400' : derived.vs_max > -2 ? 'text-yellow-400' : 'text-red-400'}">
+                        {derived.vs_max > 0 ? '+' : ''}{formatNum(derived.vs_max)}
+                      </td>
+                    </tr>
+                  {/if}
+                  {#if derived.rank_in_group != null}
+                    <tr title="Rank of target among all {derived.contrast_n ?? '?'} dataset answer tokens (1 = top).">
+                      <td class="text-slate-500 uppercase py-0.5">RkGrp</td>
+                      <td class="text-right font-mono font-bold pr-2 {derived.rank_in_group_pos0 != null ? (derived.rank_in_group_pos0 === 1 ? 'text-emerald-400/80' : derived.rank_in_group_pos0 <= 3 ? 'text-yellow-400/80' : 'text-red-400/80') : 'text-slate-600'}">
+                        {derived.rank_in_group_pos0 != null ? derived.rank_in_group_pos0 : '--'}
+                      </td>
+                      <td class="text-right font-mono font-bold {derived.rank_in_group === 1 ? 'text-emerald-400' : derived.rank_in_group <= 3 ? 'text-yellow-400' : 'text-red-400'}">
+                        {derived.rank_in_group}
+                      </td>
+                    </tr>
+                  {/if}
+                  {#if derived.vs_topk != null}
+                    <tr title="Target logit minus mean top-{derived.contrast_topk_k ?? 3} other dataset answers.">
+                      <td class="text-slate-500 uppercase py-0.5">vsTopK</td>
+                      <td class="text-right font-mono font-bold pr-2 {derived.vs_topk_pos0 != null ? (derived.vs_topk_pos0 > 0 ? 'text-emerald-400/80' : derived.vs_topk_pos0 > -2 ? 'text-yellow-400/80' : 'text-red-400/80') : 'text-slate-600'}">
+                        {derived.vs_topk_pos0 != null ? (derived.vs_topk_pos0 > 0 ? '+' : '') + formatNum(derived.vs_topk_pos0) : '--'}
+                      </td>
+                      <td class="text-right font-mono font-bold {derived.vs_topk > 0 ? 'text-emerald-400' : derived.vs_topk > -2 ? 'text-yellow-400' : 'text-red-400'}">
+                        {derived.vs_topk > 0 ? '+' : ''}{formatNum(derived.vs_topk)}
+                      </td>
+                    </tr>
+                  {/if}
+                </tbody>
+              </table>
+            </div>
+          {:else if hasTrajMetrics}
             <div class="flex items-center gap-3 pt-2 border-t border-slate-700/50 flex-wrap">
-              {#if hasContrastMetrics}
-                {#if derived.vs_max != null}
-                  <div class="flex items-baseline gap-1" title="Best (target logit - max other dataset answer). Positive = target beats all alternatives.">
-                    <span class="text-[10px] text-slate-500 uppercase">vsMax</span>
-                    <span class="text-sm font-mono font-bold {derived.vs_max > 0 ? 'text-emerald-400' : derived.vs_max > -2 ? 'text-yellow-400' : 'text-red-400'}">{derived.vs_max > 0 ? '+' : ''}{formatNum(derived.vs_max)}</span>
-                  </div>
-                {/if}
-                {#if derived.rank_in_group != null}
-                  <div class="flex items-baseline gap-1" title="Best rank of target within all {derived.contrast_n ?? '?'} dataset answer tokens (1 = top).">
-                    <span class="text-[10px] text-slate-500 uppercase">RkGrp</span>
-                    <span class="text-sm font-mono font-bold {derived.rank_in_group === 1 ? 'text-emerald-400' : derived.rank_in_group <= 3 ? 'text-yellow-400' : 'text-red-400'}">{derived.rank_in_group}</span>
-                  </div>
-                {/if}
-                {#if derived.vs_topk != null}
-                  <div class="flex items-baseline gap-1" title="Best (target logit - mean top-{derived.contrast_topk_k ?? 3} other dataset answers).">
-                    <span class="text-[10px] text-slate-500 uppercase">vsTopK</span>
-                    <span class="text-sm font-mono font-bold {derived.vs_topk > 0 ? 'text-emerald-400' : derived.vs_topk > -2 ? 'text-yellow-400' : 'text-red-400'}">{derived.vs_topk > 0 ? '+' : ''}{formatNum(derived.vs_topk)}</span>
-                  </div>
-                {/if}
-              {:else}
-                {#if derived.initial_gap != null}
-                  <div class="flex items-baseline gap-1" title="Target logit minus source logit at generation position 0.">
-                    <span class="text-[10px] text-slate-500 uppercase">Gap0</span>
-                    <span class="text-sm font-mono font-bold {derived.initial_gap > 0 ? 'text-emerald-400' : derived.initial_gap < 0 ? 'text-red-400' : 'text-slate-400'}">{derived.initial_gap > 0 ? '+' : ''}{formatNum(derived.initial_gap)}</span>
-                  </div>
-                {/if}
-                {#if derived.best_gap != null}
-                  <div class="flex items-baseline gap-1" title="Maximum target-minus-source margin across all generation positions.">
-                    <span class="text-[10px] text-slate-500 uppercase">BestGap</span>
-                    <span class="text-sm font-mono font-bold {derived.best_gap > 0 ? 'text-emerald-400' : derived.best_gap < 0 ? 'text-red-400' : 'text-slate-400'}">{derived.best_gap > 0 ? '+' : ''}{formatNum(derived.best_gap)}</span>
-                  </div>
-                {/if}
-                {#if derived.gap_closure != null}
-                  <div class="flex items-baseline gap-1" title="Best gap minus initial gap. Positive = target gained advantage.">
-                    <span class="text-[10px] text-slate-500 uppercase">Closure</span>
-                    <span class="text-sm font-mono font-bold {derived.gap_closure > 0 ? 'text-emerald-400' : derived.gap_closure < 0 ? 'text-red-400' : 'text-slate-400'}">{derived.gap_closure > 0 ? '+' : ''}{formatNum(derived.gap_closure)}</span>
-                  </div>
-                {/if}
+              {#if derived.initial_gap != null}
+                <div class="flex items-baseline gap-1" title="Target logit minus source logit at generation position 0.">
+                  <span class="text-[10px] text-slate-500 uppercase">Gap0</span>
+                  <span class="text-sm font-mono font-bold {derived.initial_gap > 0 ? 'text-emerald-400' : derived.initial_gap < 0 ? 'text-red-400' : 'text-slate-400'}">{derived.initial_gap > 0 ? '+' : ''}{formatNum(derived.initial_gap)}</span>
+                </div>
+              {/if}
+              {#if derived.best_gap != null}
+                <div class="flex items-baseline gap-1" title="Maximum target-minus-source margin across all generation positions.">
+                  <span class="text-[10px] text-slate-500 uppercase">BestGap</span>
+                  <span class="text-sm font-mono font-bold {derived.best_gap > 0 ? 'text-emerald-400' : derived.best_gap < 0 ? 'text-red-400' : 'text-slate-400'}">{derived.best_gap > 0 ? '+' : ''}{formatNum(derived.best_gap)}</span>
+                </div>
+              {/if}
+              {#if derived.gap_closure != null}
+                <div class="flex items-baseline gap-1" title="Best gap minus initial gap. Positive = target gained advantage.">
+                  <span class="text-[10px] text-slate-500 uppercase">Closure</span>
+                  <span class="text-sm font-mono font-bold {derived.gap_closure > 0 ? 'text-emerald-400' : derived.gap_closure < 0 ? 'text-red-400' : 'text-slate-400'}">{derived.gap_closure > 0 ? '+' : ''}{formatNum(derived.gap_closure)}</span>
+                </div>
               {/if}
             </div>
-            <!-- Contrast group members (collapsible) -->
-            {#if derived.contrast_members && derived.contrast_members.length > 0}
-              <div class="mt-2 pt-1">
-                <button
-                  class="text-xs text-slate-500 hover:text-slate-300 transition-colors w-full text-left"
-                  on:click={() => contrastGroupExpanded = !contrastGroupExpanded}
-                >
-                  {contrastGroupExpanded ? 'Hide' : 'Show'} competing answers ({derived.contrast_n})
-                </button>
-                {#if contrastGroupExpanded}
-                  <div class="mt-2 flex flex-wrap gap-1">
-                    {#each derived.contrast_members as member}
-                      <span
-                        class="px-1.5 py-0.5 rounded text-xs font-mono {member.token.trim() === (data?.target?.answer || data?.evaluation?.to_answer || '').trim() ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700/50 text-slate-400'}"
-                        title="token_id: {member.token_id}"
-                      >{member.token.trim()}</span>
-                    {/each}
-                  </div>
-                  <div class="text-xs text-slate-600 mt-1">Target must outrank these to achieve RkGrp = 1</div>
-                {/if}
-              </div>
-            {/if}
+          {/if}
+          <!-- Contrast group members (collapsible) -->
+          {#if derived.contrast_members && derived.contrast_members.length > 0}
+            <div class="mt-2 pt-1">
+              <button
+                class="text-xs text-slate-500 hover:text-slate-300 transition-colors w-full text-left"
+                on:click={() => contrastGroupExpanded = !contrastGroupExpanded}
+              >
+                {contrastGroupExpanded ? 'Hide' : 'Show'} competing answers ({derived.contrast_n})
+              </button>
+              {#if contrastGroupExpanded}
+                <div class="mt-2 flex flex-wrap gap-1">
+                  {#each derived.contrast_members as member}
+                    <span
+                      class="px-1.5 py-0.5 rounded text-xs font-mono {member.token.trim() === (data?.target?.answer || data?.evaluation?.to_answer || '').trim() ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700/50 text-slate-400'}"
+                      title="token_id: {member.token_id}"
+                    >{member.token.trim()}</span>
+                  {/each}
+                </div>
+                <div class="text-xs text-slate-600 mt-1">Target must outrank these to achieve RkGrp = 1</div>
+              {/if}
+            </div>
           {/if}
         </div>
         
