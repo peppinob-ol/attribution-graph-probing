@@ -554,19 +554,23 @@
                 <thead>
                   <tr>
                     <th class="text-left text-[10px] text-slate-600 uppercase font-normal pb-1 w-14"></th>
-                    <th class="text-right text-[10px] text-slate-500 uppercase font-normal pb-1 pr-2"
-                        title="Value at generation position 0 -- the direct causal effect before autoregressive feedback.">pos0</th>
+                    {#if hasPos0Metrics}
+                      <th class="text-right text-[10px] text-slate-500 uppercase font-normal pb-1 pr-2"
+                          title="Value at generation position 0 -- the direct causal effect before autoregressive feedback.">pos0</th>
+                    {/if}
                     <th class="text-right text-[10px] text-slate-500 uppercase font-normal pb-1"
-                        title="Best value across the full generation trajectory (typically 11 positions).">best</th>
+                        title="Best value across the full generation trajectory (typically 11 positions).">{hasPos0Metrics ? 'best' : ''}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {#if derived.vs_max != null}
                     <tr title="Target logit minus max other dataset answer. Positive = target beats all alternatives.">
                       <td class="text-slate-500 uppercase py-0.5">vsMax</td>
-                      <td class="text-right font-mono font-bold pr-2 {derived.vs_max_pos0 != null ? (derived.vs_max_pos0 > 0 ? 'text-emerald-400/80' : derived.vs_max_pos0 > -2 ? 'text-yellow-400/80' : 'text-red-400/80') : 'text-slate-600'}">
-                        {derived.vs_max_pos0 != null ? (derived.vs_max_pos0 > 0 ? '+' : '') + formatNum(derived.vs_max_pos0) : '--'}
-                      </td>
+                      {#if hasPos0Metrics}
+                        <td class="text-right font-mono font-bold pr-2 {derived.vs_max_pos0 != null ? (derived.vs_max_pos0 > 0 ? 'text-emerald-400/80' : derived.vs_max_pos0 > -2 ? 'text-yellow-400/80' : 'text-red-400/80') : 'text-slate-600'}">
+                          {derived.vs_max_pos0 != null ? (derived.vs_max_pos0 > 0 ? '+' : '') + formatNum(derived.vs_max_pos0) : '--'}
+                        </td>
+                      {/if}
                       <td class="text-right font-mono font-bold {derived.vs_max > 0 ? 'text-emerald-400' : derived.vs_max > -2 ? 'text-yellow-400' : 'text-red-400'}">
                         {derived.vs_max > 0 ? '+' : ''}{formatNum(derived.vs_max)}
                       </td>
@@ -575,9 +579,11 @@
                   {#if derived.rank_in_group != null}
                     <tr title="Rank of target among all {derived.contrast_n ?? '?'} dataset answer tokens (1 = top).">
                       <td class="text-slate-500 uppercase py-0.5">RkGrp</td>
-                      <td class="text-right font-mono font-bold pr-2 {derived.rank_in_group_pos0 != null ? (derived.rank_in_group_pos0 === 1 ? 'text-emerald-400/80' : derived.rank_in_group_pos0 <= 3 ? 'text-yellow-400/80' : 'text-red-400/80') : 'text-slate-600'}">
-                        {derived.rank_in_group_pos0 != null ? derived.rank_in_group_pos0 : '--'}
-                      </td>
+                      {#if hasPos0Metrics}
+                        <td class="text-right font-mono font-bold pr-2 {derived.rank_in_group_pos0 != null ? (derived.rank_in_group_pos0 === 1 ? 'text-emerald-400/80' : derived.rank_in_group_pos0 <= 3 ? 'text-yellow-400/80' : 'text-red-400/80') : 'text-slate-600'}">
+                          {derived.rank_in_group_pos0 != null ? derived.rank_in_group_pos0 : '--'}
+                        </td>
+                      {/if}
                       <td class="text-right font-mono font-bold {derived.rank_in_group === 1 ? 'text-emerald-400' : derived.rank_in_group <= 3 ? 'text-yellow-400' : 'text-red-400'}">
                         {derived.rank_in_group}
                       </td>
@@ -586,9 +592,11 @@
                   {#if derived.vs_topk != null}
                     <tr title="Target logit minus mean top-{derived.contrast_topk_k ?? 3} other dataset answers.">
                       <td class="text-slate-500 uppercase py-0.5">vsTopK</td>
-                      <td class="text-right font-mono font-bold pr-2 {derived.vs_topk_pos0 != null ? (derived.vs_topk_pos0 > 0 ? 'text-emerald-400/80' : derived.vs_topk_pos0 > -2 ? 'text-yellow-400/80' : 'text-red-400/80') : 'text-slate-600'}">
-                        {derived.vs_topk_pos0 != null ? (derived.vs_topk_pos0 > 0 ? '+' : '') + formatNum(derived.vs_topk_pos0) : '--'}
-                      </td>
+                      {#if hasPos0Metrics}
+                        <td class="text-right font-mono font-bold pr-2 {derived.vs_topk_pos0 != null ? (derived.vs_topk_pos0 > 0 ? 'text-emerald-400/80' : derived.vs_topk_pos0 > -2 ? 'text-yellow-400/80' : 'text-red-400/80') : 'text-slate-600'}">
+                          {derived.vs_topk_pos0 != null ? (derived.vs_topk_pos0 > 0 ? '+' : '') + formatNum(derived.vs_topk_pos0) : '--'}
+                        </td>
+                      {/if}
                       <td class="text-right font-mono font-bold {derived.vs_topk > 0 ? 'text-emerald-400' : derived.vs_topk > -2 ? 'text-yellow-400' : 'text-red-400'}">
                         {derived.vs_topk > 0 ? '+' : ''}{formatNum(derived.vs_topk)}
                       </td>

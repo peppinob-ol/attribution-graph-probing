@@ -51,6 +51,275 @@ report sections.
 
 (Investigation entries go below this line, newest first.)
 
+## [2026-03-27] Topic: debunking target recovery rate as "single most discriminating signal"
+
+**Question**: The `[2026-03-24] logit-shift taxonomy` entry claims target
+recovery rate (does the target logit exceed its unsteered baseline at any
+trajectory position?) is "the single most discriminating signal between
+labeled and random" in regime C, citing 92% labeled vs 29% random. Is this
+finding robust, or is it an artifact of the USA dataset, the max-over-
+positions criterion, intervention count, redundancy with vs_max, or regime C
+selection bias?
+
+**Method**: Wrote `scripts/research/debunk_target_recovery.py`. Loaded all
+labeled and random swap JSONs for USA (2450 labeled, 7350 random) and books
+(240 labeled, 720 random). For each swap, extracted baseline target/source
+logits, steered logit trajectories (11 positions), position-0 comparison,
+intervention counts, and vs_max. Classified each swap into regime (A/C/D/E/B)
+using position-0 deltas. Computed target recovery (any position > baseline)
+and early recovery (positions 1-3 only). Tested five debunking hypotheses:
+
+- H1: Max-over-positions inflation -- compared target recovery vs control
+  token recovery (control pos>0 exceeds control pos0) as a null model.
+- H2: Intervention count confound -- compared total_count distributions
+  between labeled and random; checked recovery rate by count quartile.
+- H3: Redundancy with vs_max -- checked if recovery adds discriminative
+  information beyond vs_max conditioning.
+- H4: Regime C selection bias -- computed recovery across ALL regimes.
+- H5: Position-specific robustness -- used stricter early-recovery criterion.
+
+**Raw findings**:
+
+*H0: Reproduction across domains*
+
+Recovery rate in regime C:
+
+| Dataset | Labeled regime C | Random regime C | Delta |
+|---------|-----------------|----------------|-------|
+| USA     | 92.2% (1606/1741) | 18.9% (421/2223) | **+73.3pp** |
+| Books   | 91.9% (124/135) | **88.9%** (128/144) | **+3.0pp** |
+
+Recovery rate across ALL regimes:
+
+| Dataset | Labeled | Random | Delta |
+|---------|---------|--------|-------|
+| USA     | 92.4% (2264/2450) | 31.3% (2302/7350) | +61.1pp |
+| Books   | 93.8% (225/240) | **88.8%** (639/720) | **+5.0pp** |
+
+The 92% vs 29% claim **does not replicate in books**. In books, which has
+the *highest* vs_max delta of any domain (+6.14 per the domain gradient
+entry), recovery rate barely separates labeled from random (3pp in regime C,
+5pp overall).
+
+*H1: Control token recovery as null model*
+
+Control tokens "recover" (pos>0 exceeds pos0 logit) at near-100% rates:
+
+| Condition | Target recovers | Control recovers | Delta |
+|-----------|----------------|-----------------|-------|
+| USA labeled regime C | 92.2% | 99.9% | -7.7pp |
+| USA random regime C  | 18.9% | 97.9% | -79.0pp |
+| Books labeled regime C | 91.9% | 100.0% | -8.1pp |
+| Books random regime C  | 88.9% | 96.7% | -7.8pp |
+
+Note: This comparison is not apples-to-apples. Control recovery is measured
+against pos-0 logit (not unsteered baseline), because unsteered control
+logits are not stored. The near-100% control rate confirms the overshoot
+entry's finding that position 0 is catastrophically disrupted and later
+positions always recover from the overshoot. The key observation is that in
+USA random, target tokens do NOT participate in this generic recovery (only
+18.9%), while in books random, they DO (88.9%).
+
+*H2: Intervention count*
+
+| Condition | Mean total_count | Median |
+|-----------|-----------------|--------|
+| USA labeled | 177.7 | 164 |
+| USA random  | 177.7 | 164 |
+| Books labeled | 304.4 | 293 |
+| Books random  | 304.4 | 293 |
+
+Intervention counts are **matched by design** between labeled and random.
+Within USA labeled regime C, recovery rate by total_count quartile:
+
+| Quartile | Range | Recovery |
+|----------|-------|----------|
+| Q1 | 0-148 | 87.1% |
+| Q2 | 148-165 | 95.7% |
+| Q3 | 165-202 | 93.9% |
+| Q4 | 202+ | 91.7% |
+
+Recovery is high across all quartiles; no monotonic relationship with
+feature count. **H2 ruled out.**
+
+*H3: Redundancy with vs_max*
+
+Labeled regime C, vs_max by recovery status:
+
+| Dataset | Recoverers | Non-recoverers |
+|---------|-----------|---------------|
+| USA | mean 2.60 (N=1606) | mean -0.81 (N=135) |
+| Books | mean 4.85 (N=124) | mean 3.19 (N=11) |
+
+Recovery is correlated with vs_max, but does it add information?
+
+Among swaps with vs_max > 0 only:
+
+| Dataset | Labeled recovery | Random recovery | Delta |
+|---------|-----------------|----------------|-------|
+| USA | 96.3% (N=1951) | 45.5% (N=929) | **+50.8pp** |
+| Books | 94.4% (N=234) | **88.6%** (N=342) | **+5.8pp** |
+
+In USA, recovery separates labeled from random even after conditioning on
+positive vs_max. In books, the gap is only 5.8pp -- nearly gone.
+
+*H4: Regime C selection bias*
+
+Already shown above: recovery across all regimes has the same pattern.
+USA gap persists (92.4% vs 31.3%). Books gap barely exists (93.8% vs 88.8%).
+**H4 ruled out for USA, confirmed for books (no signal to select for).**
+
+Per-regime recovery for random:
+
+| Regime | USA random | Books random |
+|--------|-----------|-------------|
+| A | 45.3% (809/1784) | 92.9% (289/311) |
+| C | 18.9% (421/2223) | 88.9% (128/144) |
+| D | 32.1% (1071/3337) | 83.8% (222/265) |
+
+Books random recovery is **83-93%** across ALL regimes. The books model
+easily recovers target logits above baseline regardless of whether the
+intervention is labeled or random.
+
+*H5: Early recovery (positions 1-3 only)*
+
+| Dataset | Labeled regime C | Random regime C | Delta |
+|---------|-----------------|----------------|-------|
+| USA | 61.5% (1070/1741) | 11.7% (259/2223) | +49.8pp |
+| Books | 73.3% (99/135) | **78.5%** (113/144) | **-5.2pp** |
+
+In books, early recovery **inverts** -- random actually exceeds labeled!
+
+Position-specific recovery in USA regime C:
+
+| Position | Labeled | Random | Delta |
+|----------|---------|--------|-------|
+| 1 | 10.2% | 0.8% | +9.4pp |
+| 2 | 52.4% | 9.6% | +42.8pp |
+| 3 | 30.6% | 2.2% | +28.4pp |
+| 4 | 63.0% | 3.7% | +59.3pp |
+| 5 | 55.1% | 4.2% | +50.9pp |
+| 6 | 44.5% | 2.8% | +41.7pp |
+| 7 | 36.9% | 1.3% | +35.6pp |
+| 8 | 24.3% | 2.1% | +22.2pp |
+| 9 | 34.6% | 3.6% | +31.0pp |
+| 10 | 27.2% | 0.9% | +26.3pp |
+
+In USA, the gap is robust at every individual position, peaking at
+positions 2 and 4-5 (the same positions where the overshoot entry found
+target rank recovering to top-15).
+
+*Recovery magnitude*
+
+| Condition | Mean excess above baseline | Median |
+|-----------|--------------------------|--------|
+| USA labeled regime C recoverers | +5.12 | +4.88 |
+| USA random regime C recoverers  | +1.38 | +1.00 |
+| Books labeled regime C recoverers | +4.81 | +4.44 |
+| Books random regime C recoverers  | +2.90 | +2.75 |
+
+Even in books where recovery rates are similar, labeled recoverers exceed
+baseline by larger amounts (4.81 vs 2.90 logit units). Recovery magnitude
+discriminates better than the binary recovery indicator in books.
+
+**Interpretation**: The claim that target recovery rate is "the single most
+discriminating signal between labeled and random" is **domain-specific and
+overstated**. Confidence: **High** for the debunking. Epistemic level:
+**L1** (metric validity) with **L2** implications.
+
+The evidence shows:
+
+1. **Does not replicate across domains.** The 92% vs 29% gap in USA regime C
+   becomes 92% vs 89% in books regime C -- a 3pp delta, well within noise for
+   N=135/144. The early-recovery variant actually *inverts* in books (73% vs
+   79%). A metric that only discriminates in one of two tested domains cannot
+   be called "the single most discriminating signal."
+
+2. **USA-specificity has a plausible explanation.** In USA, random
+   interventions produce very low target recovery (31%) because random
+   features do not activate on target-concept contexts, so amplifying them
+   does not push the target logit above its baseline. In books, random
+   interventions produce high target recovery (89%) despite not being
+   targeted -- likely because the books model has 16 entities with strongly
+   distinct representations, and any sufficiently large perturbation
+   activates enough residual target-concept circuitry to exceed the baseline.
+   This means recovery in books is **mechanically easy**, not informative.
+
+3. **Recovery magnitude is more informative than the binary flag.** Even in
+   books where binary recovery is non-discriminating, labeled recoverers
+   exceed baseline by 4.81 vs 2.90 logit units for random. A continuous
+   "max excess above baseline" metric would retain discriminative power
+   across domains where the binary version fails.
+
+4. **The intervention count confound is cleanly ruled out.** Both conditions
+   use identical feature counts by design, and within labeled there is no
+   monotonic relationship between count and recovery. The signal is about
+   *which* features are amplified, not *how many*.
+
+5. **Regime C selection bias is ruled out for USA but irrelevant for books.**
+   The USA gap persists across all regimes (92% vs 31% overall). In books,
+   there is no gap to explain.
+
+6. **The "any position" criterion is not the issue.** Even position-specific
+   rates at individual trajectory positions show massive USA gaps (e.g.,
+   52% vs 10% at position 2). The max-over-positions does inflate the
+   absolute rate but does not create the labeled/random delta.
+
+**Net assessment of the original claim**: Target recovery rate is a real and
+meaningful signal in USA, where it captures whether amplified features
+specifically activate target-concept logits. It is not a universal
+discriminator. The log entry should have tested replication before calling
+it "the single most discriminating signal." The correct statement is:
+"target recovery rate is the strongest discriminator in USA but loses
+nearly all discriminative power in books, where random recovery is
+mechanically high."
+
+**Recommended replacement metric**: `tgt_max_excess` (max logit excess over
+unsteered baseline across trajectory positions). This continuous metric
+retains separation in both USA and books (5.12 vs 1.38 and 4.81 vs 2.90
+respectively) and is not subject to the binary ceiling effect that makes
+recovery useless in books.
+
+**Threats to validity**:
+- [x] Only two domains tested (USA, books). Products, paintings, and sounds
+  should be checked. However, sounds has known structural issues, and
+  paintings has small N (90 pairs).
+- [x] The control token recovery null model uses a different baseline
+  (pos-0 logit, not unsteered), so it cannot directly test whether target
+  recovery is target-specific. A proper null model would need unsteered
+  control logits, which are not stored in the swap JSONs.
+- [x] The books result could reflect books-specific properties (small answer
+  space, highly distinctive entity names) rather than a general failure of
+  the metric. But this is precisely the point: a metric that fails on
+  "easy" datasets is not robust.
+- [x] Recovery magnitude (recommended replacement) has not been formally
+  validated as a discriminator with bootstrap CIs or effect sizes.
+- [x] The regime classification uses position-0 deltas, which are themselves
+  subject to overshoot. Different classification thresholds could shift the
+  regime C populations.
+
+**Follow-up**:
+- Compute `tgt_max_excess` across all 5 datasets and run `SwapStats.compare()`
+  to check if it maintains labeled vs random separation with proper effect
+  sizes.
+- Check products and paintings for recovery rate discrimination. If books is
+  the only domain where recovery fails, the explanation may be books-specific
+  rather than a general debunking.
+- Consider whether the books model's high random recovery reflects weaker
+  baseline representations (smaller answer space = easier to perturb above
+  baseline) vs structural properties of the attribution graphs.
+- Re-examine the `[2026-03-24] logit-shift taxonomy` entry's composite
+  label-evidence score (`vs_max > 0` + recovery + `tgt_win_pct > 0.5`) --
+  if one of the three components is non-discriminating in books, the
+  composite may also be weak there.
+
+**References**: `[2026-03-24] logit-shift taxonomy and label-evidence metric
+design` (original claim); `[2026-03-25] best field-add variant vs random in
+regime taxonomy`; `[2026-03-25] steering strength overshoot`;
+`scripts/research/debunk_target_recovery.py`
+
+---
+
 ## [2026-03-25] Topic: steering strength overshoot -- evidence and sweep design
 
 **Question**: The current steering uses M_ablate=-2, M_amplify=20, temperature=0.3
