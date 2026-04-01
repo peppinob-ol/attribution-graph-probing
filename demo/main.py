@@ -1,5 +1,5 @@
 """
-Swap Explorer - FastHTML Demo App
+Concept Swap Explorer - FastHTML Demo App
 
 Interactive visualization of circuit steering experiments (domain-agnostic).
 Built with FastHTML + Vanilla JS islands + Tailwind CSS.
@@ -108,7 +108,7 @@ if __name__ == "__main__":
 
     dc = data_loader.get_domain_config()
     print("=" * 60)
-    print(f"Swap Explorer  [{dc.get('display_name', 'Unknown Domain')}]")
+    print(f"Concept Swap Explorer  [{dc.get('display_name', 'Unknown Domain')}]")
     if ANNOTATE_MODE:
         print(">>> ANNOTATION MODE ENABLED <<<")
         print("  - Press 1-5 to change tier")

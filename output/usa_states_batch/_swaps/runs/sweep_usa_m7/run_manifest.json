@@ -1,0 +1,81 @@
+{
+  "run_id": "sweep_usa_m7",
+  "run_dir": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch/_swaps/runs/sweep_usa_m7",
+  "display_demo": true,
+  "status": "completed",
+  "timestamp": "2026-04-01T05:42:53.357606",
+  "argv": [
+    "run_batch_swaps.py",
+    "--config",
+    "configs/sweep_usa_m7.yml",
+    "--run-id",
+    "sweep_usa_m7",
+    "--pair",
+    "rhode_island_warwick:wisconsin_milwaukee"
+  ],
+  "git": {
+    "commit": "7d4d36f20a3bd7f33697447346f31b2887494e2b",
+    "branch": "control-refactor",
+    "dirty": true
+  },
+  "platform": {
+    "python": "3.10.12",
+    "os": "posix",
+    "platform": "linux"
+  },
+  "config": {
+    "experiment_name": "sweep_usa_m7",
+    "swap": {
+      "mode": "matrix",
+      "include_identity": true,
+      "concept_fields": [
+        "state",
+        "capital",
+        "city"
+      ],
+      "answer_field": "capital"
+    },
+    "ct_steering": {
+      "model_id": "google/gemma-2-2b",
+      "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",
+      "M_ablate": -2,
+      "M_amplify": 7,
+      "temperature": 0.3,
+      "n_tokens": 10,
+      "freq_penalty": 2.0,
+      "seed": 42,
+      "top_k": 5,
+      "freeze_attention": false,
+      "track_trajectory": true
+    },
+    "compute": {
+      "inherit_from_source": false,
+      "remote": {
+        "enabled": false
+      }
+    },
+    "inputs": {
+      "source_config": "configs/usa_states_full.yml",
+      "graphs_root": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch"
+    }
+  },
+  "hashes": {
+    "combined_config_sha1": "0c959e09fad52ce97b3f7558a66018f87650c77c",
+    "files": {
+      "swap_config": "159762876d741ebd93cf7a24c16b3b0103bad55f",
+      "source_config": "251f955cd944dda24e0a954d26316acfd4f9bdfa"
+    }
+  },
+  "timestamp_started": "2026-04-01T05:42:27.194929",
+  "timestamp_completed": "2026-04-01T05:42:53.357403",
+  "counts": {
+    "total_pairs": 1,
+    "processed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "outputs": {
+    "summary_path": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch/_swaps/runs/sweep_usa_m7/_summary.json",
+    "matrix_path": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch/_swaps/runs/sweep_usa_m7/_matrix.csv"
+  }
+}

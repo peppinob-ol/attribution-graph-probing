@@ -20,7 +20,7 @@ from pathlib import Path
 SCRIPT_PATH = Path(__file__).resolve()
 DEMO_DIR = SCRIPT_PATH.parent
 REPO_ROOT = DEMO_DIR.parent
-DEFAULT_SPACE_DIR = Path.home() / "state-swap-steering-explorer"
+DEFAULT_SPACE_DIR = Path.home() / "concept-swap-explorer"
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "output"
 HF_BLOCKED_BINARY_SUFFIXES = {
     ".png",
@@ -104,6 +104,49 @@ def _load_demo_registry(output_root: Path):
     return DemoRegistry(output_root)
 
 
+def _copy_dataset_selective(src_dir: Path, dst_dir: Path, demo_run_ids: set) -> None:
+    """Copy a dataset directory, keeping only demo-enabled runs and skipping work/ dirs."""
+    if dst_dir.exists():
+        shutil.rmtree(dst_dir)
+    dst_dir.mkdir(parents=True, exist_ok=True)
+
+    runs_src = src_dir / "_swaps" / "runs"
+    runs_dst = dst_dir / "_swaps" / "runs"
+
+    for item in src_dir.iterdir():
+        if item.name == "_swaps":
+            dst_swaps = dst_dir / "_swaps"
+            dst_swaps.mkdir(parents=True, exist_ok=True)
+            for swaps_child in item.iterdir():
+                if swaps_child.name == "runs":
+                    runs_dst.mkdir(parents=True, exist_ok=True)
+                    for run_dir in swaps_child.iterdir():
+                        if not run_dir.is_dir():
+                            continue
+                        manifest = run_dir / "run_manifest.json"
+                        if not manifest.exists():
+                            continue
+                        if run_dir.name not in demo_run_ids:
+                            continue
+                        shutil.copytree(
+                            run_dir, runs_dst / run_dir.name,
+                            ignore=shutil.ignore_patterns("work", "_work"),
+                        )
+                elif swaps_child.is_dir():
+                    if swaps_child.name.startswith("_work") or swaps_child.name == "work":
+                        continue
+                    shutil.copytree(swaps_child, dst_swaps / swaps_child.name)
+                else:
+                    shutil.copy2(swaps_child, dst_swaps / swaps_child.name)
+        elif item.is_dir():
+            shutil.copytree(
+                item, dst_dir / item.name,
+                ignore=shutil.ignore_patterns("work", "_work"),
+            )
+        else:
+            shutil.copy2(item, dst_dir / item.name)
+
+
 def copy_demo_datasets(output_root: Path, target_root: Path) -> Dict[str, object]:
     registry = _load_demo_registry(output_root)
     datasets = registry.list_datasets()
@@ -114,12 +157,17 @@ def copy_demo_datasets(output_root: Path, target_root: Path) -> Dict[str, object
         shutil.rmtree(target_root)
     target_root.mkdir(parents=True, exist_ok=True)
 
+    demo_run_ids: set = set()
+    for ds in datasets:
+        for run in registry.list_runs_for_dataset(ds["id"]):
+            demo_run_ids.add(run["id"])
+
     copied_labels: List[str] = []
     for ds in datasets:
         src_dir = output_root / ds["id"]
         if not src_dir.exists():
             raise SystemExit(f"Expected dataset directory not found: {src_dir}")
-        replace_tree(src_dir, target_root / ds["id"])
+        _copy_dataset_selective(src_dir, target_root / ds["id"], demo_run_ids)
         copied_labels.append(ds["label"])
 
     return {

@@ -48,7 +48,7 @@ def state_routes(app, rt, data_loader):
         
         return Html(
             Head(
-                Title(f"{state.get('label', state.get('state', slug))} - Swap Explorer"),
+                Title(f"{state.get('label', state.get('state', slug))} - Concept Swap Explorer"),
                 Meta(charset="UTF-8"),
                 Meta(name="viewport", content="width=device-width, initial-scale=1.0"),
                 Link(rel="stylesheet", href="/static/css/tailwind.css"),

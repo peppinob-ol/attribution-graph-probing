@@ -6,7 +6,7 @@ from fasthtml.common import (
 )
 
 
-def base_head(title: str = "State Swap Explorer"):
+def base_head(title: str = "Concept Swap Explorer"):
     """Return common head elements."""
     return Head(
         Title(title),

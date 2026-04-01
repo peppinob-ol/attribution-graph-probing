@@ -1,4 +1,4 @@
 """
-State Swap Explorer - FastHTML Demo App
+Concept Swap Explorer - FastHTML Demo App
 """
 

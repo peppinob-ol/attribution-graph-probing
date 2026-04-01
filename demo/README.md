@@ -1,4 +1,4 @@
-# State Swap Explorer
+# Concept Swap Explorer
 
 Interactive visualization of circuit steering experiments across US states. Built with FastHTML (Python backend), Vanilla JS islands, and Tailwind CSS.
 
@@ -160,7 +160,7 @@ discovers in `output/`. After sync, the Space runs in multi-dataset mode with
 #### Recommended sync workflow
 
 ```bash
-python demo/sync_hf_space.py --space-dir /path/to/state-swap-steering-explorer
+python demo/sync_hf_space.py --space-dir /path/to/concept-swap-explorer
 ```
 
 By default this script:
@@ -179,7 +179,7 @@ Space dataset.
 #### Manual sync fallback
 
 ```bash
-HF_REPO=/path/to/state-swap-steering-explorer
+HF_REPO=/path/to/concept-swap-explorer
 
 cp demo/main.py "$HF_REPO/main.py"
 cp demo/Dockerfile "$HF_REPO/Dockerfile"
@@ -232,8 +232,8 @@ discovers from `output/`.
 
 ```bash
 cd "$HF_REPO"
-docker build -t state-swap-explorer .
-docker run --rm -p 7860:7860 state-swap-explorer
+docker build -t concept-swap-explorer .
+docker run --rm -p 7860:7860 concept-swap-explorer
 ```
 
 Open `http://localhost:7860`.

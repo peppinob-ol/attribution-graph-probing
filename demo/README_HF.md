@@ -1,5 +1,5 @@
 ---
-title: Swap Explorer
+title: Concept Swap Explorer
 colorFrom: blue
 colorTo: indigo
 sdk: docker
@@ -8,7 +8,7 @@ pinned: false
 license: gpl-3.0
 ---
 
-# Swap Explorer -- Cross-Domain Circuit Steering
+# Concept Swap Explorer -- Cross-Domain Circuit Steering
 
 Interactive visualization of circuit steering experiments across 5 knowledge domains. Explore how feature-level interventions on attribution-graph circuits redirect model outputs from one concept to another.
 
