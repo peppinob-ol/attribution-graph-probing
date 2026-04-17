@@ -1,0 +1,184 @@
+{
+  "swap_id": "winston_smith__to__huckleberry_finn",
+  "source": {
+    "slug": "winston_smith",
+    "character": "Winston Smith",
+    "book": "1984",
+    "author": "George Orwell",
+    "prompt": "<bos>The book featuring Winston Smith was written by",
+    "concept": ""
+  },
+  "target": {
+    "slug": "huckleberry_finn",
+    "character": "Huckleberry Finn",
+    "book": "Adventures of Huckleberry Finn",
+    "author": "Mark Twain",
+    "concept": ""
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 427,
+    "total_count": 427
+  },
+  "evaluation": {
+    "ground_truth": {
+      "character": "Winston Smith",
+      "book": "1984",
+      "author": "George Orwell",
+      "prompt": "<bos>The book featuring Winston Smith was written by",
+      "concept": "winston smith"
+    },
+    "ground_truth_to": {
+      "character": "Huckleberry Finn",
+      "book": "Adventures of Huckleberry Finn",
+      "author": "Mark Twain",
+      "concept": "huckleberry finn"
+    },
+    "answer_field": "author",
+    "from_answer": "George Orwell",
+    "to_answer": "Mark Twain",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " George",
+      "default_prob": 0.380859375,
+      "steered": " ",
+      "steered_prob": 0.3984375
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": null,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The book featuring Winston Smith was written by George Orwell. The novel is set in a dystop",
+      "steered_output": "<bos><bos>The book featuring Winston Smith was written by <strong>Mark Twain</strong>.\n\nMark Twain is the",
+      "default_topk": [
+        {
+          "token": " George",
+          "prob": 0.380859375
+        },
+        {
+          "token": " the",
+          "prob": 0.09619140625
+        },
+        {
+          "token": " a",
+          "prob": 0.0751953125
+        },
+        {
+          "token": " Eric",
+          "prob": 0.0400390625
+        },
+        {
+          "token": " John",
+          "prob": 0.0400390625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " ",
+          "prob": 0.3984375
+        },
+        {
+          "token": "\n\n",
+          "prob": 0.1875
+        },
+        {
+          "token": ",",
+          "prob": 0.06103515625
+        },
+        {
+          "token": "  ",
+          "prob": 0.047607421875
+        },
+        {
+          "token": " (",
+          "prob": 0.0419921875
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 3.2798,
+      "steered_entropy": 2.4462,
+      "entropy_delta": -0.8336,
+      "kl_baseline_to_steered": 12.8518
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 1.414213425087246,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-04-06T18:03:44.518929",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 1.414213,
+    "phase": 2,
+    "total_steps": 7,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 7.3661
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 8.0887
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 10.7045
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 14.8022
+      },
+      {
+        "m": 6.931448,
+        "hit": false,
+        "kl": 15.2582
+      },
+      {
+        "m": 20.0,
+        "hit": false,
+        "kl": 15.4877
+      }
+    ],
+    "phase2_steps": [
+      {
+        "m": 1.414213,
+        "hit": true,
+        "kl": 12.8518
+      }
+    ],
+    "kl_transition": {
+      "m_lo": 0.832553,
+      "m_hi": 2.402249,
+      "kl_drop": 4.0977
+    }
+  }
+}

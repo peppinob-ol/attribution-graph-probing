@@ -1,0 +1,184 @@
+{
+  "swap_id": "oklahoma_tulsa__to__south_dakota_sioux_falls",
+  "source": {
+    "slug": "oklahoma_tulsa",
+    "city": "Tulsa",
+    "state": "Oklahoma",
+    "capital": "Oklahoma City",
+    "prompt": "<bos>The capital of the state containing Tulsa is",
+    "concept": "oklahoma"
+  },
+  "target": {
+    "slug": "south_dakota_sioux_falls",
+    "city": "Sioux Falls",
+    "state": "South Dakota",
+    "capital": "Pierre",
+    "concept": "south dakota"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 214,
+    "total_count": 214
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Tulsa",
+      "state": "Oklahoma",
+      "capital": "Oklahoma City",
+      "prompt": "<bos>The capital of the state containing Tulsa is",
+      "concept": "oklahoma"
+    },
+    "ground_truth_to": {
+      "city": "Sioux Falls",
+      "state": "South Dakota",
+      "capital": "Pierre",
+      "concept": "south dakota"
+    },
+    "answer_field": "capital",
+    "from_answer": "Oklahoma City",
+    "to_answer": "Pierre",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Oklahoma",
+      "default_prob": 0.34765625,
+      "steered": " City",
+      "steered_prob": 0.189453125
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": null,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Tulsa is Oklahoma City.\n\nThe state of Oklahoma is located",
+      "steered_output": "<bos><bos>The capital of the state containing Tulsa is City, South Dakota, is <strong>Pierre</strong>.",
+      "default_topk": [
+        {
+          "token": " Oklahoma",
+          "prob": 0.34765625
+        },
+        {
+          "token": " the",
+          "prob": 0.087890625
+        },
+        {
+          "token": " ",
+          "prob": 0.07763671875
+        },
+        {
+          "token": " Tulsa",
+          "prob": 0.068359375
+        },
+        {
+          "token": ":",
+          "prob": 0.060302734375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " City",
+          "prob": 0.189453125
+        },
+        {
+          "token": " Empire",
+          "prob": 0.1015625
+        },
+        {
+          "token": "'",
+          "prob": 0.0615234375
+        },
+        {
+          "token": " Area",
+          "prob": 0.05419921875
+        },
+        {
+          "token": " Rapid",
+          "prob": 0.0478515625
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 3.0692,
+      "steered_entropy": 4.4979,
+      "entropy_delta": 1.4286,
+      "kl_baseline_to_steered": 10.2831
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 11.774080006522805,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-04-07T01:50:29.003276",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 11.77408,
+    "phase": 2,
+    "total_steps": 7,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 1.6346
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 1.5532
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 1.9887
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 5.1641
+      },
+      {
+        "m": 6.931448,
+        "hit": false,
+        "kl": 8.0713
+      },
+      {
+        "m": 20.0,
+        "hit": false,
+        "kl": 11.8424
+      }
+    ],
+    "phase2_steps": [
+      {
+        "m": 11.77408,
+        "hit": true,
+        "kl": 10.2831
+      }
+    ],
+    "kl_transition": {
+      "m_lo": 6.931448,
+      "m_hi": 20.0,
+      "kl_drop": 3.7711
+    }
+  }
+}

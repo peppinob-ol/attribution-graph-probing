@@ -1,102 +1,112 @@
-% Section: Results
-% Outline (for review):
-% - Setup: model, CLT set, prompt families
-% - Quantitative: T1 (Graph vs Subgraph), T2 (baselines), T3 (cross-prompt)
-% - Qualitative: example subgraph and supernode composition; early-vs-late visualization
-% - Notes on exploratory vs pre-specified elements; baseline fairness note
-
 \section{Results}
 \label{sec:results}
 
-\paragraph{Experimental setup}
-We evaluate on Gemma-2-2B-it using cross-layer transcoders (CLTs) as our feature dictionary. CLTs read from the residual stream at each layer and jointly reconstruct MLP outputs downstream, trained with JumpReLU activations and an explicit sparsity penalty. For Gemma-2 (2B), a published CLT suite contains ~2.5M features in total, which we use to build local replacement models and attribution graphs. Prompt families span multiple domains to test generalization beyond single-circuit artifacts:
+We organize results by claim. Each subsection ends with an explicit \textbf{Falsification verdict} relative to the thresholds in \cref{sec:intro,sec:definitions}.
 
-\begin{itemize}
-  \item Geographic knowledge: ``The capital of Texas is'' $\rightarrow$ Austin (Dallas variant), ``The capital of California is'' $\rightarrow$ Sacramento (Oakland variant)
-  \item Sports entities: ``Michael Jordan plays'' $\rightarrow$ Basketball  
-  \item Semantic opposition: ``The opposite of small is'' $\rightarrow$ large
-  \item Anatomical relations: ``The muscle called the diaphragm''
+\subsection{C1: Concept-aligned supernodes carry entity-specific causal leverage that matched random controls do not}
+\label{sec:results:c1}
+
+\paragraph{Headline (\cref{tab:headline}).}
+With per-pair best field-add variant and adaptive $M$-search, labeled hit-rates dwarf matched-random controls in 4 of 5 domains:
+
+\input{tables/T2_headline}
+
+\paragraph{Specificity decomposition.}
+Random controls achieve \emph{equal or higher} suppression than labeled in 3 of 5 domains (Books 75 vs 69\%; Products 87 vs 65\%; Paintings 74 vs 34\%; \cref{appx:specificity}). Suppression is generic; \emph{only targeting is specific}. This invalidates raw Sup\% as a label-quality metric and motivates Hit\%/vsMax/Target-Recovery as the discriminating signals.
+
+\paragraph{Within-disruption-regime evidence (Regime C).}
+Classifying every swap by what happens to target and source logits at position 0 yields four regimes (A: clean redirect; C: differential disruption with flip; D: generic disruption; E: pure suppression; \cref{appx:regime}). Random controls concentrate in regime D (42--45\% of pairs); the labeled best variant concentrates in regime A. \emph{Within} regime C, where both logits are disrupted but the target overtakes, labeled drives target above its unsteered baseline 92\% of the time vs.\ 29\% for random in USA (\cref{fig:regime}b). This is the cleanest within-regime signal that ``the model's circuits responded to the target concept'' rather than ``everything got disrupted.''
+
+\paragraph{Statistical reporting.}
+Bootstrap 95\% CIs on hit-rate gaps and permutation tests on overlap statistics are reported in \cref{appx:specificity,appx:crossprompt}. With 2{,}450 USA pairs and 240 Books pairs, the observed Hit-rate gaps (67.1 and 63.8 pp) lie far outside any plausible null.
+
+\paragraph{Falsification verdict.}
+\begin{itemize}\itemsep0pt
+  \item \textbf{C1 supported} in USA, Books, Products, Paintings (Specificity gap $\geq 5$ pp \emph{and} vsMax gap $\geq 1.0$ logit; \cref{def:opuseful}).
+  \item \textbf{C1 not supported in Sounds} (vsMax gap $+0.14$, Hit-rate gap $+16.7$ pp on tiny $N{=}30$). Reported as a directional negative result in \cref{sec:results:negative}.
 \end{itemize}
 
-Each circuit uses Neuronpedia's attribution graph generation with replacement model (freezing attention patterns, layer norms). We select features via cumulative influence threshold ($\tau = 0.60$--0.80, chosen to capture top 70--80\% of influence). Probe prompts generated via Claude-3.5-Sonnet with temperature 0.7, manually reviewed for quality (rejecting semantically identical or syntactically malformed prompts). Activation measurements via Neuronpedia API (approximately 10--15 minutes on L4 GPU for 5 probes $\times$ 40 features). All experiments use fixed random seeds.
-
-\paragraph{Graph vs subgraph compression}
-Table~\ref{tab:graph-subgraph} reports Neuronpedia metrics on full graphs vs concept-aligned subgraphs. Completeness remains high (approx.\ 0.83 mean) while Replacement trades off (approx.\ 0.54 mean), consistent with interpretability-oriented compression.
-\input{tables/T1_graph_vs_subgraph}
-
-\paragraph{Interpretation (C2: Interpretability-Oriented Compression)}
-These results support our second claim that behavioral grouping enables interpretability-oriented compression. Completeness remains high (mean 0.83 vs 0.90 for full graphs, $\Delta = -0.07$), indicating concept-aligned subgraphs capture most incoming edge influence to nodes: the subgraph is largely self-contained with few unexplained inputs. Replacement drops more substantially (mean 0.54 vs 0.70, $\Delta = -0.16$), reflecting our deliberate choice to exclude low-influence nodes that contribute little to functional understanding but would inflate raw coverage.
-
-This trade-off is intentional and aligns with interpretability goals. We prioritize legibility (30--50 interpretable supernodes with semantic labels) over exhaustive coverage (600+ unlabeled features). Replacement is computed against full end-to-end influence from input embeddings to target logit; unpinned nodes are treated as error, so lower Replacement indicates higher abstraction rather than lost explanatory power. A perfectly complete subgraph (Replacement = Completeness = 1.0) would be the full raw graph---maximally comprehensive but minimally interpretable.
-
-The consistent 79--86\% Completeness across all five prompts, despite varying Replacement scores (0.45--0.62), indicates that concept-aligned grouping successfully identifies features that explain model behavior, even when the simplified circuit doesn't fully replicate it. This trade-off---interpretability vs.\ completeness---is acceptable for circuit analysis purposes where understanding causal structure matters more than perfect reconstruction.
-
-\paragraph{Behavioral coherence vs geometric baselines}
-Table~\ref{tab:baselines} compares behavioral coherence against cosine-only and layer-adjacency clustering on the Michael Jordan circuit. All three methods operate on the identical set of pinned nodes, and the baseline cluster counts are fixed to match the number of concept-aligned supernodes (39 in this circuit) so that metrics are directly comparable. The cosine baseline clusters the same cross-prompt activation matrix used by our behavioral metrics—rows are feature activations aggregated over probe prompts and columns are the semantic-token allow-list described in Section~\ref{sec:method}—ensuring the only difference is the grouping rule (see Appendix~\ref{sec:baseline-tuning} for full details). Concept-aligned grouping shows higher token consistency and activation pattern similarity, with lower sparsity consistency (better concentration). Geometric indices favor adjacency, reflecting compactness rather than functional coherence.
-\input{tables/T2_baselines}
-
-\paragraph{Interpretation (C1: Behavioral Coherence)}
-These results support our first claim that concept-aligned grouping exhibits higher behavioral coherence than geometric clustering. Peak-token consistency (0.425 vs 0.183 for cosine, 2.3$\times$ improvement) indicates concept-aligned features activate on the same tokens far more reliably across probes: 42.5\% of features in a supernode peak on identical tokens, compared to 18.3\% for cosine-clustered features. Activation-pattern similarity (0.762 vs 0.130 for cosine, 5.8$\times$ improvement) indicates higher within-group activation vector correlation: features in a behavioral supernode respond similarly across contexts, while cosine-clustered features may be geometrically close but functionally diverse.
-
-The trade-off is geometric compactness: concept-aligned grouping scores lower on Silhouette index (0.124 vs 0.707 for layer-adjacency), indicating groups are not spatially compact in activation vector space or layer-influence graph. This is expected and desirable: functional roles (semantic detection, relationship binding, output promotion) can span multiple layers and diverse activation patterns. Layer-adjacency clustering trivially achieves high Silhouette by grouping nearby layers, but this reflects geometric proximity rather than shared function---adjacent-layer features may perform unrelated computational roles.
-
-Davies-Bouldin scores are comparable across methods (1.30 vs 1.58/0.49), suggesting reasonable within-group cohesion despite cross-layer membership. Sparsity consistency (0.255) is lower than baselines (0.335--0.399), indicating concept-aligned features concentrate activation on fewer tokens (lower is better for this metric). This aligns with the Say-X category: output promoters should activate sparsely on functional tokens, not diffusely across all tokens.
-
-Important caveat: Neuronpedia Replacement/Completeness scores are near-invariant across the three methods (all pin the same 39 nodes) and thus do not discriminate grouping quality. The behavioral metrics above provide the actual comparison. Results are descriptive from a single circuit; broader validation needed.
-
-\paragraph{Cross-prompt robustness and early-vs-late hierarchy}
-Table~\ref{tab:cross-prompt} summarizes transfer from Dallas to Oakland. Early layers show stronger transfer than late layers (mean layers 6.3 vs 16.4), supporting a backbone-and-specialization view with Say-X features concentrated late.
-\input{tables/T3_cross_prompt_robustness}
-
-\paragraph{Interpretation (C3: Early-vs-Late Hierarchy)}
-These results support our third claim of a layerwise computational hierarchy. Features that transfer from Dallas$\rightarrow$Austin to Oakland$\rightarrow$Sacramento (64\%, 25/39 features) come from significantly earlier layers (mean 6.3, SD 5.2) than features that fail to transfer (mean 16.4, SD 5.8). The layer difference ($\Delta = 10.1$ layers, approximately 40\% of the model's 26 layers) is substantial and consistent with a two-stage computation: early layers encode transferable relational structure (`X is the capital of Y'), late layers specialize for specific output tokens (`say Austin' vs `say Sacramento').
-
-Transferred features show perfect behavioral consistency when substituting entities: 96\% peak on the appropriate capital for the new entity (Oakland features peak on `Sacramento', not `Austin'; Dallas features peak on `Austin', not `Sacramento'). Activation overlap is 1.000 (SD 0.000), indicating transferred features' activation patterns are identical (within numerical precision) across entity swaps after accounting for entity-token substitution. This validates that transfer captures genuine functional equivalence, not spurious token overlap.
-
-The 64\% transfer rate is descriptive and derives from a single circuit pair. We interpret this as proof-of-concept evidence for hierarchical computation, not definitive characterization. Replication across additional entity pairs (e.g., Paris$\rightarrow$France, London$\rightarrow$England) would strengthen generality claims. Follow-up work testing whether non-geographic circuits (arithmetic, code generation) exhibit similar early-vs-late split would assess whether this is a domain-general principle or specific to factual recall tasks.
-
-\paragraph{Compositional analysis}
-Examining feature categories, transferred features are predominantly Semantic (entity detectors: `capital', `state', `containing') and Relationship (`capital-of' relation, copula binding). Failed-transfer features are predominantly Say-X (`Say Austin', `Say Texas') concentrated in layers 14--18. This categorical separation supports the backbone-and-specialization model: early layers build task-general representations (entity detection, structural binding), late layers shape output distribution (token promotion, probability allocation).
-
-\paragraph{Qualitative subgraph}
-We include qualitative supernode structure and paths from entity detectors to Say-X nodes for capitals circuits (figures provided as high-resolution PDFs). Empirically, Relationship nodes concentrate in early layers with diffuse activation, while late layers aggregate Say-X features that promote the output token.
-
-\begin{figure}[H]
+\begin{figure*}[t]
   \centering
-  \includegraphics[width=\textwidth]{figures/w_1790.png}
-  \caption{Probe prompting pipeline overview. Four-stage process: (1) Attribution Graph: Start with Neuronpedia graph (600+ features), select high-influence features via cumulative threshold $\tau$. (2) Probe Prompts: LLM generates 5--10 concept-targeted prompts preserving syntactic structure while varying semantic content (e.g., ``capital of Texas'' $\rightarrow$ ``capital of California''). (3) Behavioral Signatures: Measure feature activations across all probes, computing peak-token consistency, sparsity, and semantic vs functional peak percentage. (4) Interpretable Supernodes: Apply transparent decision rules to classify features into Semantic (content detectors), Relationship (structural binding), and Say-X (output promotion) categories. This abstraction hierarchy trades raw graph completeness (83\% vs 90\%) for legibility and actionable insight: researchers can quickly identify entity detectors, relational binding features, and output promoters without hours of manual activation inspection. Typical processing time: 2--5 minutes for graphs with 50--200 features.}
-  \label{fig:pipeline}
+  \includegraphics[width=0.95\textwidth]{figures/fig3_regime_panel.pdf}
+  \caption{\textbf{C1 evidence: regime decomposition and within-regime~C signals.} (a) Stacked-bar regime distributions (A/C/D/E) for the per-pair best variant, the full labeled (M=20), and matched random across the 4 strong domains. The best variant concentrates in regime A; random concentrates in regime D. (b) Within regime~C in USA, labeled vs.\ random on three sub-regime signals: Target-Recovery rate (92.2 vs 29.3\%), sustained dominance (\texttt{tgt\_win\_pct} 0.673 vs 0.319), and vsMax ($+2.33$ vs $-0.10$). Numbers in \cref{appx:regime}.}
+  \label{fig:regime}
+\end{figure*}
+
+\subsection{C2: The harness surfaces four mechanistic regularities}
+\label{sec:results:c2}
+
+\subsubsection{C2.1: Less is more---input-field features interfere with steering}
+\label{sec:results:c2:lessismore}
+In 4 of 5 domains, the intermediate$+$answer subset beats the all-3-field intervention by 9--33~pp (\cref{tab:fieldadd}):
+\begin{itemize}\itemsep0pt
+  \item USA state$+$capital $38.8\%$ vs.\ all-3 $24.7\%$ ($+14.1$ pp);
+  \item Books book$+$author $37.1\%$ vs.\ all-3 $3.8\%$ ($+33.3$ pp);
+  \item Products company$+$founder $24.2\%$ vs.\ all-3 $15.2\%$ ($+9.0$ pp);
+  \item Sounds sound$+$animal $20.0\%$ vs.\ all-3 $0.0\%$ ($+20.0$ pp);
+  \item Paintings: weak baseline, weak gain ($+3.4$ pp).
+\end{itemize}
+\textbf{Interpretation.} Input-field features encode what the model \emph{reads}, not what it should \emph{produce}. Including them activates competing circuits that dilute or interfere with the answer signal. Cross-domain single-field aggregates confirm the role gradient: intermediate (Hit $14.6\%$) $>$ answer ($8.8\%$) $>$ input ($6.1\%$) (\cref{appx:fieldadd}).
+
+\input{tables/T3_fieldadd}
+
+\subsubsection{C2.2: Default $M{=}20$ is over-steering; the winning $M$ distribution is bimodal}
+\label{sec:results:c2:msearch}
+Adaptive $M$-search rescues 452 missed pairs across all conditions. The winning-$M$ distribution is bimodal at $M{\sim}2.4$ (47\% of labeled hits) and $M{\sim}6.9$ (40\%) (\cref{fig:mhist}). Two control experiments confirm the mechanism rather than the tuning:
+\begin{itemize}\itemsep0pt
+  \item \textbf{High-$M$ rescue is null.} Testing $M{\in}\{50, 100, 200\}$ on near-miss pairs (80 runs across 3 domains) produced \emph{0 new hits}. KL saturates above $M{\sim}50$ while output quality continues to worsen.
+  \item \textbf{Top-$k$ rescue is null.} Testing top-$k$ features by graph influence ($k{\in}\{1, 3, 5, 10\}$) at $M{\in}[20, 200]$ on Products produced \emph{0/96 hits}. Only the full feature set ($k{=}67$) achieves hits.
+\end{itemize}
+\textbf{Interpretation.} The steering signal is \emph{distributed}, not concentrated. Multi-feature amplification at high $M$ produces distributed noise that overwhelms the target signal. This contrasts structurally with the single-feature paradigm in which high $M$ is a targeted directional push~\cite{templeton2024scaling}.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth]{figures/fig4_mhist.pdf}
+  \caption{\textbf{Bimodal winning-$M$ distribution.} Histogram of $M_{\mathrm{amplify}}$ values rescuing missed pairs in adaptive search ($N{=}452$), with KL$(\mathrm{baseline} \| \mathrm{steered})$ overlay. The canonical $M{=}20$ default (dashed line) is to the right of both peaks ($\sim 2.4$ and $\sim 6.9$). High-$M$ rescue and top-$k$ rescue are both null (\cref{appx:msearch}).}
+  \label{fig:mhist}
 \end{figure}
 
-\begin{figure}[H]
+\subsubsection{C2.3: Backbone-and-specialization layer gradient}
+\label{sec:results:c2:layers}
+Cross-prompt scalable analysis on 1{,}607 intra-domain pairs across 5 domains (103 entities; \cref{appx:crossprompt}): activation stability $>90\%$ in all domains; Jaccard overlap $0.29$--$0.62$ (significantly above chance, $p<0.001$ via permutation at multiple pool sizes). Early/late Jaccard ratio is $1.4$--$3.0\times$ in 4 of 5 domains: early layers shared backbone, late layers entity-specific.
+
+\subsubsection{C2.4: Scaffold influence is a perfect ordinal predictor of domain-level success}
+\label{sec:results:c2:scaffold}
+Graph scaffold compatibility---the fraction of total graph influence carried by features with \emph{identical} supernode assignment across two entity graphs---perfectly orders the four strong domains by Hit\% at the all-3-field labeled baseline (\cref{fig:scaffold}a; Spearman $\rho{=}1.0$, $N{=}4$):
+
+\begin{center}
+\small
+\begin{tabular}{lrr}
+\toprule
+Domain & Scaffold (\%) & Hit\% (full lab.) \\
+\midrule
+USA       & 53.0 & 24.7 \\
+Products  & 42.2 & 15.2 \\
+Paintings & 35.9 &  4.4 \\
+Books     & 25.3 &  3.8 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The late-layer ($\geq L_{16}$) scaffold gradient is even steeper (USA 16.3\% vs Books 4.3\%; \cref{fig:scaffold}b). \emph{Within-domain pair-level prediction is null in USA} (Q1 27.8\% vs Q4 24.3\%, no monotone trend; the within-USA scaffold range $[0.38, 0.73]$ is too narrow to discriminate pairs) and only weak in smaller domains (Products residualized $r{=}+0.29$, $N{=}132$). We report this honestly in \cref{sec:results:negative}.
+
+\begin{figure}[t]
   \centering
-  \includegraphics[width=\textwidth]{figures/w_1382.png}
-  \caption{Activation characteristics distinguish feature categories across layers.(Left) Violin plot showing activation magnitude increases with context coverage (n\_ctx). Multi-context features exhibit higher mean activation. (Right) Scatter plot reveals near-zero correlation between activation strength and causal influence (r=0.02, $\rho$=-0.12), demonstrating that highly-activating features are not necessarily causally important. Color indicates context breadth; size reflects influence.}
-  \label{fig:activation-patterns}
+  \includegraphics[width=0.95\linewidth]{figures/fig5_scaffold.pdf}
+  \caption{\textbf{Scaffold compatibility predicts domain-level success.} (a) Cross-domain scatter (one point per strong domain) of scaffold influence vs.\ all-3-field labeled Hit\%; perfect ordinal prediction ($\rho{=}1.0$, $N{=}4$). (b) Per-layer scaffold profile USA vs.\ Books, showing the late-layer divergence (USA $16.3\%$ vs Books $4.3\%$ at $L\geq 16$). Within-domain pair-level prediction is null in USA and weak in smaller domains; reported as a sub-claim negative in \cref{sec:results:negative}.}
+  \label{fig:scaffold}
 \end{figure}
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\textwidth]{figures/w_1147.png}
-  \caption{Rule-based feature typing for probe-prompted subgraphs. Decision rules used to assign each feature to one of four categories—Semantic (Dictionary), Semantic (Concept), Relationship, and Say "X"—based on cross-prompt behavior. Primary thresholds use peak consistency and number of distinct peaks for stable token detectors; median sparsity and early-layer bias for relationship-type binders; and the balance of functional-vs-semantic peaks with high functional confidence for output-promotion features, typically in later layers. Secondary conditions act as tie-breakers (e.g., early-layer preference for semantic detectors; early-binding layers for relationships; late-layer prior for Say "X"). Metric shorthand: peak consistency = share of probes with the same peak token; semantic\_conf = probability mass on semantic targets; func\_vs\_sem = proportion of functional vs semantic activations; median\_sparsity = median zero-fraction across probes; confidence\_functional = classifier confidence of functional behavior. Written to be standalone per common journal guidance for captions.}
-  \label{fig:layerwise}
-\end{figure}
+\paragraph{Falsification verdict on C2.}
+Three of four sub-claims (C2.1, C2.2, C2.3) are supported with directional thresholds met in 4--5 domains. The cross-domain ordinal prediction in C2.4 is supported ($\rho{=}1.0$, $N{=}4$); the \emph{within-domain pair-level} prediction in C2.4 is null in USA and weak elsewhere, reported as a sub-claim negative.
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\textwidth]{figures/w_893.png}
-  \caption{Stacked-prompts activation map and Cross-Prompt Activation Signature (CPAS) for Feature 20-clt-hp:74108 (“Say capital”). Rows are generated probe prompts; columns are tokens. Shading shows feature activation. The feature fires on functional tokens—most strongly on is and the—across diverse contexts and reaches its global maximum immediately before capital (63.31). Its CPAS—a summary of behavior over probe prompts built from the peak-token histogram, activation density, sparsity, and semantic-vs-functional balance—shows high functional peak consistency with low variance across prompts. This pattern aligns with an output-promotion (“say-X”) role rather than semantic detection and matches the broader observation that attribution graphs often include output features that directly up-weight specific next tokens.}
-  \label{fig:baselines}
-\end{figure}
+\subsection{Where the method fails}
+\label{sec:results:negative}
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\textwidth]{figures/w_2100.png}
-  \caption{Cross-prompt transfer validation (Dallas$\rightarrow$Oakland entity swap). Heatmap shows supernode activation overlap between Dallas$\rightarrow$Austin (Texas, x-axis) and Oakland$\rightarrow$Sacramento (California, y-axis). Cell color indicates normalized activation overlap (dark red = high bilateral transfer $\sim$0.15--0.20, orange = unilateral, light = no overlap). Universal features (`is', `capital', `containing') show high bilateral transfer, indicating early-layer backbone computation. Entity-specific features (`Texas', `Dallas', `California', `Oakland') show unilateral activation (orange blocks), confirming entity specificity. Say-X output promoters (`Say Austin', `Say Sacramento') are target-appropriate (bottom rows), appearing only for correct circuit. This pattern supports the early-vs-late hierarchy: early layers encode transferable relational structure, late layers specialize for specific output tokens. Transfer rate (64\%, 25/39 features) and 10.1-layer difference between transferred (mean 6.3) vs failed (mean 16.4) features provide quantitative evidence for this stratification.}
-  \label{fig:transfer}
-\end{figure}
+We commit two named negative results to the main body, in line with the workshop's call for rigorous negative findings.
 
-\paragraph{Exploratory vs pre-specified}
-We distinguish pre-specified metrics (definitions, procedures) from exploratory elements (prompt families, thresholds sensitivity). Baseline hyperparameters and tuning effort are documented to avoid under-tuning competitors.
+\paragraph{Negative result 1: Sounds.}
+On 6 entities, 12/30 non-identity pairs share the answer ``brown''. Random hits (3.3\%) come predominantly from these shared-answer pairs; matched-control vsMax exceeds labeled vsMax by $0.14$ logits. \emph{Sounds fails Condition~2 of \cref{def:opuseful}.} We report this as a domain-level negative and exclude Sounds from cross-domain inference for C1; we also identify three structural causes (small $N$, shared-answer artefacts, $K{=}6$ thin logit margins; \cref{appx:negative}).
 
-
+\paragraph{Negative result 2: Within-USA scaffold prediction.}
+The scaffold metric is a perfect cross-domain ordinal predictor of Hit\% but a null within-domain pair-level predictor in USA, the most powered dataset (Q1--Q4 hit rates 27.8/24.7/24.3/24.3\%; $|r|<0.10$ for all variants; $N{=}2{,}450$). The within-USA scaffold range is too narrow to discriminate pairs. \emph{The scaffold story is a between-domain story; we explicitly do not claim within-domain predictive utility.}

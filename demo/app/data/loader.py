@@ -16,7 +16,7 @@ Multi-dataset discovery:
     demo can then switch both dataset and run without restarting the server.
 """
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 import os
 import json
 import csv
@@ -29,7 +29,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 # Control variant helpers
 # ---------------------------------------------------------------------------
 
-_VARIANT_SUFFIX_RE = re.compile(r"__(?:r\d+|add_.+|ctrl_.+)$")
+_VARIANT_SUFFIX_RE = re.compile(r"__(?:r\d+|add_.+|ctrl_.+|m_tuned)$")
 
 
 # ---------------------------------------------------------------------------
@@ -83,14 +83,20 @@ def _parse_to_slug(filename_stem: str) -> tuple:
     """
     Extract ``(entity_slug, variant_suffix)`` from a swap result filename stem.
 
-    Normal files:  ``to_georgia_savannah``            -> ``("georgia_savannah", "")``
-    Variant files: ``to_georgia_savannah__r0``         -> ``("georgia_savannah", "r0")``
-                   ``to_georgia_savannah__add_source`` -> ``("georgia_savannah", "add_source")``
+    Normal files:  ``to_georgia_savannah``              -> ``("georgia_savannah", "")``
+    Variant files: ``to_georgia_savannah__r0``           -> ``("georgia_savannah", "r0")``
+                   ``to_georgia_savannah__add_source``   -> ``("georgia_savannah", "add_source")``
+    Double suffix: ``to_buzz__add_sound__m_tuned``       -> ``("buzz", "add_sound__m_tuned")``
     """
     raw = filename_stem.replace("to_", "", 1)
+    # Handle double suffix: strip __m_tuned, parse the inner variant, re-append
+    m_tuned_tail = ""
+    if raw.endswith("__m_tuned") and "__add_" in raw:
+        m_tuned_tail = "__m_tuned"
+        raw = raw[: -len("__m_tuned")]
     m = _VARIANT_SUFFIX_RE.search(raw)
     if m:
-        return raw[: m.start()], raw[m.start() + 2 :]
+        return raw[: m.start()], raw[m.start() + 2 :] + m_tuned_tail
     return raw, ""
 
 
@@ -107,7 +113,38 @@ _CONTROL_MODE_LABELS = {
     "labeled": "Labeled",
     "random_feature_matched": "Random x3",
     "additivity": "Field Additivity",
+    "m_tuned": "Adaptive M",
 }
+
+# Run-id / experiment_name substrings that hide a run from the demo
+# selector. These are calibration sweeps or "labeled" control runs that
+# would otherwise dominate the dropdown without adding signal for the
+# end user. The cross-run-best aggregator applies the exact same filter
+# so "Best across runs" is restricted to runs the user can inspect.
+_RUN_BLACKLIST_SUBSTRINGS = (
+    "sweep_",         # m-sweep calibration runs
+    "entropy_study",  # entropy calibration runs
+    "highm_",         # high-M ablations
+    "_labeled",       # *_labeled control replicas (kept on disk for analysis)
+)
+
+
+def _is_dropdown_run(run_id: str, manifest: Dict[str, Any]) -> bool:
+    """Return True if a run should appear in the demo run-selector.
+
+    The aim is to keep only the three "headline" run families:
+    - Random x3        (control_mode == random_feature_matched)
+    - Field Additivity (control_mode == additivity)
+    - Classic / canonical swap runs (everything else not blacklisted)
+    """
+    rid = run_id.lower()
+    exp_name = (
+        manifest.get("config", {}).get("experiment_name", "") or ""
+    ).lower()
+    for blocked in _RUN_BLACKLIST_SUBSTRINGS:
+        if blocked in rid or blocked in exp_name:
+            return False
+    return True
 
 
 def _extract_control_mode(manifest: Dict[str, Any], run_dir: Optional[Path] = None) -> str:
@@ -192,6 +229,12 @@ class DemoRegistry:
         self._datasets: Dict[str, Dict[str, Any]] = {}
         self._active_dataset_id: Optional[str] = None
         self.active_loader: Optional["DataLoader"] = None
+        self._best_aggregator = None  # lazy init after scan
+        # Cached entity-slug intersection per dataset. A slug only stays
+        # if every dropdown-visible run has a ``by_source/<slug>/`` dir
+        # with at least one ``to_*.json`` swap. Used to propagate manual
+        # entity deletions (e.g. flawed targets) across all runs.
+        self._allowed_slugs_cache: Dict[str, Set[str]] = {}
 
         self._scan()
 
@@ -313,13 +356,15 @@ class DemoRegistry:
         return result
 
     def list_runs_for_dataset(self, dataset_id: str) -> List[Dict[str, Any]]:
-        """Return run summaries for a specific dataset."""
+        """Return run summaries for a specific dataset (filtered for the UI)."""
         ds = self._datasets.get(dataset_id)
         if not ds:
             return []
         result = []
         for r in ds["runs"]:
             manifest = r["manifest"]
+            if not _is_dropdown_run(r["id"], manifest):
+                continue
             result.append({
                 "id": r["id"],
                 "dataset_id": dataset_id,
@@ -375,6 +420,94 @@ class DemoRegistry:
     def active_dataset_id(self) -> Optional[str]:
         return self._active_dataset_id
 
+    @property
+    def best_aggregator(self):
+        """Lazy-init cross-run best aggregator."""
+        if self._best_aggregator is None:
+            from .cross_run_best import CrossRunBestAggregator
+            self._best_aggregator = CrossRunBestAggregator(self)
+        return self._best_aggregator
+
+    def get_best_cross_run_matrix(self) -> Dict[str, Any]:
+        """Return best-per-cell matrix + winners for the active dataset."""
+        if not self._active_dataset_id:
+            return {"matrix": {}, "winners": {}, "considered_runs": []}
+        return self.best_aggregator.get_best_matrix(self._active_dataset_id)
+
+    def get_allowed_slugs(self, dataset_id: str) -> Optional[Set[str]]:
+        """Return the entity-slug intersection across visible runs.
+
+        A slug is "allowed" only if every dropdown-visible run for the
+        dataset has a non-empty ``by_source/<slug>/`` directory. This
+        propagates manual entity deletions in any one run to all the
+        others (the user removes flawed targets in Field Additivity and
+        the Classic Swap matrix automatically hides the same rows /
+        columns).
+
+        Returns ``None`` when the dataset is unknown or has no visible
+        runs (so the caller should fall back to no filtering).
+        """
+        if dataset_id in self._allowed_slugs_cache:
+            return self._allowed_slugs_cache[dataset_id]
+
+        ds = self._datasets.get(dataset_id)
+        if not ds:
+            return None
+
+        visible_runs = [
+            r for r in ds["runs"]
+            if _is_dropdown_run(r["id"], r.get("manifest", {}))
+        ]
+        if not visible_runs:
+            return None
+
+        per_run_slugs: List[Set[str]] = []
+        for r in visible_runs:
+            run_dir = ds["dir"] / "_swaps" / "runs" / r["id"]
+            slugs = self._collect_run_slugs(run_dir)
+            if slugs:
+                per_run_slugs.append(slugs)
+
+        if not per_run_slugs:
+            return None
+
+        allowed = set.intersection(*per_run_slugs)
+        self._allowed_slugs_cache[dataset_id] = allowed
+        return allowed
+
+    @staticmethod
+    def _collect_run_slugs(run_dir: Path) -> Set[str]:
+        """Return the set of entity slugs that have at least one swap file
+        in ``run_dir/by_source/<slug>/to_*.json`` (canonical or variant).
+
+        An empty source folder (because every ``to_*.json`` was deleted)
+        is treated as "entity removed" and excluded.
+        """
+        by_source = run_dir / "by_source"
+        if not by_source.exists():
+            return set()
+        slugs: Set[str] = set()
+        for source_dir in by_source.iterdir():
+            if not source_dir.is_dir():
+                continue
+            if any(source_dir.glob("to_*.json")):
+                slugs.add(source_dir.name)
+        return slugs
+
+    def get_swap_detail_for_run(
+        self, run_id: str, from_slug: str, to_slug: str,
+        variant: Optional[str] = None,
+    ) -> Optional[Dict]:
+        """Load a swap detail from a specific run (for cross-run best mode)."""
+        for ds in self._datasets.values():
+            for r in ds["runs"]:
+                if r["id"] == run_id:
+                    loader = DataLoader(ds["dir"], run_id=run_id)
+                    return loader.get_swap_detail(
+                        from_slug, to_slug, variant=variant
+                    )
+        return None
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -382,7 +515,10 @@ class DemoRegistry:
     def _activate_dataset(self, dataset_id: str) -> None:
         ds = self._datasets[dataset_id]
         best_run_id = self._pick_default_run(ds["runs"])
-        self.active_loader = DataLoader(ds["dir"], run_id=best_run_id)
+        allowed = self.get_allowed_slugs(dataset_id)
+        self.active_loader = DataLoader(
+            ds["dir"], run_id=best_run_id, allowed_slugs=allowed,
+        )
         self._active_dataset_id = dataset_id
 
     @classmethod
@@ -392,8 +528,9 @@ class DemoRegistry:
         Priority:
         1. ``DEMO_DEFAULT_RUN`` env var (exact run id match)
         2. Class constant ``DEFAULT_RUN_ID``
-        3. First run with control_mode == "labeled" (highest swap count)
-        4. First run in list (newest)
+        3. Largest "classic" swap run that's visible in the dropdown
+        4. Largest visible run regardless of mode
+        5. First run in list (newest)
         """
         if not runs:
             return None
@@ -409,9 +546,17 @@ class DemoRegistry:
                 if r["id"] == cls.DEFAULT_RUN_ID:
                     return r["id"]
 
-        labeled = [r for r in runs if r.get("control_mode") == "labeled"]
-        if labeled:
-            return max(labeled, key=lambda r: r.get("swap_count", 0))["id"]
+        visible = [
+            r for r in runs
+            if _is_dropdown_run(r["id"], r.get("manifest", {}))
+        ]
+        if visible:
+            classic = [
+                r for r in visible
+                if r.get("control_mode") not in ("random_feature_matched", "additivity")
+            ]
+            pool = classic or visible
+            return max(pool, key=lambda r: r.get("swap_count", 0))["id"]
 
         return runs[0]["id"]
 
@@ -425,13 +570,31 @@ class DemoRegistry:
 class DataLoader:
     """Load and cache swap experiment data with multi-run support."""
     
-    def __init__(self, data_dir: Path, run_id: Optional[str] = None):
+    def __init__(
+        self,
+        data_dir: Path,
+        run_id: Optional[str] = None,
+        allowed_slugs: Optional[Set[str]] = None,
+    ):
+        """Initialise a loader for one dataset directory.
+
+        ``allowed_slugs`` is an optional whitelist of entity slugs. When
+        provided, every public matrix / state getter prunes its output
+        to only those slugs. This is how cross-run entity deletions
+        propagate: ``DemoRegistry`` computes the intersection of slugs
+        across all visible runs and forwards it here.
+        """
         self.data_dir = Path(data_dir)
         self.base_swaps_dir = self.data_dir / "_swaps"
         self.run_id = run_id
+        self.allowed_slugs: Optional[Set[str]] = (
+            set(allowed_slugs) if allowed_slugs is not None else None
+        )
         self._set_swaps_dir()
         self._matrix_cache: Dict[Optional[str], Dict] = {}
         self._flip_matrix_cache: Dict[Optional[str], Dict] = {}
+        self._regime_matrix_cache: Dict[Optional[str], Dict] = {}
+        self._vsmax_matrix_cache: Dict[Optional[str], Dict] = {}
         self._variant_index_cache: Optional[Dict] = None
         self._states_cache: Optional[List[Dict]] = None
         self._analysis_cache: Optional[Dict] = None
@@ -463,7 +626,11 @@ class DataLoader:
                 self.swaps_dir = self.base_swaps_dir
 
     def _get_default_run_id(self) -> Optional[str]:
-        """Choose the default run for a fresh app load (most recent non-legacy)."""
+        """Choose the default run for a fresh app load (most recent non-legacy).
+
+        ``list_runs`` already filters out sweeps and ``*_labeled`` controls,
+        so we only need to drop legacy runs here.
+        """
         runs = self.list_runs()
         if not runs:
             return None
@@ -500,6 +667,9 @@ class DataLoader:
                 except (json.JSONDecodeError, IOError):
                     pass
             
+            if not _is_dropdown_run(run_dir.name, manifest):
+                continue
+
             # Count swaps
             swap_count = sum(1 for _ in by_source.glob("*/to_*.json"))
             
@@ -556,6 +726,8 @@ class DataLoader:
         """Clear all cached data."""
         self._matrix_cache = {}
         self._flip_matrix_cache = {}
+        self._regime_matrix_cache = {}
+        self._vsmax_matrix_cache = {}
         self._variant_index_cache = None
         self._states_cache = None
         self._analysis_cache = None
@@ -563,6 +735,32 @@ class DataLoader:
         self._domain_config_cache = None
         self._gpu_batch_features_index = None
         self._methodology_stats = None
+
+    # ------------------------------------------------------------------
+    # Cross-run entity filtering
+    # ------------------------------------------------------------------
+
+    def _apply_slug_filter(self, matrix: Dict[str, Dict]) -> Dict[str, Dict]:
+        """Return a copy of *matrix* containing only allowed_slugs.
+
+        Filters both the row dimension (sources) and column dimension
+        (targets). When ``allowed_slugs`` is None this is a no-op (the
+        original dict is returned untouched, since callers don't mutate
+        the result).
+        """
+        if self.allowed_slugs is None:
+            return matrix
+        allowed = self.allowed_slugs
+        filtered: Dict[str, Dict] = {}
+        for from_slug, row in matrix.items():
+            if from_slug not in allowed:
+                continue
+            filtered[from_slug] = {
+                to_slug: val
+                for to_slug, val in row.items()
+                if to_slug in allowed
+            }
+        return filtered
     
     # Per-domain blacklists of common words that should be ignored by the
     # word-boundary tier heuristic (e.g. "city" in "Salt Lake City" would
@@ -812,7 +1010,7 @@ class DataLoader:
         When *variant* is set, only files matching that suffix are used.
         """
         if variant in self._matrix_cache:
-            return self._matrix_cache[variant]
+            return self._apply_slug_filter(self._matrix_cache[variant])
 
         idx = self._build_variant_index()
         matrix: Dict[str, Dict[str, Optional[int]]] = {}
@@ -873,7 +1071,7 @@ class DataLoader:
                         continue
 
         self._matrix_cache[variant] = matrix
-        return matrix
+        return self._apply_slug_filter(matrix)
     
     def _get_tier_from_swap(self, swap_data: Dict) -> Optional[float]:
         """Extract tier from swap data, computing if necessary.
@@ -959,7 +1157,7 @@ class DataLoader:
         files matching that suffix are used.
         """
         if variant in self._flip_matrix_cache:
-            return self._flip_matrix_cache[variant]
+            return self._apply_slug_filter(self._flip_matrix_cache[variant])
 
         idx = self._build_variant_index()
         matrix: Dict[str, Dict[str, Optional[int]]] = {}
@@ -1020,7 +1218,132 @@ class DataLoader:
                         continue
 
         self._flip_matrix_cache[variant] = matrix
-        return matrix
+        return self._apply_slug_filter(matrix)
+
+    # ------------------------------------------------------------------
+    # Regime & VsMax matrices
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _get_regime_from_swap(swap_data: Dict) -> Optional[str]:
+        """Extract logit-shift regime (A-E) from swap data."""
+        pos0 = swap_data.get('evaluation', {}).get('position_0_comparison', {})
+        return _classify_regime(pos0)
+
+    @staticmethod
+    def _get_vsmax_from_swap(swap_data: Dict) -> Optional[float]:
+        """Extract best-trajectory vsMax from swap data.
+
+        Returns the ``best_target_minus_max`` float or None.
+        """
+        contrast = (swap_data.get('evaluation', {})
+                    .get('logit_trajectory', {})
+                    .get('contrast_groups', {}))
+        if not isinstance(contrast, dict):
+            return None
+        grp = contrast.get('same_dataset', {})
+        if not isinstance(grp, dict):
+            return None
+        agg = grp.get('aggregate', {})
+        if not isinstance(agg, dict):
+            return None
+        return agg.get('best_target_minus_max')
+
+    def _build_overlay_matrix(
+        self,
+        extractor,
+        cache: Dict,
+        variant: Optional[str],
+        best_cmp,
+    ) -> Dict[str, Dict]:
+        """Generic matrix builder reused by regime and vsmax.
+
+        ``extractor`` pulls a value from swap_data.
+        ``best_cmp(current_best, candidate)`` returns True when candidate is
+        preferred over current_best (used for variant-only fallback).
+        """
+        if variant in cache:
+            return self._apply_slug_filter(cache[variant])
+
+        idx = self._build_variant_index()
+        matrix: Dict[str, Dict] = {}
+
+        for from_slug, targets in idx.items():
+            matrix[from_slug] = {}
+            for to_slug, records in targets.items():
+                if variant is not None:
+                    matched = [r for r in records if r["variant_suffix"] == variant]
+                    if matched:
+                        try:
+                            with open(matched[0]["path"], "r", encoding="utf-8") as f:
+                                swap_data = json.load(f)
+                            matrix[from_slug][to_slug] = extractor(swap_data)
+                        except (json.JSONDecodeError, IOError):
+                            pass
+                    continue
+
+                canonical = [r for r in records if r["is_canonical"]]
+                variants_list = [r for r in records if not r["is_canonical"]]
+
+                if canonical:
+                    try:
+                        with open(canonical[0]["path"], "r", encoding="utf-8") as f:
+                            swap_data = json.load(f)
+                        matrix[from_slug][to_slug] = extractor(swap_data)
+                    except (json.JSONDecodeError, IOError):
+                        pass
+                elif variants_list:
+                    best_val = None
+                    for rec in variants_list:
+                        try:
+                            with open(rec["path"], "r", encoding="utf-8") as f:
+                                swap_data = json.load(f)
+                            val = extractor(swap_data)
+                            if val is not None and (best_val is None or best_cmp(best_val, val)):
+                                best_val = val
+                        except (json.JSONDecodeError, IOError):
+                            continue
+                    if best_val is not None:
+                        matrix[from_slug][to_slug] = best_val
+
+        if variant is None:
+            work_dir = self.swaps_dir / "work"
+            if work_dir.exists():
+                for swap_file in work_dir.glob("*.json"):
+                    try:
+                        with open(swap_file, "r", encoding="utf-8") as f:
+                            swap_data = json.load(f)
+                        swap_id = swap_file.stem
+                        if "__to__" in swap_id:
+                            from_slug, to_slug = swap_id.split("__to__")
+                            if from_slug not in matrix:
+                                matrix[from_slug] = {}
+                            if to_slug not in matrix[from_slug]:
+                                matrix[from_slug][to_slug] = extractor(swap_data)
+                    except (json.JSONDecodeError, IOError):
+                        continue
+
+        cache[variant] = matrix
+        return self._apply_slug_filter(matrix)
+
+    def get_regime_matrix(self, variant: Optional[str] = None) -> Dict[str, Dict[str, Optional[str]]]:
+        """Build regime matrix (A-E letters) from swap JSON files."""
+        _REGIME_RANK = {"A": 5, "B": 4, "C": 3, "D": 2, "E": 1}
+        return self._build_overlay_matrix(
+            self._get_regime_from_swap,
+            self._regime_matrix_cache,
+            variant,
+            best_cmp=lambda cur, cand: _REGIME_RANK.get(cand, 0) > _REGIME_RANK.get(cur, 0),
+        )
+
+    def get_vsmax_matrix(self, variant: Optional[str] = None) -> Dict[str, Dict[str, Optional[float]]]:
+        """Build vsMax matrix from swap JSON files.  Higher is better."""
+        return self._build_overlay_matrix(
+            self._get_vsmax_from_swap,
+            self._vsmax_matrix_cache,
+            variant,
+            best_cmp=lambda cur, cand: cand > cur,
+        )
 
     def get_states(self) -> List[Dict[str, Any]]:
         """Get entity list with metadata from by_source directories.
@@ -1060,6 +1383,8 @@ class DataLoader:
                     continue
 
                 slug = source_dir.name
+                if self.allowed_slugs is not None and slug not in self.allowed_slugs:
+                    continue
                 edata = entity_index.get(slug, {})
                 if not edata:
                     edata = self._get_entity_info_from_swap(source_dir)
@@ -1366,8 +1691,10 @@ class DataLoader:
             json.dump(data, f, indent=2, ensure_ascii=False)
         
         # Clear caches so stats are recalculated
-        self._matrix_cache = None
-        self._flip_matrix_cache = None
+        self._matrix_cache = {}
+        self._flip_matrix_cache = {}
+        self._regime_matrix_cache = {}
+        self._vsmax_matrix_cache = {}
         self._stats_cache = None
         
         # Return updated data with fresh stats

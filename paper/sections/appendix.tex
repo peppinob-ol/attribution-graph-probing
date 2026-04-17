@@ -1,330 +1,505 @@
-% Section: Appendix
-% Outline (for review):
-% - Pseudocode for the pipeline; thresholds table
-% - Reproducibility: commit, config, seeds, minimal run
-% - Baseline tuning notes and hparams
-% - Tacit knowledge and operational advice
-% - Neuronpedia links (if available); glossary; color-accessibility
+% Appendix material: provided for completeness; main-paper claims are self-contained in the 8-page body.
+\section*{Appendix: How to Read}
+\addcontentsline{toc}{section}{Appendix: How to Read}
 
-\appendix
-\section{Appendix}
-\label{sec:appendix}
+\textbf{Appendix material is provided for completeness; main-paper claims are self-contained in the 8-page body.}
+The appendices fall into four groups: (A--C) pipeline reference and metric justifications; (D--H) per-domain quantitative tables and metric variants; (I--K) cross-prompt and scaffold analyses; (L--M) case studies and the Sounds/Paintings deep dive; (N--O) reproducibility manifest and glossary.
 
-\subsection{Pipeline pseudocode}
+% --------------------------------------------------------------------
+\section{Pipeline Reference}
+\label{appx:pipeline}
+
+\subsection{Pseudocode}
+\begin{small}
 \begin{verbatim}
-Input: attribution_graph, seed_prompt, target_logit
-Nodes := select_nodes_by_cumulative_influence(attribution_graph, tau)
-Concepts := llm_generate_concepts(seed_prompt, K)
-Probes := synthesize_probes(Concepts, template_constraints)
-for feature in Nodes:
-  for probe in Probes:
-    A[feature, probe] := measure_activation(feature, probe)
-Metrics := aggregate_cross_prompt(A)
-Groups := classify_features(Metrics, thresholds)
-Names  := assign_names(Groups, A, blacklist, target_token_rules)
-Subgraph := pin_nodes(Groups, token_embeddings, target_logit)
-Upload(Subgraph)
+Input: attribution_graph G_p, seed_prompt p, target_logit y
+1. V_tau := select_nodes_by_cumulative_influence(G_p, tau=0.95)
+2. Concepts := llm_generate_concepts(p, K)
+3. Probes := synthesize_probes(Concepts, template_constraints)
+4. for f in V_tau:
+     for q in Probes:
+       A[f, q] := measure_activation(f, q)        # Neuronpedia API or local
+5. CPAS := aggregate_cross_prompt(A)              # Sec 3.2
+6. for f in V_tau:
+     role[f] := classify(CPAS[f], thresholds)     # Sec 3.4 strict-priority rules
+     name[f] := assign_name(f, A, blacklist, target_token_rules)
+7. Supernodes := group_by(role, name) with stability >= 0.6
+8. Subgraph := pin_nodes(Supernodes, embeddings, y)
+9. for (e_A, e_B) in pairs:
+     I_lab  := build_swap(S(e_A), S(e_B), M_a=-2, M_b=20)
+     I_rand := matched_random_control(I_lab)       # Def 5
+     run_swap(I_lab); run_swap(I_rand)             # freeze_attention=false
+10. Adaptive_M_search on missed pairs              # Sec 3.7
 \end{verbatim}
+\end{small}
 
-\subsection{Decision thresholds}
-\begin{itemize}
-  \item Semantic (Dictionary): peak\_consistency $\ge 0.80$, n\_distinct\_peaks $\le 1$
-  \item Say-X: func\_vs\_sem $\ge 50\%$, conf\_functional $\ge 0.90$, layer $\ge 7$
-  \item Relationship: median sparsity $< 0.45$
+\subsection{CPAS metrics}
+\begin{itemize}\itemsep0pt
+\item \texttt{peak\_consistency\_main}: fraction of probes whose peak token matches the modal peak.
+\item \texttt{n\_distinct\_peaks}: number of distinct peak tokens across active probes.
+\item \texttt{share\_F} / \texttt{conf\_F}: fraction of active probes whose peak is on a functional token / classifier confidence on that share.
+\item \texttt{func\_vs\_sem\_pct}: $100 \cdot (\max\mathrm{func} - \max\mathrm{sem})/\max\mathrm{overall}$.
+\item \texttt{sparsity\_median}: median of $(\mathrm{peak} - \mathrm{mean})/\mathrm{peak}$ across active probes.
+\item \texttt{conf\_S}: $1 - \mathrm{share\_F}$.
 \end{itemize}
 
-\subsection{Reproducibility and Tool Access}
-\label{sec:repro}
+\subsection{Decision-rule thresholds (frozen pre-analysis)}
+\textsc{Sem-Dict} \texttt{peak\_consistency}$\geq 0.80$ \textsc{and} \texttt{n\_distinct\_peaks}$\leq 1$.
+\textsc{Say-X} \texttt{func\_vs\_sem\_pct}$\geq 50$ \textsc{and} \texttt{conf\_F}$\geq 0.90$ \textsc{and} layer $\geq 7$.
+\textsc{Rel} \texttt{sparsity\_median}$<0.45$.
+\textsc{Sem-Conc} layer $\leq 3$ \textsc{or} \texttt{conf\_S}$\geq 0.50$ \textsc{or} \texttt{func\_vs\_sem\_pct}$<50$.
+Otherwise \textsc{Review} (excluded).
 
-\paragraph{Repository:} \url{https://github.com/peppinob-ol/attribution-graph-probing}  
+% --------------------------------------------------------------------
+\section{Functional Vocabulary and Target-Token Mapping}
+\label{appx:funcvocab}
 
-\paragraph{License:} GNU GENERAL PUBLIC LICENSE Version 3
+\paragraph{English functional tokens (87 total).}
+\textbf{Copulas:} \texttt{is, was, are, were, be, been, being, am, 's, 're, 'm}.
+\textbf{Articles:} \texttt{the, a, an, this, that, these, those}.
+\textbf{Prepositions:} \texttt{of, in, on, at, to, for, with, by, from, as, into, onto, upon, about, above, below, between, among, through, during, before, after}.
+\textbf{Conjunctions:} \texttt{and, or, but, nor, so, yet, for}.
+\textbf{Relative pronouns:} \texttt{that, which, who, whom, whose, where, when, why, how}.
+\textbf{Auxiliaries:} \texttt{do, does, did, have, has, had, will, would, shall, should, can, could, may, might, must}.
 
-\paragraph{Requirements:} Python 3.9+, dependencies in \texttt{requirements.txt}
+\paragraph{Directionality.}
+\emph{Forward:} copulas, auxiliaries, articles, most prepositions. \emph{Backward:} \texttt{of}, possessive \texttt{'s}. \emph{Bidirectional:} conjunctions, punctuation. Window: 7 tokens. Multi-token entities resolve to first subword.
 
-\paragraph{Key dependencies:}
-\begin{itemize}
-  \item numpy $\ge$ 1.24.0 (numerical operations)
-  \item pandas $\ge$ 2.0.0 (data handling)
-  \item requests $\ge$ 2.31.0 (Neuronpedia API calls)
-  \item streamlit $\ge$ 1.28.0 (interactive UI, optional)
-  \item openai $\ge$ 1.0.0 OR anthropic $\ge$ 0.8.0 (LLM concept generation, optional)
+\paragraph{Documented French failure mode.}
+Applying the English pipeline to ``le contraire de `petit' est'' with English probes produced incoherent activations and no valid supernode grouping. After adding French probes and expanding the blacklist (mixed FR/EN bridging tokens), grouping became reliable; we report this as a known cross-lingual limitation.
+
+% --------------------------------------------------------------------
+\section{Why Gap-Closure Was De-Emphasized}
+\label{appx:gapcl}
+
+Gap-closure is regime-dependent and confounded by baseline gap magnitude:
+
+\begin{center}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Regime & GapCl (lab) & GapCl (rand) & vsMax (lab) & vsMax (rand) \\
+\midrule
+A      & 0.88        & 0.76        & $+4.28$ & $-0.19$ \\
+C      & 2.73        & 1.59        & $+2.33$ & $-0.10$ \\
+D      & \textbf{13.62} & 6.46    & $+4.11$ & $-0.07$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Regime D shows the \emph{highest} gap-closure despite being the weakest evidence regime---both tokens start far apart and both get disrupted, leaving room for ``closure'' without the target ever winning. Cross-domain, GapCl ranks Books $\sim 0$ but vsMax ranks Books strongest (+5.98). GapCl is therefore not used as a primary discriminator.
+
+% --------------------------------------------------------------------
+\section{Per-Domain Full-Scale Labeled vs Random}
+\label{appx:specificity}
+
+\subsection{Headline (full labeled, all fields, $M{=}20$)}
+
+\begin{center}
+\small
+\begin{tabular}{llrrrrrrr}
+\toprule
+Domain & Cond & N & Hit\% & Sup\% & vsMax & RkGrp & MedRk & Flip\% \\
+\midrule
+USA  & lab. & 2{,}450 & 24.7 & 92.8 & $+2.86$ & 1.72 & 5   & 98.2 \\
+     & rand & 7{,}350 &  0.1 & 83.4 & $-2.31$ & 9.00 & 566 & 69.2 \\
+Books & lab. & 240   &  3.8 & 69.2 & $+5.98$ & 1.03 & 17  & 96.7 \\
+      & rand & 720   &  0.3 & 75.0 & $-0.15$ & 2.43 & 283 & 79.6 \\
+Prods & lab. & 132   & 15.2 & 65.2 & $+3.46$ & 1.20 & 26  & 97.0 \\
+      & rand & 396   &  0.3 & 87.1 & $+0.23$ & 2.25 & 354 & 75.3 \\
+Paint & lab. & 90    &  4.4 & 34.4 & $+1.55$ & 1.31 & 70  & 97.8 \\
+      & rand & 270   &  0.0 & 74.1 & $-0.03$ & 1.96 & 196 & 88.9 \\
+Sound & lab. & 30    &  0.0 & 100  & $+3.28$ & 1.00 & 21  & 60.0 \\
+      & rand & 90    & 12.2 & 80.0 & $+3.14$ & 1.08 & 24  & 53.3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Specificity strength}
+Books $+6.13$ (Strong); USA $+5.17$ (Strong); Products $+3.23$ (Moderate); Paintings $+1.58$ (Weak); Sounds $+0.14$ (Negligible).
+
+% --------------------------------------------------------------------
+\section{Field-Additivity Detail}
+\label{appx:fieldadd}
+
+\subsection{Per-domain 7-variant tables}
+The six tables below give Hit\%, Sup\%, GapCl, MedRk, vsMax, vsTopK, RkGrp for all 7 field variants per domain. Bold marks the best-Hit\% subset.
+
+\paragraph{USA (state, capital, city; 2{,}450 pairs/variant).}
+\begin{small}
+\begin{tabular}{lrrrr}
+\toprule
+Subset & Hit\% & vsMax & RkGrp & MedRk \\
+\midrule
+city                & 2.9  & $-1.26$ & 6.92 & 190 \\
+state               & 17.0 & $+2.38$ & 2.72 & 14 \\
+capital             & 14.2 & $+0.63$ & 3.69 & 11 \\
+\textbf{state+capital} & \textbf{38.8} & \textbf{+4.00} & \textbf{1.47} & \textbf{3} \\
+state+city          & 11.1 & $+1.71$ & 2.31 & 28 \\
+capital+city        & 10.2 & $+0.58$ & 4.16 & 30 \\
+all 3               & 24.7 & $+2.86$ & 1.72 & 5 \\
+\bottomrule
+\end{tabular}
+\end{small}
+
+\paragraph{Books (character, book, author; 240 pairs/variant).}
+\begin{small}
+\begin{tabular}{lrrrr}
+\toprule
+Subset & Hit\% & vsMax & RkGrp & MedRk \\
+\midrule
+character           & 4.2  & $+1.87$ & 1.77 & 125 \\
+book                & 37.1 & $+6.69$ & 1.20 & 2 \\
+author              & 14.6 & $+4.71$ & 1.33 & 12 \\
+\textbf{book+author}    & \textbf{37.1} & \textbf{+7.76} & \textbf{1.02} & \textbf{2} \\
+character+book      & 5.0  & $+5.22$ & 1.23 & 24 \\
+character+author    & 3.8  & $+3.45$ & 1.30 & 76 \\
+all 3               & 3.8  & $+5.97$ & 1.03 & 17 \\
+\bottomrule
+\end{tabular}
+\end{small}
+
+\paragraph{Products (product, company, founder; 132 pairs/variant).}
+\begin{small}
+\begin{tabular}{lrrrr}
+\toprule
+Subset & Hit\% & vsMax & RkGrp & MedRk \\
+\midrule
+product               & 0.0  & $+1.90$ & 1.61 & 137 \\
+company               & 5.3  & $+2.62$ & 1.39 & 128 \\
+founder               & 8.3  & $+2.08$ & 1.27 & 18 \\
+\textbf{company+founder}  & \textbf{24.2} & \textbf{+3.06} & \textbf{1.27} & \textbf{18} \\
+product+company       & 1.5  & $+2.78$ & 1.31 & 93 \\
+product+founder       & 2.3  & $+2.54$ & 1.23 & 48 \\
+all 3                 & 15.2 & $+3.47$ & 1.20 & 26 \\
+\bottomrule
+\end{tabular}
+\end{small}
+
+\paragraph{Paintings (painting, painter, first\_name; 90 pairs/variant).}
+\begin{small}
+\begin{tabular}{lrrrr}
+\toprule
+Subset & Hit\% & vsMax & RkGrp & MedRk \\
+\midrule
+painting          & 3.3 & $+1.50$ & 1.44 & 71 \\
+painter           & 1.1 & $+1.68$ & 1.30 & 66 \\
+first\_name        & 6.7 & $+1.46$ & 1.41 & 90 \\
+painter+first\_name& 1.1 & $+1.69$ & 1.30 & 65 \\
+all 3             & 3.3 & $+1.55$ & 1.32 & 66 \\
+\bottomrule
+\end{tabular}
+\end{small}
+
+\paragraph{Sounds (sound, animal, color; 30 pairs/variant).}
+\begin{small}
+\begin{tabular}{lrrrr}
+\toprule
+Subset & Hit\% & vsMax & RkGrp & MedRk \\
+\midrule
+sound          & 20.0 & $+5.49$ & 1.00 & 5 \\
+animal         & 12.5 & $+3.49$ & 1.21 & 6 \\
+color          & 0.0  & $+3.09$ & 1.07 & 48 \\
+\textbf{sound+animal} & \textbf{20.0} & \textbf{+4.69} & \textbf{1.07} & \textbf{5} \\
+all 3          & 0.0  & $+3.40$ & 1.00 & 20 \\
+\bottomrule
+\end{tabular}
+\end{small}
+
+\subsection{Cross-domain single-field role aggregates}
+\begin{center}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Role & Hit\% & Sup\% & MedRk & vsMax & RkGrp \\
+\midrule
+Input        & 6.1  & 63.2 & 106 & $+1.90$ & 2.55 \\
+Intermediate & 14.6 & 79.1 &  43 & $+3.37$ & 1.56 \\
+Answer       & 8.8  & 89.5 &  36 & $+2.39$ & 1.75 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% --------------------------------------------------------------------
+\section{Adaptive M-Search}
+\label{appx:msearch}
+
+\subsection{Two-phase protocol}
+\textbf{Phase 1 (coarse, geometric):} $M \in \{0.1, 0.25, 0.6, 1.5, 4.0, 10.0, 20.0\}$ probed in order; stop at first Hit. \textbf{Phase 2 (KL-binary):} compute KL$(M)$ at the Phase-1 grid; identify the steepest KL transition; binary-refine $M$ in that interval for 6 steps. Accept hit at any refinement point.
+
+\subsection{Per-domain rescue}
+\begin{center}
+\small
+\begin{tabular}{llrrrrrr}
+\toprule
+Cond. & Domain & Eligible & New hits & Hit-rate & Before & After & $\Delta$ \\
+\midrule
+Lab.  & USA   & 870 & 329 & 37.8 & 24.7 & 38.2 & $+13.5$ \\
+Lab.  & Books &  85 &  12 & 14.1 &  3.3 &  9.0 &  $+5.7$ \\
+Lab.  & Paint & 103 &   7 &  6.8 &  4.0 &  9.7 &  $+5.6$ \\
+Lab.  & Sound &  23 &   5 & 21.7 &  0.0 & 16.7 & $+16.7$ \\
+Lab.  & Prods & 128 &   4 &  3.1 & 13.2 & 15.5 &  $+2.3$ \\
+\midrule
+FA    & USA   & 553 &  78 & 14.1 & 64.2 & 67.3 &  $+3.2$ \\
+FA    & Books &  73 &   9 & 12.3 & 59.5 & 63.8 &  $+4.3$ \\
+FA    & Paint &  96 &   6 &  6.3 & 16.9 & 21.8 &  $+4.8$ \\
+FA    & Prods & 124 &   2 &  1.6 & 26.4 & 27.6 &  $+1.1$ \\
+FA    & Sound &  21 &   0 &  0.0 & 20.0 & 20.0 &  $+0.0$ \\
+\midrule
+\textbf{Total} & --- & \textbf{2{,}076} & \textbf{452} & --- & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Winning-$M$ histogram}
+93\% of hits found in Phase 1; bimodal at $M{\sim}2.4$ (47\%) and $M{\sim}6.9$ (40\%); long tail to $M{\geq}10$ (13\%).
+
+\subsection{High-$M$ negative result}
+$M \in \{50, 100, 200\}$ on near-miss pairs across 3 domains: 80 runs, \emph{0 new hits}; existing hits at $M{=}20$ degraded monotonically with increasing $M$.
+
+\subsection{Top-$k$ negative result}
+$k \in \{1, 3, 5, 10\}$ by graph influence at $M \in [20, 200]$ on Products: 96 runs, \emph{0 hits}. Only the full feature set ($k{=}67$) achieves hits. Graph influence correlates negatively with stored activation ($\rho{=}-0.362$, $p{=}0.003$).
+
+\subsection{Five failure modes}
+(1) \emph{Severe overshoot} (rescuable by $M$ reduction; 88\% rescue rate; 37/42 \texttt{oklahoma\_tulsa} pairs at $M{=}5$).
+(2) \emph{Field interference} (rescuable by mid$+$answer subset; \cref{appx:fieldadd}).
+(3) \emph{Feature interaction noise} (garbage at high $M$ despite positive rank improvement; \texttt{indiana$\to$arkansas}: \texttt{tonode} at $M{=}20$ $\to$ \texttt{Little Rock} at $M{=}5$).
+(4) \emph{Signal collapse} (vsMax collapses below pair-specific $M$; \texttt{vermont$\to$kansas}: vsMax $8.3$ at $M{=}20$ $\to$ $0.3$ at $M{=}5$).
+(5) \emph{Feature specificity} (correct context, wrong answer; \texttt{Hutchinson} not \texttt{Topeka}; not fixable by $M$).
+
+% --------------------------------------------------------------------
+\section{Position-0 vs Best-Over-Trajectory Metrics}
+\label{appx:pos0}
+
+We report both variants because they diverge informatively.
+
+\paragraph{vsMax$>0$ rate (best variant).}
+\begin{center}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Domain   & Lab pos0 & Lab best & Rand pos0 & Rand best \\
+\midrule
+USA      & 52.9 & 91.0 &  2.8 & 13.1 \\
+Books    & 92.5 & 98.8 &  4.6 & 45.8 \\
+Products & 70.5 & 75.0 & 15.2 & 51.5 \\
+Paint    & 61.1 & 81.1 & 14.4 & 47.8 \\
+Sounds   & 50.0 & 90.0 & 63.3 & 93.3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Position-0 vsMax$>0$ is a \emph{strict necessary condition} for output success in Books and Products (zero hits when pos0 vsMax $\leq 0$); USA tolerates trajectory recovery (28.7\% of USA hits have pos0 vsMax $\leq 0$); Sounds reveals \emph{no signal at pos0} (random exceeds labeled).
+
+\paragraph{Mean vsMax (Books illustration).}
+Labeled pos0 $+7.29$ vs random pos0 $-5.80$ = gap $+13.09$; best-over-trajectory gap is only $+8.01$. Position-0 nearly doubles the effect size.
+
+\paragraph{The labeled-vs-best-variant pos0 split (USA).}
+Labeled pos0 vsMax$>0$ rate: 27.2\% (median pos0 vsMax $-3.88$) vs best variant 52.9\% (median $+0.31$). Position-0 evidence for the less-is-more effect: input-field features cause initial disruption.
+
+% --------------------------------------------------------------------
+\section{KL Divergence as a Steering Diagnostic}
+\label{appx:kl}
+
+\paragraph{Linearity with $M$.}
+Per-pair KL$(M)$ is highly linear (R$^2 > 0.93$ for 8/10 USA pairs; range 0.85--1.00). Mean KL by $M$: $M{=}5$ $\to$ 9.33; $M{=}10$ $\to$ 11.10; $M{=}20$ $\to$ 13.03.
+
+\paragraph{KL$\geq 12$ as a hit-veto.}
+Across 30 USA observations, no hit occurs at KL$\geq 12$. As a binary classifier on $\{$KL$<12\}$: recall 100\% (7/7), precision 37\% (7/19; 12 false positives split among feature-specificity (3), evaluator gaps (3), signal collapse (3), near-threshold (3)).
+
+\paragraph{KL slope vs intervention structure.}
+$r(\mathrm{slope}, \mathrm{ablate\_count}) = +0.68$; $r(\mathrm{intercept}, \mathrm{ablate\_count}) = -0.63$. More source features ablated $\to$ steeper KL increase per unit $M$. High-slope pairs are most sensitive to $M$ and most likely to benefit from $M$-reduction.
+
+\paragraph{Use in adaptive search.}
+(i) Run at $M{=}20$ and measure KL at pos 0; (ii) if KL$\geq 12$, fit KL$(M)$ from $\geq 1$ extra point and compute $M_{\mathrm{crit}} = (12 - b)/a$; (iii) re-run at $M = \lfloor 0.8 \cdot M_{\mathrm{crit}} \rfloor$; (iv) if intercept $b\geq 12$, flag as intrinsically disruptive.
+
+% --------------------------------------------------------------------
+\section{Cross-Prompt Robustness at Scale}
+\label{appx:crossprompt}
+
+1{,}607 intra-domain pairs, 5 domains, 103 entities. 5{,}000 bootstrap resamples; 2{,}000 permutations per pool size.
+
+\paragraph{Jaccard (95\% CI).}
+USA $0.465$ $[0.462, 0.468]$, $N{=}1{,}225$;
+Books $0.308$ $[0.302, 0.315]$, $N{=}210$;
+Products $0.364$ $[0.356, 0.374]$, $N{=}91$;
+Paintings $0.286$ $[0.279, 0.292]$, $N{=}66$;
+Sounds $0.621$ $[0.597, 0.648]$, $N{=}15$.
+All $p{<}0.001$ at every tested pool size.
+
+\paragraph{Activation stability.}
+USA $0.947$, Books $0.908$, Products $0.903$, Paintings $0.916$, Sounds $0.944$. Peak-token agreement 85--98\%; peak-type agreement 93--99\%.
+
+\paragraph{Layer-binned Jaccard (early/mid/late) and early/late ratio.}
+USA $0.543/0.440/0.293$ (1.85$\times$); Books $0.347/0.340/0.184$ (1.89$\times$); Products $0.496/0.308/0.164$ (3.02$\times$); Paintings $0.302/0.311/0.212$ (1.43$\times$); Sounds $0.684/0.544/0.440$ (1.56$\times$).
+
+\paragraph{Supernode consistency.}
+Same/regrouped/inconsistent: USA $76.6/16.2/7.3$; Books $47.5/12.8/39.7$; Products $65.2/16.5/18.4$; Paintings $71.0/9.9/19.1$; Sounds $85.6/8.9/5.6$.
+
+\paragraph{Caveats.}
+(i) Original Dallas/Oakland pair is a $\sim$93rd-percentile USA outlier; population means are 10--15 pp lower than originally reported. (ii) Books inconsistency rate likely reflects keyword-detection limits on literary names, not genuine instability. (iii) Paintings shows a weak/inverted layer gradient that is unexplained. (iv) Sounds has high overlap but 0\% hit, confirming overlap is necessary but not sufficient.
+
+% --------------------------------------------------------------------
+\section{Graph Compatibility (Scaffold) Analysis}
+\label{appx:scaffold}
+
+\paragraph{Definitions.}
+\emph{Scaffold:} same \texttt{feature\_key} and same supernode in both graphs (structural primitives like copulas/prepositions/task operators).
+\emph{Regrouped:} same feature, different supernode (entity-appropriate re-assignment such as \texttt{Say(Austin)$\to$Say(Sacramento)}).
+\emph{Entity-only:} present in one graph only.
+
+\paragraph{Per-domain scaffold influence and per-layer profile.}
+Cross-domain ranking: USA $53.0\%$, Products $42.2\%$, Paintings $35.9\%$, Books $25.3\%$. Late-layer ($\geq L_{16}$) scaffold: USA $16.3\%$, Products $10.3\%$, Paintings $9.2\%$, Books $4.3\%$. Both rank-perfect ordinal predictors of full-labeled Hit\%.
+
+\paragraph{Within-domain.}
+USA: all $|r|<0.10$, Q1 27.8\% vs Q4 24.3\% (no monotone trend). Products: target-residualized $r{=}+0.29$, $N{=}132$, concentrated in $L_{11{-}16}$ and $L_{20{-}21}$. Books/Paintings: positive but $N{<}10$ hits, fragile.
+
+% --------------------------------------------------------------------
+\section{Logit-Shift Regime Taxonomy}
+\label{appx:regime}
+
+\paragraph{Definitions (position 0).}
+\textbf{A:} target UP, source DOWN, flip. \textbf{C:} both DOWN, flip (differential disruption with target overtake). \textbf{D:} both DOWN, no flip (generic disruption). \textbf{E:} target FLAT, source DOWN (pure suppression).
+
+\paragraph{Regime A prevalence (best variant / full labeled / random).}
+USA $34.9/8.9/19.4$; Books $62.1/38.8/40.8$; Products $62.1/56.8/51.5$; Paintings $47.8/17.8/23.3$.
+
+\paragraph{Regime D prevalence.}
+USA $9.1/19.4/45.3$; Books $3.3/3.3/34.6$; Products $2.3/2.3/22.0$; Paintings $2.2/6.7/42.2$.
+
+\paragraph{Within regime C (USA).}
+\begin{center}
+\small
+\begin{tabular}{lrr}
+\toprule
+Signal & Labeled & Random \\
+\midrule
+Target recovery rate & 92.2 & 29.3 \\
+Sustained dominance (\texttt{tgt\_win\_pct}) & 0.673 & 0.319 \\
+vsMax & $+2.33$ & $-0.10$ \\
+Hit\% & 22.5 & 0.6 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% --------------------------------------------------------------------
+\section{Individual Case Studies Grid}
+\label{appx:case}
+
+\subsection{Domain distribution (best field-add variant)}
+\begin{center}
+\small
+\begin{tabular}{lrrrrrrr}
+\toprule
+Domain & N & Hit\% & RkGrp=1 & A & B & C & D \\
+\midrule
+USA   & 2{,}450 & 38.8 & 91.8 & 35.4 & 55.2 & 3.3  & 6.0  \\
+Books &   240 & 37.1 & 98.8 & 36.3 & 60.4 & 0.8  & 2.5  \\
+Prods &   132 & 24.2 & 76.5 & 24.2 & 72.7 & 0.0  & 3.0  \\
+Paint &    90 &  1.1 & 81.1 &  1.1 & 96.7 & 0.0  & 2.2  \\
+Sound &    30 & 20.0 & 93.3 &  0.0 & 50.0 & 20.0 & 30.0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Six success cases}
+\begin{itemize}\itemsep0pt
+  \item \textbf{Colorado~Springs$\to$Detroit} (USA, state+capital): vsMax $+17.5$, target rank 342 $\to$ 1; ``\dots Lansing\dots'' Textbook regime A.
+  \item \textbf{Holden Caulfield$\to$Katniss Everdeen} (Books, book+author): vsMax $+21.79$ (largest in dataset), 11 ablate / 63 amplify; ``\dots Suzanne Collins\dots''
+  \item \textbf{Nike$\to$Tesla} (Products, company+founder): vsMax $+12.25$, target rank 5{,}933 $\to$ 1; ``Elon Musk\dots'' (steered first-token $p{=}0.82$).
+  \item \textbf{La Grande Jatte$\to$Water Lilies} (Paintings, painter+first\_name): vsMax $+9.375$, target baseline rank 3 (the only painting hit; 1/90).
+  \item \textbf{Bark$\to$Hoot} (Sounds, sound+animal): mechanical artifact---both share answer ``brown''; not evidence of label quality.
+  \item \textbf{Minnesota$\to$Florida} (USA, all-3-fields labeled): vsMax $+16.06$ but flip@0=False; CtrlS $16.89$ (high collateral disruption); illustrates the all-fields cost.
 \end{itemize}
 
-\paragraph{Interactive Demo:} \url{https://huggingface.co/spaces/Peppinob/attribution-graph-probing}  
-\begin{itemize}
-  \item No installation required, runs in browser
-  \item Upload graph $\rightarrow$ adjust threshold $\rightarrow$ generate probes $\rightarrow$ download subgraph
-  \item Average runtime: 2--5 minutes for 50--200 feature graphs
-  \item Rate limited: Neuronpedia API limits apply (approximately 100 calls/hour)
-  \item Requires: Neuronpedia API key (free at neuronpedia.org/api)
-  \item Optional: OpenAI or Anthropic key for LLM concept generation (or manual)
+\subsection{Seven failure cases (covering five failure modes)}
+\begin{itemize}\itemsep0pt
+  \item \textbf{Kansas/Wichita$\to$New Hampshire/Manchester}: total failure, vsMax $-6.875$, target rank 5{,}816, garbled ``Oklahoma City\dots''
+  \item \textbf{Utah/Provo$\to$Iowa/Cedar Rapids}: vsMax $+14.0$, RkGrp 1, but garbled output (rank-hit misalignment).
+  \item \textbf{Ohio/Cleveland$\to$Oklahoma/Tulsa}: regime D (no flip@0 despite vsMax $+13.31$); autoregressive decoding never recovers.
+  \item \textbf{Scout Finch$\to$Huckleberry Finn}: 176 amplify features (highest in Books), garbled (less-is-more violation; substring confound on \texttt{finn}).
+  \item \textbf{Windows$\to$Oculus} (Products): suppressed source, but produces ``Rift'' (product), not ``Palmer Luckey''---``company'' supernodes encode product identity.
+  \item \textbf{Girl with a Pearl Earring$\to$Guernica}: 195 amplify / 88 ablate fail to dislodge Vermeer; target ``Pablo'' rank 1{,}382.
+  \item \textbf{Hiss$\to$Hoot} (Sounds): vsMax $-0.5$; intervention nudges target ``brown'' to rank 2 while ``black'' takes rank 1 (tiny answer-space).
 \end{itemize}
 
-\paragraph{Example Data:}
-We provide pre-computed outputs for all five circuits in \texttt{output/examples/}:
-\begin{itemize}
-  \item \texttt{Dallas/}: Full pipeline outputs (Texas capital circuit)
-  \item \texttt{capital oakland/}: Entity-swap pair (California capital circuit)
-  \item \texttt{michael hordan plays/}: Sports circuit with baseline comparisons
-  \item \texttt{small opposite/}: Antonymy circuit
-  \item \texttt{muscle diaphragm/}: Anatomy circuit
-\end{itemize}
+\subsection{Suppression-only zone (source absent, no target)}
+USA 59.2\%, Books 48.3\%, Products 46.2\%, Paintings 68.9\%, Sounds 66.7\%. The single largest outcome category in every domain: suppression is generic; targeting requires specific features.
 
-Each directory contains:
-\begin{itemize}
-  \item \texttt{*.json}: Neuronpedia attribution graph (with timestamp)
-  \item \texttt{prompts.json}: LLM-generated probe prompts
-  \item \texttt{*\_export*.csv}: Cross-prompt activation measurements
-  \item \texttt{node\_grouping\_final*.csv}: Classified and named features
-  \item \texttt{node\_grouping\_summary*.json}: Statistics and top supernodes
-  \item \texttt{selected\_features*.json}: Feature subset used for analysis
-\end{itemize}
+\subsection{Threats to validity for case studies}
+Selection bias toward extremes; tier unavailability for the best-FA variant at initial analysis; sounds shared-answer artefacts (12/30 pairs); single-example interpretations should not be over-generalized; explanations are post-hoc and constitute hypotheses, not conclusions.
 
-\textbf{Note:} A minimal example is also available in \texttt{examples\_data/} for quick testing.
+% --------------------------------------------------------------------
+\section{Sounds and Paintings Deep Dive}
+\label{appx:negative}
 
-\paragraph{Command-Line Usage (Basic):}
-From repository root, reproduce Dallas$\rightarrow$Austin circuit:
+\paragraph{Why Sounds fails Condition~2.}
+Three structural causes converge: (i) $N{=}6$ entities; (ii) $12/30$ non-identity pairs share the answer ``brown'', so any source-suppression in those pairs incidentally counts as a target-hit for random; (iii) $K{=}6$ colors with near-uniform $\sim 0.15$ probability mass make the logit margin too thin to overshoot precisely. The vsMax gap is $+0.14$ (Negligible); position-0 vsMax actually \emph{favors} random ($+0.30$ vs labeled $+0.68$ in median terms; \cref{appx:pos0}).
 
+\paragraph{Why Paintings is weak.}
+The \texttt{first\_name} answer field is fundamentally coarse: \texttt{Claude}, \texttt{Pablo}, \texttt{Leonardo} are common tokens with many non-painting associations. The \texttt{painter} supernode subsumes \texttt{first\_name} (since ``Monet'' contains information about ``Claude''), making the two fields effectively identical for matching. With 17\% error-node rates (highest of any domain), much of the circuit is invisible. 89/90 pairs fail at the \texttt{painter+first\_name} variant; the only hit (Grande Jatte $\to$ Water Lilies) requires baseline rank 3.
+
+\paragraph{Recommendation.}
+We exclude Sounds from cross-domain inference for C1 and treat Paintings as a Weak-strength supporting domain rather than a confirmatory one. The four-domain rank-perfect scaffold prediction (\cref{appx:scaffold}) holds without Sounds.
+
+% --------------------------------------------------------------------
+\section{Reproducibility and Tool Access}
+\label{appx:repro}
+
+\paragraph{Code, data, demo (all anonymized for review).}
+Repository: \url{https://anonymous.4open.science/r/attribution-graph-probing-anon} (commit hash and license in \texttt{README.md}). Demo: \url{https://anonymous.4open.science/r/attribution-graph-probing-demo-anon}. License: GNU GPL v3.
+
+\paragraph{Per-domain CLI (USA example).}
+\begin{small}
 \begin{verbatim}
-# 0. Setup
-git clone https://github.com/peppinob-ol/attribution-graph-probing
-cd attribution-graph-probing
-pip install -r requirements.txt
-# Set API keys (create .env file or export)
-export NEURONPEDIA_API_KEY="your_key_here"
-export OPENAI_API_KEY="your_key_here"  # or ANTHROPIC_API_KEY
-
-# 1. Generate attribution graph via Neuronpedia API
+# 1. Generate attribution graph (Neuronpedia API)
 python scripts/00_neuronpedia_graph_generation.py \
   --model gemma-2-2b-it \
-  --prompt "The capital of Texas is" \
+  --prompt "The capital of the state containing Dallas is" \
   --target " Austin" \
-  --output_dir output/dallas_austin/
+  --node-threshold 0.8 --edge-threshold 0.85 --max-nodes 5000 \
+  --output_dir output/usa/dallas_austin/
 
-# 2. Select features via cumulative influence
-# (Interactive Streamlit UI recommended for threshold selection)
-streamlit run eda/threshold_selection.py
+# 2. Select features (interactive UI)
+streamlit run eda/threshold_selection.py --tau 0.95
 
-# 3. Generate probe prompts and measure activations
-# (This script includes activation measurement and signature computation)
-python scripts/01_probe_prompts.py \
-  --graph_json output/dallas_austin/graph.json \
-  --concepts_json output/concepts.json \
-  --api_key YOUR_NEURONPEDIA_API_KEY \
-  --output_csv output/dallas_austin/activations.csv
+# 3. Probes + activations + grouping
+python scripts/01_probe_prompts.py --graph output/usa/dallas_austin/graph.json \
+  --output_csv output/usa/dallas_austin/activations.csv
+python scripts/02_node_grouping.py --input output/usa/dallas_austin/activations.csv \
+  --graph output/usa/dallas_austin/graph.json \
+  --output output/usa/dallas_austin/grouped.csv
 
-# 4. Classify nodes and generate subgraph
-# (This script includes classification, naming, and subgraph creation)
-python scripts/02_node_grouping.py \
-  --input output/dallas_austin/activations.csv \
-  --graph output/dallas_austin/graph.json \
-  --output output/dallas_austin/grouped.csv
+# 4. Run swap protocol with matched random control + adaptive M-search
+python scripts/03_swap_full.py --domain usa \
+  --m_ablate -2 --m_amplify 20 --freeze-attention false \
+  --random-replicates 3 --random-seed 42 \
+  --field-additivity true --m-search adaptive \
+  --output_dir output/usa_states_batch/
 \end{verbatim}
+\end{small}
 
-\paragraph{Expected Runtime:}
-\begin{itemize}
-  \item Graph generation: 2--5 minutes (Neuronpedia API)
-  \item Probe prompts + activations (script 01): 11--18 minutes total
-  \begin{itemize}
-    \item Probe generation: 1--3 minutes (LLM calls)
-    \item Activation measurement: 10--15 minutes (L4 GPU, 5 probes $\times$ 40 features)
-  \end{itemize}
-  \item Node grouping + subgraph (script 02): <1 minutes
-  \item \textbf{Total:} $\sim$14--24 minutes for single circuit
-\end{itemize}
+\paragraph{Runtime profile.}
+Per single-circuit pipeline (graph $+$ activation $+$ grouping $+$ subgraph): 14--24 minutes on a single L4 GPU. Full per-domain swap sweeps: USA 17h, Books 1.6h, Products 0.9h, Paintings 0.6h, Sounds 0.2h on 8 H100 GPUs (matched-control replicates parallelized).
 
-\paragraph{Reproducibility Features:}
-\begin{itemize}
-  \item \textbf{Deterministic pipeline:} All computations are deterministic (no random sampling or initialization)
-  \item \textbf{Per-feature checkpoints:} Resume from partial runs without re-querying
-  \item \textbf{Retry logic:} Exponential backoff for API failures
-  \item \textbf{Logging:} Verbose mode (\texttt{--debug} flag) logs all API calls and decisions
-\end{itemize}
+\paragraph{Artifact release manifest.}
+For each domain: (a) attribution graphs (Neuronpedia JSON); (b) probe-prompt files; (c) activation matrices; (d) supernode groupings; (e) swap dumps with per-pair Hit/vsMax/RkGrp/Sup/Flip/CtrlS/KL trajectories; (f) field-additivity per-variant tables; (g) adaptive-$M$ logs (Phase 1 \& Phase 2); (h) random-control sha256 seeds.
 
-\paragraph{Extending to New Circuits:}
-Minimal changes for new prompts:
-\begin{enumerate}
-  \item Edit \texttt{seed\_prompt} and \texttt{target} in graph generation
-  \item Adjust \texttt{num\_concepts} if domain differs (5--8 for factual, 8--12 for complex)
-  \item Review generated probes, reject malformed variants
-  \item Proceed with standard pipeline
-\end{enumerate}
+\paragraph{Determinism and resume.}
+Pipeline is fully deterministic (sha256-seeded controls; T$=$0.3 / $n{=}10$ / freq-penalty $2.0$ / seed $42$; no random initialization). Per-feature checkpoints permit resume from partial runs.
 
-For non-English: Create language-specific functional token list.
+% --------------------------------------------------------------------
+\section{Glossary and Notation}
+\label{appx:glossary}
 
-\subsection{Baseline Tuning and Hyperparameters}
-\label{sec:baseline-tuning}
-
-To ensure fair comparison, we tuned geometric baselines (cosine clustering, layer-adjacency) alongside our concept-aligned method. Below we document tuning approaches and acknowledge limitations.
-
-\paragraph{Cosine Clustering (Activation-Vector Similarity)}
-Method: Hierarchical clustering on cosine distance of the same cross-prompt activation matrix used for behavioral metrics. For each feature $i$, we build $\mathbf{a}_i \in \mathbb{R}^{|V_{\text{sem}}|}$ where $V_{\text{sem}}$ is the semantic-token allow-list obtained from original graph tokens plus semantic supernode names. Entries are the maximum activation observed on that token across all probe prompts (derived from \texttt{top\_activations\_probe\_original}); tokens never activated receive zero. This restricts the cosine baseline to concept-bearing context, matching the pipeline applied to the concept-aligned method.
-
-Tuning: We selected agglomerative clustering with cosine distance metric and average linkage (mirroring the implementation in \texttt{compare\_grouping\_methods.py}). Cluster count is fixed to the number of concept-aligned supernodes (39 for Table~\ref{tab:baselines}) so that all methods partition the same node set. We tested common linkage methods (single, complete, average, ward) and chose the configuration that maximized Silhouette score while maintaining interpretable cluster sizes (approximately 7--10 clusters, depending on the circuit).
-
-Note: We did not perform exhaustive grid search across all hyperparameter combinations. Tuning was iterative and informed by standard clustering practices.
-
-\paragraph{Layer-Adjacency Clustering (Influence-Graph Proximity)}
-Method: Hierarchical clustering on normalized [layer, influence] coordinates. Features close in layer depth and similar in influence magnitude are grouped together.
-
-Tuning: We used Ward linkage to minimize within-cluster variance. Cluster count was chosen to approximately match the number of concept-aligned groups ($\sim$7--10) for comparability. Normalization applied to balance layer and influence contributions equally.
-
-Note: Alternative algorithms (Louvain, spectral) were considered but not extensively compared. Ward linkage was selected based on prior experience with hierarchical methods.
-
-\paragraph{Concept-Aligned Grouping (Our Method)}
-Method: Rule-based classification using cross-prompt behavioral signatures. Thresholds:
-\begin{itemize}
-  \item Semantic: peak\_consistency $\ge$0.80, n\_distinct\_peaks $\le$1, layer $\le$3 OR semantic\_conf $\ge$0.50
-  \item Say-X: func\_vs\_sem $\ge$50\%, conf\_functional $\ge$0.90, layer $\ge$7
-  \item Relationship: median\_sparsity <0.45, typically layer $\le$9
-\end{itemize}
-
-Tuning: Thresholds were chosen via iterative refinement on held-out examples to balance precision (few false classifications) against recall (capture relevant features). The tuning process involved extensive manual analysis, including printing and annotating activations by hand over several days to understand feature behavior. These represent codified expert judgment informed by:
-\begin{itemize}
-  \item Manual inspection of activation patterns
-  \item Comparison with Neuronpedia autointerp labels
-  \item Iterative testing on pilot circuits
-  \item Adjustment based on observed edge cases
-\end{itemize}
-
-\paragraph{Comparative Tuning Effort}
-All three methods received attention during development. We do not claim optimal hyperparameters for any method. Our goal was to ensure baselines were not trivially weak through reasonable tuning, while acknowledging that exhaustive optimization was not performed.
-
-\paragraph{Known Limitations}
-\begin{enumerate}
-  \item \textbf{No held-out test set:} All tuning was performed on circuits included in evaluation. Future work should use proper train/validation/test splits.
-   
-  \item \textbf{Small sample:} Tuning decisions based on 1--2 circuits (Michael Jordan for baselines, held-out examples for concept-aligned) may not generalize.
-
-  \item \textbf{Descriptive comparisons:} Results in Table~\ref{tab:baselines} are descriptive differences without significance tests, confidence intervals, or statistical power analysis. We report effect sizes (2.3$\times$, 5.8$\times$ improvements) but these are point estimates from a single circuit.
-
-  \item \textbf{Asymmetric documentation:} Baseline tuning process is documented at high level; concept-aligned threshold development involved more extensive manual analysis that is difficult to fully document. This asymmetry reflects the exploratory nature of the research.
-
-  \item \textbf{Threshold sensitivity not systematically tested:} While thresholds were refined iteratively, we have not performed formal sensitivity analysis (e.g., $\pm$10--20\% variation) with quantitative impact assessment. This is planned for future work.
-\end{enumerate}
-
-\paragraph{Future Work}
-Systematic validation should include:
-\begin{itemize}
-  \item Exhaustive hyperparameter grid search for all methods
-  \item Threshold sensitivity analysis with quantified impacts
-  \item Proper train/validation/test splits across 20+ circuits
-  \item Statistical significance testing with appropriate corrections
-  \item Inter-rater reliability assessment (multiple human annotators)
-\end{itemize}
-
-\subsection{Tacit knowledge and operational notes}
-Empirically, late-layer Say-X features peak on functional tokens; ensure target-token mapping uses directionality (e.g., forward for ``is''). Early-layer features may include context-independent functional detectors; treat layer priors carefully.
-
-\subsection{Neuronpedia links}
-Dallas--Austin, Oakland--Sacramento, Michael Jordan--Basketball, Small--Opposite, and Muscle--Diaphragm subgraphs: see repository docs or Neuronpedia workspace. We include a helper to parse links from the LessWrong export.
-
-\subsection{Functional Token Vocabulary and Mapping Rules}
-\label{sec:functional-vocab}
-
-Complete specification of functional tokens and target-token mapping for Say-X detection in English prompts. For non-English, adapt via functional token list in repository.
-
-\paragraph{Functional Token Classes (English)}
-\begin{enumerate}
-  \item \textbf{Copulas (linking verbs):} `is', `was', `are', `were', `be', `been', `being', `am', `'s' (contracted `is'), `'re' (contracted `are'), `'m' (contracted `am')
-
-  \item \textbf{Articles (determiners):} `the', `a', `an', `this', `that', `these', `those'
-
-  \item \textbf{Prepositions (relational):} `of', `in', `on', `at', `to', `for', `with', `by', `from', `as', `into', `onto', `upon', `about', `above', `below', `between', `among', `through', `during', `before', `after'
-
-  \item \textbf{Conjunctions (connective):} `and', `or', `but', `nor', `so', `yet', `for'
-
-  \item \textbf{Relative pronouns/adverbs:} `that', `which', `who', `whom', `whose', `where', `when', `why', `how'
-
-  \item \textbf{Auxiliary verbs:} `do', `does', `did', `have', `has', `had', `will', `would', `shall', `should', `can', `could', `may', `might', `must'
-\end{enumerate}
-
-\textbf{Total:} Approximately 87 functional tokens in default English vocabulary (full list in \texttt{config/functional\_tokens\_en.txt}).
-
-\paragraph{Target-Token Mapping Rules}
-When a feature peaks on a functional token, we identify the nearest semantic target token within a configurable window (default: 7 tokens, configurable via \texttt{--window} parameter) using directionality heuristics:
-
-\textbf{Forward-looking functionals} (predict what comes next):
-\begin{itemize}
-  \item Copulas: `is', `was', `are', `were', `be' $\rightarrow$ look forward\\
-  Example: ``The capital \textbf{is} Austin'' $\rightarrow$ target=`Austin'
-  
-  \item Auxiliary verbs: `has', `have', `had', `will', `would', `can', `could' $\rightarrow$ look forward\\
-  Example: ``France \textbf{has} Paris'' $\rightarrow$ target=`Paris'
-  
-  \item Articles: `the', `a', `an' $\rightarrow$ look forward\\
-  Example: ``capital of \textbf{the} state'' $\rightarrow$ target=`state'\\
-  \emph{Note:} Current implementation uses simple forward lookup for all articles.
-  
-  \item Most prepositions: `in', `on', `at', `to', `for', `with' $\rightarrow$ look forward\\
-  Example: ``located \textbf{in} Texas'' $\rightarrow$ target=`Texas'
-\end{itemize}
-
-\textbf{Backward-looking functionals} (refer to previous content):
-\begin{itemize}
-  \item Possessive preposition: `of' $\rightarrow$ look backward\\
-  Example: ``capital \textbf{of} Texas'' $\rightarrow$ target=`capital' (backward to head noun)\\
-  \emph{Implementation note:} Code currently uses forward for `of'; this is a known issue being addressed.
-  
-  \item Possessive marker: `'s' $\rightarrow$ look backward\\
-  Example: ``Texas\textbf{'s} capital'' $\rightarrow$ target=`Texas' (backward)\\
-  \emph{Implementation note:} Requires adding `'s' to functional token vocabulary.
-\end{itemize}
-
-\textbf{Bidirectional functionals} (nearest semantic token in either direction):
-\begin{itemize}
-  \item Conjunctions: `and', `or', `but' $\rightarrow$ search both directions, return nearest\\
-  Example: ``Texas \textbf{and} Oklahoma'' $\rightarrow$ targets=`Texas' (backward), `Oklahoma' (forward)
-  
-  \item Punctuation: commas, colons, semicolons $\rightarrow$ search both directions\\
-  Example: ``Texas\textbf{,} Oklahoma'' $\rightarrow$ nearest semantic (either direction)
-\end{itemize}
-
-\paragraph{Edge Cases and Resolution}
-\begin{enumerate}
-  
-  \item \textbf{Multiple candidates:} If multiple semantic tokens in window, use nearest (by token distance). Ties broken by: (a) forward over backward (default bias), (b) higher activation magnitude if available.
-
-  \item \textbf{Multi-token entities:} Use first token of multi-token entity as target.\\
-  Example: ``capital is \textbf{New York}'' $\rightarrow$ target=`New' (single token)\\
-  Future: use longest-match heuristic if entity dictionary available
-
-  \item \textbf{No semantic in window:} Feature marked `functional-only', excluded from Say-X unless $\ge$90\% functional confidence across probes (pure functional detectors, rare).
-
-  \item \textbf{Configurable window:} Default search window is 7 tokens (configurable via CLI \texttt{--window}). Smaller windows ($\le$5) reduce noise but may miss distant targets; larger windows ($\ge$10) capture more candidates but increase ambiguity.
-  
-  \item \textbf{Known limitations:} `of' directionality can be context-dependent (``capital of Texas'' vs ``made of wood''). Current specification: backward for possessive uses. Dependency parsing would enable context-sensitive rules.
-\end{enumerate}
-
-\paragraph{Cross-Lingual Adaptations}
-For non-English prompts, functional vocabularies must be adapted. We encountered a notable failure when testing the standard English pipeline on the French prompt ``le contraire de `petit' est'' using English probe prompts. The model produced incoherent activations with no valid supernode grouping, due to language mismatch and absence of French functional tokens.
-
-Performance improved after adding French-language probe prompts, expanding the blacklist to include mixed English-French functional terms (including concept, de, process, their, based), and manual refinement. However, the current prototype remains unreliable in multilingual contexts without explicit cross-lingual adaptation.
-
-\textbf{Example French tokens}:
-\begin{itemize}
-  \item Copulas: `est', `\'etait', `sont', `\'etaient', `\^etre'
-  \item Articles: `le', `la', `les', `un', `une', `des'
-  \item Prepositions: `de', `\`a', `en', `dans', `sur', `pour', `avec', `par'
-  \item Directionality: `est' $\rightarrow$ forward, `de' $\rightarrow$ backward (like `of')
-\end{itemize}
-
-\textbf{Example Spanish tokens}:
-\begin{itemize}
-  \item Copulas: `es', `era', `son', `eran', `ser'
-  \item Articles: `el', `la', `los', `las', `un', `una'
-  \item Prepositions: `de', `a', `en', `con', `por', `para'
-  \item Directionality: `es' $\rightarrow$ forward, `de' $\rightarrow$ backward
-\end{itemize}
-
-Users working with non-English prompts should expect to iterate on functional token lists and directionality rules based on their specific language and domain.
-
-
-\subsection{Glossary}
-\textbf{CLT} Cross-Layer Transcoder; \textbf{SAE} Sparse Autoencoder; \textbf{Replacement} Neuronpedia graph metric for end-to-end influence via features; \textbf{Completeness} influence explained by features/tokens; \textbf{Say-X} output promotion features that peak on functional tokens and map to semantic targets.
-
-\subsection{Color accessibility}
-Figures use palettes avoiding red--green contrasts; when diverging scales are needed, zero is mapped to a neutral color.
-
-
+\textbf{CLT}: Cross-Layer Transcoder.
+\textbf{CPAS}: Cross-Prompt Activation Signature.
+\textbf{$\tau$}: cumulative-influence threshold for feature selection (default $0.95$).
+\textbf{$M_{\mathrm{ablate}}$, $M_{\mathrm{amplify}}$}: multipliers for source/target features (defaults $-2$, $20$).
+\textbf{vsMax}: best$_t\big(\ell_{e_B}(t) - \max_{e'\neq e_B} \ell_{e'}(t)\big)$.
+\textbf{RkGrp}: best target rank within domain answer set.
+\textbf{Target Recovery}: target logit beats its own unsteered baseline at any trajectory position.
+\textbf{Regime A/C/D/E}: position-0 logit-shift regimes (\cref{appx:regime}).
+\textbf{Scaffold}: features shared between source/target graphs with identical supernode assignment.
+\textbf{Scaffold influence}: fraction of total graph influence carried by scaffold features.
+\textbf{KL}: KL$(\mathrm{baseline} \| \mathrm{steered})$ at position 0.

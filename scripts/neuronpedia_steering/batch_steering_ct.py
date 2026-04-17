@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 from dataclasses import dataclass
@@ -1065,7 +1066,30 @@ def run_ct_generation(
                         "target_rank_improvement": baseline_target_info["rank"] - steered_target_rank_0 if steered_target_rank_0 else None,
                         "flip_at_0": steered_target_rank_0 < steered_source_rank_0 if (steered_target_rank_0 and steered_source_rank_0) else False,
                     }
-    
+
+    # Position-0 distribution metrics (entropy + KL divergence)
+    if baseline_logits is not None and steered_logits is not None:
+        with torch.inference_mode():
+            eps = 1e-10
+            baseline_p = torch.softmax(baseline_logits.squeeze()[-1].float(), dim=-1)
+            steered_q = torch.softmax(
+                steered_logits.squeeze()[effective_prompt_in_logits - 1].float(),
+                dim=-1,
+            )
+            baseline_p = baseline_p.clamp(min=eps)
+            steered_q = steered_q.clamp(min=eps)
+
+            baseline_entropy = -(baseline_p * baseline_p.log()).sum().item()
+            steered_entropy = -(steered_q * steered_q.log()).sum().item()
+            kl_div = (baseline_p * (baseline_p.log() - steered_q.log())).sum().item()
+
+            result["position_0_distribution_metrics"] = {
+                "baseline_entropy": round(baseline_entropy, 4),
+                "steered_entropy": round(steered_entropy, 4),
+                "entropy_delta": round(steered_entropy - baseline_entropy, 4),
+                "kl_baseline_to_steered": round(kl_div, 4),
+            }
+
     return result
 
 
@@ -1156,6 +1180,8 @@ def main() -> None:
             result_entry["baseline_logits"] = raw["baseline_logits"]
         if "position_0_comparison" in raw:
             result_entry["position_0_comparison"] = raw["position_0_comparison"]
+        if "position_0_distribution_metrics" in raw:
+            result_entry["position_0_distribution_metrics"] = raw["position_0_distribution_metrics"]
         
         results.append(result_entry)
 

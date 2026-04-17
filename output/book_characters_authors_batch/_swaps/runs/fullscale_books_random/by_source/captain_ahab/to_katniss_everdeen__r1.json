@@ -17,8 +17,8 @@
   },
   "interventions": {
     "ablate_count": 177,
-    "amplify_count": 117,
-    "total_count": 294
+    "amplify_count": 118,
+    "total_count": 295
   },
   "evaluation": {
     "ground_truth": {
@@ -38,18 +38,18 @@
       "default_has_from_answer": true,
       "steered_has_to_answer": false,
       "steered_has_to_answer_fuzzy": false,
-      "steered_has_from_answer": true,
-      "from_suppressed": false,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
       "first_token_matches_target": false,
       "default_has_from_capital": true,
       "steered_has_to_capital": false,
-      "steered_has_from_capital": true
+      "steered_has_from_capital": false
     },
     "first_token": {
       "default": " Herman",
       "default_prob": 0.380859375,
       "steered": " the",
-      "steered_prob": 0.2158203125
+      "steered_prob": 0.388671875
     },
     "target_in_topk": {
       "to_answer_in_default_topk": null,
@@ -63,7 +63,7 @@
     },
     "raw": {
       "default_output": "<bos><bos>The book featuring Captain Ahab was written by Herman Melville. The novel is about a white whale",
-      "steered_output": "<bos><bos>The book featuring Captain Ahab was written by the author’s father, Herman Melville. The book",
+      "steered_output": "<bos><bos>The book featuring Captain Ahab was written by the author of Moby Dick.\n\nThe author of The",
       "default_topk": [
         {
           "token": " Herman",
@@ -89,23 +89,23 @@
       "steered_topk": [
         {
           "token": " the",
-          "prob": 0.2158203125
+          "prob": 0.388671875
         },
         {
           "token": " a",
-          "prob": 0.1015625
+          "prob": 0.052490234375
         },
         {
           "token": " an",
-          "prob": 0.054443359375
+          "prob": 0.031982421875
         },
         {
-          "token": "^(@)",
-          "prob": 0.015625
+          "token": " former",
+          "prob": 0.028076171875
         },
         {
           "token": " one",
-          "prob": 0.015625
+          "prob": 0.01708984375
         }
       ]
     },
@@ -124,15 +124,15 @@
       "generated_tokens": [
         " the",
         " author",
-        "’",
-        "s",
-        " father",
-        ",",
-        " Herman",
-        " Melville",
+        " of",
+        " Moby",
+        " Dick",
         ".",
-        " The",
-        " book"
+        "\n\n",
+        "The",
+        " author",
+        " of",
+        " The"
       ],
       "trajectories": {
         "target": {
@@ -153,20 +153,20 @@
               10
             ],
             "logits": [
-              18.5,
-              5.7812,
-              12.625,
-              -6.3438,
-              5.875,
-              11.625,
-              11.4375,
-              -1.2188,
-              3.6562,
-              11.75,
-              6.4688
+              17.25,
+              6.8125,
+              12.375,
+              8.25,
+              2.4062,
+              7.4062,
+              8.8125,
+              -3.0,
+              8.4375,
+              12.1875,
+              11.625
             ],
             "probs": [
-              9e-06,
+              6e-06,
               0.0,
               0.0,
               0.0,
@@ -179,27 +179,27 @@
               0.0
             ],
             "ranks": [
-              3502,
-              36725,
-              3136,
-              37725,
-              28994,
-              6843,
-              6438,
-              58141,
-              66536,
-              6686,
-              30188
+              2481,
+              32766,
+              2842,
+              20562,
+              19267,
+              27694,
+              16126,
+              195478,
+              24348,
+              3718,
+              10127
             ]
           },
           "summary": {
             "first_top1_position": null,
             "first_top5_position": null,
             "first_top10_position": null,
-            "max_prob": 9e-06,
-            "min_rank": 3136,
-            "final_rank": 30188,
-            "rank_improvement": 366
+            "max_prob": 6e-06,
+            "min_rank": 2481,
+            "final_rank": 10127,
+            "rank_improvement": 0
           }
         },
         "source": {
@@ -220,50 +220,50 @@
               10
             ],
             "logits": [
-              16.75,
+              18.375,
+              22.75,
+              25.625,
+              23.25,
+              7.6875,
+              25.75,
+              26.0,
+              16.5,
+              19.5,
               22.25,
-              25.5,
-              0.8438,
-              16.625,
-              24.125,
-              24.125,
-              14.875,
-              24.25,
-              27.5,
-              22.25
+              21.875
             ],
             "probs": [
-              1e-06,
-              0.000851,
-              0.026611,
+              2e-05,
+              0.001419,
+              0.053223,
+              0.004852,
               0.0,
+              0.007263,
+              0.012268,
               2e-06,
-              0.001785,
-              0.038574,
-              0.000256,
-              0.002899,
-              0.033691,
-              0.00061
+              6.1e-05,
+              0.00045,
+              0.000778
             ],
             "ranks": [
-              8856,
-              101,
-              8,
-              336,
-              1413,
-              28,
-              4,
+              1250,
+              77,
+              6,
+              15,
+              1348,
+              10,
               14,
-              12,
-              7,
-              73
+              1219,
+              339,
+              31,
+              68
             ]
           },
           "summary": {
             "first_top1_position": null,
-            "min_rank": 4,
-            "final_rank": 73,
-            "max_prob": 0.038574
+            "min_rank": 6,
+            "final_rank": 68,
+            "max_prob": 0.053223
           }
         },
         "controls": {
@@ -285,43 +285,43 @@
                 10
               ],
               "logits": [
-                28.625,
-                22.375,
-                21.125,
-                4.5312,
-                17.75,
-                22.625,
-                23.875,
-                14.25,
-                23.0,
+                28.25,
                 22.875,
-                18.125
+                21.125,
+                27.25,
+                14.125,
+                24.125,
+                24.25,
+                15.375,
+                18.25,
+                22.25,
+                27.375
               ],
               "probs": [
-                0.21582,
-                0.000965,
-                0.000336,
+                0.388672,
+                0.00161,
+                0.000591,
+                0.265625,
+                0.0001,
+                0.001434,
+                0.002136,
                 1e-06,
-                5e-06,
-                0.000399,
-                0.030151,
-                0.000136,
-                0.000828,
-                0.00033,
-                1e-05
+                1.7e-05,
+                0.00045,
+                0.19043
               ],
               "ranks": [
                 1,
-                93,
-                105,
-                39,
-                951,
-                72,
-                5,
-                21,
-                30,
-                105,
-                581
+                76,
+                85,
+                1,
+                24,
+                42,
+                41,
+                1948,
+                646,
+                31,
+                2
               ]
             }
           },
@@ -343,43 +343,43 @@
                 10
               ],
               "logits": [
-                0.8477,
-                13.875,
-                22.375,
-                3.8438,
-                13.625,
-                21.25,
-                17.75,
-                10.625,
-                20.875,
-                17.75,
-                17.0
+                6.3125,
+                16.875,
+                22.875,
+                18.125,
+                11.8125,
+                25.125,
+                21.0,
+                13.0625,
+                19.375,
+                26.125,
+                18.75
               ],
               "probs": [
                 0.0,
-                0.0,
-                0.001167,
-                1e-06,
-                0.0,
-                0.000101,
-                6.6e-05,
                 4e-06,
-                9.9e-05,
-                2e-06,
-                3e-06
+                0.003403,
+                2.9e-05,
+                1e-05,
+                0.003891,
+                8.2e-05,
+                0.0,
+                5.4e-05,
+                0.021729,
+                3.4e-05
               ],
               "ranks": [
-                226797,
-                4492,
-                55,
-                60,
-                3698,
-                131,
-                413,
-                266,
-                71,
-                779,
-                971
+                92776,
+                1441,
+                28,
+                307,
+                103,
+                25,
+                191,
+                4651,
+                374,
+                4,
+                450
               ]
             }
           },
@@ -401,43 +401,43 @@
                 10
               ],
               "logits": [
-                27.875,
-                20.375,
-                23.125,
-                3.9219,
-                18.25,
-                23.875,
-                25.125,
-                11.25,
-                23.25,
-                19.75,
-                17.75
+                26.25,
+                20.5,
+                22.75,
+                25.0,
+                11.875,
+                24.875,
+                22.625,
+                14.25,
+                17.875,
+                18.75,
+                24.5
               ],
               "probs": [
-                0.101562,
-                0.000131,
-                0.002472,
-                1e-06,
-                9e-06,
-                0.001389,
-                0.10498,
-                7e-06,
-                0.001068,
-                1.5e-05,
-                7e-06
+                0.05249,
+                0.00015,
+                0.003006,
+                0.027954,
+                1e-05,
+                0.003036,
+                0.00042,
+                0.0,
+                1.2e-05,
+                1.4e-05,
+                0.010742
               ],
               "ranks": [
                 2,
-                274,
-                32,
-                56,
-                771,
-                33,
-                2,
-                181,
-                24,
-                352,
-                706
+                247,
+                30,
+                8,
+                99,
+                27,
+                101,
+                3079,
+                776,
+                268,
+                9
               ]
             }
           },
@@ -459,43 +459,43 @@
                 10
               ],
               "logits": [
-                -2.9688,
-                16.375,
-                26.5,
-                4.75,
-                19.875,
-                22.625,
-                19.75,
-                10.25,
-                22.75,
-                17.75,
-                14.3125
+                -5.4062,
+                17.125,
+                26.25,
+                20.0,
+                12.9375,
+                23.125,
+                19.0,
+                8.1875,
+                16.5,
+                29.75,
+                20.25
               ],
               "probs": [
                 0.0,
-                2e-06,
-                0.072266,
-                1e-06,
-                4.3e-05,
-                0.000399,
-                0.000486,
+                5e-06,
+                0.099609,
+                0.000189,
+                3e-05,
+                0.000526,
+                1.1e-05,
+                0.0,
                 3e-06,
-                0.000645,
-                2e-06,
-                0.0
+                0.816406,
+                0.000154
               ],
               "ranks": [
-                246665,
-                1791,
-                5,
-                29,
-                421,
-                72,
-                149,
-                336,
-                34,
-                779,
-                2955
+                240919,
+                1298,
+                1,
+                105,
+                49,
+                63,
+                431,
+                21131,
+                1492,
+                1,
+                189
               ]
             }
           }
@@ -503,37 +503,33 @@
       },
       "summary": {
         "target_appears_at": null,
-        "source_appears_at": 6,
-        "flip_position": 0,
-        "initial_gap": 1.75,
-        "best_gap": 1.75,
-        "final_gap": -15.7812,
+        "source_appears_at": null,
+        "flip_position": null,
+        "initial_gap": -1.125,
+        "best_gap": -1.125,
+        "final_gap": -10.25,
         "gap_closure": 0.0,
         "gap_trajectory": [
-          1.75,
-          -16.4688,
-          -12.875,
-          -7.1876,
-          -10.75,
-          -12.5,
-          -12.6875,
-          -16.0938,
-          -20.5938,
-          -15.75,
-          -15.7812
+          -1.125,
+          -15.9375,
+          -13.25,
+          -15.0,
+          -5.2813,
+          -18.3438,
+          -17.1875,
+          -19.5,
+          -11.0625,
+          -10.0625,
+          -10.25
         ],
-        "control_stability_mean": 13.5729,
-        "control_stability_max": 29.4688
+        "control_stability_mean": 12.5547,
+        "control_stability_max": 35.1562
       },
       "contrast_groups": {
         "same_dataset": {
-          "n_members": 11,
+          "n_members": 13,
           "topk_k": 3,
           "members": [
-            {
-              "token": " J",
-              "token_id": 713
-            },
             {
               "token": " F",
               "token_id": 633
@@ -555,128 +551,140 @@
               "token_id": 90340
             },
             {
-              "token": " Miguel",
-              "token_id": 29395
+              "token": " Bram",
+              "token_id": 103850
+            },
+            {
+              "token": " George",
+              "token_id": 7373
+            },
+            {
+              "token": " J",
+              "token_id": 713
+            },
+            {
+              "token": " Victor",
+              "token_id": 20096
+            },
+            {
+              "token": " Franz",
+              "token_id": 31933
+            },
+            {
+              "token": " Alexandre",
+              "token_id": 70853
             },
             {
               "token": " Charles",
               "token_id": 8868
             },
             {
-              "token": " Bram",
-              "token_id": 103850
-            },
-            {
-              "token": " Leo",
-              "token_id": 25890
-            },
-            {
-              "token": " George",
-              "token_id": 7373
+              "token": " Gustave",
+              "token_id": 148991
             }
           ],
           "summary": {
             "mean_logit": [
-              16.9886,
-              14.1364,
-              19.3409,
-              -5.424,
-              11.544,
-              19.3466,
-              19.4034,
-              9.0774,
-              14.7614,
-              18.9545,
-              12.7443
+              18.3558,
+              15.0913,
+              18.5433,
+              16.649,
+              5.631,
+              16.1875,
+              18.0433,
+              6.4621,
+              14.4519,
+              17.2308,
+              18.7067
             ],
             "max_logit": [
-              21.0,
+              21.5,
+              19.125,
+              22.125,
+              20.875,
+              9.4375,
+              22.0,
+              22.75,
+              12.125,
               17.875,
-              22.25,
-              -1.8672,
-              15.9375,
-              23.5,
-              23.375,
-              15.375,
-              19.875,
-              23.0,
-              18.0
+              20.75,
+              24.0
             ],
             "topk_mean_logit": [
-              20.0,
+              20.8333,
+              18.0417,
+              21.25,
+              20.3333,
+              9.2292,
+              20.2917,
+              21.7083,
+              11.5625,
               17.5833,
-              21.6667,
-              -2.2214,
-              15.4167,
-              22.9583,
-              22.75,
-              14.1875,
-              19.4167,
-              22.0833,
-              16.7292
+              19.9167,
+              22.2083
             ],
             "target_minus_mean": [
-              1.5114,
-              -8.3552,
-              -6.7159,
-              -0.9198,
-              -5.669,
-              -7.7216,
-              -7.9659,
-              -10.2962,
-              -11.1052,
-              -7.2045,
-              -6.2755
+              -1.1058,
+              -8.2788,
+              -6.1683,
+              -8.399,
+              -3.2248,
+              -8.7813,
+              -9.2308,
+              -9.4621,
+              -6.0144,
+              -5.0433,
+              -7.0817
             ],
             "target_minus_max": [
-              -2.5,
-              -12.0938,
-              -9.625,
-              -4.4766,
-              -10.0625,
-              -11.875,
-              -11.9375,
-              -16.5938,
-              -16.2188,
-              -11.25,
-              -11.5312
+              -4.25,
+              -12.3125,
+              -9.75,
+              -12.625,
+              -7.0313,
+              -14.5938,
+              -13.9375,
+              -15.125,
+              -9.4375,
+              -8.5625,
+              -12.375
             ],
             "target_minus_topk_mean": [
-              -1.5,
-              -11.8021,
-              -9.0417,
-              -4.1224,
-              -9.5417,
-              -11.3333,
-              -11.3125,
-              -15.4063,
-              -15.7605,
-              -10.3333,
-              -10.2604
+              -3.5833,
+              -11.2292,
+              -8.875,
+              -12.0833,
+              -6.823,
+              -12.8855,
+              -12.8958,
+              -14.5625,
+              -9.1458,
+              -7.7292,
+              -10.5833
             ],
             "target_rank_within_group": [
-              4,
+              10,
+              14,
+              14,
+              14,
               12,
-              12,
-              7,
-              11,
-              12,
-              12,
-              12,
-              12,
-              12,
-              11
+              14,
+              14,
+              14,
+              14,
+              14,
+              14
             ]
           },
           "aggregate": {
-            "initial_target_minus_mean": 1.5114,
-            "best_target_minus_mean": 1.5114,
-            "initial_target_minus_max": -2.5,
-            "best_target_minus_max": -2.5,
-            "initial_target_minus_topk": -1.5,
-            "best_target_minus_topk": -1.5,
-            "best_rank_within": 4,
-            "initial_rank_within": 4
+            "initial_target_minus_mean": -1.1058,
+            "best_target_minus_mean": -1.1058,
+            "initial_target_minus_max": -4.25,
+            "best_target_minus_max": -4.25,
+            "initial_target_minus_topk": -3.5833,
+            "best_target_minus_topk": -3.5833,
+            "best_rank_within": 10,
+            "initial_rank_within": 10
           }
         }
       }
@@ -694,13 +702,13 @@
       }
     },
     "position_0_comparison": {
-      "target_logit_delta": 7.875,
-      "source_logit_delta": -8.125,
+      "target_logit_delta": 6.625,
+      "source_logit_delta": -6.5,
       "baseline_gap": -14.25,
-      "steered_gap_0": 1.75,
-      "gap_closure_0": 16.0,
-      "target_rank_improvement": 172,
-      "flip_at_0": true
+      "steered_gap_0": -1.125,
+      "gap_closure_0": 13.125,
+      "target_rank_improvement": 1193,
+      "flip_at_0": false
     }
   },
   "config": {
@@ -711,13 +719,13 @@
     "freeze_attention": false
   },
   "metadata": {
-    "timestamp": "2026-03-21T17:15:35.839887",
+    "timestamp": "2026-04-02T02:31:18.907749",
     "duration_ms": 0,
     "is_identity": false,
     "control": {
       "control_mode": "random_feature_matched",
       "ablate_count": 177,
-      "amplify_count": 117,
+      "amplify_count": 118,
       "concept_subsets_used": [
         "character",
         "book",
@@ -725,48 +733,48 @@
       ],
       "replicate_id": 1,
       "diagnostics": {
-        "pool_from_size": 725,
+        "pool_from_size": 720,
         "pool_to_size": 855,
         "exclusion_from_count": 177,
-        "exclusion_to_count": 117,
+        "exclusion_to_count": 118,
         "ref_ablate_count": 177,
-        "ref_amplify_count": 117,
+        "ref_amplify_count": 118,
         "ablate_layer_match": {
           "requested_total": 177,
           "achieved_total": 177,
           "deficit": 0,
-          "bins_exact_match": 10,
-          "total_bins": 24,
+          "bins_exact_match": 9,
+          "total_bins": 25,
           "per_bin": [
             {
               "bin": 0,
               "requested": 71,
-              "achieved": 84,
-              "delta": 13
+              "achieved": 83,
+              "delta": 12
             },
             {
               "bin": 1,
               "requested": 16,
-              "achieved": 16,
-              "delta": 0
+              "achieved": 17,
+              "delta": 1
             },
             {
               "bin": 2,
               "requested": 12,
-              "achieved": 15,
-              "delta": 3
+              "achieved": 13,
+              "delta": 1
             },
             {
               "bin": 3,
               "requested": 13,
-              "achieved": 14,
-              "delta": 1
+              "achieved": 15,
+              "delta": 2
             },
             {
               "bin": 4,
               "requested": 10,
-              "achieved": 10,
-              "delta": 0
+              "achieved": 11,
+              "delta": 1
             },
             {
               "bin": 5,
@@ -795,14 +803,20 @@
             {
               "bin": 9,
               "requested": 2,
-              "achieved": 3,
-              "delta": 1
+              "achieved": 2,
+              "delta": 0
             },
             {
               "bin": 10,
               "requested": 1,
               "achieved": 1,
               "delta": 0
+            },
+            {
+              "bin": 11,
+              "requested": 0,
+              "achieved": 1,
+              "delta": 1
             },
             {
               "bin": 12,
@@ -885,17 +899,17 @@
           ]
         },
         "amplify_layer_match": {
-          "requested_total": 117,
-          "achieved_total": 117,
+          "requested_total": 118,
+          "achieved_total": 118,
           "deficit": 0,
-          "bins_exact_match": 13,
+          "bins_exact_match": 12,
           "total_bins": 24,
           "per_bin": [
             {
               "bin": 0,
-              "requested": 33,
+              "requested": 34,
               "achieved": 46,
-              "delta": 13
+              "delta": 12
             },
             {
               "bin": 1,
@@ -936,8 +950,8 @@
             {
               "bin": 7,
               "requested": 5,
-              "achieved": 5,
-              "delta": 0
+              "achieved": 6,
+              "delta": 1
             },
             {
               "bin": 8,
@@ -954,14 +968,14 @@
             {
               "bin": 10,
               "requested": 1,
-              "achieved": 1,
-              "delta": 0
+              "achieved": 2,
+              "delta": 1
             },
             {
               "bin": 11,
               "requested": 3,
-              "achieved": 4,
-              "delta": 1
+              "achieved": 3,
+              "delta": 0
             },
             {
               "bin": 12,

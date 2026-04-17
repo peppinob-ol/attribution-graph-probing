@@ -1,0 +1,37 @@
+\section{Limitations and Threats to Validity}
+\label{sec:limitations}
+
+The workshop call is explicit that limitations must be load-bearing. We enumerate honestly; each item points to the appendix evidence we have and the experiment we have not run.
+
+\paragraph{1.\ No grouping-method baseline.}
+We deliberately do not compare against geometric clustering (cosine, layer-adjacency, $k$-means, HDBSCAN, spectral) on the same node set. Two reasons. (i) Any grouping derived from a behavior-grounded signature beats a geometric grouping on behavior-grounded metrics by construction, so the comparison is structurally biased in our favor. (ii) There is no canonical ``feature clustering'' baseline in the SAE/CLT literature to anchor the comparison. We instead validate via intervention against matched random controls (\cref{def:matched}), which is robust to the bias and \emph{applicable to any grouping method}, including future learned ones. A reader who wants a direct grouping-method comparison should run our matched-random-control harness on a competing grouping; we encourage this.
+
+\paragraph{2.\ Attention-circuit blindspot.}
+Attribution graphs freeze attention; swaps run free. The asymmetry plausibly explains part of the 33--79\% miss rate in the strong domains (\citealp{ameisen2025circuittracing}, ``Nuances of Steering with Cross-Layer Features''). Attention-aware variants are listed as future work (\cref{sec:discussion}).
+
+\paragraph{3.\ Sounds dataset structural issues.}
+Six entities, $12/30$ pairs share answers, $K{=}6$. Sounds fails Condition~2 of \cref{def:opuseful} (\cref{sec:results:negative}). We exclude Sounds from cross-domain inference for C1 strength.
+
+\paragraph{4.\ Substring matching confound.}
+The concept-to-supernode matcher allows reverse containment (e.g., supernode \texttt{is} matching concept \texttt{mississippi}), affecting 28--45\% of entity-field combinations. Impact on downstream swap performance is unmeasured.
+
+\paragraph{5.\ Multi-token heuristics.}
+Multi-word answers resolve to first subword; multi-word concepts are matched word-by-word with length $\geq 3$. Both can miss or false-match (e.g., \texttt{New York City}, \texttt{J.K. Rowling}; ``St.\ Paul'' vs ``Saint Paul'' evaluator gap is identified but not systematically measured).
+
+\paragraph{6.\ Threshold sensitivity is unmeasured.}
+Decision-rule thresholds (\cref{sec:method:rules}) were iteratively refined on pilot circuits; no formal $\pm 10$--$20\%$ sensitivity sweep. We treat thresholds as configurable defaults; a sensitivity analysis is listed as future work.
+
+\paragraph{7.\ Cross-prompt robustness is observational.}
+$N{=}1{,}607$ pairs is large but observational. We do not run interventions on the overlap claim itself; the layer-gradient evidence for C2.3 is correlational.
+
+\paragraph{8.\ Within-domain pair-level scaffold prediction is null in USA.}
+Reported as a sub-claim negative (\cref{sec:results:negative}); the scaffold story is between-domain only.
+
+\paragraph{9.\ Three levels of interpretive claim.}
+Per~\citet{geiger2025causal}, we claim Levels 1--2 (operationally useful labels validated against matched controls) but \emph{not} Level~3 (full mechanistic identification of latent variables). We do not claim that the four functional roles (\textsc{Sem-Dict/Sem-Conc/Rel/Say-X}) correspond to natural computational types rather than to convenient partitions of a continuous behavioral space.
+
+\paragraph{10.\ Single model and feature dictionary.}
+All experiments use Gemma-2-2B-it with CLT-HP. Cross-architecture and cross-dictionary replication is open. Performance under SAE features, untranscoded models, or larger Gemma variants is unknown.
+
+\paragraph{11.\ Single language and prompt family.}
+English prompts, single-hop factual recall. We document a French-prompt failure mode (\cref{appx:funcvocab}) and do not claim multilingual or chain-of-thought generalization.

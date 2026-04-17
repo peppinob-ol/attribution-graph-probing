@@ -1,104 +1,66 @@
-% Section: Method
-% Outline (for review):
-% - Definitions: probe prompting; cross-prompt activation signatures and metrics
-% - Node selection via cumulative influence threshold
-% - Preprocessing: functional vs semantic, target-token windowing and directionality
-% - Decision rules: Semantic(Dictionary/Concept), Relationship, Say-X; duplicate resolution; stability
-% - Naming policy and blacklist
-% - Metrics: Neuronpedia Replacement/Completeness; behavioral coherence metrics
-% - Implementation notes: scripts, UI, rate limits, checkpoints, seeds
-
-\section{Method}
+\section{Method: Probe Prompting and a Matched-Control Causal-Validation Harness}
 \label{sec:method}
 
-\paragraph{Probe prompting}
-Given an attribution graph for a seed prompt and target logit, we elicit candidate concepts via an instructed LLM. For each accepted concept, we create \emph{probe prompts} that preserve syntactic structure while varying semantic content. We then measure feature activations on each probe using the Neuronpedia API, forming a set of \emph{cross-prompt activation signatures}.
+\subsection{Setting and attribution-graph generation}
+\label{sec:method:setting}
+We use Gemma-2-2B-it with the public CLT-HP dictionary ($\sim$2.5M features over 26 layers; \citealp{ameisen2025circuittracing}). Attribution graphs are generated via the Neuronpedia API with \texttt{nodeThreshold}=0.8, \texttt{edgeThreshold}=0.85, \texttt{maxFeatureNodes}=5000. The feature universe $V_p^{\tau}$ is selected by cumulative-influence threshold $\tau{=}0.95$ for batch experiments. The replacement model freezes attention during graph computation; downstream interventions (\cref{def:swap}) run with attention free, making positive results harder than under frozen attention~\cite{ameisen2025circuittracing}.
 
-\subsection{Core Definitions}
+\subsection{Cross-Prompt Activation Signatures (CPAS)}
+\label{sec:method:cpas}
+For each (feature, probe) pair we record raw measures (peak token, peak position, activation density, sparsity ratio, robust $z$, cosine to seed). Aggregating across probes yields the CPAS used by the decision tree below: \texttt{peak\_consistency\_main}, \texttt{n\_distinct\_peaks}, \texttt{func\_vs\_sem\_pct}, \texttt{share\_F}, \texttt{sparsity\_median}, \texttt{conf\_S}. Formal definitions are deferred to \cref{appx:pipeline}.
 
-\paragraph{Cross-prompt activation signature}
-A feature-specific behavioral profile measured across probe prompts. For each (feature, probe) pair, we record: (i) cosine similarity to seed activation pattern (how similar is activation to original prompt?), (ii) robust z-score relative to baseline distribution (how anomalous is activation?), (iii) peak token position and identity (which token activates most strongly?), (iv) activation density (fraction of tokens above 75th percentile), and (v) sparsity ratio $(\text{peak}-\text{mean})/\text{peak}$ (how concentrated is activation?). 
+\subsection{Functional vs.\ semantic tokens; target-token mapping}
+\label{sec:method:funcsem}
+Tokens are labeled \emph{functional} (copulas, articles, prepositions, conjunctions, relative pronouns, auxiliaries; $\sim$87 English tokens) or \emph{semantic} (content-bearing). When a feature peaks on a functional token, a $\pm 7$-token directional search identifies the nearest semantic target (forward for \texttt{is}/\texttt{are}/articles/most prepositions; backward for \texttt{of}/possessive \texttt{'s}; bidirectional for conjunctions/punctuation). Full vocabulary, edge cases, and a documented French-prompt failure mode are in \cref{appx:funcvocab}.
 
-Aggregating across probes yields summary statistics: (i) peak-token consistency (fraction of probes peaking on same token type), (ii) number of distinct peak tokens (diversity of activation), (iii) functional vs semantic peak percentage (does feature peak on `is'/`the' or on content words?), and (iv) confidence scores when peaking on semantic or functional tokens (reliability of peak type). These signatures capture whether a feature responds consistently to a concept (high consistency, few peaks), covers multiple related tokens (moderate consistency, several semantic peaks), or activates diffusely across contexts (low sparsity, many peaks).
+\subsection{Transparent classification rules}
+\label{sec:method:rules}
+Feature classification uses the strict-priority decision tree below; the first matching rule wins. Pseudocode and threshold derivations are in \cref{appx:pipeline}.
 
-\paragraph{Functional vs semantic tokens}
-We label each token in the prompt as either \emph{functional} (bridging/syntactic role: `is', `the', `of', `and', etc.) or \emph{semantic} (content-bearing: entity names, concepts, attributes). This distinction is crucial for Say-X detection: features that consistently peak on functional tokens but map to nearby semantic targets (via directionality rules) are classified as output promoters. Complete functional vocabulary and mapping rules provided in Appendix~\ref{sec:functional-vocab}.
-
-\paragraph{Replacement vs Completeness (Neuronpedia graph metrics)}
-\emph{Replacement} measures the fraction of end-to-end influence from input embeddings to target logit that routes through pinned features in the subgraph (high Replacement = features carry most causal pathways). \emph{Completeness} measures the fraction of incoming edge influence to each node that is explained by upstream features/embeddings (high Completeness = few unexplained inputs, subgraph is self-contained). Both are computed via attribution path-tracing in replacement models~\cite{ameisen2025circuittracing}. Our subgraphs intentionally trade Replacement ($\sim$0.54) for Completeness ($\sim$0.83) and legibility: unpinned low-influence nodes are treated as error, reducing raw coverage but improving interpretability.
-
-\paragraph{Node selection}
-We select candidate feature nodes with a cumulative influence threshold on the attribution graph. The threshold is chosen via a simple UI that visualizes node influence; selected nodes form the universe for cross-prompt measurement.
-
-\paragraph{Cross-prompt signature metrics}
-For each feature and probe we record: (i) cosine similarity to the seed activation pattern, (ii) robust z-score relative to baseline, (iii) peak token, (iv) activation density (fraction above the 75th percentile), and (v) sparsity ratio $(\text{peak}-\text{mean})/\text{peak}$. Aggregating across probes yields: (i) peak consistency on concept tokens, (ii) number of distinct peaks, (iii) functional vs semantic peak percentage, and (iv) confidence scores when peaking on semantic or functional tokens.
-
-\paragraph{Preprocessing}
-Tokens are labeled as \emph{semantic} (content-bearing) or \emph{functional} (bridging tokens such as ``is'' and ``the''). When a feature peaks on a functional token, we identify the nearest semantic \emph{target token} within a configurable window (default: 7 tokens), using directionality rules (``is'' $\rightarrow$ forward, ``of'' $\rightarrow$ backward). See Appendix~\ref{sec:functional-vocab} for complete vocabulary and mapping rules.
-
-\subsection{Decision Rules and Classification Logic}
-
-We use transparent, rule-based thresholds rather than learned classifiers to ensure interpretability of the grouping process itself---a critical property for an interpretability tool. Learned cluster algorithms (k-means, DBSCAN, neural groupers) lack explicit decision criteria, making it difficult to understand \emph{why} a feature was assigned to a category. Rule-based classification provides:
-
-\begin{itemize}
-  \item \textbf{Transparency:} Each assignment can be traced to specific threshold crossings
-  \item \textbf{Debuggability:} Misclassifications can be diagnosed by inspecting which condition failed
-  \item \textbf{Editability:} Users can adjust thresholds for domain-specific needs
-  \item \textbf{Communicability:} Rules can be stated in natural language
+\begin{itemize}\itemsep0pt
+  \item \textsc{Sem-Dict}: \texttt{peak\_consistency\_main}$\geq 0.80$ \textsc{and} \texttt{n\_distinct\_peaks}$\leq 1$.
+  \item \textsc{Say-X}: \texttt{func\_vs\_sem\_pct}$\geq 50$ \textsc{and} \texttt{conf\_F}$\geq 0.90$ \textsc{and} layer $\geq 7$.
+  \item \textsc{Rel}: \texttt{sparsity\_median}$<0.45$.
+  \item \textsc{Sem-Conc}: layer $\leq 3$ \textsc{or} \texttt{conf\_S}$\geq 0.50$ \textsc{or} \texttt{func\_vs\_sem\_pct}$<50$.
+  \item \textsc{Review}: otherwise (manual inspection, excluded from analysis).
 \end{itemize}
 
-Thresholds were chosen via iterative refinement on held-out examples, balancing recall (capturing relevant features in each category) against precision (avoiding false groupings). While hand-tuned, they represent codified expert judgment. Classification proceeds hierarchically:
+We chose rules rather than a learned classifier because the grouping itself is the object of interpretability research. Rules give traceability (every assignment maps to specific threshold crossings), debuggability, editability, and communicability---properties a learned grouper would lose.
 
-\begin{itemize}
-  \item \textbf{Semantic (Dictionary):} stable token detector for a specific wordform or name; peaks on the same token across contexts. Peak consistency $\ge 0.80$ on a single token type; few distinct peaks ($\le 1$).
-  \item \textbf{Semantic (Concept):} category detector that fires on a set of semantically related content tokens (synonyms, inflections, near-neighbors).Lower layers ($\le 3$) or high semantic confidence; can cover related content tokens.
-  \item \textbf{Relationship:} sentence-spanning activations that accentuate conceptually linked tokens. Diffuse activations (median sparsity $< 0.45$) across relation phrases; often early-layer.
-  \item \textbf{Say-X:} output-promotion feature that pushes the model to emit a specific token or short phrase, typically via functional tokens. Functional dominance ($\ge 50\%$), high functional consistency ($\ge 0.90$), and layer $\ge 7$.
-\end{itemize}
+\subsection{Supernode formation and naming}
+\label{sec:method:supernodes}
+Same-rule same-name features form a supernode (\cref{def:supernode}). Cross-prompt stability is enforced ($\geq 60\%$ of probes); features failing this are marked \emph{ungrouped} (5--10\% of candidates) and excluded. Naming policy: strongest semantic peak for \textsc{Sem-Dict}/\textsc{Sem-Conc}; discovered target token for \textsc{Say-X}; aggregated activation over an extended vocabulary for \textsc{Rel} (format ``(token) related''). A configurable blacklist filters uninformative names.
 
-\paragraph{Conflict resolution}
-Features may satisfy multiple category conditions (e.g., high peak consistency for both semantic and functional tokens). We resolve conflicts via weighted alignment score combining: (i) peak consistency (weight 0.4), (ii) category-specific confidence (weight 0.3), (iii) layer prior (weight 0.2), and (iv) sparsity consistency (weight 0.1). Feature is assigned to highest-scoring category. Duplicate prevention ensures each feature belongs to exactly one supernode.
+\subsection{Pipeline output: compression with high coverage}
+\label{sec:method:compression}
+The pipeline output is a property of the method, not a claim being tested: concept-aligned subgraphs compress 600$+$ raw features into 30--50 named supernodes per circuit while preserving Neuronpedia \emph{Completeness} (mean 0.83 over five circuits) and accepting a \emph{Replacement} drop to 0.54 (\cref{tab:graph-subgraph}). The trade-off is intentional: low-influence nodes are treated as error to maximize legibility. We report this here so the reader knows the unit of analysis (supernodes, not raw features) before \cref{sec:results} introduces interventions.
 
-\paragraph{Cross-prompt stability requirement}
-Features must satisfy conditions on $\ge$60\% of probes to avoid spurious groupings based on single-probe noise. Features failing this criterion are marked ``ungrouped'' and excluded from subgraph (typically 5--10\% of candidate features).
+\input{tables/T1_graph_vs_subgraph}
 
-\paragraph{Naming policy}
-Semantic nodes are named by their strongest semantic peak token; Say-X nodes are named by the target token discovered from functional peaks; Relationship nodes use aggregated activation over an extended vocabulary (format ``(token) related''). We support a configurable blacklist for uninformative words.
+\subsection{Causal-validation harness}
+\label{sec:method:harness}
 
-\paragraph{Naming conventions and vocabulary}
-Functional token vocabulary (English prompts): `is', `was', `are', `were', `be', `been', `being' (copulas); `the', `a', `an' (articles); `of', `in', `on', `at', `to', `for', `with', `by', `from', `as' (prepositions); `and', `or', `but' (conjunctions); `that', `which', `who', `whose', `where', `when' (relative pronouns). Full list in Appendix~\ref{sec:functional-vocab}.
+\paragraph{Intervention mechanism.}
+Additive delta injection via CLT decoder vectors (\cref{def:swap}). For each intervened feature, $v_{\mathrm{new}} = M \cdot v_{\mathrm{orig}}$ scales the decoder vectors and adds the result to the residual stream at downstream layers. Defaults: $M_{\mathrm{ablate}}{=}-2$, $M_{\mathrm{amplify}}{=}20$. \emph{Attention is not frozen} during intervention; positive results are stronger evidence than under frozen-attention patching where some direct effects are forced by construction~\cite{ameisen2025circuittracing}.
 
-Target-token mapping uses $\pm$5 token window with directionality: Forward: `is', `was', `are' $\rightarrow$ look forward for nearest semantic token; Backward: `of', `'s' (possessive) $\rightarrow$ look backward; Bidirectional: `,' $\rightarrow$ nearest semantic token (either direction).
+\paragraph{Matched random control (\cref{def:matched}).}
+This is the central methodological move and replaces the geometric-baseline comparison. The control fixes feature count and per-layer histogram and excludes \emph{all} concept-aligned supernodes from the sampling pool, so the only varying property is concept alignment. Three deterministic replicates per pair give Hit-rate and vsMax distributions over random feature sets. The protocol is grouping-method-agnostic and can be re-run on any competing grouping.
 
-\paragraph{Cross-lingual note}
-Non-English prompts require adapted functional vocabularies. We encountered a notable failure when applying the English pipeline to the French prompt ``le contraire de `petit' est'' using English probe prompts. The model produced incoherent activations with no valid supernode grouping, due to language mismatch and absence of French functional tokens. Performance improved after adding French probe prompts and expanding the blacklist, but the current prototype remains unreliable in multilingual contexts without explicit cross-lingual adaptation.
+\paragraph{Field-additivity decomposition.}
+Each domain has 3 semantic fields (input, intermediate, answer; \cref{tab:domains}). For each pair, 7 variants are run: 3 single-field, 3 two-field, 1 all-three. Each selected field drives both ablation and amplification; this isolates which fields carry the causal signal.
 
-\paragraph{Metrics}
-We report Neuronpedia \emph{Replacement} (fraction of end-to-end influence through features) and \emph{Completeness} (fraction of incoming edge influence explained by features/tokens) on full graphs and subgraphs. For interpretability, we use: (i) peak token consistency, (ii) within-cluster activation similarity, and (iii) sparsity consistency. We compare against cosine-only and layer-adjacency baselines.
+\paragraph{Adaptive $M$-search.}
+Two-phase post-hoc search for $M_{\mathrm{amplify}}$ on missed pairs. Phase~1: 6-point geometric probe on $[0.1, 20]$, stopping at the first hit. Phase~2 (if no Phase~1 hit): KL-transition binary refinement around the steepest KL transition, 6 steps. Applied to labeled and field-additivity runs (1{,}210 + 867 eligible pairs; full pseudocode in \cref{appx:msearch}).
 
-\subsection{Implementation and Availability}
+\subsection{Metrics}
+\label{sec:method:metrics}
+\textbf{Primary} (per \cref{def:hit}): \textbf{Hit\%}, \textbf{vsMax}, \textbf{Target Recovery} (target logit beats its own unsteered baseline at any trajectory position).
+\textbf{Supporting:} Sup\% (source absent from output), RkGrp (best target rank within the domain answer set), Flip\% (target--source rank crossover), CtrlS (mean absolute logit shift of control tokens), KL$(\mathrm{baseline} \| \mathrm{steered})$ at position 0.
+We deliberately do \emph{not} use gap-closure as a primary metric (regime-dependent and confounded by baseline gap; see \cref{appx:gapcl}). We report both position-0 and best-over-trajectory variants; the two diverge in informative ways across domains (\cref{appx:pos0}).
 
-Our pipeline is implemented in Python 3.9+. Core dependencies: PyTorch for model inference, OpenAI/Anthropic APIs for probe generation, numpy/pandas for data processing, requests for Neuronpedia API, streamlit for interactive UI (see \texttt{requirements.txt} for complete list). The codebase is publicly available at \url{https://github.com/peppinob-ol/attribution-graph-probing} under GPL v3 license with:
-
-\begin{itemize}
-  \item \textbf{Stand-alone scripts} (\texttt{scripts/}) for programmatic execution and batch processing
-  \item \textbf{Interactive Streamlit UI} (\texttt{eda/}) for exploratory analysis with visual threshold selection
-  \item \textbf{Automatic rate limiting} with exponential backoff retry logic (respects Neuronpedia API limits)
-  \item \textbf{Per-feature checkpoints} enabling resume from partial runs without re-querying API
-  \item \textbf{Deterministic pipeline} ensuring reproducibility (no random sampling or initialization)
-  \item \textbf{Example data} (\texttt{examples\_data/}) with outputs for all five circuits in this paper
-\end{itemize}
-
-We provide an interactive demo at \url{https://huggingface.co/spaces/Peppinob/attribution-graph-probing} enabling researchers to:
-
-\begin{enumerate}
-  \item Upload custom attribution graphs (Neuronpedia JSON format)
-  \item Adjust cumulative influence threshold $\tau$ via visual curve interface
-  \item Generate probe prompts with LLM assistance (OpenAI/Anthropic API)
-  \item Review and edit proposed concepts before probe synthesis
-  \item Download concept-aligned subgraphs for import to Neuronpedia workspace
-\end{enumerate}
-
-The demo requires no local installation and processes typical graphs (50--200 features) in 2--5 minutes. Users need only a Neuronpedia API key (free, available at neuronpedia.org). Activation measurement requires approximately 10--15 minutes on a standard GPU (L4) for 5 probes $\times$ 40 features. See Appendix~\ref{sec:repro} for detailed reproducibility instructions and CLI usage.
-
-
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth]{figures/fig2_decision_tree.pdf}
+  \caption{\textbf{Transparent decision tree} (\cref{sec:method:rules}). Strict priority ordering; the first matching rule wins. The worked example traces feature $20\textrm{-clt-hp}{:}74108$ from the USA capitals circuit (CPAS in \cref{appx:case}), classified as \textsc{Say-X} with target token \texttt{capital}.}
+  \label{fig:decisiontree}
+\end{figure}

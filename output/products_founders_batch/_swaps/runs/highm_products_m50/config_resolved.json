@@ -1,0 +1,119 @@
+{
+  "version": 0.1,
+  "display_demo": true,
+  "inputs": {
+    "source_config": "configs/products_founders_full.yml",
+    "graphs_root": "/home/giuseppe/attribution-graph-probing/output/products_founders_batch"
+  },
+  "swap": {
+    "mode": "matrix",
+    "include_identity": true,
+    "concept_fields": [
+      "product",
+      "company",
+      "founder"
+    ],
+    "answer_field": "founder"
+  },
+  "ct_steering": {
+    "model_id": "google/gemma-2-2b",
+    "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",
+    "M_ablate": -2,
+    "M_amplify": 50,
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "top_k": 5,
+    "freeze_attention": false,
+    "track_trajectory": true
+  },
+  "compute": {
+    "inherit_from_source": false,
+    "remote": {
+      "enabled": false
+    }
+  },
+  "steps": {
+    "validate_inputs": true,
+    "prepare_features": true,
+    "run_steering": true,
+    "aggregate_results": true
+  },
+  "experiment_name": "highm_products_m50",
+  "_entities": [
+    {
+      "slug": "iphone",
+      "product": "the iPhone",
+      "company": "Apple",
+      "founder": "Steve Jobs"
+    },
+    {
+      "slug": "windows",
+      "product": "Windows",
+      "company": "Microsoft",
+      "founder": "Bill Gates"
+    },
+    {
+      "slug": "model_s",
+      "product": "the Model S",
+      "company": "Tesla",
+      "founder": "Elon Musk"
+    },
+    {
+      "slug": "facebook",
+      "product": "Facebook",
+      "company": "Meta",
+      "founder": "Mark Zuckerberg"
+    },
+    {
+      "slug": "oracle_db",
+      "product": "Oracle Database",
+      "company": "Oracle",
+      "founder": "Larry Ellison"
+    },
+    {
+      "slug": "dell_xps",
+      "product": "the Dell XPS",
+      "company": "Dell",
+      "founder": "Michael Dell"
+    },
+    {
+      "slug": "alibaba",
+      "product": "Alibaba",
+      "company": "Alibaba Group",
+      "founder": "Jack Ma"
+    },
+    {
+      "slug": "ford_cars",
+      "product": "Ford cars",
+      "company": "Ford Motor Company",
+      "founder": "Henry Ford"
+    },
+    {
+      "slug": "ebay_platform",
+      "product": "the eBay marketplace",
+      "company": "eBay",
+      "founder": "Pierre Omidyar"
+    },
+    {
+      "slug": "dyson",
+      "product": "Dyson vacuums",
+      "company": "Dyson",
+      "founder": "James Dyson"
+    },
+    {
+      "slug": "wordpress",
+      "product": "WordPress",
+      "company": "Automattic",
+      "founder": "Matt Mullenweg"
+    },
+    {
+      "slug": "oculus",
+      "product": "the Oculus Rift",
+      "company": "Oculus",
+      "founder": "Palmer Luckey"
+    }
+  ],
+  "_swaps_dir": "/home/giuseppe/attribution-graph-probing/output/products_founders_batch/_swaps/runs/highm_products_m50"
+}

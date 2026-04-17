@@ -1,0 +1,169 @@
+{
+  "swap_id": "ebay_platform__to__windows",
+  "source": {
+    "slug": "ebay_platform",
+    "product": "the eBay marketplace",
+    "company": "eBay",
+    "founder": "Pierre Omidyar",
+    "prompt": "<bos>The company that makes the eBay marketplace was founded by",
+    "concept": ""
+  },
+  "target": {
+    "slug": "windows",
+    "product": "Windows",
+    "company": "Microsoft",
+    "founder": "Bill Gates",
+    "concept": ""
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 256,
+    "total_count": 256
+  },
+  "evaluation": {
+    "ground_truth": {
+      "product": "the eBay marketplace",
+      "company": "eBay",
+      "founder": "Pierre Omidyar",
+      "prompt": "<bos>The company that makes the eBay marketplace was founded by",
+      "concept": "the ebay marketplace"
+    },
+    "ground_truth_to": {
+      "product": "Windows",
+      "company": "Microsoft",
+      "founder": "Bill Gates",
+      "concept": "windows"
+    },
+    "answer_field": "founder",
+    "from_answer": "Pierre Omidyar",
+    "to_answer": "Bill Gates",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": true,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Pierre",
+      "default_prob": 0.546875,
+      "steered": " Bill",
+      "steered_prob": 0.06640625
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": null,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The company that makes the eBay marketplace was founded by Pierre Omidyar in 1995",
+      "steered_output": "<bos><bos>The company that makes the eBay marketplace was founded by Bill Gates and Paul Allen in 1995",
+      "default_topk": [
+        {
+          "token": " Pierre",
+          "prob": 0.546875
+        },
+        {
+          "token": " ",
+          "prob": 0.07373046875
+        },
+        {
+          "token": " a",
+          "prob": 0.06494140625
+        },
+        {
+          "token": " two",
+          "prob": 0.057373046875
+        },
+        {
+          "token": " three",
+          "prob": 0.03955078125
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Bill",
+          "prob": 0.06640625
+        },
+        {
+          "token": " ",
+          "prob": 0.06640625
+        },
+        {
+          "token": " Media",
+          "prob": 0.045654296875
+        },
+        {
+          "token": ",",
+          "prob": 0.040283203125
+        },
+        {
+          "token": " and",
+          "prob": 0.03564453125
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 2.3221,
+      "steered_entropy": 6.1254,
+      "entropy_delta": 3.8033,
+      "kl_baseline_to_steered": 10.2554
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 6.931448431551464,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-04-11T23:41:38.101053",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 6.931448,
+    "phase": 1,
+    "total_steps": 5,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 11.3753
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 10.7926
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 9.8556
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 9.9065
+      },
+      {
+        "m": 6.931448,
+        "hit": true,
+        "kl": 10.2554
+      }
+    ],
+    "phase2_steps": [],
+    "kl_transition": null
+  }
+}

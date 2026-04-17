@@ -1,0 +1,105 @@
+version: 0.1
+experiment_name: sounds_colors_batch
+paths:
+  outputs_root: output/sounds_colors_batch
+model:
+  id: gemma-2-2b
+  source_set: clt-hp
+features:
+  selection: cumulative_influence
+  threshold: 0.95
+  post_filter:
+    node_threshold: 95
+probes:
+  mode: templated
+  templated:
+    templates:
+    - id: probe_sound
+      text: 'entity: A distinctive animal sound is ''{sound}'''
+    - id: probe_animal
+      text: 'entity: The animal that goes ''{sound}'' is a {animal}'
+    - id: probe_color
+      text: 'entity: The most common color of a {animal} is {color}'
+    - id: probe_color_concept
+      text: 'attribute: Color is a visual property determined by an animal''s species'
+    - id: probe_relationship
+      text: 'relationship: the typical color of an animal is determined by its species
+        pigmentation'
+get_activations:
+  backend: local
+  local:
+    chunk_by_layer: true
+    include_zero: false
+    gpus:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    batch_size: 2
+grouping:
+  enabled: true
+  window: 7
+  blacklist_tokens:
+  - <bos>
+  - attribute
+  - entity
+  - relationship
+  thresholds:
+    dict_peak_consistency_min: 0.8
+    dict_n_distinct_peaks_max: 1
+    sayx_func_vs_sem_min: 50.0
+    sayx_layer_min: 7
+    rel_sparsity_max: 0.45
+    sem_layer_max: 3
+    sem_conf_s_min: 0.5
+    sem_func_vs_sem_max: 50.0
+  upload:
+    enabled: true
+    api_key_env: NEURONPEDIA_API_KEY
+    display_name_template: '{slug} (auto-grouped)'
+    overwrite_id: ''
+steps:
+  graph_generation: false
+  feature_export: true
+  prepare_features: true
+  probe_prompts: true
+  activations: true
+  grouping: true
+  upload_subgraph: true
+graph_generation:
+  enabled: true
+  seeds_mode: templated
+  templated:
+    seed_prompt: 'Fact: The most common color of the animal that goes ''{sound}''
+      is'
+    slug_template: '{slug}'
+    entities:
+      items:
+      - slug: meow
+        sound: meow
+        animal: cat
+        color: black
+      - slug: hiss
+        sound: hiss
+        animal: snake
+        color: green
+      - slug: bark
+        sound: bark
+        animal: dog
+        color: brown
+      - slug: oink
+        sound: oink
+        animal: pig
+        color: pink
+      - slug: buzz
+        sound: buzz
+        animal: bee
+        color: yellow
+      - slug: whinny
+        sound: whinny
+        animal: horse
+        color: white

@@ -1,0 +1,47 @@
+% ArXiv-ready LaTeX skeleton for:
+% "Automated Circuit Interpretation via Probe Prompting"
+% Author: Giuseppe Birardi (Orma Lab Srl, CTO)
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{times}
+\usepackage{microtype}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage[numbers,sort&compress]{natbib}
+
+\title{Automated Circuit Interpretation via Probe Prompting}
+\author{Giuseppe Birardi\\Orma Lab Srl (CTO)\\\texttt{giuseppe.birardi@ormalab.it}}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Mechanistic interpretability aims to understand neural networks by identifying which learned features mediate specific behaviors. Attribution graphs reveal these feature pathways, but interpreting them requires extensive manual analysis---a single prompt can take approximately 2 hours for an experienced circuit tracer. We present probe prompting, an automated pipeline that transforms attribution graphs into compact, interpretable subgraphs built from concept-aligned supernodes. Starting from a seed prompt and target logit, we select high-influence features, generate concept-targeted yet context-varying probes, and group features by cross-prompt activation signatures into Semantic, Relationship, and Say-X categories using transparent decision rules.
+
+Across five prompts including classic ``capitals'' circuits, probe-prompted subgraphs preserve high explanatory coverage while compressing complexity (Completeness 0.83, mean across circuits; Replacement 0.54). Compared to geometric clustering baselines, concept-aligned groups exhibit higher behavioral coherence: 2.3$\times$ higher peak-token consistency (0.425 vs 0.183) and 5.8$\times$ higher activation-pattern similarity (0.762 vs 0.130), despite lower geometric compactness. Entity-swap tests reveal a layerwise hierarchy: early-layer features transfer robustly (64\% transfer rate, mean layer 6.3), while late-layer Say-X features specialize for output promotion (mean layer 16.4), supporting a backbone-and-specialization view of transformer computation.
+
+We release code (\url{https://github.com/peppinob-ol/attribution-graph-probing}), an interactive demo (\url{https://huggingface.co/spaces/Peppinob/attribution-graph-probing}), and minimal artifacts enabling immediate reproduction and community adoption. Limitations include reliance on CLT features, narrow prompt families (factual recall), and correlational validation; we outline pre-specified causal interventions for future work. Probe prompting demonstrates that circuit-level interpretability can be partially automated using behavior-grounded metrics, reducing initial analysis time from hours to minutes while revealing systematic computational structure.
+\end{abstract}
+
+\input{sections/intro}
+\input{sections/related}
+\input{sections/method}
+\input{sections/results}
+\input{sections/discussion}
+\input{sections/appendix}
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}
+
+

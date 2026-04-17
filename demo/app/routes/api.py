@@ -178,6 +178,60 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None)
             media_type="application/json"
         )
 
+    @rt("/api/regime-matrix")
+    def api_regime_matrix(request: Request):
+        """Return logit-shift regime matrix (A-E) as JSON.  Optional ``?variant=``."""
+        variant = (request.query_params.get("variant") or "").strip() or None
+        matrix = data_loader.get_regime_matrix(variant=variant)
+        return Response(
+            content=json.dumps(matrix),
+            media_type="application/json"
+        )
+
+    @rt("/api/vsmax-matrix")
+    def api_vsmax_matrix(request: Request):
+        """Return vsMax matrix as JSON.  Optional ``?variant=``."""
+        variant = (request.query_params.get("variant") or "").strip() or None
+        matrix = data_loader.get_vsmax_matrix(variant=variant)
+        return Response(
+            content=json.dumps(matrix),
+            media_type="application/json"
+        )
+
+    @rt("/api/matrix/best-cross-run")
+    def api_best_cross_run_matrix():
+        """Return best-per-cell matrix across all eligible runs.
+
+        Response payload:
+        - ``matrix``           -- ``{from: {to: tier}}`` synthetic best tier
+        - ``winners``          -- ``{from: {to: {run_id, run_label, variant,
+                                  tier, target_rank, vsmax, control_mode,
+                                  fields_used}}}``
+        - ``considered_runs``  -- list of ``{id, label, control_mode}`` for
+                                  the runs actually scanned (matches the
+                                  dropdown filter; Random x3 baselines are
+                                  excluded).
+        - ``current_run_id``   -- run currently selected in the UI
+
+        Only available when the multi-dataset registry is active.
+        """
+        if registry is None:
+            return Response(
+                content=json.dumps({"error": "Multi-dataset mode not active"}),
+                media_type="application/json",
+                status_code=404,
+            )
+        result = registry.get_best_cross_run_matrix()
+        result["current_run_id"] = (
+            registry.active_loader.get_current_run()
+            if registry.active_loader
+            else None
+        )
+        return Response(
+            content=json.dumps(result),
+            media_type="application/json",
+        )
+
     @rt("/api/run-variants")
     def api_run_variants():
         """Return distinct variant suffixes for the current run."""
@@ -209,11 +263,18 @@ def api_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None)
     def api_swap(from_slug: str, to_slug: str, request: Request):
         """Return detailed swap result.
 
-        Optional query param ``variant`` selects a specific control variant
-        (e.g. ``?variant=r0`` or ``?variant=add_book``).
+        Optional query params:
+          ``variant`` -- select a specific control variant
+          ``run_id``  -- load from a specific run (cross-run best mode)
         """
         variant = (request.query_params.get("variant") or "").strip() or None
-        swap = data_loader.get_swap_detail(from_slug, to_slug, variant=variant)
+        run_id = (request.query_params.get("run_id") or "").strip() or None
+        if run_id and registry is not None:
+            swap = registry.get_swap_detail_for_run(
+                run_id, from_slug, to_slug, variant=variant,
+            )
+        else:
+            swap = data_loader.get_swap_detail(from_slug, to_slug, variant=variant)
         if swap is None:
             return Response(
                 content=json.dumps({"error": "Swap not found"}),

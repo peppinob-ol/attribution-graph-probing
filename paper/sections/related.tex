@@ -1,27 +1,23 @@
-% Section: Related Work
-% Outline (for review):
-% - Attribution graphs and Circuit Tracer; Neuronpedia and autointerp
-% - SAE/CLT and replacement models background
-% - Geometric clustering baselines vs behavior-grounded grouping
-% - Causal tracing context and limitations
-% - Clarify novelty: automated, behavior-validated grouping and naming
-
-\section{Related Work}
+\section{Related Work: Attribution Graphs, Autointerp, and Causal Validation}
 \label{sec:related}
 
-\paragraph{Attribution graphs and platforms}
-Attribution graphs formalize how token embeddings and features contribute to target logits~\cite{ameisen2025circuittracing}. Neuronpedia provides feature cards, autointerp labels, and graph tooling that enable interactive analysis at scale~\cite{neuronpedia2025}. For a comprehensive survey of circuits research methods and cross-organization replication efforts, see~\cite{lindsey2025landscape}.
+\paragraph{Attribution graphs and replacement models.}
+Attribution graphs operationalize feature$\to$logit pathways in a local replacement model that linearizes the residual stream through CLT or SAE features and freezes attention~\cite{ameisen2025circuittracing,lindsey2025biology}. The Neuronpedia platform exposes these graphs and per-feature cards at scale~\cite{neuronpedia2025,lindsey2025landscape}, and \texttt{circuit-tracer} provides the open-source reference implementation~\cite{circuittracer2025}. Our work operates entirely \emph{downstream} of attribution: we do not propose a new attribution method, but we do produce supernodes that the same Neuronpedia tooling can render and pin.
 
-\paragraph{SAE/CLT and replacement models}
-Sparse Autoencoders and Cross-Layer Transcoders (CLT) expose sparse, often monosemantic features and linearized pathways for attribution~\cite{bricken2023monosemanticity,templeton2024scaling,crosscoders2024}. Replacement models enable computation of direct effects between features while freezing attention patterns and layer norms, yielding tractable causal attributions.
+\paragraph{Sparse features and dictionary learning.}
+Sparse Autoencoders and Cross-Layer Transcoders expose sparse, often monosemantic features that make replacement-model analyses tractable~\cite{bricken2023monosemanticity,templeton2024scaling,crosscoders2024,marks2024dictionary}. We treat the CLT-HP dictionary as fixed and study how to \emph{group} its features into circuit-level units.
 
-\paragraph{Geometric baselines vs behavioral grouping}
-Clustering features using purely geometric information (e.g., cosine on activation vectors or adjacency in layer-influence space) can produce compact clusters but need not align with functional roles. Our approach deliberately prioritizes behavioral coherence derived from cross-prompt signatures, with quantitative comparisons to geometric baselines.
+\paragraph{Feature labeling and autointerp.}
+Automated interpretation of individual features by LLM scoring~\cite{bills2023autointerp,templeton2024scaling} produces per-feature labels from corpus activations but does not yield circuit-level groupings calibrated to a target logit, and is not validated by intervention. We take the complementary route: prompt-conditioned, circuit-level grouping with explicit causal validation.
 
-\paragraph{Causal tracing and interpretability}
-Causal tracing techniques aim to identify mechanisms by intervention and controlled replacement. Our validation uses correlational graph metrics and descriptive behavior metrics; we outline planned ablations and steering experiments to strengthen causal claims in future work.
+\paragraph{Concurrent work on causal circuits with transcoders.}
+\citet{hannaameisen2026planning} use cross-layer transcoder feature circuits to study whether language models latently plan rhyming words, structuring their analysis around two falsifiability conditions (predict-token-before-emission, causally-affect-token). Our two-condition framing of \cref{def:opuseful} (Specificity, Matched-Control) is directly inspired by their template, applied to the more general question of supernode label utility. \citet{marks2024dictionary} apply sparse-feature circuit analysis to subject--verb agreement; we contribute a domain-general harness with structurally matched random controls.
 
-\paragraph{Novelty}
-We automate concept hypothesis generation, cross-prompt measurement, and transparent rule-based grouping and naming. The novelty lies in leveraging behavior-grounded signals for grouping and labeling, not in proposing a new distance metric or clustering algorithm. Conceptually, our probe-prompt generator descends from Prompt Rover's ``semantic navigation'' framing, which we previously introduced as a black-box exploratory tool; here we formalize it into a rule-driven, pre-specified prompt family evaluated on attribution-graph features~\cite{birardi2025insight,birardi2025promptrover}.
+\paragraph{Steering with sparse features.}
+Single-feature steering with high multipliers (Anthropic's $M{\sim}20$ paradigm) has been used to demonstrate concept-specific behavior~\cite{templeton2024scaling,kharlapenko2024selfsteer}. We generalize to multi-feature concept-aligned swaps and find empirically that the canonical $M{=}20$ default is over-steering in our setting (\cref{sec:results}), with the optimal $M$ bimodal at $\sim$2.4 and $\sim$6.9.
 
+\paragraph{Causal interpretability and matched random controls.}
+\citet{geiger2025causal} formalize three levels of interpretive claim and emphasize that \emph{distinguishing} levels requires intervention. \citet{heap2025sparse} show that randomly initialized transformers can score competitively on common interpretability metrics, undermining metrics that lack causal anchoring. Our matched-random-control protocol (\cref{def:matched}) is designed to address this critique directly: any structural property a random feature set shares with the labeled one (count, layer histogram, eligibility) is held constant; only the concept alignment changes.
 
+\paragraph{Why we do not include a geometric-clustering baseline.}
+A grouping derived from a behavior-grounded signature outperforms a purely geometric grouping (cosine, layer-adjacency, k-means, HDBSCAN) on behavior-grounded metrics by construction, so the comparison is structurally biased in our favor; and there is no canonical ``feature clustering'' baseline in the SAE/CLT literature to anchor the comparison. We instead validate via intervention against matched random controls (\cref{def:matched}), which is robust to the bias and \emph{applicable to any grouping method}---including future learned ones. We discuss this choice as a limitation in \cref{sec:limitations}.

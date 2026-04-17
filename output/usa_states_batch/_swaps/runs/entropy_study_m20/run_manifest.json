@@ -1,0 +1,82 @@
+{
+  "run_id": "entropy_study_m20",
+  "run_dir": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch/_swaps/runs/entropy_study_m20",
+  "display_demo": true,
+  "status": "completed",
+  "timestamp": "2026-04-03T06:41:12.298647",
+  "argv": [
+    "run_batch_swaps.py",
+    "--config",
+    "configs/fullscale_usa_labeled.yml",
+    "--run-id",
+    "entropy_study_m20",
+    "--pair",
+    "hawaii_hilo:oklahoma_tulsa",
+    "--force"
+  ],
+  "git": {
+    "commit": "8e85f733bb45ed07b7a7eee3e8f6558d6c0f432e",
+    "branch": "control-refactor",
+    "dirty": true
+  },
+  "platform": {
+    "python": "3.10.12",
+    "os": "posix",
+    "platform": "linux"
+  },
+  "config": {
+    "experiment_name": "fullscale_usa_labeled",
+    "swap": {
+      "mode": "matrix",
+      "include_identity": true,
+      "concept_fields": [
+        "state",
+        "capital",
+        "city"
+      ],
+      "answer_field": "capital"
+    },
+    "ct_steering": {
+      "model_id": "google/gemma-2-2b",
+      "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",
+      "M_ablate": -2,
+      "M_amplify": 20,
+      "temperature": 0.3,
+      "n_tokens": 10,
+      "freq_penalty": 2.0,
+      "seed": 42,
+      "top_k": 5,
+      "freeze_attention": false,
+      "track_trajectory": true
+    },
+    "compute": {
+      "inherit_from_source": false,
+      "remote": {
+        "enabled": false
+      }
+    },
+    "inputs": {
+      "source_config": "configs/usa_states_full.yml",
+      "graphs_root": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch"
+    }
+  },
+  "hashes": {
+    "combined_config_sha1": "333fdee75235fbc8ac5793270b13705a2dc7afb1",
+    "files": {
+      "swap_config": "ab8daffb207f6c67687ddd87e0baf0286a734916",
+      "source_config": "251f955cd944dda24e0a954d26316acfd4f9bdfa"
+    }
+  },
+  "timestamp_started": "2026-04-03T06:40:43.801125",
+  "timestamp_completed": "2026-04-03T06:41:12.298442",
+  "counts": {
+    "total_pairs": 1,
+    "processed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "outputs": {
+    "summary_path": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch/_swaps/runs/entropy_study_m20/_summary.json",
+    "matrix_path": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch/_swaps/runs/entropy_study_m20/_matrix.csv"
+  }
+}

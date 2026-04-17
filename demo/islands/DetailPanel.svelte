@@ -30,6 +30,9 @@
   // Global variant from the matrix selector (persists across cell selections)
   let globalVariant = null;
 
+  // Cross-run best mode state
+  let bestModeWinner = null;
+
   // Variant & control derived data from backend
   $: variants = data?._variants || [];
   $: derived = data?._derived || {};
@@ -97,10 +100,11 @@
   });
   
   async function handleCellSelected(event) {
-    const { from, to } = event.detail;
+    const { from, to, bestMode: isBest, run_id, variant: bestVariant, winner } = event.detail;
     fromSlug = from;
     toSlug = to;
-    selectedVariant = globalVariant;
+    bestModeWinner = isBest ? winner : null;
+    selectedVariant = isBest ? (bestVariant || null) : globalVariant;
     visible = true;
     loading = true;
     error = null;
@@ -113,7 +117,14 @@
     sourceSubgraphUrl = null;
     targetSubgraphUrl = null;
     
-    const qs = globalVariant ? `?variant=${encodeURIComponent(globalVariant)}` : '';
+    const params = new URLSearchParams();
+    if (isBest && run_id) {
+      params.set('run_id', run_id);
+      if (bestVariant) params.set('variant', bestVariant);
+    } else if (globalVariant) {
+      params.set('variant', globalVariant);
+    }
+    const qs = params.toString() ? `?${params}` : '';
     try {
       const res = await fetch(`/api/swap/${from}/${to}${qs}`);
       if (!res.ok) {
@@ -121,10 +132,11 @@
       }
       data = await res.json();
       
+      const featureQs = globalVariant && !isBest ? `?variant=${encodeURIComponent(globalVariant)}` : '';
       Promise.all([
         fetchSubgraphUrl(from),
         fetchSubgraphUrl(to),
-        fetch(`/api/swap/${from}/${to}/features${qs}`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`/api/swap/${from}/${to}/features${featureQs}`).then(r => r.ok ? r.json() : null).catch(() => null),
       ]).then(([srcUrl, tgtUrl, feat]) => {
         sourceSubgraphUrl = srcUrl;
         targetSubgraphUrl = tgtUrl;
@@ -163,6 +175,7 @@
 
   function variantLabel(suffix) {
     if (!suffix) return 'Best';
+    if (suffix === 'm_tuned') return 'Adaptive M';
     if (suffix.startsWith('r')) return `Replicate ${suffix.slice(1)}`;
     if (suffix.startsWith('add_')) return suffix.slice(4).replace(/_/g, ' + ');
     return suffix.replace(/_/g, ' ');
@@ -172,6 +185,7 @@
     labeled: 'Labeled',
     random_feature_matched: 'Random Control',
     additivity: 'Field Additivity',
+    m_tuned: 'Adaptive M',
   };
   
   async function fetchSubgraphUrl(slug) {
@@ -201,6 +215,7 @@
     selectedVariant = null;
     sourceSubgraphUrl = null;
     targetSubgraphUrl = null;
+    bestModeWinner = null;
   }
 
   function openConceptPanel(slug) {
@@ -505,6 +520,37 @@
           </div>
         </div>
         
+        <!-- Winning configuration (cross-run best mode) -->
+        {#if bestModeWinner}
+          <div class="mb-4 p-3 rounded-lg bg-amber-900/20 border border-amber-700/30">
+            <div class="text-xs text-amber-400/80 uppercase mb-2">Winning Configuration</div>
+            <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+              <span class="text-slate-500">Run</span>
+              <span class="text-amber-400 font-medium">{bestModeWinner.run_label || bestModeWinner.run_id}</span>
+              {#if bestModeWinner.control_mode}
+                <span class="text-slate-500">Control Mode</span>
+                <span class="text-slate-300">{controlModeLabels[bestModeWinner.control_mode] || bestModeWinner.control_mode}</span>
+              {/if}
+              {#if bestModeWinner.variant}
+                <span class="text-slate-500">Variant</span>
+                <span class="text-slate-300">{bestModeWinner.variant}</span>
+              {/if}
+              {#if bestModeWinner.fields_used?.length}
+                <span class="text-slate-500">Fields</span>
+                <span class="text-slate-300">{bestModeWinner.fields_used.join(', ')}</span>
+              {/if}
+              {#if bestModeWinner.target_rank != null}
+                <span class="text-slate-500">Target Rank</span>
+                <span class="text-slate-300 font-mono">#{bestModeWinner.target_rank}</span>
+              {/if}
+              {#if bestModeWinner.vsmax != null}
+                <span class="text-slate-500">VsMax</span>
+                <span class="font-mono {bestModeWinner.vsmax > 0 ? 'text-emerald-400' : bestModeWinner.vsmax > -2 ? 'text-yellow-400' : 'text-red-400'}">{bestModeWinner.vsmax > 0 ? '+' : ''}{bestModeWinner.vsmax.toFixed(1)}</span>
+              {/if}
+            </div>
+          </div>
+        {/if}
+
         <!-- Outcome Summary: Tier + Regime + Flip + Primary Metrics (merged) -->
         {@const flipStatus = SHOW_TRAJECTORY_FEATURES ? getFlipStatus() : null}
         {@const regimeStatus = getRegimeInfo()}
@@ -1001,6 +1047,27 @@
                     <span class="text-slate-500">Amplified (target)</span>
                   </span>
                 </div>
+              </div>
+            {/if}
+
+            <!-- M-search metadata (adaptive M results) -->
+            {#if data.m_search}
+              {@const ms = data.m_search}
+              <div class="mt-3 p-3 rounded-lg bg-amber-900/20 border border-amber-700/30">
+                <div class="text-xs text-amber-400/80 uppercase mb-2">Adaptive M Search</div>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <span class="text-slate-500">Original M</span>
+                  <span class="text-slate-300 font-mono">{ms.m_original}</span>
+                  <span class="text-slate-500">Tuned M</span>
+                  <span class="text-amber-400 font-mono font-bold">{typeof ms.m_tuned === 'number' ? ms.m_tuned.toFixed(4) : ms.m_tuned}</span>
+                  <span class="text-slate-500">Found in</span>
+                  <span class="text-slate-300">Phase {ms.phase} ({ms.total_steps} steps)</span>
+                </div>
+                {#if ms.kl_transition}
+                  <div class="mt-2 text-xs text-slate-500">
+                    KL transition: [{ms.kl_transition.m_lo.toFixed(2)}, {ms.kl_transition.m_hi.toFixed(2)}] (drop: {ms.kl_transition.kl_drop.toFixed(1)})
+                  </div>
+                {/if}
               </div>
             {/if}
 

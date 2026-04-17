@@ -1,47 +1,79 @@
-% ArXiv-ready LaTeX skeleton for:
-% "Automated Circuit Interpretation via Probe Prompting"
-% Author: Giuseppe Birardi (Orma Lab Srl, CTO)
-\documentclass[11pt]{article}
+% ICML 2026 submission: anonymous (double-blind).
+% Workshop: ICML 2026 Mechanistic Interpretability Workshop (8-page long format).
+\documentclass{article}
 
-\usepackage[margin=1in]{geometry}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{multirow}
 \usepackage{amsmath}
 \usepackage{amssymb}
-\usepackage{times}
-\usepackage{microtype}
-\usepackage{hyperref}
-\usepackage{graphicx}
-\usepackage{float}
-\usepackage{booktabs}
-\usepackage{multirow}
-\usepackage{caption}
-\usepackage{subcaption}
-\usepackage[numbers,sort&compress]{natbib}
+\usepackage{mathtools}
+\usepackage{amsthm}
 
-\title{Automated Circuit Interpretation via Probe Prompting}
-\author{Giuseppe Birardi\\Orma Lab Srl (CTO)\\\texttt{giuseppe.birardi@ormalab.it}}
-\date{}
+\newcommand{\theHalgorithm}{\arabic{algorithm}}
+
+% Initial blind version for review.
+\usepackage{icml2026}
+
+\usepackage[capitalize,noabbrev]{cleveref}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{assumption}[theorem]{Assumption}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\icmltitlerunning{Probe Prompting: Concept-Aligned Supernodes for Attribution Graphs}
 
 \begin{document}
-\maketitle
+
+\twocolumn[
+  \icmltitle{Automated Circuit Interpretation via Probe Prompting:\\
+    Concept-Aligned Supernodes and a Matched-Control Causal-Validation\\
+    Harness for Attribution Graphs}
+
+  \begin{icmlauthorlist}
+    \icmlauthor{Anonymous Authors}{anon}
+  \end{icmlauthorlist}
+
+  \icmlaffiliation{anon}{Anonymous Institution}
+
+  \icmlcorrespondingauthor{Anonymous Authors}{anonymous@example.com}
+
+  \icmlkeywords{mechanistic interpretability, attribution graphs, sparse features, causal validation, steering, supernodes}
+
+  \vskip 0.3in
+]
+
+\printAffiliationsAndNotice{}
 
 \begin{abstract}
-Mechanistic interpretability aims to understand neural networks by identifying which learned features mediate specific behaviors. Attribution graphs reveal these feature pathways, but interpreting them requires extensive manual analysis---a single prompt can take approximately 2 hours for an experienced circuit tracer. We present probe prompting, an automated pipeline that transforms attribution graphs into compact, interpretable subgraphs built from concept-aligned supernodes. Starting from a seed prompt and target logit, we select high-influence features, generate concept-targeted yet context-varying probes, and group features by cross-prompt activation signatures into Semantic, Relationship, and Say-X categories using transparent decision rules.
-
-Across five prompts including classic ``capitals'' circuits, probe-prompted subgraphs preserve high explanatory coverage while compressing complexity (Completeness 0.83, mean across circuits; Replacement 0.54). Compared to geometric clustering baselines, concept-aligned groups exhibit higher behavioral coherence: 2.3$\times$ higher peak-token consistency (0.425 vs 0.183) and 5.8$\times$ higher activation-pattern similarity (0.762 vs 0.130), despite lower geometric compactness. Entity-swap tests reveal a layerwise hierarchy: early-layer features transfer robustly (64\% transfer rate, mean layer 6.3), while late-layer Say-X features specialize for output promotion (mean layer 16.4), supporting a backbone-and-specialization view of transformer computation.
-
-We release code (\url{https://github.com/peppinob-ol/attribution-graph-probing}), an interactive demo (\url{https://huggingface.co/spaces/Peppinob/attribution-graph-probing}), and minimal artifacts enabling immediate reproduction and community adoption. Limitations include reliance on CLT features, narrow prompt families (factual recall), and correlational validation; we outline pre-specified causal interventions for future work. Probe prompting demonstrates that circuit-level interpretability can be partially automated using behavior-grounded metrics, reducing initial analysis time from hours to minutes while revealing systematic computational structure.
+Manual interpretation of attribution graphs is slow (approximately 2 hours per prompt) and yields inconsistent taxonomies. We introduce \emph{probe prompting}, a transparent rule-based pipeline that converts a graph into concept-aligned supernodes via Cross-Prompt Activation Signatures (CPAS). We define an \emph{operationally useful} label as one that satisfies two conditions: (i) \textbf{Specificity}---intervention via the labeled supernode redirects output toward the specific concept, and (ii) \textbf{Matched-Control}---intervention via a structurally matched random feature set (same count, same per-layer histogram, sampled outside concept-matching supernodes) does not produce the same effect. Across 5 domains and 42{,}184 entity-swap interventions, labeled supernodes satisfy both conditions in 4 of 5 domains (USA 67.3 vs 0.2\% hit; Books 63.8 vs 0.0\%), with Sounds (6 entities, structural confounds) failing Condition~2 (matched-control vsMax gap $+0.14$) and reported as a directional negative. The harness surfaces three regularities: input-field features \emph{interfere} with steering (less-is-more, +14--33 pp), the canonical $M{=}20$ default is \emph{over-steering} (winning $M$ is bimodal at $\sim$2.4 and $\sim$6.9), and graph scaffold compatibility is a perfect ordinal predictor of domain-level success. Code, datasets, and an interactive demo are released anonymously.
 \end{abstract}
 
 \input{sections/intro}
+\input{sections/definitions}
 \input{sections/related}
 \input{sections/method}
+\input{sections/experimental_design}
 \input{sections/results}
+\input{sections/limitations}
 \input{sections/discussion}
-\input{sections/appendix}
+\input{sections/reproducibility}
 
-\bibliographystyle{plainnat}
+\bibliographystyle{icml2026}
 \bibliography{refs}
 
+\appendix
+\onecolumn
+\input{sections/appendix}
+
 \end{document}
-
-

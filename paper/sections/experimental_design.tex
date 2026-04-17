@@ -1,0 +1,16 @@
+\section{Experimental Design: Five Domains, 42{,}184 Swap Runs}
+\label{sec:expdesign}
+
+\subsection{Domains and seed prompts}
+\label{sec:expdesign:domains}
+We evaluate on five domains spanning single-hop factual recall in different relational structures and answer geometries (\cref{tab:domains}). The first four are the \emph{strong} domains used for cross-domain inference; \emph{Sounds} (6 entities, 12/30 pairs share answers, $K{=}6$) is reported separately due to known structural confounds (\cref{sec:results:negative}, \cref{sec:limitations}).
+
+\input{tables/T_domains}
+
+\subsection{Experimental matrix}
+\label{sec:expdesign:matrix}
+Each swap pair is run under: (a) labeled (3-field) baseline at $M{=}20$; (b) matched random control (3 replicates per pair); (c) field-additivity (7 variants per pair); (d) adaptive $M$-search on labeled and on the best field-add variant per missed pair. The total is \textbf{42{,}184 swap runs} across all conditions, domains, and $M$ values (per-condition counts in \cref{tab:domains}).
+
+\subsection{Pre-registered evaluation choices}
+\label{sec:expdesign:prereg}
+Before analysis we fixed: (i) contrast group $\mathcal{A}$ = all other dataset answers; (ii) first-subword resolution for multi-token answers; (iii) explicit \texttt{answer\_field} decoupling intervention from measurement; (iv) generation parameters (T$=$0.3, $n{=}10$, frequency-penalty $2.0$, seed $42$); (v) sha256-seeded matched-control replicates; (vi) pair-level definition of Hit (any of 3 random replicates is a hit counts as a random-hit for that pair). Ranges, thresholds, and seeds were frozen prior to running the 42{,}184-run sweep.

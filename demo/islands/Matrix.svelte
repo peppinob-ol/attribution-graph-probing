@@ -6,6 +6,8 @@
   // State
   let matrix = {};
   let flipMatrix = {};
+  let regimeMatrix = {};
+  let vsmaxMatrix = {};
   let states = [];
   let domainConfig = null;
   let loading = true;
@@ -22,6 +24,14 @@
   let selectedVariant = null;
   let variantLoading = false;
   let matrixGeneration = 0;
+
+  // Cross-run best mode
+  let bestMode = false;
+  let bestLoading = false;
+  let winnersMap = {};
+  let bestCurrentRunId = null;
+  let consideredRuns = [];
+  let bestInfoOpen = false;
 
   $: isUsaStates = domainConfig?.is_usa_states ?? true;
   
@@ -48,6 +58,48 @@
     'no_data': { bg: '#1e293b', hover: '#334155' },
   };
 
+  const regimeColors = {
+    'A': { bg: '#22d3ee', hover: '#67e8f9' },
+    'B': { bg: '#818cf8', hover: '#a5b4fc' },
+    'C': { bg: '#facc15', hover: '#fde047' },
+    'D': { bg: '#f87171', hover: '#fca5a5' },
+    'E': { bg: '#fb923c', hover: '#fdba74' },
+    null: { bg: '#1e293b', hover: '#334155' },
+  };
+
+  const vsmaxColors = {
+    'strong_pos': { bg: '#10b981', hover: '#34d399' },
+    'weak_pos':   { bg: '#34d399', hover: '#6ee7b7' },
+    'neutral':    { bg: '#a3e635', hover: '#bef264' },
+    'weak_neg':   { bg: '#fb923c', hover: '#fdba74' },
+    'strong_neg': { bg: '#ef4444', hover: '#f87171' },
+    null:         { bg: '#1e293b', hover: '#334155' },
+  };
+
+  function getRegimeStyle(regime) {
+    if (regime === undefined || regime === null) return regimeColors[null];
+    return regimeColors[regime] || regimeColors[null];
+  }
+
+  function getRegimeLabel(regime) {
+    if (regime === undefined || regime === null) return 'N/A';
+    return regime;
+  }
+
+  function getVsmaxStyle(val) {
+    if (val === undefined || val === null) return vsmaxColors[null];
+    if (val > 2)  return vsmaxColors['strong_pos'];
+    if (val > 0)  return vsmaxColors['weak_pos'];
+    if (val > -2) return vsmaxColors['neutral'];
+    if (val > -5) return vsmaxColors['weak_neg'];
+    return vsmaxColors['strong_neg'];
+  }
+
+  function getVsmaxLabel(val) {
+    if (val === undefined || val === null) return 'N/A';
+    return (val > 0 ? '+' : '') + val.toFixed(1);
+  }
+
   function getFlipStyle(flipPos) {
     if (flipPos === undefined || flipPos === -1) return flipColors['no_data'];
     if (flipPos === null) return flipColors[null];
@@ -73,6 +125,18 @@
       if (tierVal === undefined || tierVal === null) return flipColors['no_data'];
       if (flipPos === -1) return flipColors['no_data'];
       return getFlipStyle(flipPos);
+    }
+    if (colorMode === 'regime') {
+      const tierVal = matrix[fromSlug]?.[toSlug];
+      if (tierVal === undefined || tierVal === null) return regimeColors[null];
+      const regime = regimeMatrix[fromSlug]?.[toSlug];
+      return getRegimeStyle(regime);
+    }
+    if (colorMode === 'vsmax') {
+      const tierVal = matrix[fromSlug]?.[toSlug];
+      if (tierVal === undefined || tierVal === null) return vsmaxColors[null];
+      const val = vsmaxMatrix[fromSlug]?.[toSlug];
+      return getVsmaxStyle(val);
     }
     return getTierStyle(getTier(fromSlug, toSlug));
   }
@@ -178,8 +242,18 @@
   function selectCell(fromSlug, toSlug) {
     if (fromSlug === toSlug) return;
     selected = { from: fromSlug, to: toSlug };
+    const detail = { from: fromSlug, to: toSlug };
+    if (bestMode) {
+      const w = winnersMap[fromSlug]?.[toSlug];
+      if (w) {
+        detail.bestMode = true;
+        detail.run_id = w.run_id;
+        detail.variant = w.variant;
+        detail.winner = w;
+      }
+    }
     document.dispatchEvent(new CustomEvent('cell-selected', {
-      detail: { from: fromSlug, to: toSlug },
+      detail,
       bubbles: true,
     }));
   }
@@ -235,8 +309,58 @@
   function variantLabel(suffix) {
     if (!suffix) return 'Best';
     if (suffix.startsWith('r')) return `Rep ${suffix.slice(1)}`;
-    if (suffix.startsWith('add_')) return suffix.slice(4).replace(/_/g, ' + ');
+    if (suffix.startsWith('add_')) {
+      const mTuned = suffix.endsWith('__m_tuned');
+      const fields = (mTuned ? suffix.slice(4, -9) : suffix.slice(4)).replace(/_/g, ' + ');
+      return mTuned ? `${fields} (M-tuned)` : fields;
+    }
+    if (suffix === 'm_tuned') return 'M-tuned';
     return suffix.replace(/_/g, ' ');
+  }
+
+  async function toggleBestMode() {
+    if (bestLoading) return;
+    bestMode = !bestMode;
+    if (bestMode) {
+      bestLoading = true;
+      try {
+        const res = await fetch('/api/matrix/best-cross-run');
+        if (res.ok) {
+          const data = await res.json();
+          matrix = data.matrix || {};
+          winnersMap = data.winners || {};
+          bestCurrentRunId = data.current_run_id || null;
+          consideredRuns = data.considered_runs || [];
+          matrixGeneration++;
+        } else {
+          bestMode = false;
+        }
+      } catch {
+        bestMode = false;
+      }
+      bestLoading = false;
+    } else {
+      winnersMap = {};
+      bestCurrentRunId = null;
+      consideredRuns = [];
+      bestInfoOpen = false;
+      bestLoading = true;
+      try {
+        const qs = selectedVariant ? `?variant=${encodeURIComponent(selectedVariant)}` : '';
+        const [mRes, fRes, rgRes, vmRes] = await Promise.all([
+          fetch(`/api/matrix${qs}`),
+          fetch(`/api/flip-matrix${qs}`),
+          fetch(`/api/regime-matrix${qs}`),
+          fetch(`/api/vsmax-matrix${qs}`),
+        ]);
+        if (mRes.ok) matrix = await mRes.json();
+        if (fRes.ok) flipMatrix = await fRes.json();
+        if (rgRes.ok) regimeMatrix = await rgRes.json();
+        if (vmRes.ok) vsmaxMatrix = await vmRes.json();
+        matrixGeneration++;
+      } catch {}
+      bestLoading = false;
+    }
   }
 
   async function switchMatrixVariant(varSuffix) {
@@ -248,12 +372,16 @@
     }));
     try {
       const qs = varSuffix ? `?variant=${encodeURIComponent(varSuffix)}` : '';
-      const [mRes, fRes] = await Promise.all([
+      const [mRes, fRes, rgRes, vmRes] = await Promise.all([
         fetch(`/api/matrix${qs}`),
         fetch(`/api/flip-matrix${qs}`),
+        fetch(`/api/regime-matrix${qs}`),
+        fetch(`/api/vsmax-matrix${qs}`),
       ]);
       if (mRes.ok) matrix = await mRes.json();
       if (fRes.ok) flipMatrix = await fRes.json();
+      if (rgRes.ok) regimeMatrix = await rgRes.json();
+      if (vmRes.ok) vsmaxMatrix = await vmRes.json();
       matrixGeneration++;
     } catch {}
     variantLoading = false;
@@ -263,12 +391,14 @@
     document.addEventListener('keydown', handleKeydown);
     document.addEventListener('color-mode-changed', handleColorModeChanged);
     try {
-      const [matrixRes, statesRes, configRes, flipRes, varRes] = await Promise.all([
+      const [matrixRes, statesRes, configRes, flipRes, varRes, regimeRes, vsmaxRes] = await Promise.all([
         fetch('/api/matrix'),
         fetch('/api/states'),
         fetch('/api/config'),
         fetch('/api/flip-matrix'),
         fetch('/api/run-variants'),
+        fetch('/api/regime-matrix'),
+        fetch('/api/vsmax-matrix'),
       ]);
       
       if (!matrixRes.ok || !statesRes.ok) {
@@ -287,6 +417,12 @@
       if (varRes.ok) {
         const vd = await varRes.json();
         availableVariants = vd.variants || [];
+      }
+      if (regimeRes.ok) {
+        regimeMatrix = await regimeRes.json();
+      }
+      if (vsmaxRes.ok) {
+        vsmaxMatrix = await vsmaxRes.json();
       }
       loading = false;
     } catch (e) {
@@ -312,6 +448,22 @@
   function isDimmed(fromSlug, toSlug) {
     if (!hoveredCell) return false;
     return hoveredCell.from !== fromSlug && hoveredCell.to !== toSlug;
+  }
+
+  function isDiffRunWinner(fromSlug, toSlug) {
+    if (!bestMode || !bestCurrentRunId) return false;
+    const w = winnersMap[fromSlug]?.[toSlug];
+    return w && w.run_id !== bestCurrentRunId;
+  }
+
+  function countWinsForRun(runId) {
+    let n = 0;
+    for (const row of Object.values(winnersMap)) {
+      for (const w of Object.values(row)) {
+        if (w && w.run_id === runId) n++;
+      }
+    }
+    return n;
   }
 </script>
 
@@ -370,6 +522,63 @@
           on:click={() => switchMatrixVariant(v)}
         >{variantLabel(v)}</button>
       {/each}
+    </div>
+  {/if}
+
+  <!-- Best-across-runs toggle -->
+  <div class="flex items-center gap-2 mb-3 flex-wrap {bestLoading ? 'opacity-50 pointer-events-none' : ''}">
+    <button
+      class="px-3 py-1.5 text-xs rounded-md transition-colors border {bestMode ? 'bg-amber-900/40 text-amber-400 border-amber-500/40' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border-transparent'}"
+      on:click={toggleBestMode}
+      title={bestMode
+        ? 'Currently showing the best tier per cell, picked across the runs in the current dropdown (excluding Random x3 baselines).'
+        : 'Compose a synthetic matrix that picks, for each (source -> target) cell, the best swap configuration across all runs visible in the dropdown above (Random x3 baselines are excluded).'}
+    >
+      {bestLoading
+        ? 'Loading...'
+        : bestMode
+          ? 'Best per cell across runs (ON)'
+          : 'Best per cell across runs'}
+    </button>
+    {#if bestMode}
+      <button
+        class="text-xs text-slate-400 hover:text-amber-400 underline decoration-dotted underline-offset-2"
+        on:click={() => bestInfoOpen = !bestInfoOpen}
+        title="Show / hide the list of runs considered"
+      >
+        {consideredRuns.length} run{consideredRuns.length === 1 ? '' : 's'} considered
+      </button>
+      <span class="text-xs text-slate-500">
+        <span class="text-amber-500">Amber border</span> = cell won by a run other than the current selection.
+      </span>
+    {/if}
+  </div>
+
+  {#if bestMode && bestInfoOpen}
+    <div class="mb-3 p-3 rounded-md bg-slate-800/50 border border-slate-700 text-xs">
+      <div class="text-slate-400 mb-2">
+        For every cell we pick the configuration with the highest tier
+        (ties broken by exact-match flags, target rank, then VsMax).
+        Only these runs participate:
+      </div>
+      <ul class="space-y-1">
+        {#each consideredRuns as r}
+          {@const wins = countWinsForRun(r.id)}
+          <li class="flex items-center gap-2">
+            <span class="w-1.5 h-1.5 rounded-full {r.id === bestCurrentRunId ? 'bg-cyan-400' : 'bg-slate-600'}"></span>
+            <span class="text-slate-300">{r.label}</span>
+            {#if r.control_mode}
+              <span class="text-slate-600">|</span>
+              <span class="text-slate-500">{r.control_mode}</span>
+            {/if}
+            <span class="text-slate-600">|</span>
+            <span class="text-amber-400 font-mono">{wins} win{wins === 1 ? '' : 's'}</span>
+            {#if r.id === bestCurrentRunId}
+              <span class="ml-1 text-[10px] uppercase tracking-wide text-cyan-400/80">current run</span>
+            {/if}
+          </li>
+        {/each}
+      </ul>
     </div>
   {/if}
 
@@ -439,15 +648,19 @@
             {@const cs = isIdentity ? { bg: '#0f172a', hover: '#0f172a' } : getCellStyle(rowState.slug, colState.slug)}
             {@const sel = selected?.from === rowState.slug && selected?.to === colState.slug}
             {@const flipPos = flipMatrix[rowState.slug]?.[colState.slug]}
+            {@const regime = regimeMatrix[rowState.slug]?.[colState.slug]}
+            {@const vmVal = vsmaxMatrix[rowState.slug]?.[colState.slug]}
+            {@const diffWin = !isIdentity && isDiffRunWinner(rowState.slug, colState.slug)}
             <button
               class="matrix-cell rounded-sm transition-all duration-100"
               class:opacity-30={isDimmed(rowState.slug, colState.slug)}
+              class:diff-run-winner={diffWin}
               style="--cell-bg: {cs.bg}; --cell-hover: {cs.hover};{sel ? ' transform: scale(1.5); z-index: 20; background-color: var(--cell-hover); box-shadow: 0 0 0 2px #22d3ee;' : ''}"
               disabled={isIdentity || tier === null}
               on:click={() => selectCell(rowState.slug, colState.slug)}
               on:mouseenter={() => hoveredCell = { from: rowState.slug, to: colState.slug }}
               on:mouseleave={() => hoveredCell = null}
-              title={isIdentity ? 'Identity' : tier !== null ? `${rowState.abbr} -> ${colState.abbr}: ${colorMode === 'flip' ? getFlipLabel(flipPos) : 'Tier ' + tier}` : 'No data'}
+              title={isIdentity ? 'Identity' : tier !== null ? `${rowState.abbr} -> ${colState.abbr}: ${colorMode === 'flip' ? getFlipLabel(flipPos) : colorMode === 'regime' ? 'Regime ' + getRegimeLabel(regime) : colorMode === 'vsmax' ? 'VsMax ' + getVsmaxLabel(vmVal) : 'Tier ' + tier}` : 'No data'}
             ></button>
           {/each}
         {/each}
@@ -461,6 +674,9 @@
       {@const toState = states.find(s => s.slug === hoveredCell.to)}
       {@const tier = getTier(hoveredCell.from, hoveredCell.to)}
       {@const flipPos = flipMatrix[hoveredCell.from]?.[hoveredCell.to]}
+      {@const hoverRegime = regimeMatrix[hoveredCell.from]?.[hoveredCell.to]}
+      {@const hoverVsmax = vsmaxMatrix[hoveredCell.from]?.[hoveredCell.to]}
+      {@const hoverWinner = bestMode ? winnersMap[hoveredCell.from]?.[hoveredCell.to] : null}
       <div class="mt-4 p-3 bg-slate-800/50 rounded-lg text-sm">
         <span class="text-slate-400">{fromState?.label || fromState?.state || hoveredCell.from}</span>
         <span class="text-slate-600 mx-2">-></span>
@@ -471,11 +687,44 @@
                 style="background-color: {badge.bg}; color: {[3, 2.5].includes(tier) ? '#1e293b' : '#fff'};">
             T{tier}
           </span>
-          {@const flipBadge = getFlipStyle(flipPos)}
-          <span class="ml-1 px-2 py-0.5 rounded text-xs font-bold"
-                style="background-color: {flipBadge.bg}; color: {[0, 1, 2, 3].includes(flipPos) ? '#1e293b' : '#fff'};">
-            {getFlipLabel(flipPos)}
-          </span>
+          {#if !bestMode}
+            {@const flipBadge = getFlipStyle(flipPos)}
+            <span class="ml-1 px-2 py-0.5 rounded text-xs font-bold"
+                  style="background-color: {flipBadge.bg}; color: {[0, 1, 2, 3].includes(flipPos) ? '#1e293b' : '#fff'};">
+              {getFlipLabel(flipPos)}
+            </span>
+            {#if hoverRegime}
+              {@const rBadge = getRegimeStyle(hoverRegime)}
+              <span class="ml-1 px-2 py-0.5 rounded text-xs font-bold"
+                    style="background-color: {rBadge.bg}; color: {['C'].includes(hoverRegime) ? '#1e293b' : '#fff'};">
+                {hoverRegime}
+              </span>
+            {/if}
+            {#if hoverVsmax != null}
+              {@const vBadge = getVsmaxStyle(hoverVsmax)}
+              <span class="ml-1 px-2 py-0.5 rounded text-xs font-bold"
+                    style="background-color: {vBadge.bg}; color: {hoverVsmax > -2 ? '#1e293b' : '#fff'};">
+                {getVsmaxLabel(hoverVsmax)}
+              </span>
+            {/if}
+          {/if}
+          {#if hoverWinner}
+            <div class="mt-1 text-xs text-slate-500">
+              <span class="text-amber-400">{hoverWinner.run_label}</span>
+              {#if hoverWinner.variant}
+                <span class="text-slate-600 mx-1">|</span>
+                <span>{hoverWinner.variant}</span>
+              {/if}
+              {#if hoverWinner.vsmax != null}
+                <span class="text-slate-600 mx-1">|</span>
+                <span>VsMax {hoverWinner.vsmax > 0 ? '+' : ''}{hoverWinner.vsmax.toFixed(1)}</span>
+              {/if}
+              {#if hoverWinner.target_rank != null}
+                <span class="text-slate-600 mx-1">|</span>
+                <span>Rank #{hoverWinner.target_rank}</span>
+              {/if}
+            </div>
+          {/if}
         {:else}
           <span class="ml-3 text-slate-600">No data</span>
         {/if}
@@ -524,6 +773,10 @@
     transform: scale(1.5);
     z-index: 20;
     background-color: var(--cell-hover);
+  }
+
+  .matrix-cell.diff-run-winner {
+    box-shadow: inset 0 0 0 2px #f59e0b;
   }
 </style>
 

@@ -71,6 +71,7 @@ from pipeline.swap_evaluator import (
 from pipeline.steering_remote_ct import process_remote_ct_steering_step
 from pipeline.remote import create_control_master_from_config, SSHControlMaster
 from pipeline.controls import create_intervention_builder
+from pipeline.m_search import search_optimal_m, build_steer_fn
 
 
 def _load_ct_steering_module():
@@ -415,9 +416,56 @@ def _run_gpu_batch(
             json.dump(pp.features, f, indent=2)
 
         results.append((pp, swap_result))
+
+    # --- M-search second pass on missed pairs ---
+    m_search_cfg = config.get("m_search", {})
+    if m_search_cfg.get("enabled"):
+        m_original = ct_config.get("M_amplify", 2.0)
+        missed = [
+            (pp, sr) for pp, sr in results
+            if sr and not sr.get("evaluation", {}).get("exact_match", {}).get("steered_has_to_answer")
+        ]
+        if missed and verbose:
+            print(f"  [M-search] Running adaptive search on {len(missed)} missed pairs...")
+        for pp, sr in missed:
+            pair_paths = get_swap_paths(config, pp.pair, pp.variant_suffix)
+
+            def _factory(pp_=pp, pair_paths_=pair_paths):
+                return build_steer_fn(
+                    features=pp_.features,
+                    prompt=pp_.prompt,
+                    pair=pp_.pair,
+                    config=config,
+                    work_dir=pair_paths_['work_dir'],
+                    evaluate_swap_fn=evaluate_swap,
+                    run_steering_fn=_run_local_ct_steering,
+                    gpu_id=gpu_id,
+                    verbose=False,
+                )
+
+            tuned = search_optimal_m(
+                _factory, sr, m_original,
+                m_min=m_search_cfg.get("m_min", 0.1),
+                n_coarse_probes=m_search_cfg.get("n_coarse_probes", 6),
+                n_fine_steps=m_search_cfg.get("n_fine_steps", 6),
+                log_tolerance=m_search_cfg.get("log_tolerance", 0.1),
+                min_kl_drop=m_search_cfg.get("min_kl_drop", 1.0),
+            )
+            if tuned:
+                suffix = f"{pp.variant_suffix}__m_tuned" if pp.variant_suffix else "m_tuned"
+                tuned_path = get_swap_output_path(config, pp.pair, variant_suffix=suffix)
+                tuned_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(tuned_path, "w", encoding="utf-8") as f:
+                    json.dump(tuned, f, indent=2, ensure_ascii=False)
+                if verbose:
+                    m_info = tuned.get("m_search", {})
+                    m_val = m_info.get("m_tuned")
+                    m_str = f"{m_val:.4f}" if isinstance(m_val, (int, float)) else str(m_val)
+                    print(f"    {pp.pair.from_slug}->{pp.pair.to_slug}: "
+                          f"hit at M={m_str} "
+                          f"(phase {m_info.get('phase')}, {m_info.get('total_steps')} steps)")
+
     return results
-
-
 
 
 def run_single_swap(
@@ -605,7 +653,45 @@ def run_single_swap(
         print(f"  Default: {raw_result.get('default', '')[:50]}...")
         print(f"  Steered: {raw_result.get('steered', '')[:50]}...")
         print(f"  Suppressed: {exact['from_suppressed']}, Target hit: {exact['steered_has_to_answer']}")
-    
+
+    # --- M-search post-hook: adaptive M for missed pairs ---
+    m_search_cfg = config.get("m_search", {})
+    if m_search_cfg.get("enabled") and not evaluation['exact_match'].get('steered_has_to_answer'):
+        m_original = ct_config.get("M_amplify", 2.0)
+
+        def _factory():
+            return build_steer_fn(
+                features=features,
+                prompt=prompt,
+                pair=pair,
+                config=config,
+                work_dir=paths['work_dir'],
+                evaluate_swap_fn=evaluate_swap,
+                run_steering_fn=_run_local_ct_steering,
+                gpu_id=config.get('_local_gpu_id'),
+                verbose=False,
+            )
+
+        tuned = search_optimal_m(
+            _factory, result, m_original,
+            m_min=m_search_cfg.get("m_min", 0.1),
+            n_coarse_probes=m_search_cfg.get("n_coarse_probes", 6),
+            n_fine_steps=m_search_cfg.get("n_fine_steps", 6),
+            log_tolerance=m_search_cfg.get("log_tolerance", 0.1),
+            min_kl_drop=m_search_cfg.get("min_kl_drop", 1.0),
+        )
+        if tuned:
+            tuned_path = get_swap_output_path(config, pair, variant_suffix="m_tuned")
+            tuned_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(tuned_path, "w", encoding="utf-8") as f:
+                json.dump(tuned, f, indent=2, ensure_ascii=False)
+            m_info = tuned.get("m_search", {})
+            if verbose:
+                m_val = m_info.get("m_tuned")
+                m_str = f"{m_val:.4f}" if isinstance(m_val, (int, float)) else str(m_val)
+                print(f"  M-search: hit at M={m_str} "
+                      f"(phase {m_info.get('phase')}, {m_info.get('total_steps')} steps)")
+
     return result
 
 

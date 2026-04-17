@@ -1,0 +1,184 @@
+{
+  "swap_id": "utah_provo__to__indiana_fort_wayne",
+  "source": {
+    "slug": "utah_provo",
+    "city": "Provo",
+    "state": "Utah",
+    "capital": "Salt Lake City",
+    "prompt": "<bos>The capital of the state containing Provo is",
+    "concept": "utah"
+  },
+  "target": {
+    "slug": "indiana_fort_wayne",
+    "city": "Fort Wayne",
+    "state": "Indiana",
+    "capital": "Indianapolis",
+    "concept": "indiana"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 122,
+    "total_count": 122
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Provo",
+      "state": "Utah",
+      "capital": "Salt Lake City",
+      "prompt": "<bos>The capital of the state containing Provo is",
+      "concept": "utah"
+    },
+    "ground_truth_to": {
+      "city": "Fort Wayne",
+      "state": "Indiana",
+      "capital": "Indianapolis",
+      "concept": "indiana"
+    },
+    "answer_field": "capital",
+    "from_answer": "Salt Lake City",
+    "to_answer": "Indianapolis",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": true,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Salt",
+      "default_prob": 0.26171875,
+      "steered": " is",
+      "steered_prob": 0.318359375
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": null,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Provo is Salt Lake City.\n\nThe state of Utah is",
+      "steered_output": "<bos><bos>The capital of the state containing Provo is is Indianapolis.\n\nThe city of Indianapolis is located in",
+      "default_topk": [
+        {
+          "token": " Salt",
+          "prob": 0.26171875
+        },
+        {
+          "token": " Provo",
+          "prob": 0.10888671875
+        },
+        {
+          "token": " the",
+          "prob": 0.0849609375
+        },
+        {
+          "token": " Utah",
+          "prob": 0.07470703125
+        },
+        {
+          "token": ":",
+          "prob": 0.058349609375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " is",
+          "prob": 0.318359375
+        },
+        {
+          "token": " ",
+          "prob": 0.05517578125
+        },
+        {
+          "token": " I",
+          "prob": 0.05517578125
+        },
+        {
+          "token": " Mun",
+          "prob": 0.048828125
+        },
+        {
+          "token": " Na",
+          "prob": 0.037841796875
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 3.3416,
+      "steered_entropy": 3.4877,
+      "entropy_delta": 0.1461,
+      "kl_baseline_to_steered": 7.3706
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 4.0805715318509,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-04-12T05:31:18.132331",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 4.080572,
+    "phase": 2,
+    "total_steps": 7,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 4.1898
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 3.7505
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 3.1649
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 5.1404
+      },
+      {
+        "m": 6.931448,
+        "hit": false,
+        "kl": 9.7485
+      },
+      {
+        "m": 20.0,
+        "hit": false,
+        "kl": 12.6565
+      }
+    ],
+    "phase2_steps": [
+      {
+        "m": 4.080572,
+        "hit": true,
+        "kl": 7.3706
+      }
+    ],
+    "kl_transition": {
+      "m_lo": 2.402249,
+      "m_hi": 6.931448,
+      "kl_drop": 4.6081
+    }
+  }
+}

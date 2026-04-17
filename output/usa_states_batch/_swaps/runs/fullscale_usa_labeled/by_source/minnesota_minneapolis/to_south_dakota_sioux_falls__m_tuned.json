@@ -1,0 +1,184 @@
+{
+  "swap_id": "minnesota_minneapolis__to__south_dakota_sioux_falls",
+  "source": {
+    "slug": "minnesota_minneapolis",
+    "city": "Minneapolis",
+    "state": "Minnesota",
+    "capital": "Saint Paul",
+    "prompt": "<bos>The capital of the state containing Minneapolis is",
+    "concept": "minnesota"
+  },
+  "target": {
+    "slug": "south_dakota_sioux_falls",
+    "city": "Sioux Falls",
+    "state": "South Dakota",
+    "capital": "Pierre",
+    "concept": "south dakota"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 223,
+    "total_count": 223
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Minneapolis",
+      "state": "Minnesota",
+      "capital": "Saint Paul",
+      "prompt": "<bos>The capital of the state containing Minneapolis is",
+      "concept": "minnesota"
+    },
+    "ground_truth_to": {
+      "city": "Sioux Falls",
+      "state": "South Dakota",
+      "capital": "Pierre",
+      "concept": "south dakota"
+    },
+    "answer_field": "capital",
+    "from_answer": "Saint Paul",
+    "to_answer": "Pierre",
+    "exact_match": {
+      "default_has_from_answer": false,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": false,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " St",
+      "default_prob": 0.2138671875,
+      "steered": ",",
+      "steered_prob": 0.359375
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": null,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Minneapolis is St. Paul.\n\nThe state of Minnesota is",
+      "steered_output": "<bos><bos>The capital of the state containing Minneapolis is, South Dakota, Pierre is a city that offers a",
+      "default_topk": [
+        {
+          "token": " St",
+          "prob": 0.2138671875
+        },
+        {
+          "token": " Saint",
+          "prob": 0.1298828125
+        },
+        {
+          "token": " the",
+          "prob": 0.11474609375
+        },
+        {
+          "token": " Minneapolis",
+          "prob": 0.08935546875
+        },
+        {
+          "token": " Minnesota",
+          "prob": 0.07861328125
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": ",",
+          "prob": 0.359375
+        },
+        {
+          "token": " is",
+          "prob": 0.2470703125
+        },
+        {
+          "token": " and",
+          "prob": 0.10302734375
+        },
+        {
+          "token": ".",
+          "prob": 0.029541015625
+        },
+        {
+          "token": " was",
+          "prob": 0.0230712890625
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 3.1187,
+      "steered_entropy": 2.568,
+      "entropy_delta": -0.5507,
+      "kl_baseline_to_steered": 6.3211
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 1.414213425087246,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-04-07T00:17:48.396649",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 1.414213,
+    "phase": 2,
+    "total_steps": 7,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 3.9658
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 3.7938
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 3.5057
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 6.9543
+      },
+      {
+        "m": 6.931448,
+        "hit": false,
+        "kl": 8.4836
+      },
+      {
+        "m": 20.0,
+        "hit": false,
+        "kl": 9.985
+      }
+    ],
+    "phase2_steps": [
+      {
+        "m": 1.414213,
+        "hit": true,
+        "kl": 6.3211
+      }
+    ],
+    "kl_transition": {
+      "m_lo": 0.832553,
+      "m_hi": 2.402249,
+      "kl_drop": 3.4486
+    }
+  }
+}

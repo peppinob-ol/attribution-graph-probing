@@ -1,0 +1,82 @@
+{
+  "run_id": "highm_products_m200",
+  "run_dir": "/home/giuseppe/attribution-graph-probing/output/products_founders_batch/_swaps/runs/highm_products_m200",
+  "display_demo": true,
+  "status": "completed",
+  "timestamp": "2026-04-03T08:17:44.283167",
+  "argv": [
+    "run_batch_swaps.py",
+    "--config",
+    "configs/highm_products_m200.yml",
+    "--run-id",
+    "highm_products_m200",
+    "--pair",
+    "alibaba:facebook",
+    "--force"
+  ],
+  "git": {
+    "commit": "8e85f733bb45ed07b7a7eee3e8f6558d6c0f432e",
+    "branch": "control-refactor",
+    "dirty": true
+  },
+  "platform": {
+    "python": "3.10.12",
+    "os": "posix",
+    "platform": "linux"
+  },
+  "config": {
+    "experiment_name": "highm_products_m200",
+    "swap": {
+      "mode": "matrix",
+      "include_identity": true,
+      "concept_fields": [
+        "product",
+        "company",
+        "founder"
+      ],
+      "answer_field": "founder"
+    },
+    "ct_steering": {
+      "model_id": "google/gemma-2-2b",
+      "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",
+      "M_ablate": -2,
+      "M_amplify": 200,
+      "temperature": 0.3,
+      "n_tokens": 10,
+      "freq_penalty": 2.0,
+      "seed": 42,
+      "top_k": 5,
+      "freeze_attention": false,
+      "track_trajectory": true
+    },
+    "compute": {
+      "inherit_from_source": false,
+      "remote": {
+        "enabled": false
+      }
+    },
+    "inputs": {
+      "source_config": "configs/products_founders_full.yml",
+      "graphs_root": "/home/giuseppe/attribution-graph-probing/output/products_founders_batch"
+    }
+  },
+  "hashes": {
+    "combined_config_sha1": "15ca75adece4050e3484e69402dd3248ba631c1b",
+    "files": {
+      "swap_config": "2ca48c074a0a90ce803fc150edf1f21c41509639",
+      "source_config": "e105ce2d630a3e7683b04b7bfe461f37f22c8a21"
+    }
+  },
+  "timestamp_started": "2026-04-03T08:17:16.626670",
+  "timestamp_completed": "2026-04-03T08:17:44.282947",
+  "counts": {
+    "total_pairs": 1,
+    "processed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "outputs": {
+    "summary_path": "/home/giuseppe/attribution-graph-probing/output/products_founders_batch/_swaps/runs/highm_products_m200/_summary.json",
+    "matrix_path": "/home/giuseppe/attribution-graph-probing/output/products_founders_batch/_swaps/runs/highm_products_m200/_matrix.csv"
+  }
+}

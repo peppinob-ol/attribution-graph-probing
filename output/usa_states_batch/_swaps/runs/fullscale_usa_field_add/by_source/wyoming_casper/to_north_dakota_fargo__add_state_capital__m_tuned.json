@@ -1,0 +1,169 @@
+{
+  "swap_id": "wyoming_casper__to__north_dakota_fargo",
+  "source": {
+    "slug": "wyoming_casper",
+    "city": "Casper",
+    "state": "Wyoming",
+    "capital": "Cheyenne",
+    "prompt": "<bos>The capital of the state containing Casper is",
+    "concept": "wyoming"
+  },
+  "target": {
+    "slug": "north_dakota_fargo",
+    "city": "Fargo",
+    "state": "North Dakota",
+    "capital": "Bismarck",
+    "concept": "north dakota"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 110,
+    "total_count": 110
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Casper",
+      "state": "Wyoming",
+      "capital": "Cheyenne",
+      "prompt": "<bos>The capital of the state containing Casper is",
+      "concept": "wyoming"
+    },
+    "ground_truth_to": {
+      "city": "Fargo",
+      "state": "North Dakota",
+      "capital": "Bismarck",
+      "concept": "north dakota"
+    },
+    "answer_field": "capital",
+    "from_answer": "Cheyenne",
+    "to_answer": "Bismarck",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Cheyenne",
+      "default_prob": 0.314453125,
+      "steered": " Min",
+      "steered_prob": 0.5859375
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": 0.130859375,
+      "from_answer_in_default_topk": 0.314453125,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": 0.130859375,
+      "from_capital_in_default_topk": 0.314453125,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Casper is Cheyenne.\n\nThe capital of Wyoming is Cheyenne.",
+      "steered_output": "<bos><bos>The capital of the state containing Casper is Minot, Bismarck, and Williston.\n\nThe",
+      "default_topk": [
+        {
+          "token": " Cheyenne",
+          "prob": 0.314453125
+        },
+        {
+          "token": " Casper",
+          "prob": 0.16796875
+        },
+        {
+          "token": " ",
+          "prob": 0.061767578125
+        },
+        {
+          "token": " the",
+          "prob": 0.061767578125
+        },
+        {
+          "token": " Laramie",
+          "prob": 0.0546875
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Min",
+          "prob": 0.5859375
+        },
+        {
+          "token": " Bismarck",
+          "prob": 0.130859375
+        },
+        {
+          "token": " Fargo",
+          "prob": 0.037353515625
+        },
+        {
+          "token": " Grand",
+          "prob": 0.032958984375
+        },
+        {
+          "token": " Mand",
+          "prob": 0.0291748046875
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 3.0528,
+      "steered_entropy": 2.1063,
+      "entropy_delta": -0.9465,
+      "kl_baseline_to_steered": 7.8443
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 6.931448431551464,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-04-12T06:10:45.232342",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 6.931448,
+    "phase": 1,
+    "total_steps": 5,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 9.8111
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 8.6546
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 6.1853
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 4.9228
+      },
+      {
+        "m": 6.931448,
+        "hit": true,
+        "kl": 7.8443
+      }
+    ],
+    "phase2_steps": [],
+    "kl_transition": null
+  }
+}

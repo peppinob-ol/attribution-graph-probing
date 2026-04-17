@@ -1,0 +1,330 @@
+% Section: Appendix
+% Outline (for review):
+% - Pseudocode for the pipeline; thresholds table
+% - Reproducibility: commit, config, seeds, minimal run
+% - Baseline tuning notes and hparams
+% - Tacit knowledge and operational advice
+% - Neuronpedia links (if available); glossary; color-accessibility
+
+\appendix
+\section{Appendix}
+\label{sec:appendix}
+
+\subsection{Pipeline pseudocode}
+\begin{verbatim}
+Input: attribution_graph, seed_prompt, target_logit
+Nodes := select_nodes_by_cumulative_influence(attribution_graph, tau)
+Concepts := llm_generate_concepts(seed_prompt, K)
+Probes := synthesize_probes(Concepts, template_constraints)
+for feature in Nodes:
+  for probe in Probes:
+    A[feature, probe] := measure_activation(feature, probe)
+Metrics := aggregate_cross_prompt(A)
+Groups := classify_features(Metrics, thresholds)
+Names  := assign_names(Groups, A, blacklist, target_token_rules)
+Subgraph := pin_nodes(Groups, token_embeddings, target_logit)
+Upload(Subgraph)
+\end{verbatim}
+
+\subsection{Decision thresholds}
+\begin{itemize}
+  \item Semantic (Dictionary): peak\_consistency $\ge 0.80$, n\_distinct\_peaks $\le 1$
+  \item Say-X: func\_vs\_sem $\ge 50\%$, conf\_functional $\ge 0.90$, layer $\ge 7$
+  \item Relationship: median sparsity $< 0.45$
+\end{itemize}
+
+\subsection{Reproducibility and Tool Access}
+\label{sec:repro}
+
+\paragraph{Repository:} \url{https://github.com/peppinob-ol/attribution-graph-probing}  
+
+\paragraph{License:} GNU GENERAL PUBLIC LICENSE Version 3
+
+\paragraph{Requirements:} Python 3.9+, dependencies in \texttt{requirements.txt}
+
+\paragraph{Key dependencies:}
+\begin{itemize}
+  \item numpy $\ge$ 1.24.0 (numerical operations)
+  \item pandas $\ge$ 2.0.0 (data handling)
+  \item requests $\ge$ 2.31.0 (Neuronpedia API calls)
+  \item streamlit $\ge$ 1.28.0 (interactive UI, optional)
+  \item openai $\ge$ 1.0.0 OR anthropic $\ge$ 0.8.0 (LLM concept generation, optional)
+\end{itemize}
+
+\paragraph{Interactive Demo:} \url{https://huggingface.co/spaces/Peppinob/attribution-graph-probing}  
+\begin{itemize}
+  \item No installation required, runs in browser
+  \item Upload graph $\rightarrow$ adjust threshold $\rightarrow$ generate probes $\rightarrow$ download subgraph
+  \item Average runtime: 2--5 minutes for 50--200 feature graphs
+  \item Rate limited: Neuronpedia API limits apply (approximately 100 calls/hour)
+  \item Requires: Neuronpedia API key (free at neuronpedia.org/api)
+  \item Optional: OpenAI or Anthropic key for LLM concept generation (or manual)
+\end{itemize}
+
+\paragraph{Example Data:}
+We provide pre-computed outputs for all five circuits in \texttt{output/examples/}:
+\begin{itemize}
+  \item \texttt{Dallas/}: Full pipeline outputs (Texas capital circuit)
+  \item \texttt{capital oakland/}: Entity-swap pair (California capital circuit)
+  \item \texttt{michael hordan plays/}: Sports circuit with baseline comparisons
+  \item \texttt{small opposite/}: Antonymy circuit
+  \item \texttt{muscle diaphragm/}: Anatomy circuit
+\end{itemize}
+
+Each directory contains:
+\begin{itemize}
+  \item \texttt{*.json}: Neuronpedia attribution graph (with timestamp)
+  \item \texttt{prompts.json}: LLM-generated probe prompts
+  \item \texttt{*\_export*.csv}: Cross-prompt activation measurements
+  \item \texttt{node\_grouping\_final*.csv}: Classified and named features
+  \item \texttt{node\_grouping\_summary*.json}: Statistics and top supernodes
+  \item \texttt{selected\_features*.json}: Feature subset used for analysis
+\end{itemize}
+
+\textbf{Note:} A minimal example is also available in \texttt{examples\_data/} for quick testing.
+
+\paragraph{Command-Line Usage (Basic):}
+From repository root, reproduce Dallas$\rightarrow$Austin circuit:
+
+\begin{verbatim}
+# 0. Setup
+git clone https://github.com/peppinob-ol/attribution-graph-probing
+cd attribution-graph-probing
+pip install -r requirements.txt
+# Set API keys (create .env file or export)
+export NEURONPEDIA_API_KEY="your_key_here"
+export OPENAI_API_KEY="your_key_here"  # or ANTHROPIC_API_KEY
+
+# 1. Generate attribution graph via Neuronpedia API
+python scripts/00_neuronpedia_graph_generation.py \
+  --model gemma-2-2b-it \
+  --prompt "The capital of Texas is" \
+  --target " Austin" \
+  --output_dir output/dallas_austin/
+
+# 2. Select features via cumulative influence
+# (Interactive Streamlit UI recommended for threshold selection)
+streamlit run eda/threshold_selection.py
+
+# 3. Generate probe prompts and measure activations
+# (This script includes activation measurement and signature computation)
+python scripts/01_probe_prompts.py \
+  --graph_json output/dallas_austin/graph.json \
+  --concepts_json output/concepts.json \
+  --api_key YOUR_NEURONPEDIA_API_KEY \
+  --output_csv output/dallas_austin/activations.csv
+
+# 4. Classify nodes and generate subgraph
+# (This script includes classification, naming, and subgraph creation)
+python scripts/02_node_grouping.py \
+  --input output/dallas_austin/activations.csv \
+  --graph output/dallas_austin/graph.json \
+  --output output/dallas_austin/grouped.csv
+\end{verbatim}
+
+\paragraph{Expected Runtime:}
+\begin{itemize}
+  \item Graph generation: 2--5 minutes (Neuronpedia API)
+  \item Probe prompts + activations (script 01): 11--18 minutes total
+  \begin{itemize}
+    \item Probe generation: 1--3 minutes (LLM calls)
+    \item Activation measurement: 10--15 minutes (L4 GPU, 5 probes $\times$ 40 features)
+  \end{itemize}
+  \item Node grouping + subgraph (script 02): <1 minutes
+  \item \textbf{Total:} $\sim$14--24 minutes for single circuit
+\end{itemize}
+
+\paragraph{Reproducibility Features:}
+\begin{itemize}
+  \item \textbf{Deterministic pipeline:} All computations are deterministic (no random sampling or initialization)
+  \item \textbf{Per-feature checkpoints:} Resume from partial runs without re-querying
+  \item \textbf{Retry logic:} Exponential backoff for API failures
+  \item \textbf{Logging:} Verbose mode (\texttt{--debug} flag) logs all API calls and decisions
+\end{itemize}
+
+\paragraph{Extending to New Circuits:}
+Minimal changes for new prompts:
+\begin{enumerate}
+  \item Edit \texttt{seed\_prompt} and \texttt{target} in graph generation
+  \item Adjust \texttt{num\_concepts} if domain differs (5--8 for factual, 8--12 for complex)
+  \item Review generated probes, reject malformed variants
+  \item Proceed with standard pipeline
+\end{enumerate}
+
+For non-English: Create language-specific functional token list.
+
+\subsection{Baseline Tuning and Hyperparameters}
+\label{sec:baseline-tuning}
+
+To ensure fair comparison, we tuned geometric baselines (cosine clustering, layer-adjacency) alongside our concept-aligned method. Below we document tuning approaches and acknowledge limitations.
+
+\paragraph{Cosine Clustering (Activation-Vector Similarity)}
+Method: Hierarchical clustering on cosine distance of the same cross-prompt activation matrix used for behavioral metrics. For each feature $i$, we build $\mathbf{a}_i \in \mathbb{R}^{|V_{\text{sem}}|}$ where $V_{\text{sem}}$ is the semantic-token allow-list obtained from original graph tokens plus semantic supernode names. Entries are the maximum activation observed on that token across all probe prompts (derived from \texttt{top\_activations\_probe\_original}); tokens never activated receive zero. This restricts the cosine baseline to concept-bearing context, matching the pipeline applied to the concept-aligned method.
+
+Tuning: We selected agglomerative clustering with cosine distance metric and average linkage (mirroring the implementation in \texttt{compare\_grouping\_methods.py}). Cluster count is fixed to the number of concept-aligned supernodes (39 for Table~\ref{tab:baselines}) so that all methods partition the same node set. We tested common linkage methods (single, complete, average, ward) and chose the configuration that maximized Silhouette score while maintaining interpretable cluster sizes (approximately 7--10 clusters, depending on the circuit).
+
+Note: We did not perform exhaustive grid search across all hyperparameter combinations. Tuning was iterative and informed by standard clustering practices.
+
+\paragraph{Layer-Adjacency Clustering (Influence-Graph Proximity)}
+Method: Hierarchical clustering on normalized [layer, influence] coordinates. Features close in layer depth and similar in influence magnitude are grouped together.
+
+Tuning: We used Ward linkage to minimize within-cluster variance. Cluster count was chosen to approximately match the number of concept-aligned groups ($\sim$7--10) for comparability. Normalization applied to balance layer and influence contributions equally.
+
+Note: Alternative algorithms (Louvain, spectral) were considered but not extensively compared. Ward linkage was selected based on prior experience with hierarchical methods.
+
+\paragraph{Concept-Aligned Grouping (Our Method)}
+Method: Rule-based classification using cross-prompt behavioral signatures. Thresholds:
+\begin{itemize}
+  \item Semantic: peak\_consistency $\ge$0.80, n\_distinct\_peaks $\le$1, layer $\le$3 OR semantic\_conf $\ge$0.50
+  \item Say-X: func\_vs\_sem $\ge$50\%, conf\_functional $\ge$0.90, layer $\ge$7
+  \item Relationship: median\_sparsity <0.45, typically layer $\le$9
+\end{itemize}
+
+Tuning: Thresholds were chosen via iterative refinement on held-out examples to balance precision (few false classifications) against recall (capture relevant features). The tuning process involved extensive manual analysis, including printing and annotating activations by hand over several days to understand feature behavior. These represent codified expert judgment informed by:
+\begin{itemize}
+  \item Manual inspection of activation patterns
+  \item Comparison with Neuronpedia autointerp labels
+  \item Iterative testing on pilot circuits
+  \item Adjustment based on observed edge cases
+\end{itemize}
+
+\paragraph{Comparative Tuning Effort}
+All three methods received attention during development. We do not claim optimal hyperparameters for any method. Our goal was to ensure baselines were not trivially weak through reasonable tuning, while acknowledging that exhaustive optimization was not performed.
+
+\paragraph{Known Limitations}
+\begin{enumerate}
+  \item \textbf{No held-out test set:} All tuning was performed on circuits included in evaluation. Future work should use proper train/validation/test splits.
+   
+  \item \textbf{Small sample:} Tuning decisions based on 1--2 circuits (Michael Jordan for baselines, held-out examples for concept-aligned) may not generalize.
+
+  \item \textbf{Descriptive comparisons:} Results in Table~\ref{tab:baselines} are descriptive differences without significance tests, confidence intervals, or statistical power analysis. We report effect sizes (2.3$\times$, 5.8$\times$ improvements) but these are point estimates from a single circuit.
+
+  \item \textbf{Asymmetric documentation:} Baseline tuning process is documented at high level; concept-aligned threshold development involved more extensive manual analysis that is difficult to fully document. This asymmetry reflects the exploratory nature of the research.
+
+  \item \textbf{Threshold sensitivity not systematically tested:} While thresholds were refined iteratively, we have not performed formal sensitivity analysis (e.g., $\pm$10--20\% variation) with quantitative impact assessment. This is planned for future work.
+\end{enumerate}
+
+\paragraph{Future Work}
+Systematic validation should include:
+\begin{itemize}
+  \item Exhaustive hyperparameter grid search for all methods
+  \item Threshold sensitivity analysis with quantified impacts
+  \item Proper train/validation/test splits across 20+ circuits
+  \item Statistical significance testing with appropriate corrections
+  \item Inter-rater reliability assessment (multiple human annotators)
+\end{itemize}
+
+\subsection{Tacit knowledge and operational notes}
+Empirically, late-layer Say-X features peak on functional tokens; ensure target-token mapping uses directionality (e.g., forward for ``is''). Early-layer features may include context-independent functional detectors; treat layer priors carefully.
+
+\subsection{Neuronpedia links}
+Dallas--Austin, Oakland--Sacramento, Michael Jordan--Basketball, Small--Opposite, and Muscle--Diaphragm subgraphs: see repository docs or Neuronpedia workspace. We include a helper to parse links from the LessWrong export.
+
+\subsection{Functional Token Vocabulary and Mapping Rules}
+\label{sec:functional-vocab}
+
+Complete specification of functional tokens and target-token mapping for Say-X detection in English prompts. For non-English, adapt via functional token list in repository.
+
+\paragraph{Functional Token Classes (English)}
+\begin{enumerate}
+  \item \textbf{Copulas (linking verbs):} `is', `was', `are', `were', `be', `been', `being', `am', `'s' (contracted `is'), `'re' (contracted `are'), `'m' (contracted `am')
+
+  \item \textbf{Articles (determiners):} `the', `a', `an', `this', `that', `these', `those'
+
+  \item \textbf{Prepositions (relational):} `of', `in', `on', `at', `to', `for', `with', `by', `from', `as', `into', `onto', `upon', `about', `above', `below', `between', `among', `through', `during', `before', `after'
+
+  \item \textbf{Conjunctions (connective):} `and', `or', `but', `nor', `so', `yet', `for'
+
+  \item \textbf{Relative pronouns/adverbs:} `that', `which', `who', `whom', `whose', `where', `when', `why', `how'
+
+  \item \textbf{Auxiliary verbs:} `do', `does', `did', `have', `has', `had', `will', `would', `shall', `should', `can', `could', `may', `might', `must'
+\end{enumerate}
+
+\textbf{Total:} Approximately 87 functional tokens in default English vocabulary (full list in \texttt{config/functional\_tokens\_en.txt}).
+
+\paragraph{Target-Token Mapping Rules}
+When a feature peaks on a functional token, we identify the nearest semantic target token within a configurable window (default: 7 tokens, configurable via \texttt{--window} parameter) using directionality heuristics:
+
+\textbf{Forward-looking functionals} (predict what comes next):
+\begin{itemize}
+  \item Copulas: `is', `was', `are', `were', `be' $\rightarrow$ look forward\\
+  Example: ``The capital \textbf{is} Austin'' $\rightarrow$ target=`Austin'
+  
+  \item Auxiliary verbs: `has', `have', `had', `will', `would', `can', `could' $\rightarrow$ look forward\\
+  Example: ``France \textbf{has} Paris'' $\rightarrow$ target=`Paris'
+  
+  \item Articles: `the', `a', `an' $\rightarrow$ look forward\\
+  Example: ``capital of \textbf{the} state'' $\rightarrow$ target=`state'\\
+  \emph{Note:} Current implementation uses simple forward lookup for all articles.
+  
+  \item Most prepositions: `in', `on', `at', `to', `for', `with' $\rightarrow$ look forward\\
+  Example: ``located \textbf{in} Texas'' $\rightarrow$ target=`Texas'
+\end{itemize}
+
+\textbf{Backward-looking functionals} (refer to previous content):
+\begin{itemize}
+  \item Possessive preposition: `of' $\rightarrow$ look backward\\
+  Example: ``capital \textbf{of} Texas'' $\rightarrow$ target=`capital' (backward to head noun)\\
+  \emph{Implementation note:} Code currently uses forward for `of'; this is a known issue being addressed.
+  
+  \item Possessive marker: `'s' $\rightarrow$ look backward\\
+  Example: ``Texas\textbf{'s} capital'' $\rightarrow$ target=`Texas' (backward)\\
+  \emph{Implementation note:} Requires adding `'s' to functional token vocabulary.
+\end{itemize}
+
+\textbf{Bidirectional functionals} (nearest semantic token in either direction):
+\begin{itemize}
+  \item Conjunctions: `and', `or', `but' $\rightarrow$ search both directions, return nearest\\
+  Example: ``Texas \textbf{and} Oklahoma'' $\rightarrow$ targets=`Texas' (backward), `Oklahoma' (forward)
+  
+  \item Punctuation: commas, colons, semicolons $\rightarrow$ search both directions\\
+  Example: ``Texas\textbf{,} Oklahoma'' $\rightarrow$ nearest semantic (either direction)
+\end{itemize}
+
+\paragraph{Edge Cases and Resolution}
+\begin{enumerate}
+  
+  \item \textbf{Multiple candidates:} If multiple semantic tokens in window, use nearest (by token distance). Ties broken by: (a) forward over backward (default bias), (b) higher activation magnitude if available.
+
+  \item \textbf{Multi-token entities:} Use first token of multi-token entity as target.\\
+  Example: ``capital is \textbf{New York}'' $\rightarrow$ target=`New' (single token)\\
+  Future: use longest-match heuristic if entity dictionary available
+
+  \item \textbf{No semantic in window:} Feature marked `functional-only', excluded from Say-X unless $\ge$90\% functional confidence across probes (pure functional detectors, rare).
+
+  \item \textbf{Configurable window:} Default search window is 7 tokens (configurable via CLI \texttt{--window}). Smaller windows ($\le$5) reduce noise but may miss distant targets; larger windows ($\ge$10) capture more candidates but increase ambiguity.
+  
+  \item \textbf{Known limitations:} `of' directionality can be context-dependent (``capital of Texas'' vs ``made of wood''). Current specification: backward for possessive uses. Dependency parsing would enable context-sensitive rules.
+\end{enumerate}
+
+\paragraph{Cross-Lingual Adaptations}
+For non-English prompts, functional vocabularies must be adapted. We encountered a notable failure when testing the standard English pipeline on the French prompt ``le contraire de `petit' est'' using English probe prompts. The model produced incoherent activations with no valid supernode grouping, due to language mismatch and absence of French functional tokens.
+
+Performance improved after adding French-language probe prompts, expanding the blacklist to include mixed English-French functional terms (including concept, de, process, their, based), and manual refinement. However, the current prototype remains unreliable in multilingual contexts without explicit cross-lingual adaptation.
+
+\textbf{Example French tokens}:
+\begin{itemize}
+  \item Copulas: `est', `\'etait', `sont', `\'etaient', `\^etre'
+  \item Articles: `le', `la', `les', `un', `une', `des'
+  \item Prepositions: `de', `\`a', `en', `dans', `sur', `pour', `avec', `par'
+  \item Directionality: `est' $\rightarrow$ forward, `de' $\rightarrow$ backward (like `of')
+\end{itemize}
+
+\textbf{Example Spanish tokens}:
+\begin{itemize}
+  \item Copulas: `es', `era', `son', `eran', `ser'
+  \item Articles: `el', `la', `los', `las', `un', `una'
+  \item Prepositions: `de', `a', `en', `con', `por', `para'
+  \item Directionality: `es' $\rightarrow$ forward, `de' $\rightarrow$ backward
+\end{itemize}
+
+Users working with non-English prompts should expect to iterate on functional token lists and directionality rules based on their specific language and domain.
+
+
+\subsection{Glossary}
+\textbf{CLT} Cross-Layer Transcoder; \textbf{SAE} Sparse Autoencoder; \textbf{Replacement} Neuronpedia graph metric for end-to-end influence via features; \textbf{Completeness} influence explained by features/tokens; \textbf{Say-X} output promotion features that peak on functional tokens and map to semantic targets.
+
+\subsection{Color accessibility}
+Figures use palettes avoiding red--green contrasts; when diverging scales are needed, zero is mapped to a neutral color.
+
+

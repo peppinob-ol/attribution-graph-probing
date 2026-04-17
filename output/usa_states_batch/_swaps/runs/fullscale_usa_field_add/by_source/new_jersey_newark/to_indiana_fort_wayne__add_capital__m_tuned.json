@@ -1,0 +1,189 @@
+{
+  "swap_id": "new_jersey_newark__to__indiana_fort_wayne",
+  "source": {
+    "slug": "new_jersey_newark",
+    "city": "Newark",
+    "state": "New Jersey",
+    "capital": "Trenton",
+    "prompt": "<bos>The capital of the state containing Newark is",
+    "concept": "new jersey"
+  },
+  "target": {
+    "slug": "indiana_fort_wayne",
+    "city": "Fort Wayne",
+    "state": "Indiana",
+    "capital": "Indianapolis",
+    "concept": "indiana"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 59,
+    "total_count": 59
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Newark",
+      "state": "New Jersey",
+      "capital": "Trenton",
+      "prompt": "<bos>The capital of the state containing Newark is",
+      "concept": "new jersey"
+    },
+    "ground_truth_to": {
+      "city": "Fort Wayne",
+      "state": "Indiana",
+      "capital": "Indianapolis",
+      "concept": "indiana"
+    },
+    "answer_field": "capital",
+    "from_answer": "Trenton",
+    "to_answer": "Indianapolis",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Trenton",
+      "default_prob": 0.306640625,
+      "steered": " I",
+      "steered_prob": 0.140625
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": 0.306640625,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.306640625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Newark is Trenton.\n\nThe capital of the state containing Newark",
+      "steered_output": "<bos><bos>The capital of the state containing Newark is Fort Wayne, Indiana, is <strong>Indianapolis</strong>.",
+      "default_topk": [
+        {
+          "token": " Trenton",
+          "prob": 0.306640625
+        },
+        {
+          "token": " the",
+          "prob": 0.068359375
+        },
+        {
+          "token": " New",
+          "prob": 0.060302734375
+        },
+        {
+          "token": " ",
+          "prob": 0.05322265625
+        },
+        {
+          "token": " Newark",
+          "prob": 0.05322265625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " I",
+          "prob": 0.140625
+        },
+        {
+          "token": " Lafayette",
+          "prob": 0.09619140625
+        },
+        {
+          "token": " Fish",
+          "prob": 0.0849609375
+        },
+        {
+          "token": " Mun",
+          "prob": 0.06640625
+        },
+        {
+          "token": " Fort",
+          "prob": 0.06640625
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 3.5024,
+      "steered_entropy": 4.4046,
+      "entropy_delta": 0.9022,
+      "kl_baseline_to_steered": 8.022
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 15.34540974136749,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-04-12T03:52:04.892715",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 15.34541,
+    "phase": 2,
+    "total_steps": 8,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 3.3185
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 2.499
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 1.2744
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 1.6844
+      },
+      {
+        "m": 6.931448,
+        "hit": false,
+        "kl": 5.1143
+      },
+      {
+        "m": 20.0,
+        "hit": false,
+        "kl": 8.7292
+      }
+    ],
+    "phase2_steps": [
+      {
+        "m": 11.77408,
+        "hit": false,
+        "kl": 7.2007
+      },
+      {
+        "m": 15.34541,
+        "hit": true,
+        "kl": 8.022
+      }
+    ],
+    "kl_transition": {
+      "m_lo": 6.931448,
+      "m_hi": 20.0,
+      "kl_drop": 3.6149
+    }
+  }
+}

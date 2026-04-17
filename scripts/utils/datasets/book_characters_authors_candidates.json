@@ -1,0 +1,129 @@
+{
+  "name": "book_characters_authors_candidates",
+  "description": "Candidate replacement entries for the book_characters_authors dataset. Each entry targets a specific problematic slot. See assess_book_candidates.py for evaluation.",
+  "seed_prompt_template": "The book featuring {character} was written by",
+  "expected_field": "author",
+  "slots": {
+    "J_cluster_hermione": "Replace hermione_granger (J.K. Rowling, J.-initial author, first-token collision cluster)",
+    "J_cluster_frodo": "Replace frodo_baggins (J.R.R. Tolkien, J.-initial author, first-token collision cluster)",
+    "J_cluster_holden": "Replace holden_caulfield (J.D. Salinger, J.-initial author, first-token collision cluster)",
+    "scout_finch_dup": "Replace scout_finch (duplicate Harper Lee author, same book as atticus_finch)",
+    "char_eq_book_dq": "Replace don_quixote (character == book == 'Don Quixote', field ambiguity)",
+    "char_eq_book_ot": "Replace oliver_twist (character == book == 'Oliver Twist', field ambiguity)",
+    "char_eq_book_ak": "Replace anna_karenina (character == book == 'Anna Karenina', field ambiguity)"
+  },
+  "entities": [
+    {
+      "slug": "jean_valjean",
+      "character": "Jean Valjean",
+      "book": "Les Miserables",
+      "author": "Victor Hugo",
+      "target_slot": "J_cluster_hermione",
+      "notes": "Famous French protagonist, distinct author first-token 'V'"
+    },
+    {
+      "slug": "dorian_gray",
+      "character": "Dorian Gray",
+      "book": "The Picture of Dorian Gray",
+      "author": "Oscar Wilde",
+      "target_slot": "J_cluster_frodo",
+      "notes": "Character name != book name; author first-token 'Os'"
+    },
+    {
+      "slug": "gregor_samsa",
+      "character": "Gregor Samsa",
+      "book": "The Metamorphosis",
+      "author": "Franz Kafka",
+      "target_slot": "J_cluster_holden",
+      "notes": "Author first-token 'Fr' (distinct from 'F' for F. Scott Fitzgerald)"
+    },
+    {
+      "slug": "edmond_dantes",
+      "character": "Edmond Dantes",
+      "book": "The Count of Monte Cristo",
+      "author": "Alexandre Dumas",
+      "target_slot": "J_cluster_any_or_char_eq_book",
+      "notes": "Flexible alt; author first-token 'Al'; character != book"
+    },
+    {
+      "slug": "hester_prynne",
+      "character": "Hester Prynne",
+      "book": "The Scarlet Letter",
+      "author": "Nathaniel Hawthorne",
+      "target_slot": "scout_finch_dup",
+      "notes": "Primary candidate for scout_finch replacement; author first-token 'Nat'"
+    },
+    {
+      "slug": "long_john_silver",
+      "character": "Long John Silver",
+      "book": "Treasure Island",
+      "author": "Robert Louis Stevenson",
+      "target_slot": "scout_finch_dup_alt",
+      "notes": "Alt for scout_finch replacement; author first-token 'Rob'"
+    },
+    {
+      "slug": "pip_pirrip",
+      "character": "Pip",
+      "book": "Great Expectations",
+      "author": "Charles Dickens",
+      "target_slot": "char_eq_book_ot",
+      "notes": "Primary Dickens candidate (replacing oliver_twist); character != book; first-token 'Ch'"
+    },
+    {
+      "slug": "ebenezer_scrooge",
+      "character": "Ebenezer Scrooge",
+      "book": "A Christmas Carol",
+      "author": "Charles Dickens",
+      "target_slot": "char_eq_book_ot_alt1",
+      "notes": "Alt Dickens candidate; character != book; first-token 'Ch'. Cannot coexist with pip_pirrip."
+    },
+    {
+      "slug": "sydney_carton",
+      "character": "Sydney Carton",
+      "book": "A Tale of Two Cities",
+      "author": "Charles Dickens",
+      "target_slot": "char_eq_book_ot_alt2",
+      "notes": "Alt Dickens candidate; character != book; first-token 'Ch'. Cannot coexist with pip_pirrip or ebenezer_scrooge."
+    },
+    {
+      "slug": "humbert_humbert",
+      "character": "Humbert Humbert",
+      "book": "Lolita",
+      "author": "Vladimir Nabokov",
+      "target_slot": "char_eq_book_ak_or_dq",
+      "notes": "Character != book; author first-token 'Vl'. Controversial but well-known to models."
+    },
+    {
+      "slug": "alex_burgess",
+      "character": "Alex",
+      "book": "A Clockwork Orange",
+      "author": "Anthony Burgess",
+      "target_slot": "char_eq_book_dq_alt",
+      "notes": "Character != book; author first-token 'Ant'. Short character name may reduce distinctiveness."
+    },
+    {
+      "slug": "emma_bovary",
+      "character": "Emma Bovary",
+      "book": "Madame Bovary",
+      "author": "Gustave Flaubert",
+      "target_slot": "char_eq_book_ak",
+      "notes": "Primary candidate for anna_karenina slot; character != book; author first-token 'Gust'"
+    },
+    {
+      "slug": "meursault",
+      "character": "Meursault",
+      "book": "The Stranger",
+      "author": "Albert Camus",
+      "target_slot": "char_eq_book_ak_alt",
+      "notes": "Alt for anna_karenina slot; character != book; author first-token 'Albert'"
+    },
+    {
+      "slug": "clarissa_dalloway",
+      "character": "Clarissa Dalloway",
+      "book": "Mrs Dalloway",
+      "author": "Virginia Woolf",
+      "target_slot": "char_eq_book_ak_alt2",
+      "notes": "Alt for anna_karenina slot; character != book; author first-token 'Virginia'"
+    }
+  ]
+}

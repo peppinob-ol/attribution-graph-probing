@@ -1,0 +1,82 @@
+{
+  "run_id": "highm_usa_m100",
+  "run_dir": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch/_swaps/runs/highm_usa_m100",
+  "display_demo": true,
+  "status": "completed",
+  "timestamp": "2026-04-03T08:22:13.187973",
+  "argv": [
+    "run_batch_swaps.py",
+    "--config",
+    "configs/highm_usa_m100.yml",
+    "--run-id",
+    "highm_usa_m100",
+    "--pair",
+    "iowa_cedar_rapids:new_mexico_albuquerque",
+    "--force"
+  ],
+  "git": {
+    "commit": "8e85f733bb45ed07b7a7eee3e8f6558d6c0f432e",
+    "branch": "control-refactor",
+    "dirty": true
+  },
+  "platform": {
+    "python": "3.10.12",
+    "os": "posix",
+    "platform": "linux"
+  },
+  "config": {
+    "experiment_name": "highm_usa_m100",
+    "swap": {
+      "mode": "matrix",
+      "include_identity": true,
+      "concept_fields": [
+        "state",
+        "capital",
+        "city"
+      ],
+      "answer_field": "capital"
+    },
+    "ct_steering": {
+      "model_id": "google/gemma-2-2b",
+      "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",
+      "M_ablate": -2,
+      "M_amplify": 100,
+      "temperature": 0.3,
+      "n_tokens": 10,
+      "freq_penalty": 2.0,
+      "seed": 42,
+      "top_k": 5,
+      "freeze_attention": false,
+      "track_trajectory": true
+    },
+    "compute": {
+      "inherit_from_source": false,
+      "remote": {
+        "enabled": false
+      }
+    },
+    "inputs": {
+      "source_config": "configs/usa_states_full.yml",
+      "graphs_root": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch"
+    }
+  },
+  "hashes": {
+    "combined_config_sha1": "2eeb4f3a047de1a4012b2821f88f37defe629b50",
+    "files": {
+      "swap_config": "8224b9b3efeec122063f1eff3e1e6548a6fe9684",
+      "source_config": "251f955cd944dda24e0a954d26316acfd4f9bdfa"
+    }
+  },
+  "timestamp_started": "2026-04-03T08:21:45.012355",
+  "timestamp_completed": "2026-04-03T08:22:13.187768",
+  "counts": {
+    "total_pairs": 1,
+    "processed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "outputs": {
+    "summary_path": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch/_swaps/runs/highm_usa_m100/_summary.json",
+    "matrix_path": "/home/giuseppe/attribution-graph-probing/output/usa_states_batch/_swaps/runs/highm_usa_m100/_matrix.csv"
+  }
+}

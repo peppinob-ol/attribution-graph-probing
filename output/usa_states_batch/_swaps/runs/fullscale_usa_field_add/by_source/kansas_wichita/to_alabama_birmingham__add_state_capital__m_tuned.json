@@ -1,0 +1,184 @@
+{
+  "swap_id": "kansas_wichita__to__alabama_birmingham",
+  "source": {
+    "slug": "kansas_wichita",
+    "city": "Wichita",
+    "state": "Kansas",
+    "capital": "Topeka",
+    "prompt": "<bos>The capital of the state containing Wichita is",
+    "concept": "kansas"
+  },
+  "target": {
+    "slug": "alabama_birmingham",
+    "city": "Birmingham",
+    "state": "Alabama",
+    "capital": "Montgomery",
+    "concept": "alabama"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 99,
+    "total_count": 99
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Wichita",
+      "state": "Kansas",
+      "capital": "Topeka",
+      "prompt": "<bos>The capital of the state containing Wichita is",
+      "concept": "kansas"
+    },
+    "ground_truth_to": {
+      "city": "Birmingham",
+      "state": "Alabama",
+      "capital": "Montgomery",
+      "concept": "alabama"
+    },
+    "answer_field": "capital",
+    "from_answer": "Topeka",
+    "to_answer": "Montgomery",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": true,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Topeka",
+      "default_prob": 0.1455078125,
+      "steered": " Montgomery",
+      "steered_prob": 0.32421875
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": 0.32421875,
+      "from_answer_in_default_topk": 0.1455078125,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": 0.32421875,
+      "from_capital_in_default_topk": 0.1455078125,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Wichita is Topeka.\n\nThe capital of the state containing Kansas",
+      "steered_output": "<bos><bos>The capital of the state containing Wichita is Montgomery, Alabama, is a city that has been around",
+      "default_topk": [
+        {
+          "token": " Topeka",
+          "prob": 0.1455078125
+        },
+        {
+          "token": " Wichita",
+          "prob": 0.11328125
+        },
+        {
+          "token": " Kansas",
+          "prob": 0.10009765625
+        },
+        {
+          "token": " the",
+          "prob": 0.10009765625
+        },
+        {
+          "token": ":",
+          "prob": 0.07763671875
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Montgomery",
+          "prob": 0.32421875
+        },
+        {
+          "token": " Birmingham",
+          "prob": 0.10546875
+        },
+        {
+          "token": " Trust",
+          "prob": 0.06396484375
+        },
+        {
+          "token": "’",
+          "prob": 0.056396484375
+        },
+        {
+          "token": " Mobile",
+          "prob": 0.026611328125
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 3.4729,
+      "steered_entropy": 3.8462,
+      "entropy_delta": 0.3733,
+      "kl_baseline_to_steered": 9.9426
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 11.774080006522805,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-04-12T03:20:35.841202",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 11.77408,
+    "phase": 2,
+    "total_steps": 7,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 2.6402
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 2.556
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 2.4669
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 3.5319
+      },
+      {
+        "m": 6.931448,
+        "hit": false,
+        "kl": 7.2625
+      },
+      {
+        "m": 20.0,
+        "hit": false,
+        "kl": 12.5249
+      }
+    ],
+    "phase2_steps": [
+      {
+        "m": 11.77408,
+        "hit": true,
+        "kl": 9.9426
+      }
+    ],
+    "kl_transition": {
+      "m_lo": 6.931448,
+      "m_hi": 20.0,
+      "kl_drop": 5.2624
+    }
+  }
+}

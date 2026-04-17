@@ -168,6 +168,16 @@ def extract_trajectory_metrics(result: Dict[str, Any]) -> Optional[Dict[str, Any
             'baseline_source_prob': baseline_source.get('prob') if baseline_source else None,
         })
 
+    # Position-0 distribution metrics (entropy + KL)
+    dist_metrics = eval_data.get('position_0_distribution_metrics')
+    if dist_metrics:
+        metrics.update({
+            'baseline_entropy_0': dist_metrics.get('baseline_entropy'),
+            'steered_entropy_0': dist_metrics.get('steered_entropy'),
+            'entropy_delta_0': dist_metrics.get('entropy_delta'),
+            'kl_baseline_to_steered_0': dist_metrics.get('kl_baseline_to_steered'),
+        })
+
     # Contrast-group specificity (same-dataset alternative answers)
     cg = trajectory.get('contrast_groups', {}).get('same_dataset')
     if cg:
@@ -276,6 +286,20 @@ def compute_trajectory_summary(results: List[Dict[str, Any]]) -> Dict[str, Any]:
             'high_specificity_rate': sum(1 for s in stability_mean if s and s < 1.0) / total,
         },
     }
+
+    # Distribution metrics (entropy + KL at position 0)
+    baseline_entropy_vals = [m.get('baseline_entropy_0') for m in metrics_list]
+    steered_entropy_vals = [m.get('steered_entropy_0') for m in metrics_list]
+    entropy_delta_vals = [m.get('entropy_delta_0') for m in metrics_list]
+    kl_vals = [m.get('kl_baseline_to_steered_0') for m in metrics_list]
+
+    if any(v is not None for v in kl_vals):
+        summary['distribution_metrics'] = {
+            'baseline_entropy': safe_stats(baseline_entropy_vals),
+            'steered_entropy': safe_stats(steered_entropy_vals),
+            'entropy_delta': safe_stats(entropy_delta_vals),
+            'kl_baseline_to_steered': safe_stats(kl_vals),
+        }
 
     # Contrast-group specificity (present only for runs with contrast_tokens)
     has_contrast = [m for m in metrics_list if m.get('contrast_n_members') is not None]
@@ -627,6 +651,16 @@ def main():
     print(f"\nControl Stability (stopword-based, legacy):")
     print(f"  Mean stability: {_fmt(ctrl.get('mean', {}).get('mean'))}")
     print(f"  High specificity rate: {_fmt(ctrl.get('high_specificity_rate', 0), '.1%')}")
+
+    dm = summary.get('distribution_metrics')
+    if dm:
+        print(f"\nDistribution Metrics (position 0):")
+        print(f"  Baseline entropy:  mean={_fmt(dm.get('baseline_entropy', {}).get('mean'))}")
+        print(f"  Steered entropy:   mean={_fmt(dm.get('steered_entropy', {}).get('mean'))}")
+        print(f"  Entropy delta:     mean={_fmt(dm.get('entropy_delta', {}).get('mean'))}")
+        kl_stats = dm.get('kl_baseline_to_steered', {})
+        print(f"  KL(base||steered): mean={_fmt(kl_stats.get('mean'))}, "
+              f"median={_fmt(kl_stats.get('median'))}")
 
     cs = summary.get('contrast_specificity')
     if cs:

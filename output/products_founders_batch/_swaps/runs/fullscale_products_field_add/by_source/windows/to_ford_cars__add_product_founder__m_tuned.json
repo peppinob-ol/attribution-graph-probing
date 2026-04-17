@@ -1,0 +1,184 @@
+{
+  "swap_id": "windows__to__ford_cars",
+  "source": {
+    "slug": "windows",
+    "product": "Windows",
+    "company": "Microsoft",
+    "founder": "Bill Gates",
+    "prompt": "<bos>The company that makes Windows was founded by",
+    "concept": ""
+  },
+  "target": {
+    "slug": "ford_cars",
+    "product": "Ford cars",
+    "company": "Ford Motor Company",
+    "founder": "Henry Ford",
+    "concept": ""
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 195,
+    "total_count": 195
+  },
+  "evaluation": {
+    "ground_truth": {
+      "product": "Windows",
+      "company": "Microsoft",
+      "founder": "Bill Gates",
+      "prompt": "<bos>The company that makes Windows was founded by",
+      "concept": "windows"
+    },
+    "ground_truth_to": {
+      "product": "Ford cars",
+      "company": "Ford Motor Company",
+      "founder": "Henry Ford",
+      "concept": "ford cars"
+    },
+    "answer_field": "founder",
+    "from_answer": "Bill Gates",
+    "to_answer": "Henry Ford",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Bill",
+      "default_prob": 0.5234375,
+      "steered": ",",
+      "steered_prob": 0.142578125
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": null,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The company that makes Windows was founded by Bill Gates and Paul Allen in 197",
+      "steered_output": "<bos><bos>The company that makes Windows was founded by Henry Ford.\n\nThe first computer was invented by Charles",
+      "default_topk": [
+        {
+          "token": " Bill",
+          "prob": 0.5234375
+        },
+        {
+          "token": " a",
+          "prob": 0.10302734375
+        },
+        {
+          "token": " Microsoft",
+          "prob": 0.048583984375
+        },
+        {
+          "token": " the",
+          "prob": 0.037841796875
+        },
+        {
+          "token": " two",
+          "prob": 0.033447265625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": ",",
+          "prob": 0.142578125
+        },
+        {
+          "token": " Henry",
+          "prob": 0.09814453125
+        },
+        {
+          "token": " the",
+          "prob": 0.07666015625
+        },
+        {
+          "token": " and",
+          "prob": 0.04638671875
+        },
+        {
+          "token": " a",
+          "prob": 0.041015625
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 2.3476,
+      "steered_entropy": 4.8029,
+      "entropy_delta": 2.4553,
+      "kl_baseline_to_steered": 5.7347
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 1.414213425087246,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-04-12T01:20:29.766450",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 1.414213,
+    "phase": 2,
+    "total_steps": 7,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 4.225
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 3.8769
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 4.2672
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 9.7172
+      },
+      {
+        "m": 6.931448,
+        "hit": false,
+        "kl": 13.4655
+      },
+      {
+        "m": 20.0,
+        "hit": false,
+        "kl": 13.4362
+      }
+    ],
+    "phase2_steps": [
+      {
+        "m": 1.414213,
+        "hit": true,
+        "kl": 5.7347
+      }
+    ],
+    "kl_transition": {
+      "m_lo": 0.832553,
+      "m_hi": 2.402249,
+      "kl_drop": 5.45
+    }
+  }
+}

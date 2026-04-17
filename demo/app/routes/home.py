@@ -125,36 +125,21 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                         
                         # Sidebar (1 col)
                         Aside(cls="space-y-6")(
-                            # Legend with toggle
+                            # Legend with overlay selector
                             Div(cls="bg-slate-900/50 rounded-xl border border-slate-800 px-3 py-4")(
-                                # Toggle switch
                                 Div(cls="flex items-center justify-between gap-3 mb-2")(
                                     H3(
                                         id="legend-title",
                                         cls="text-sm font-semibold text-slate-400"
                                     )("TIER LEGEND"),
-                                    Div(cls="flex items-center gap-3")(
-                                        Span(
-                                            id="color-mode-label-tier",
-                                            cls="text-[10px] font-medium text-cyan-400",
-                                        )("Tier"),
-                                        Button(
-                                            id="color-mode-toggle",
-                                            cls="relative ml-1 mr-2 inline-flex h-5 w-9 flex-shrink-0 cursor-pointer items-center rounded-full border transition-colors focus:outline-none",
-                                            style="background-color: #1e293b; border-color: #475569; box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.35);",
-                                            role="switch",
-                                            **{"aria-checked": "false"},
-                                        )(
-                                            Span(
-                                                id="color-mode-knob",
-                                                cls="pointer-events-none inline-block h-4 w-4 rounded-full shadow-lg transition-transform",
-                                                style="background-color: #22d3ee; transform: translateX(1px);",
-                                            ),
-                                        ),
-                                        Span(
-                                            id="color-mode-label-flip",
-                                            cls="text-[10px] font-medium text-slate-500",
-                                        )("Flip"),
+                                    Select(
+                                        id="color-mode-select",
+                                        cls="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300 hover:border-slate-500 focus:border-cyan-500 focus:outline-none cursor-pointer",
+                                    )(
+                                        Option(value="tier", selected=True)("Tier"),
+                                        Option(value="flip")("Flip"),
+                                        Option(value="regime")("Regime"),
+                                        Option(value="vsmax")("VsMax"),
                                     ),
                                 ),
                                 # Tier legend (shown by default)
@@ -175,6 +160,24 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                                     _legend_item("@4+", "Late flip", "#fb923c"),
                                     _legend_item("Never", "No flip", "#7f1d1d"),
                                     _legend_item("--", "No trajectory data", "#1e293b"),
+                                ),
+                                # Regime legend (hidden by default)
+                                Div(id="regime-legend", cls="space-y-2", style="display: none;")(
+                                    _legend_item("A", "Clean Redirection", "#22d3ee"),
+                                    _legend_item("B", "Both Boosted", "#818cf8"),
+                                    _legend_item("C", "Diff. Disruption", "#facc15"),
+                                    _legend_item("D", "Generic Disruption", "#f87171"),
+                                    _legend_item("E", "Pure Suppression", "#fb923c"),
+                                    _legend_item("--", "Unclassified", "#1e293b"),
+                                ),
+                                # VsMax legend (hidden by default)
+                                Div(id="vsmax-legend", cls="space-y-2", style="display: none;")(
+                                    _legend_item(">+2", "Strong positive", "#10b981"),
+                                    _legend_item("+0..+2", "Weak positive", "#34d399"),
+                                    _legend_item("0", "Neutral", "#a3e635"),
+                                    _legend_item("-2..0", "Weak negative", "#fb923c"),
+                                    _legend_item("<-2", "Strong negative", "#ef4444"),
+                                    _legend_item("--", "No data", "#1e293b"),
                                 ),
                             ),
                             
@@ -231,41 +234,34 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                         });
                     })();
                 """),
-                # Color mode toggle script
+                # Color mode selector script
                 Script("""
                     (function() {
-                        var toggle = document.getElementById('color-mode-toggle');
-                        var knob   = document.getElementById('color-mode-knob');
-                        var lblT   = document.getElementById('color-mode-label-tier');
-                        var lblF   = document.getElementById('color-mode-label-flip');
-                        var title  = document.getElementById('legend-title');
-                        var tierLeg = document.getElementById('tier-legend');
-                        var flipLeg = document.getElementById('flip-legend');
-                        var mode = 'tier';
-
-                        if (!toggle) return;
-
-                        function apply() {
-                            var isFlip = mode === 'flip';
-                            toggle.style.backgroundColor = isFlip ? '#064e3b' : '#1e293b';
-                            toggle.style.borderColor = isFlip ? '#10b981' : '#475569';
-                            toggle.setAttribute('aria-checked', String(isFlip));
-                            knob.style.transform = isFlip ? 'translateX(18px)' : 'translateX(1px)';
-                            knob.style.backgroundColor = isFlip ? '#34d399' : '#22d3ee';
-                            lblT.style.color = isFlip ? '#64748b' : '#22d3ee';
-                            lblF.style.color = isFlip ? '#10b981' : '#64748b';
-                            title.textContent = isFlip ? 'FLIP POSITION' : 'TIER LEGEND';
-                            tierLeg.style.display = isFlip ? 'none' : '';
-                            flipLeg.style.display = isFlip ? '' : 'none';
+                        var sel = document.getElementById('color-mode-select');
+                        var title = document.getElementById('legend-title');
+                        var legends = {
+                            tier:   document.getElementById('tier-legend'),
+                            flip:   document.getElementById('flip-legend'),
+                            regime: document.getElementById('regime-legend'),
+                            vsmax:  document.getElementById('vsmax-legend')
+                        };
+                        var titles = {
+                            tier:   'TIER LEGEND',
+                            flip:   'FLIP POSITION',
+                            regime: 'REGIME',
+                            vsmax:  'VsMax'
+                        };
+                        if (!sel) return;
+                        function apply(mode) {
+                            title.textContent = titles[mode] || mode.toUpperCase();
+                            for (var k in legends) {
+                                if (legends[k]) legends[k].style.display = k === mode ? '' : 'none';
+                            }
                             document.dispatchEvent(new CustomEvent('color-mode-changed', {
                                 detail: { mode: mode }, bubbles: true
                             }));
                         }
-
-                        toggle.onclick = function() {
-                            mode = mode === 'tier' ? 'flip' : 'tier';
-                            apply();
-                        };
+                        sel.addEventListener('change', function() { apply(sel.value); });
                     })();
                 """),
                 # About modal script (open/close only -- all data is static)

@@ -159,6 +159,8 @@ def evaluate_swap(
         evaluation['baseline_logits'] = result['baseline_logits']
     if 'position_0_comparison' in result:
         evaluation['position_0_comparison'] = result['position_0_comparison']
+    if 'position_0_distribution_metrics' in result:
+        evaluation['position_0_distribution_metrics'] = result['position_0_distribution_metrics']
 
     return evaluation
 

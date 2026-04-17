@@ -1,0 +1,169 @@
+{
+  "swap_id": "model_s__to__twitter",
+  "source": {
+    "slug": "model_s",
+    "product": "the Model S",
+    "company": "Tesla",
+    "founder": "Elon Musk",
+    "prompt": "<bos>The company that makes the Model S was founded by",
+    "concept": ""
+  },
+  "target": {
+    "slug": "twitter",
+    "product": "Twitter",
+    "company": "Twitter",
+    "founder": "Jack Dorsey",
+    "concept": ""
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 153,
+    "total_count": 153
+  },
+  "evaluation": {
+    "ground_truth": {
+      "product": "the Model S",
+      "company": "Tesla",
+      "founder": "Elon Musk",
+      "prompt": "<bos>The company that makes the Model S was founded by",
+      "concept": "the model s"
+    },
+    "ground_truth_to": {
+      "product": "Twitter",
+      "company": "Twitter",
+      "founder": "Jack Dorsey",
+      "concept": "twitter"
+    },
+    "answer_field": "founder",
+    "from_answer": "Elon Musk",
+    "to_answer": "Jack Dorsey",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Elon",
+      "default_prob": 0.373046875,
+      "steered": ",",
+      "steered_prob": 0.1923828125
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": null,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The company that makes the Model S was founded by Elon Musk, who is also the CEO of Tesla",
+      "steered_output": "<bos><bos>The company that makes the Model S was founded by Biz Stone, Evan Williams and Jack Dorsey.\n\nThe",
+      "default_topk": [
+        {
+          "token": " Elon",
+          "prob": 0.373046875
+        },
+        {
+          "token": " a",
+          "prob": 0.1376953125
+        },
+        {
+          "token": " Martin",
+          "prob": 0.0732421875
+        },
+        {
+          "token": " the",
+          "prob": 0.05712890625
+        },
+        {
+          "token": " two",
+          "prob": 0.039306640625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": ",",
+          "prob": 0.1923828125
+        },
+        {
+          "token": " and",
+          "prob": 0.10302734375
+        },
+        {
+          "token": "'",
+          "prob": 0.080078125
+        },
+        {
+          "token": " Biz",
+          "prob": 0.080078125
+        },
+        {
+          "token": ".",
+          "prob": 0.048583984375
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 2.8036,
+      "steered_entropy": 4.304,
+      "entropy_delta": 1.5004,
+      "kl_baseline_to_steered": 11.2057
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 6.931448431551464,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-04-06T19:58:39.683208",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 6.931448,
+    "phase": 1,
+    "total_steps": 5,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 7.9003
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 7.8407
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 8.2669
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 10.7716
+      },
+      {
+        "m": 6.931448,
+        "hit": true,
+        "kl": 11.2057
+      }
+    ],
+    "phase2_steps": [],
+    "kl_transition": null
+  }
+}

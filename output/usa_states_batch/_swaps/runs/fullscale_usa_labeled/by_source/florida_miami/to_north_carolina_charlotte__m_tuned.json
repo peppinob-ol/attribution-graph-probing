@@ -1,0 +1,189 @@
+{
+  "swap_id": "florida_miami__to__north_carolina_charlotte",
+  "source": {
+    "slug": "florida_miami",
+    "city": "Miami",
+    "state": "Florida",
+    "capital": "Tallahassee",
+    "prompt": "<bos>The capital of the state containing Miami is",
+    "concept": "florida"
+  },
+  "target": {
+    "slug": "north_carolina_charlotte",
+    "city": "Charlotte",
+    "state": "North Carolina",
+    "capital": "Raleigh",
+    "concept": "north carolina"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 152,
+    "total_count": 152
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Miami",
+      "state": "Florida",
+      "capital": "Tallahassee",
+      "prompt": "<bos>The capital of the state containing Miami is",
+      "concept": "florida"
+    },
+    "ground_truth_to": {
+      "city": "Charlotte",
+      "state": "North Carolina",
+      "capital": "Raleigh",
+      "concept": "north carolina"
+    },
+    "answer_field": "capital",
+    "from_answer": "Tallahassee",
+    "to_answer": "Raleigh",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Tallahassee",
+      "default_prob": 0.318359375,
+      "steered": ",",
+      "steered_prob": 0.5625
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": 0.318359375,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.318359375,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Miami is Tallahassee.\n\nThe capital of the state containing Miami",
+      "steered_output": "<bos><bos>The capital of the state containing Miami is, North Carolina, is Raleigh.\n\nThe capital of",
+      "default_topk": [
+        {
+          "token": " Tallahassee",
+          "prob": 0.318359375
+        },
+        {
+          "token": " Miami",
+          "prob": 0.09130859375
+        },
+        {
+          "token": " the",
+          "prob": 0.0625
+        },
+        {
+          "token": " ",
+          "prob": 0.05517578125
+        },
+        {
+          "token": " Jacksonville",
+          "prob": 0.033447265625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": ",",
+          "prob": 0.5625
+        },
+        {
+          "token": " is",
+          "prob": 0.162109375
+        },
+        {
+          "token": "-",
+          "prob": 0.076171875
+        },
+        {
+          "token": " has",
+          "prob": 0.0247802734375
+        },
+        {
+          "token": " and",
+          "prob": 0.0218505859375
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 3.4531,
+      "steered_entropy": 1.9781,
+      "entropy_delta": -1.475,
+      "kl_baseline_to_steered": 8.4175
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 1.8431746488606042,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-04-06T21:56:55.404555",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 1.843175,
+    "phase": 2,
+    "total_steps": 8,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 3.0143
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 2.519
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 2.3586
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 8.9059
+      },
+      {
+        "m": 6.931448,
+        "hit": false,
+        "kl": 11.8526
+      },
+      {
+        "m": 20.0,
+        "hit": false,
+        "kl": 17.3843
+      }
+    ],
+    "phase2_steps": [
+      {
+        "m": 1.414213,
+        "hit": false,
+        "kl": 5.8582
+      },
+      {
+        "m": 1.843175,
+        "hit": true,
+        "kl": 8.4175
+      }
+    ],
+    "kl_transition": {
+      "m_lo": 0.832553,
+      "m_hi": 2.402249,
+      "kl_drop": 6.5473
+    }
+  }
+}

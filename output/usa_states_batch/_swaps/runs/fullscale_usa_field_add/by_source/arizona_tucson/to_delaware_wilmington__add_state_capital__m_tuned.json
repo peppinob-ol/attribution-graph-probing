@@ -1,0 +1,169 @@
+{
+  "swap_id": "arizona_tucson__to__delaware_wilmington",
+  "source": {
+    "slug": "arizona_tucson",
+    "city": "Tucson",
+    "state": "Arizona",
+    "capital": "Phoenix",
+    "prompt": "<bos>The capital of the state containing Tucson is",
+    "concept": "arizona"
+  },
+  "target": {
+    "slug": "delaware_wilmington",
+    "city": "Wilmington",
+    "state": "Delaware",
+    "capital": "Dover",
+    "concept": "delaware"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 94,
+    "total_count": 94
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Tucson",
+      "state": "Arizona",
+      "capital": "Phoenix",
+      "prompt": "<bos>The capital of the state containing Tucson is",
+      "concept": "arizona"
+    },
+    "ground_truth_to": {
+      "city": "Wilmington",
+      "state": "Delaware",
+      "capital": "Dover",
+      "concept": "delaware"
+    },
+    "answer_field": "capital",
+    "from_answer": "Phoenix",
+    "to_answer": "Dover",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": true,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Phoenix",
+      "default_prob": 0.310546875,
+      "steered": " Dover",
+      "steered_prob": 0.328125
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": 0.328125,
+      "from_answer_in_default_topk": 0.310546875,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": 0.328125,
+      "from_capital_in_default_topk": 0.310546875,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Tucson is Phoenix.\n\nThe capital of Arizona is Phoenix.",
+      "steered_output": "<bos><bos>The capital of the state containing Tucson is Dover is the largest city in Delaware. It is located",
+      "default_topk": [
+        {
+          "token": " Phoenix",
+          "prob": 0.310546875
+        },
+        {
+          "token": " Tucson",
+          "prob": 0.11376953125
+        },
+        {
+          "token": " the",
+          "prob": 0.1005859375
+        },
+        {
+          "token": " ",
+          "prob": 0.078125
+        },
+        {
+          "token": "\n\n",
+          "prob": 0.0537109375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Dover",
+          "prob": 0.328125
+        },
+        {
+          "token": " Wilmington",
+          "prob": 0.1552734375
+        },
+        {
+          "token": "’",
+          "prob": 0.12109375
+        },
+        {
+          "token": "'",
+          "prob": 0.05712890625
+        },
+        {
+          "token": " Valley",
+          "prob": 0.05712890625
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 3.0034,
+      "steered_entropy": 2.8064,
+      "entropy_delta": -0.197,
+      "kl_baseline_to_steered": 7.7122
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 6.931448431551464,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-04-12T03:01:38.844481",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 6.931448,
+    "phase": 1,
+    "total_steps": 5,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 3.491
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 3.0919
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 2.8061
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 4.527
+      },
+      {
+        "m": 6.931448,
+        "hit": true,
+        "kl": 7.7122
+      }
+    ],
+    "phase2_steps": [],
+    "kl_transition": null
+  }
+}
