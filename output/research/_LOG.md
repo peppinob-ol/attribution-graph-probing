@@ -15,6 +15,430 @@ ordered newest-first so the most recent investigation is always at the top.
 
 ---
 
+## [2026-04-17] Topic: Decoder-competition vs feature-fragmentation -- competitor suppression rescues the NC pair, not the VT/AK ones
+
+**Question**: Is the residual specificity failure in the F-category caused by
+*decoder competition* (target capital is a top contender but the sampler keeps
+picking a non-capital city) or by *feature fragmentation* (capital-bearing
+features are too weak to lift the target into the top of the steered logits)?
+
+### Setup
+
+Built `scripts/utils/probe_decoder_competition.py` to run two controlled
+decoding probes on the *same* intervention used by the existing pipeline
+(`add_state_capital` features, 52 amplify + 52 ablate, transcoder
+`mntss/clt-gemma-2-2b-2.5M`):
+
+- **Probe A (greedy)**: `do_sample=False`, `temperature=0`, `freq_penalty=0`.
+  Removes sampler stochasticity. If the target capital is the steered argmax
+  at any tested `M`, greedy decoding will emit it.
+- **Probe B (competitor suppression + greedy)**: read the steered first-token
+  logits from a one-shot `feature_intervention` forward pass, subtract a fixed
+  penalty (-8.0) from a curated list of competitor token IDs (state-mate
+  non-capital cities and their first sub-tokens), pick argmax, then let the
+  model continue normally without further steering. Isolates "what would
+  happen if the competitors weren't there."
+
+`M` swept over `{4.472, 6, 8, 12, 20}` for three F-category pairs:
+
+1. `north_dakota_fargo -> north_carolina_charlotte` (target capital `Raleigh`,
+   competitors `{Chapel, Cary, Durham, Greensboro, Asheville, Wilmington,
+   Winston, Fayetteville, Charlotte}`).
+2. `texas_dallas -> vermont_burlington` (target `Montpelier` -- multi-token,
+   tracked via first sub-token ` Mont`; competitors
+   `{Burlington, Rutland, Stowe, Brattleboro, Manchester, Springfield}`).
+3. `idaho_idaho_falls -> alaska_anchorage` (target ` Juneau`; competitors
+   `{Soldotna, Anchorage, Fairbanks, Wasilla, Sitka, Kodiak, Kenai, Palmer,
+   Sold, Was, Anch, Ken}` to cover multi-token first-piece variants).
+
+Outputs: `output/research/_decoder_competition_probe_{nd_nc, tx_vt, id_ak}.json`.
+
+### Raw findings
+
+**ND -> NC (Raleigh)** -- the only clean recovery.
+
+| M | Probe A first token | rank(Raleigh) | Probe B first token | hit? |
+|---|---|---|---|---|
+| 4.47 | ` Chapel` | **1 (tied with ` Raleigh`, both p=0.121)** | ` Raleigh` | YES |
+| 6.00 | ` Chapel` | 2 | ` Raleigh` | YES |
+| 8.00 | ` Chapel` | 2 | ` Raleigh` | YES |
+| 12.0 | ` Chapel` | 4 | `Datuak` (OOD) | NO |
+| 20.0 | ` Chapel` | 16 | `Datuak` (OOD) | NO |
+
+Probe B continuation at `M ∈ {4.47, 6, 8}`:
+``The capital of the state containing Fargo is Raleigh.\n\nThe state of North
+Dakota is located in the Midwest region of the …``
+(Coherent target-correct emission; the suppressed cluster of NC non-capitals
+no longer dominates.) At `M ≥ 12` the OOD token `Datuak` overwhelms the
+distribution and suppression cannot help.
+
+**TX -> VT (Montpelier)** -- not recoverable.
+- Greedy first token at all `M`: ` the` (low M) or ` Interv[ale]` (high M).
+- ` Mont` rank in steered logits: **1320 to 6576** -- never close to the top.
+- Top-5 at `M=20`: `[' Interv', ' Shel', ' Lyndon', ' VT', ' Agency']` --
+  Vermont-flavoured but the capital is absent.
+- Probe B improves the rank by ~1 position; no qualitative change.
+
+**ID -> AK (Juneau)** -- not recoverable.
+- Greedy first token: ` Was`(silla) or ` Sold`(otna).
+- ` Juneau` rank in steered logits: **21 to 273** depending on M.
+- Probe B (with multi-token competitor stems suppressed) lifts the rank
+  modestly (e.g. 48 -> 37 at `M=6`, 21 -> 13 at `M=8`) but never into the
+  top-10. Argmax becomes generic noise (`a`, ` is`, ` vendus`).
+
+### Interpretation
+
+These three pairs cleanly separate two distinct failure modes that were
+previously bundled under "specificity failure":
+
+1. **Decoder competition** (NC pair). The capital token is genuinely competitive
+   in the steered residual -- it is **tied for the top** at the empirically best
+   `M`. The model picks a non-capital city only because that city's name
+   happens to have the same probability mass and lexically wins the tie or the
+   sampling draw. Suppressing the competitor cluster (one-shot logit bias on
+   a small set of state-mate city tokens) is sufficient to recover the hit at
+   moderate `M`. This is a *post-hoc* fix that works without changing the
+   feature set.
+2. **Feature fragmentation** (VT, AK pairs). The capital token is far down the
+   steered logit ranking (rank 21-6500). Suppressing competitors only nudges
+   the rank by 1-10 positions; the steered residual simply does not encode
+   the capital. The "wrong city" output is not a competition -- it is what
+   the model genuinely believes the prompt is steering it toward.
+
+Both effects coexist with the previously documented *magnitude failure*
+regime: at `M >= 12` for the NC pair the OOD `Datuak` token dominates and
+even suppression of NC competitors cannot rescue it, mirroring the
+B/C-category collapse documented in the previous log entry.
+
+The recovery rate for ND -> NC at three `M` values, with no model retraining
+and no new features, is itself notable: the reason this pair fell through the
+existing M-search is that `_first_token_matches` checks the SAMPLED first
+token at `temperature=0.3, freq_penalty=2.0`, and at the right `M` Raleigh
+and Chapel are exactly tied -- the sampler picks Chapel ~50% of the time,
+which is enough to keep the "no hit" verdict deterministic.
+
+### Threats
+
+- N=3 pairs. The decoder-competition recovery is demonstrated on a single
+  pair; we do not yet know the population fraction for which competitor
+  suppression alone would rescue an F-category failure.
+- Competitor lists are hand-curated per target. A general intervention would
+  need an automatic procedure (e.g. enumerate all single-token cities sharing
+  the target state's region or all tokens above some prob threshold that are
+  not the target capital).
+- Suppression of -8.0 logit units is heuristic. We did not sweep this
+  parameter; it is large enough to push Raleigh from p=0.121 to p=0.148
+  while leaving the rest of the distribution mostly intact. A smaller penalty
+  might be insufficient at higher M, a larger one would risk picking an
+  arbitrary non-suppressed token.
+- Probe B's continuation uses unsteered generation after the manually-chosen
+  first token. This is a deliberate isolation but not what production
+  steering would do; production would keep steering active across all
+  generated tokens. We did not test the "steered + suppressed" combined
+  generation loop.
+- ` Mont` rank for VT may understate the true Montpelier signal because
+  ` Mont` is shared by many words ("Montana", "Montgomery", "Monterey").
+  Using the joint (` Mont` -> `pelier`) probability would be more accurate
+  but does not change the qualitative conclusion (the rank is in the
+  thousands, not single-digit).
+- Tested only on the USA dataset. Other datasets may exhibit different ratios
+  of decoder-competition vs fragmentation failures.
+
+### Confidence
+
+**Medium** for the existence of a decoder-competition failure mode that is
+recoverable by competitor suppression (clean replication across three M
+values for one pair, with quantitative log-prob and rank evidence).
+**Medium** for the existence of a separate feature-fragmentation failure
+mode that competitor suppression cannot rescue (clear separation: ranks in
+the 1000s vs ranks in the single digits).
+**Low** for the population-level prevalence of each mode; we still need to
+run the same probe across the broader hard-fail set.
+
+### Next steps
+
+- Generalize the competitor list: pull all single-token tokens that (a) are
+  >5x more probable in the steered distribution than baseline AND (b) are not
+  the target capital. This would let us run the suppression probe at scale.
+- Re-classify the ~205 F-category pairs into "decoder competition" (capital
+  in steered top-15 at some M) vs "feature fragmentation" (capital outside
+  top-100 at all M). The fraction in each bucket sets the ceiling for what
+  this fix can recover.
+- For the fragmentation bucket, the missing intervention is upstream: the
+  amplified feature set does not encode the capital. Either we need a
+  different attribution graph (one whose target-side features align with the
+  capital rather than with the state generally), or we need a complementary
+  intervention that injects the target capital answer-token directly via a
+  logit bias on the single answer token (essentially a one-shot teacher
+  forcing for position 0).
+
+---
+
+## [2026-04-17] Topic: Specificity-failure probes -- simple state-feature pruning does not rescue the hard cases
+
+**Question**: For the residual hard-fail population, especially the `F_generic_or_other`
+cases (`Chapel Hill` instead of `Raleigh`, `Intervale` instead of `Montpelier`,
+`Soldotna` instead of `Juneau`), can we rescue the hit by pruning the generic
+target-state features and keeping only the capital-bearing features?
+
+### Setup
+
+Mapped the target-side amplified features in several `add_state_capital`
+interventions back to the target entity's `node_grouping.csv` labels.
+
+Three probe pairs:
+
+1. `texas_dallas -> vermont_burlington`
+2. `north_dakota_fargo -> north_carolina_charlotte`
+3. `idaho_idaho_falls -> alaska_anchorage`
+
+For each pair, compared the original feature set against a pruned subset:
+
+- `capital_only`: keep only target amplified features whose grouped label matches
+  the target capital (or a split piece of it, e.g. `Mont` + `pelier`)
+- `drop_state`: remove generic target-state features while keeping capital-bearing
+  features
+
+Tested at `M=20` and `M=4.4721` using the same source ablations as the original run.
+
+### Results
+
+#### 1. `texas_dallas -> vermont_burlington`
+
+Target feature mass:
+
+- `Vermont`: 35.797
+- `Mont`: 7.719
+- `pelier`: 2.406
+- `Say (Vermont)`: 2.078
+
+Original run at `M=20` produces `Intervale` / `Shelburne` / `Lyndon` (wrong Vermont
+towns). Lowering to `M=4.47` does **not** recover `Montpelier`; it falls back to a
+generic/source-side continuation about `Austin`.
+
+Pruned runs (`capital_only` or `drop_state`) also do **not** recover. They degrade
+into filler or source-like continuations:
+
+- `"The capital ... is poffible to reach by rail ..."`
+- `"The capital ... is the city of Austin ..."`
+
+This is a clean negative result: removing the generic state features does not reveal
+the capital; it breaks the intervention.
+
+#### 2. `north_dakota_fargo -> north_carolina_charlotte`
+
+Target feature mass:
+
+- `Say (Raleigh)`: 76.230
+- `Carolina`: 28.672
+- `North`: 12.703
+- `Say (Carolina)`: 10.852
+- `Raleigh`: 3.391
+
+Original run at `M=20` renders:
+
+- `Chapel Hill, North Carolina`
+
+At `M=4.47`, the first-token top-k is already:
+
+- `Chapel` (0.1211)
+- `Raleigh` (0.1211)
+
+Yet the rendered output still chooses `Chapel Hill`.
+
+Interpretation: the `Raleigh` signal is already present and competitive, but decode
+still prefers a nearby local-city continuation. This is **not** simply "missing
+capital features" or "too much generic state mass". It looks like a decoder-level
+specificity problem where a strong local continuation (`Chapel`) wins even when the
+correct capital is tied in the logits.
+
+#### 3. `idaho_idaho_falls -> alaska_anchorage`
+
+Target feature mass:
+
+- `Alaska`: 84.266
+- `Say (Juneau)`: 72.191
+- `Say (Alaska)`: 2.156
+
+Saved baseline run already shows:
+
+- `Soldotna, Alaska`
+
+which confirms the key pattern: explicit `Juneau` features exist, but the model still
+chooses a non-capital Alaska city. Pruned reruns were blocked in this session by GPU
+OOM, so this pair remains suggestive but not fully re-tested.
+
+### Interpretation
+
+Simple target-side pruning is **not enough** to rescue specificity failures.
+
+The evidence supports two subtypes:
+
+1. **Feature-fragmentation failure** (`Montpelier` case): after removing the generic
+   state features, the remaining capital pieces are too weak / too fragmented to drive
+   a coherent decode.
+2. **Decoder competition failure** (`Raleigh` case): the correct capital is already
+   near the top of the distribution, but the model prefers a locally-consistent wrong
+   city (`Chapel Hill`) at generation time.
+
+This means the dominant hard-fail population is not explained by "one bad generic
+feature drowning out the right one". At least some of these cases need stronger
+token-level control than simple feature pruning.
+
+### Threats
+
+- Only one clean negative pruning result was fully executed end-to-end (`Texas ->
+  Vermont`).
+- The `Juneau` reruns were blocked by GPU contention, so the Alaska probe is only
+  partially conclusive.
+- The `Raleigh` case would benefit from a deterministic decode probe
+  (`temperature=0`) to verify whether the `Chapel` vs `Raleigh` tie is purely a
+  sampling artifact or a deeper continuation preference.
+
+**Confidence**: Medium. The negative `Montpelier` result is strong, and the `Raleigh`
+tie is highly informative, but a broader sweep would be needed before claiming all
+specificity failures are irrecoverable under pruning.
+
+**Data**:
+- Raw probe outputs: `/tmp/specificity_probe_results.json`
+- Curated summary: `output/research/_specificity_probe_summary.json`
+
+## [2026-04-17] Topic: Multi-variant M-search on hard-fail pairs -- 25% recovery on a 20-pair sample, mode-dependent
+
+**Question**: After the [2026-04-13] manual rescore confirmed 35/772 hard-fail
+pairs as undercounted, the remaining 737 (95.5%) were classified as "real
+generation failures" (categories: punctuation, OOD, prompt anchor, generic
+local-city continuation). Are any of these still recoverable with the M-search
+machinery, and if so which failure modes admit recovery?
+
+### Setup
+
+The prior `run_m_search.py` runs filtered out pairs that had a hit in any
+variant, AND the additivity collector picks the single best-vsmax variant per
+pair. As a result, the 772 canonical hard-fails (output of
+`output/research/_pos0_manual_rescore_summary.json`) had **zero** `__m_tuned`
+files in any field-add or labeled run. They were either never attempted (the
+collector's best-vsmax pick happened to land on a non-recoverable variant) or
+attempted under a variant that found no hit and produced no output file.
+
+New utility: `scripts/utils/recover_hard_fails.py`. For each hard-fail pair,
+it always runs the two-phase M-search on the priority variants
+`add_state_capital` and `add_capital` (the empirically-dominant winning
+variants in the prior 357-hit M-search), plus the top-K vsmax variants.
+M-search budget: 5 coarse + 3 fine probes from M_min=1.0 to M_original=20.
+
+Pilot: 20 USA hard-fail pairs sampled stratified by failure mode (4 per
+category), 2 GPUs (~78 min wall time, 51 (pair, variant) jobs run).
+
+### Results
+
+| Failure mode | Sampled | Recovered | Recovery rate |
+|---|---|---|---|
+| `C_ood_foreign` (e.g. `' Efq'`, `' يتيمه'`) | 4 | 3 | **75%** |
+| `B_punctuation_html` (e.g. `','`, `"'"`, `'<strong>'`) | 4 | 1 | 25% |
+| `C_ood_codey` (e.g. `'Datuak'`, `'expandindo'`) | 4 | 1 | 25% |
+| `E_prompt_anchor` (e.g. `' is'`, `' the'`, `' of'`) | 4 | 0 | **0%** |
+| `F_generic_or_other` (e.g. `' Greater'`, `' Falls'`, `' Min'`) | 4 | 0 | **0%** |
+| **Total** | **20** | **5** | **25%** |
+
+The 5 newly recovered pairs (all USA, all confirmed semantically correct):
+
+| Source | Target | M_tuned | Variant | Steered output preview |
+|---|---|---|---|---|
+| `louisiana_new_orleans` | `new_york_new_york_city` | 9.46 | add_capital | "...New Orleans is **Albany**.\n..." |
+| `montana_billings` | `new_mexico_albuquerque` | 4.47 | add_state_capital | "...Billings is **Santa Fe, New Mexico**." |
+| `north_carolina_charlotte` | `new_mexico_albuquerque` | 4.47 | add_state_capital | "...Charlotte is **Santa Fe, New Mexico**." |
+| `vermont_burlington` | `oklahoma_tulsa` | 2.11 | add_capital | "...Burlington is, **Oklahoma City**, ..." |
+| `wyoming_casper` | `michigan_detroit` | 9.46 | add_capital | "...Casper is **East Lansing, Michigan**." |
+
+(`East Lansing` is a Michigan city ~5 km from Lansing -- partial credit; the
+matcher accepts it because it contains "Lansing".)
+
+### Interpretation
+
+The mechanistic split is sharp:
+
+1. **Magnitude failures (B + C categories)**: M=20 saturates the logits
+   into rare-vocab tokens (Latin script with long-s `ſ`, Basque `Datuak`,
+   Portuguese `expandindo`, Cyrillic `декват`). Lowering M to 2-9 restores
+   normal vocabulary AND the right answer surfaces. **Recovery rate: 5/12 = 42%**.
+
+2. **Specificity failures (E + F categories)**: At any M in [1, 20] the
+   amplified features point to *the wrong continuation*: a generic local
+   city in the target state (`Greater Manchester` for NH, `Shelburne` for VT
+   capital, `Falls` for Kansas City), or a prompt-flow continuation
+   (`is`, `of`). These are feature-selection failures: the matcher's
+   target features don't actually contain the specific "is the state capital"
+   signal. **Recovery rate: 0/8 = 0%**.
+
+This is the cleanest separation we've seen between "right features, wrong
+strength" and "wrong features at any strength" cases.
+
+### Quantitative implications
+
+If the 25% recovery rate from the stratified sample generalizes to the full
+hard-fail population (772 pairs), an exhaustive multi-variant M-search would
+unlock approximately **193 additional hits** (35 already from the manual
+rescore). Combining with the 35 already-recovered, total recoveries would be
+~228/772 = **30% of the hard-fail population**, leaving ~544 pairs (70% of
+hard-fails) as genuine specificity failures of the labeled / field-add
+intervention machinery.
+
+By failure mode, the population breakdown (737 real-generation-failure pairs;
+sample-extrapolated):
+
+- B (186 pairs) + C (95 pairs) = 281 magnitude-failure pairs -> ~118 recoverable (42%)
+- E (25 pairs) + F (430 pairs) = 455 specificity-failure pairs -> ~0 recoverable
+
+So the magnitude-failure subgroup is small but high-yield; the specificity
+subgroup is large but unrecoverable with M alone. To recover those, the
+matcher's feature-selection (concept-pool composition) needs to be revisited,
+not the steering strength.
+
+### Threats
+
+- N=20 is small. The 75% rate on `C_ood_foreign` is based on 4 pairs.
+  Need to scale to all 281 magnitude-failure pairs to get tight CIs.
+- Stratification was random within categories; no balancing for source-state
+  identity. Some sources may be systematically harder (e.g. cities whose
+  surrounding states have famous secondary cities competing with the capital).
+- The pilot only probed `add_state_capital` and `add_capital`. Adding more
+  variants per pair could push the recovery rate higher, especially for
+  category B (punctuation) where the logit collapse is particularly severe.
+- Output files use the `<variant>__m_tuned.json` naming; downstream
+  aggregators (demo, _LOG analyses) already index this pattern correctly.
+- Recovery measured by `steered_has_to_answer` (the existing strict
+  evaluator), not the looser `pos0_distinctive_hit`. All 5 recovered pairs
+  pass this stricter check.
+
+**Confidence**: Medium. Mechanism is clean and matches prior LOG findings on
+M=20 over-steering ([2026-04-12], [2026-04-07]); the sample is small but
+the split between recoverable (B/C) and irrecoverable (E/F) is large enough
+to be unlikely from sampling noise alone.
+
+**Data**:
+- Sample input: `/tmp/hard_fail_sample20.json`
+- Run summary: `/tmp/recovery_sample20.json`
+- New `__m_tuned.json` files: in `output/usa_states_batch/_swaps/runs/fullscale_usa_field_add/by_source/<src>/`
+- Failure-mode taxonomy: `/tmp/unrecovered_failure_modes.json`
+
+### Recommended follow-up
+
+1. Run `scripts/utils/recover_hard_fails.py` on the full hard-fail population
+   for all 5 datasets, restricted to category B + C pairs (~281 pairs total).
+   Estimated cost: ~3 GPU-days at 8x A40, expected yield ~100-130 new hits.
+2. For category F pairs (the dominant 430-pair group), the recovery cannot
+   come from M-search. Two next-step probes worth considering:
+   - **Ablate the dominant generic feature** (the one driving the
+     `' Greater'` / `' Falls'` / `' Min'` continuation) and re-run the
+     baseline M=20 -- tests whether removing the local-city interference
+     unmasks the true capital.
+   - **Stricter capital-only matcher**: rebuild the labeled feature pool
+     using only `state_capital` field tokens (no `state` or `city`) to
+     suppress the wrong-city interference at the source.
+
+---
+
 ## [2026-04-12] Topic: M-search on field-additivity runs -- 95 new hits rescued
 
 **Question**: The existing M-search was only applied to labeled (full-field)

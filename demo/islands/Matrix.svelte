@@ -16,7 +16,7 @@
   let hoveredCell = null;
   let sortBy = 'alpha';
   let hideOverlap = false;
-  let hideCapitalNotTopLogit = false;
+  let hideConceptNotTopLogit = false;
   let colorMode = 'tier';
 
   // Global variant selector
@@ -167,7 +167,7 @@
     return aWords.some(w => b.includes(w)) || bWords.some(w => a.includes(w));
   }
 
-  function hasCapitalNotTopLogit(s) {
+  function hasConceptNotTopLogit(s) {
     if (!isUsaStates) return false;
     return s.capital_is_top_logit === false;
   }
@@ -183,11 +183,11 @@
   
   $: visibleStates = sortedStates.filter(s =>
     (!hideOverlap || !hasNameOverlap(s)) &&
-    (!hideCapitalNotTopLogit || !hasCapitalNotTopLogit(s))
+    (!hideConceptNotTopLogit || !hasConceptNotTopLogit(s))
   );
   
   $: overlapCount = states.filter(s => hasNameOverlap(s)).length;
-  $: capitalNotTopLogitCount = states.filter(s => hasCapitalNotTopLogit(s)).length;
+  $: conceptNotTopLogitCount = states.filter(s => hasConceptNotTopLogit(s)).length;
   
   $: filteredStats = computeStats(visibleStates, matrix, flipMatrix);
   
@@ -488,7 +488,7 @@
       {/each}
     </div>
     
-    {#if overlapCount > 0 || (isUsaStates && capitalNotTopLogitCount > 0)}
+    {#if overlapCount > 0 || (isUsaStates && conceptNotTopLogitCount > 0)}
       <span class="text-slate-700 hidden sm:inline">|</span>
       {#if overlapCount > 0}
         <label class="flex items-center gap-2 cursor-pointer select-none">
@@ -498,11 +498,11 @@
           </span>
         </label>
       {/if}
-      {#if isUsaStates && capitalNotTopLogitCount > 0}
+      {#if isUsaStates && conceptNotTopLogitCount > 0}
         <label class="flex items-center gap-2 cursor-pointer select-none">
-          <input type="checkbox" bind:checked={hideCapitalNotTopLogit} class="accent-cyan-500" />
-          <span class="text-xs {hideCapitalNotTopLogit ? 'text-cyan-400' : 'text-slate-400'}">
-            Hide capital not top logit ({capitalNotTopLogitCount})
+          <input type="checkbox" bind:checked={hideConceptNotTopLogit} class="accent-cyan-500" />
+          <span class="text-xs {hideConceptNotTopLogit ? 'text-cyan-400' : 'text-slate-400'}">
+            Hide concept not top logit ({conceptNotTopLogitCount})
           </span>
         </label>
       {/if}

@@ -1,0 +1,152 @@
+{
+  "date": "2026-04-17",
+  "topic": "Decoder-competition vs feature-fragmentation in F-category specificity failures",
+  "probe_script": "scripts/utils/probe_decoder_competition.py",
+  "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",
+  "model_id": "google/gemma-2-2b",
+  "design": {
+    "probe_a": "Greedy decoding (do_sample=False, T=0, freq_penalty=0) with the same intervention.",
+    "probe_b": "One-shot logit bias (-8.0) on competitor token IDs at first generated step, then greedy argmax + unsteered continuation.",
+    "m_values": [4.472136, 6.0, 8.0, 12.0, 20.0],
+    "suppression_logit_penalty": -8.0,
+    "variant": "add_state_capital",
+    "n_features_per_pair": 104
+  },
+  "pairs": [
+    {
+      "from_slug": "north_dakota_fargo",
+      "to_slug": "north_carolina_charlotte",
+      "target_capital": "Raleigh",
+      "target_token_id": 74100,
+      "target_is_single_token": true,
+      "raw_results_file": "output/research/_decoder_competition_probe_nd_nc.json",
+      "classification": "decoder_competition",
+      "recoverable_by_probe_b": true,
+      "recovery_m_values": [4.472136, 6.0, 8.0],
+      "probe_a_argmax_per_m": {
+        "4.472136": " Chapel",
+        "6.0":      " Chapel",
+        "8.0":      " Chapel",
+        "12.0":     " Chapel",
+        "20.0":     " Chapel"
+      },
+      "probe_a_target_rank_per_m": {
+        "4.472136": 1,
+        "6.0": 2,
+        "8.0": 2,
+        "12.0": 4,
+        "20.0": 16
+      },
+      "probe_b_first_token_per_m": {
+        "4.472136": " Raleigh",
+        "6.0":      " Raleigh",
+        "8.0":      " Raleigh",
+        "12.0":     "Datuak",
+        "20.0":     "Datuak"
+      },
+      "probe_b_continuation_at_m_4_47": "The capital of the state containing Fargo is Raleigh.\n\nThe state of North Dakota is located in the Midwest region of the",
+      "key_observation": "At M=4.47 the steered logits put Raleigh and Chapel both at p=0.121 (exact tie). Greedy decoding picks Chapel by token-id tie-break. After suppressing the NC non-capital cluster, Raleigh becomes the unique top-1 and the model emits the correct capital coherently."
+    },
+    {
+      "from_slug": "texas_dallas",
+      "to_slug": "vermont_burlington",
+      "target_capital": "Montpelier",
+      "target_token_id": null,
+      "target_is_single_token": false,
+      "tracked_first_subtoken": " Mont",
+      "tracked_token_id": 9475,
+      "raw_results_file": "output/research/_decoder_competition_probe_tx_vt.json",
+      "classification": "feature_fragmentation",
+      "recoverable_by_probe_b": false,
+      "recovery_m_values": [],
+      "probe_a_argmax_per_m": {
+        "4.472136": " the",
+        "6.0":      " the",
+        "8.0":      " the",
+        "12.0":     " Interv",
+        "20.0":     " Interv"
+      },
+      "probe_a_target_rank_per_m": {
+        "4.472136": 6577,
+        "6.0":      6576,
+        "8.0":      5899,
+        "12.0":     2410,
+        "20.0":     1320
+      },
+      "probe_b_first_token_per_m": {
+        "4.472136": " the",
+        "6.0":      " the",
+        "8.0":      " the",
+        "12.0":     " Interv",
+        "20.0":     " Interv"
+      },
+      "key_observation": "Montpelier prefix ' Mont' is at rank 1320-6576 across all M. Top-5 at M=20 contains [' Interv', ' Shel', ' Lyndon', ' VT', ' Agency'] -- VT-flavoured but no Montpelier. Suppression moves the rank by at most 2."
+    },
+    {
+      "from_slug": "idaho_idaho_falls",
+      "to_slug": "alaska_anchorage",
+      "target_capital": "Juneau",
+      "target_token_id": 219013,
+      "target_is_single_token": true,
+      "raw_results_file": "output/research/_decoder_competition_probe_id_ak.json",
+      "classification": "feature_fragmentation",
+      "recoverable_by_probe_b": false,
+      "recovery_m_values": [],
+      "probe_a_argmax_per_m": {
+        "4.472136": " Was",
+        "6.0":      " Was",
+        "8.0":      " Sold",
+        "12.0":     " Sold",
+        "20.0":     " Sold"
+      },
+      "probe_a_target_rank_per_m": {
+        "4.472136": 48,
+        "6.0":      48,
+        "8.0":      21,
+        "12.0":     36,
+        "20.0":     273
+      },
+      "probe_b_target_rank_per_m": {
+        "4.472136": 47,
+        "6.0":      37,
+        "8.0":      13,
+        "12.0":     26,
+        "20.0":     261
+      },
+      "probe_b_first_token_per_m": {
+        "4.472136": " is",
+        "6.0":      " is",
+        "8.0":      "a",
+        "12.0":     " vendus",
+        "20.0":     "expandindo"
+      },
+      "key_observation": "Juneau rank stays at 13-273 across all M even after suppressing 12 AK-non-capital tokens. Suppression lifts the rank but never into the top-10. Argmax becomes generic noise after suppression."
+    }
+  ],
+  "conclusions": {
+    "two_distinct_failure_modes_within_F_category": true,
+    "decoder_competition_definition": "Target capital is in steered top-2 at some M; failure is purely sampler/tie-break.",
+    "feature_fragmentation_definition": "Target capital is outside steered top-100 at all M; capital signal is missing from intervention.",
+    "decoder_competition_recoverable_by": [
+      "competitor suppression at moderate M (4-8)",
+      "greedy decoding when target is the unique argmax",
+      "moving steering off the OOD-collapse regime (M < 12)"
+    ],
+    "feature_fragmentation_not_recoverable_by": [
+      "competitor suppression",
+      "M-tuning",
+      "feature pruning (per previous probe)"
+    ],
+    "feature_fragmentation_likely_requires": [
+      "different feature selection (target-graph features that actually encode the capital token)",
+      "direct token-level injection (e.g. logit bias on the answer token)",
+      "alternate prompt that primes the capital concept directly"
+    ]
+  },
+  "open_questions": [
+    "Population fraction: of the ~205 F-category pairs, how many are decoder-competition vs feature-fragmentation?",
+    "Auto-discovery: can we replace the hand-curated competitor list with a procedure (e.g. all single-token cities sharing the target state region whose steered prob > 5x baseline)?",
+    "Joint probability: ' Mont' has high rank because it is shared across Montana/Montgomery/etc.; the joint ' Mont' * 'pelier' may be a fairer rank metric for multi-token capitals.",
+    "Cross-dataset replication: does the same split exist in books/products/paintings/sounds-colors?"
+  ]
+}

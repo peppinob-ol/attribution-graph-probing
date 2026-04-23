@@ -11,11 +11,19 @@ def _sync_loader(target, source) -> None:
 
     Routes hold a reference to the original data_loader object, so we update
     that object directly instead of replacing the reference.
+
+    ``allowed_slugs`` MUST be copied too: when the registry activates a new
+    dataset it builds a fresh DataLoader with that dataset's slug intersection,
+    and the old whitelist (e.g. the 50 USA-state slugs) would otherwise filter
+    every entity out of the new dataset and leave the matrix empty.
     """
     target.data_dir = source.data_dir
     target.base_swaps_dir = source.base_swaps_dir
     target.run_id = source.run_id
     target.swaps_dir = source.swaps_dir
+    target.allowed_slugs = (
+        set(source.allowed_slugs) if source.allowed_slugs is not None else None
+    )
     target._clear_caches()
 
 

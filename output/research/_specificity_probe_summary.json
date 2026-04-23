@@ -1,0 +1,79 @@
+{
+  "question": "Can specificity-failure pairs be rescued by pruning generic state features and keeping only capital-bearing target features?",
+  "pairs": [
+    {
+      "pair": [
+        "texas_dallas",
+        "vermont_burlington"
+      ],
+      "variant": "add_state_capital",
+      "target": {
+        "state": "Vermont",
+        "capital": "Montpelier"
+      },
+      "feature_mass": {
+        "Vermont": 35.797,
+        "Mont": 7.719,
+        "pelier": 2.406,
+        "Say (Vermont)": 2.078
+      },
+      "results": {
+        "orig_M20": "Intervale / Shelburne / Lyndon cluster; wrong Vermont towns",
+        "orig_M4.47": "falls back to generic/source continuation about Austin",
+        "capital_only_M20": "no recovery; degrades to filler text",
+        "capital_only_M4.47": "no recovery; reverts to source-side Austin continuation"
+      },
+      "conclusion": "Removing generic state features does not reveal Montpelier; the capital-specific subset is too weak or fragmented."
+    },
+    {
+      "pair": [
+        "north_dakota_fargo",
+        "north_carolina_charlotte"
+      ],
+      "variant": "add_state_capital",
+      "target": {
+        "state": "North Carolina",
+        "capital": "Raleigh"
+      },
+      "feature_mass": {
+        "Say (Raleigh)": 76.23,
+        "Carolina": 28.672,
+        "North": 12.703,
+        "Say (Carolina)": 10.852,
+        "Raleigh": 3.391
+      },
+      "results": {
+        "orig_M20": "renders Chapel Hill, North Carolina",
+        "orig_M4.47": "top-1 tie between Chapel and Raleigh, but rendered output still chooses Chapel Hill"
+      },
+      "conclusion": "The target capital signal is already present and strong, but decode still prefers a competing local-city continuation. This looks like a decoder-level specificity failure, not just missing Raleigh features."
+    },
+    {
+      "pair": [
+        "idaho_idaho_falls",
+        "alaska_anchorage"
+      ],
+      "variant": "add_state_capital",
+      "target": {
+        "state": "Alaska",
+        "capital": "Juneau"
+      },
+      "feature_mass": {
+        "Alaska": 84.266,
+        "Say (Juneau)": 72.191,
+        "Say (Alaska)": 2.156
+      },
+      "results": {
+        "orig_M20_saved_run": "renders Soldotna, Alaska",
+        "pruned_runs": "blocked by GPU OOM during this session"
+      },
+      "conclusion": "Juneau features exist, but the saved run still goes to a non-capital Alaska city; worth rerunning when GPUs are freer."
+    }
+  ],
+  "overall_conclusion": [
+    "There is no evidence yet that simple state-feature pruning reliably rescues specificity failures.",
+    "One clean negative case (Texas -> Vermont) shows pruning destroys the intervention instead of unmasking the capital.",
+    "One strong Raleigh case shows the capital token can already be near the top at lower M, but decoding still selects Chapel Hill."
+  ],
+  "next_best_probe": "Force greedy decoding or directly suppress the competing Chapel/Cary local-city continuation on the North Carolina pair, instead of pruning only the target feature set."
+}
