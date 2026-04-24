@@ -59,6 +59,7 @@ from pipeline.controls.matching import (
 )
 from pipeline.swap_evaluator import resolve_answer_field
 from pipeline.controls.random_feature_matched import RandomFeatureMatchedBuilder
+from pipeline.controls.random_template_matched import RandomTemplateMatchedBuilder
 from pipeline.controls.low_specificity_groupings import LowSpecificityGroupingsBuilder
 from pipeline.controls.additivity import AdditivityBuilder
 
@@ -75,6 +76,132 @@ def _load_ct_steering():
     return module
 
 
+def _build_ct_steering_stub():
+    """
+    Build a minimal stand-in for the ``ct_steering`` module that
+    implements just enough of ``extract_ct_supernode`` and
+    ``compute_ct_interventions`` to exercise the intervention builders
+    against the pandas-only fixtures used here.
+
+    The intervention-builder layer only touches these two entry points,
+    so a faithful reimplementation against the fixtures is sufficient to
+    validate the controls subsystem without pulling in torch.
+    """
+    from types import SimpleNamespace
+    from dataclasses import dataclass as _dc, field as _field
+    from typing import Any as _Any, Dict as _Dict, List as _List, Tuple as _Tuple
+
+    @_dc(frozen=True)
+    class _CTFeatureRef:
+        layer: int
+        index: int
+        position: int
+        activation: float = 0.0
+
+    @_dc
+    class _CTSupernodeSpec:
+        concept: str
+        slug: str
+        features: _List[_CTFeatureRef]
+        meta: _Dict[str, _Any] = _field(default_factory=dict)
+
+        def ensure_non_empty(self) -> None:
+            if not self.features:
+                raise ValueError(
+                    f"Supernode '{self.concept}' ({self.slug}) is empty."
+                )
+
+    def extract_ct_supernode(
+        grouping_df,
+        metrics_df,
+        concept: str,
+        slug: str,
+        *,
+        supernode_col: str = "supernode_name",
+        position_col: str = "position",
+    ) -> _CTSupernodeSpec:
+        if not concept.strip():
+            raise ValueError("Concept string must be non-empty.")
+        c = concept.strip().lower()
+        names = grouping_df[supernode_col].astype(str).str.lower()
+        mask = names.str.contains(c, na=False, regex=False)
+        matches = grouping_df.loc[mask]
+        if matches.empty:
+            # Per-word fallback for multi-word concepts (mirrors the
+            # real extractor's behavior closely enough for fixture tests).
+            import re as _re
+            skip_words = {"of", "the", "de", "la", "le", "a", "an", "and"}
+            tokens = [t for t in _re.split(r"\s+", c) if t]
+            accum_mask = None
+            for tok in tokens:
+                if len(tok) < 3 or tok in skip_words:
+                    continue
+                m = names.str.contains(tok, na=False, regex=False)
+                accum_mask = m if accum_mask is None else (accum_mask | m)
+            if accum_mask is not None:
+                matches = grouping_df.loc[accum_mask]
+            if matches.empty:
+                raise ValueError(
+                    f"No supernode rows matched concept '{concept}' for slug '{slug}'."
+                )
+        feats: _Dict[_Tuple[int, int, int], _CTFeatureRef] = {}
+        for _, row in matches.iterrows():
+            layer = int(row["layer"])
+            idx = int(row["feature"])
+            if position_col in row and row.get(position_col) is not None:
+                try:
+                    pos = int(row[position_col])
+                except (TypeError, ValueError):
+                    pos = -1
+            else:
+                pos = -1
+            key = (layer, idx, pos)
+            if key in feats:
+                continue
+            feats[key] = _CTFeatureRef(layer=layer, index=idx, position=pos)
+        return _CTSupernodeSpec(concept=concept, slug=slug, features=list(feats.values()))
+
+    def compute_ct_interventions(
+        supernode,
+        M: float,
+        *,
+        steer_generated_tokens: bool = False,
+        activations_map=None,
+        use_stored_as_base: bool = False,
+    ) -> _List[_Dict[str, _Any]]:
+        supernode.ensure_non_empty()
+        out: _List[_Dict[str, _Any]] = []
+        for f in supernode.features:
+            entry: _Dict[str, _Any] = {
+                "layer": f.layer,
+                "index": f.index,
+                "position": f.position,
+                "M": M,
+                "ablate": M == 0,
+                "steer_generated_tokens": steer_generated_tokens,
+            }
+            if activations_map is not None:
+                key = (f.layer, f.index, f.position)
+                if key in activations_map:
+                    entry["stored_activation"] = activations_map[key]
+                elif f.position == -1:
+                    for (l, ff, p), val in activations_map.items():
+                        if l == f.layer and ff == f.index:
+                            entry["stored_activation"] = val
+                            break
+            if use_stored_as_base:
+                entry["use_stored_as_base"] = True
+            out.append(entry)
+        return out
+
+    return SimpleNamespace(
+        extract_ct_supernode=extract_ct_supernode,
+        compute_ct_interventions=compute_ct_interventions,
+        CTFeatureRef=_CTFeatureRef,
+        CTSupernodeSpec=_CTSupernodeSpec,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -83,8 +210,8 @@ def _load_ct_steering():
 def ct_steering():
     try:
         return _load_ct_steering()
-    except (ImportError, ModuleNotFoundError) as e:
-        pytest.skip(f"ct_steering requires torch: {e}")
+    except (ImportError, ModuleNotFoundError):
+        return _build_ct_steering_stub()
 
 
 def _make_grouping_df(rows):
@@ -1214,3 +1341,419 @@ class TestAnswerFieldResolver:
         assert ev["answer_field"] == "city"
         assert ev["from_answer"] == "Dallas"
         assert ev["to_answer"] == "Savannah"
+
+
+# ===================================================================
+# Random template-matched builder tests
+# ===================================================================
+
+def _three_field_graph_data():
+    """Richer graph with three concept fields (state, capital, city).
+
+    Each concept layer (7..11) also carries two non-concept features so
+    the random sampler can structurally match the template's per-layer
+    histogram after concept-supernode exclusion.  Layers 2..6 carry
+    extra generic features to widen the pool further.
+    """
+    # Source graph A: Texas / Austin / Dallas
+    rows_a = [
+        (7, 100, "texas", -1),
+        (8, 200, "texas", -1),
+        (9, 300, "austin", -1),
+        (10, 310, "austin", -1),
+        (11, 320, "dallas", -1),
+        # Non-concept features in the concept layers (per layer).
+        (7, 700, "generic-7a", -1),
+        (7, 701, "generic-7b", -1),
+        (8, 800, "generic-8a", -1),
+        (8, 801, "generic-8b", -1),
+        (9, 900, "generic-9a", -1),
+        (9, 901, "generic-9b", -1),
+        (10, 1000, "generic-10a", -1),
+        (10, 1001, "generic-10b", -1),
+        (11, 1100, "generic-11a", -1),
+        (11, 1101, "generic-11b", -1),
+        # Low-layer generics.
+        (2, 400, "generic-copula", -1),
+        (3, 410, "unrelated", -1),
+        (4, 420, "punctuation", -1),
+        (5, 430, "stopword", -1),
+        (6, 440, "other-feature", -1),
+    ]
+    grouping_a = _make_grouping_df(rows_a)
+    metrics_a = _make_metrics_df([
+        (l, f, 0.5, 0.1, 0.2) for (l, f, _, _) in rows_a
+    ])
+
+    # Target graph B: Georgia / Atlanta / Savannah
+    rows_b = [
+        (7, 110, "georgia", -1),
+        (8, 210, "georgia", -1),
+        (9, 310, "atlanta", -1),
+        (10, 320, "atlanta", -1),
+        (11, 330, "savannah", -1),
+        (7, 710, "generic-7a", -1),
+        (7, 711, "generic-7b", -1),
+        (8, 810, "generic-8a", -1),
+        (8, 811, "generic-8b", -1),
+        (9, 910, "generic-9a", -1),
+        (9, 911, "generic-9b", -1),
+        (10, 1010, "generic-10a", -1),
+        (10, 1011, "generic-10b", -1),
+        (11, 1110, "generic-11a", -1),
+        (11, 1111, "generic-11b", -1),
+        (2, 410, "generic-copula", -1),
+        (3, 420, "unrelated", -1),
+        (4, 430, "punctuation", -1),
+        (5, 440, "stopword", -1),
+        (6, 450, "other-feature", -1),
+    ]
+    grouping_b = _make_grouping_df(rows_b)
+    metrics_b = _make_metrics_df([
+        (l, f, 0.5, 0.1, 0.2) for (l, f, _, _) in rows_b
+    ])
+
+    data_from = {
+        "grouping": grouping_a,
+        "metrics": metrics_a,
+        "activations_map": {},
+    }
+    amap_to = {(l, f, -1): 0.5 for (l, f, _, _) in rows_b}
+    data_to = {
+        "grouping": grouping_b,
+        "metrics": metrics_b,
+        "activations_map": amap_to,
+    }
+    return data_from, data_to
+
+
+class TestRandomTemplateMatchedBuilder:
+    def _pair(self):
+        return FakeSwapPair(
+            from_slug="texas_dallas",
+            to_slug="georgia_savannah",
+            from_entity={"state": "Texas", "capital": "Austin", "city": "Dallas"},
+            to_entity={"state": "Georgia", "capital": "Atlanta", "city": "Savannah"},
+        )
+
+    def _config_field_subset(self, fields, replicate=0):
+        return {
+            "ct_steering": {"M_ablate": -2, "M_amplify": 20, "seed": 42},
+            "swap": {
+                "concept_fields": ["state", "capital", "city"],
+                "answer_field": "capital",
+            },
+            "control": {
+                "mode": "random_template_matched",
+                "seed": 42,
+                "concept_subset": {"fields": list(fields)},
+                "_current_replicate": replicate,
+                "exclusions": {
+                    "exclude_labeled_features": True,
+                    "exclude_concept_matching_supernodes": True,
+                },
+                "matching": {"match_layers": True},
+            },
+        }
+
+    def test_mode_and_template_provenance(self, ct_steering):
+        data_from, data_to = _three_field_graph_data()
+        pair = self._pair()
+        config = self._config_field_subset(["state"])
+
+        builder = RandomTemplateMatchedBuilder()
+        result = builder.build_for_pair(
+            ct_steering=ct_steering,
+            config=config,
+            pair=pair,
+            data_from=data_from,
+            data_to=data_to,
+        )
+        assert result.control_mode == "random_template_matched"
+        assert result.replicate_id == 0
+        diag = result.diagnostics
+        assert diag["template_selection_mode"] == "fields"
+        assert diag["template_active_fields"] == ["state"]
+        assert diag["template_ablate_count"] >= 1
+        assert diag["template_amplify_count"] >= 1
+
+    def test_layer_histogram_matches_template(self, ct_steering):
+        """Random ablate/amplify counts must equal the template's counts,
+        and the per-layer layer histogram must match exactly given the
+        three-field fixture (pool is large enough)."""
+        data_from, data_to = _three_field_graph_data()
+        pair = self._pair()
+        config = self._config_field_subset(["state", "capital"])
+
+        builder = RandomTemplateMatchedBuilder()
+        result = builder.build_for_pair(
+            ct_steering=ct_steering,
+            config=config,
+            pair=pair,
+            data_from=data_from,
+            data_to=data_to,
+        )
+        diag = result.diagnostics
+
+        # Counts: random matches the template exactly.
+        assert result.ablate_count == diag["template_ablate_count"]
+        assert result.amplify_count == diag["template_amplify_count"]
+
+        # Layer histograms: deficit should be 0 and every bin exact.
+        ablate_match = diag.get("ablate_layer_match", {})
+        amplify_match = diag.get("amplify_layer_match", {})
+        assert ablate_match.get("deficit", 0) == 0
+        assert amplify_match.get("deficit", 0) == 0
+        assert ablate_match.get("bins_exact_match") == ablate_match.get("total_bins")
+        assert amplify_match.get("bins_exact_match") == amplify_match.get("total_bins")
+
+    def test_no_overlap_with_template_features(self, ct_steering):
+        """Random sample must not include any template feature when
+        exclude_labeled_features and exclude_concept_matching_supernodes
+        are both on."""
+        data_from, data_to = _three_field_graph_data()
+        pair = self._pair()
+        config = self._config_field_subset(["state", "capital", "city"])
+
+        # Build the template (additivity full roles = full labeled on
+        # this fixture) to get the excluded key set.
+        template_cfg = copy_nested(config)
+        template_cfg["control"]["mode"] = "additivity"
+        template = AdditivityBuilder().build_for_pair(
+            ct_steering=ct_steering,
+            config=template_cfg,
+            pair=pair,
+            data_from=data_from,
+            data_to=data_to,
+        )
+        template_keys = {(f["layer"], f["index"]) for f in template.features}
+
+        random_result = RandomTemplateMatchedBuilder().build_for_pair(
+            ct_steering=ct_steering,
+            config=config,
+            pair=pair,
+            data_from=data_from,
+            data_to=data_to,
+        )
+        random_keys = {
+            (f["layer"], f["index"]) for f in random_result.features
+        }
+        assert not (template_keys & random_keys)
+
+    def test_different_templates_yield_different_counts(self, ct_steering):
+        """The whole point of template-matching: a single-field template
+        and a three-field template should produce random nulls with
+        different feature counts."""
+        data_from, data_to = _three_field_graph_data()
+        pair = self._pair()
+
+        builder = RandomTemplateMatchedBuilder()
+        r_single = builder.build_for_pair(
+            ct_steering=ct_steering,
+            config=self._config_field_subset(["state"]),
+            pair=pair, data_from=data_from, data_to=data_to,
+        )
+        r_all = builder.build_for_pair(
+            ct_steering=ct_steering,
+            config=self._config_field_subset(["state", "capital", "city"]),
+            pair=pair, data_from=data_from, data_to=data_to,
+        )
+        assert len(r_all.features) > len(r_single.features)
+
+    def test_deterministic_same_seed(self, ct_steering):
+        data_from, data_to = _three_field_graph_data()
+        pair = self._pair()
+        cfg = self._config_field_subset(["state", "capital"], replicate=0)
+
+        builder = RandomTemplateMatchedBuilder()
+        r1 = builder.build_for_pair(
+            ct_steering=ct_steering, config=cfg,
+            pair=pair, data_from=data_from, data_to=data_to,
+        )
+        r2 = builder.build_for_pair(
+            ct_steering=ct_steering, config=cfg,
+            pair=pair, data_from=data_from, data_to=data_to,
+        )
+        assert [(f["layer"], f["index"]) for f in r1.features] == \
+               [(f["layer"], f["index"]) for f in r2.features]
+
+    def test_different_replicates_differ(self, ct_steering):
+        data_from, data_to = _three_field_graph_data()
+        pair = self._pair()
+
+        builder = RandomTemplateMatchedBuilder()
+        r0 = builder.build_for_pair(
+            ct_steering=ct_steering,
+            config=self._config_field_subset(["state", "capital"], replicate=0),
+            pair=pair, data_from=data_from, data_to=data_to,
+        )
+        r1 = builder.build_for_pair(
+            ct_steering=ct_steering,
+            config=self._config_field_subset(["state", "capital"], replicate=1),
+            pair=pair, data_from=data_from, data_to=data_to,
+        )
+        assert r0.replicate_id == 0
+        assert r1.replicate_id == 1
+        keys0 = [(f["layer"], f["index"]) for f in r0.features]
+        keys1 = [(f["layer"], f["index"]) for f in r1.features]
+        # With the larger fixture pool these should differ in at least
+        # one slot.
+        assert keys0 != keys1
+
+    def test_amplify_has_stored_activation_when_available(self, ct_steering):
+        data_from, data_to = _three_field_graph_data()
+        pair = self._pair()
+        config = self._config_field_subset(["state", "capital"])
+
+        result = RandomTemplateMatchedBuilder().build_for_pair(
+            ct_steering=ct_steering, config=config,
+            pair=pair, data_from=data_from, data_to=data_to,
+        )
+        amplify = [f for f in result.features if f.get("M") == 20]
+        for f in amplify:
+            assert f.get("use_stored_as_base") is True
+            key = (f["layer"], f["index"], f.get("position", -1))
+            if key in data_to["activations_map"]:
+                assert "stored_activation" in f
+
+    def test_roles_template_matches_role_semantics(self, ct_steering):
+        """When concept_subset uses roles, the template provenance
+        should record the correct ablate/amplify role fields."""
+        data_from, data_to = _three_field_graph_data()
+        pair = self._pair()
+        config = self._config_field_subset(["state"])  # start from a field cfg
+        config["control"]["concept_subset"] = {"roles": ["source"]}
+
+        result = RandomTemplateMatchedBuilder().build_for_pair(
+            ct_steering=ct_steering, config=config,
+            pair=pair, data_from=data_from, data_to=data_to,
+        )
+        assert result.diagnostics["template_selection_mode"] == "roles"
+        # Source-only template means there is no amplification side.
+        assert result.amplify_count == 0
+
+
+def copy_nested(d):
+    import copy as _c
+    return _c.deepcopy(d)
+
+
+# ===================================================================
+# Variant expansion tests (run_batch_swaps._expand_control_variants)
+# ===================================================================
+
+class TestExpandControlVariants:
+    def _load_expander(self):
+        import importlib.util
+        module_name = "run_batch_swaps_for_tests"
+        if module_name in sys.modules:
+            return sys.modules[module_name]._expand_control_variants
+        script = BATCH_DIR / "run_batch_swaps.py"
+        spec = importlib.util.spec_from_file_location(module_name, script)
+        module = importlib.util.module_from_spec(spec)
+        # Register in sys.modules BEFORE exec so that dataclasses
+        # with string annotations can resolve references.
+        sys.modules[module_name] = module
+        try:
+            spec.loader.exec_module(module)
+        except ImportError as e:
+            pytest.skip(f"run_batch_swaps deps unavailable: {e}")
+        return module._expand_control_variants
+
+    def test_labeled_default(self):
+        expand = self._load_expander()
+        variants = expand({})
+        assert len(variants) == 1
+        assert variants[0][1] == ""
+
+    def test_additivity_runs_field_subset(self):
+        expand = self._load_expander()
+        config = {
+            "control": {
+                "mode": "additivity",
+                "runs": [
+                    {"fields": ["state"]},
+                    {"fields": ["state", "capital"]},
+                ],
+            }
+        }
+        variants = expand(config)
+        assert len(variants) == 2
+        suffixes = [v[1] for v in variants]
+        assert suffixes == ["add_state", "add_state_capital"]
+        # Each variant carries concept_subset correctly.
+        assert variants[0][0]["control"]["concept_subset"] == {"fields": ["state"]}
+        assert variants[1][0]["control"]["concept_subset"] == {"fields": ["state", "capital"]}
+
+    def test_random_template_matched_runs_x_replicates(self):
+        expand = self._load_expander()
+        config = {
+            "control": {
+                "mode": "random_template_matched",
+                "replicates": 3,
+                "runs": [
+                    {"fields": ["state"]},
+                    {"fields": ["state", "capital"]},
+                ],
+            }
+        }
+        variants = expand(config)
+        # 2 runs * 3 replicates = 6 variants
+        assert len(variants) == 6
+        suffixes = [v[1] for v in variants]
+        assert "rtm_state__r0" in suffixes
+        assert "rtm_state__r2" in suffixes
+        assert "rtm_state_capital__r0" in suffixes
+        assert "rtm_state_capital__r2" in suffixes
+
+        # Every variant carries its concept_subset and replicate id.
+        for cfg, suffix in variants:
+            ctrl = cfg["control"]
+            assert ctrl["mode"] == "random_template_matched"
+            assert "concept_subset" in ctrl
+            assert "_current_replicate" in ctrl
+            assert 0 <= ctrl["_current_replicate"] < 3
+
+    def test_random_template_matched_no_runs_replicates_only(self):
+        expand = self._load_expander()
+        config = {
+            "control": {
+                "mode": "random_template_matched",
+                "replicates": 2,
+            }
+        }
+        variants = expand(config)
+        assert len(variants) == 2
+        suffixes = [v[1] for v in variants]
+        assert suffixes == ["rtm_full__r0", "rtm_full__r1"]
+        for cfg, _ in variants:
+            # No concept_subset set means the builder defaults to full
+            # roles at build time.
+            assert "concept_subset" not in cfg["control"]
+
+    def test_random_template_matched_single_no_runs(self):
+        expand = self._load_expander()
+        config = {
+            "control": {
+                "mode": "random_template_matched",
+                "replicates": 1,
+            }
+        }
+        variants = expand(config)
+        assert len(variants) == 1
+        assert variants[0][1] == ""
+
+    def test_random_feature_matched_keeps_replicate_only_path(self):
+        """Existing random_feature_matched behavior must be unchanged:
+        replicate expansion, no field-subset fan-out."""
+        expand = self._load_expander()
+        config = {
+            "control": {
+                "mode": "random_feature_matched",
+                "replicates": 3,
+            }
+        }
+        variants = expand(config)
+        assert len(variants) == 3
+        suffixes = [v[1] for v in variants]
+        assert suffixes == ["r0", "r1", "r2"]

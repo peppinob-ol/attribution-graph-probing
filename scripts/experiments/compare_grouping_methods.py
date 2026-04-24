@@ -1,9 +1,29 @@
 """
 Compare concept-aligned grouping vs geometric baselines.
 
-This script quantifies whether behavior-driven supernode grouping produces
-more coherent and stable clusters than cosine similarity or adjacency-based
-clustering alone.
+STATUS: EXPLORATORY ONLY. NOT the paper's geometric baseline.
+
+This script is an early exploration of intrinsic clustering metrics
+(silhouette, Davies-Bouldin, cosine coherence) over cosine-similarity
+and layer+influence adjacency clusterings. It must NOT be cited as
+evidence for claim C1, for the following reasons:
+
+- It uses silhouette-selected cluster counts, which the paper's
+  baseline design explicitly rejects (see docs/baseline_design.md,
+  Choice 3 -- the baseline must instead use K_CPAS(graph)).
+- It includes a "layer + influence" adjacency baseline, which violates
+  the cross-layer design choice (see docs/baseline_design.md, Choice
+  2).
+- It reports only intrinsic clustering metrics; it does NOT run the
+  swap-intervention harness, so its outputs are not causal evidence
+  for or against CPAS.
+- It has no blacklist-compatible naming step, so its clusters cannot
+  be fed into the existing concept-matched intervention pipeline.
+
+The actual paper baseline is specified in docs/baseline_design.md and
+will be implemented as a separate InterventionBuilder that shares the
+batch pipeline's swap harness. Do not rewire this script into that
+pipeline; write the new baseline fresh, per the design note.
 
 Metrics computed:
 - Coherence: activation pattern similarity, peak token consistency, influence variance
@@ -13,7 +33,7 @@ Metrics computed:
 
 Usage:
     python scripts/experiments/compare_grouping_methods.py --input_csv <path> --output_json <path>
-    
+
     # With Neuronpedia upload for comparison:
     python scripts/experiments/compare_grouping_methods.py \
         --input_csv path/to/node_grouping_final.csv \

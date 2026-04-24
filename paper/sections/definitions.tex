@@ -1,10 +1,10 @@
-\section{Definitions: An Operationally Useful Supernode Label}
+\section{Definitions}
 \label{sec:definitions}
 
-We follow~\citet{hannaameisen2026planning} in stating definitions explicitly so that the falsifiability conditions are exposed.
+We state the definitions explicitly so that the falsifiability conditions are exposed.
 
 \paragraph{Setting.}
-Let $\mathcal{M}$ be a transformer (Gemma-2-2B-it), $\mathcal{D}$ a CLT-HP feature dictionary~\cite{ameisen2025circuittracing}, and $G_p = (V_p, E_p)$ the attribution graph for prompt $p$ with target logit $y$. Each node $f \in V_p$ is a (feature, position) pair with influence $\mathrm{infl}(f) \in \mathbb{R}_{\geq 0}$; the cumulative-influence threshold $\tau$ selects a feature universe $V_p^{\tau} \subseteq V_p$.
+Let $\mathcal{M}$ be a transformer (Gemma-2-2B-it), $\mathcal{D}$ a CLT-HP feature dictionary~\cite{hanna2025clthp,ameisen2025circuittracing}, and $G_p = (V_p, E_p)$ the attribution graph for prompt $p$ with target logit $y$. Each node $f \in V_p$ is a (feature, position) pair with influence $\mathrm{infl}(f) \in \mathbb{R}_{\geq 0}$; the cumulative-influence threshold $\tau$ selects a feature universe $V_p^{\tau} \subseteq V_p$.
 
 \begin{definition}[Supernode]
 \label{def:supernode}
@@ -31,8 +31,6 @@ Let $g(p, \mathcal{I})$ be the generated continuation under intervention $\mathc
 The \emph{matched random control} for swap pair $(e_A, e_B)$ is an intervention $\mathcal{I}^{\mathrm{rand}}$ identical to $\mathcal{I}(e_A \to e_B)$ in feature count and per-layer histogram, with features sampled uniformly at random from $V_p^{\tau} \setminus \bigcup_{e \in \mathcal{E}} \bigcup_{s \in S(e)} F$ (i.e., outside \emph{every} concept-aligned supernode in the domain). Three deterministic replicates are drawn per pair, seeded by $\mathrm{sha256}(\mathrm{run\_seed} : \mathrm{pair\_id} : \mathrm{rep} : \mathrm{mode})$.
 \end{definition}
 
-This control directly responds to the \citet{heap2025sparse} critique: any structural property shared by ``random'' features (count, layer distribution, eligibility for additive injection) is held constant; only the \emph{concept alignment} of the chosen features changes.
-
 \begin{definition}[Operationally useful label]
 \label{def:opuseful}
 The supernode label $\nu$ for entity $e$ is \emph{operationally useful} on prompt family $p$ iff both conditions hold over all swap pairs $(e_A, e_B)$ in the domain:
@@ -40,11 +38,5 @@ The supernode label $\nu$ for entity $e$ is \emph{operationally useful} on promp
 \item \textbf{Condition 1 (Specificity).} The Hit-rate of $\mathcal{I}(e_A \to e_B)$ exceeds $5$~pp on a per-pair basis, and labeled vsMax is positive on average.
 \item \textbf{Condition 2 (Matched-Control).} Across replicates, $\mathcal{I}^{\mathrm{rand}}$ achieves Hit-rate at least $5$~pp lower than the labeled intervention and labeled vsMax exceeds matched-control vsMax by at least $1.0$ logit.
 \end{itemize}
-A label fails to be operationally useful if either condition fails. \emph{This is the falsification criterion for C1.}
+A label fails to be operationally useful if either condition fails; this is the falsification criterion used throughout the paper.
 \end{definition}
-
-\paragraph{Why two conditions, not one.}
-Condition~1 alone permits a label to ``work'' for trivial reasons (e.g., the intervention magnitude pushes the logit distribution arbitrarily). Condition~2 forces the redirection to be \emph{specific to concept alignment}. \citet{hannaameisen2026planning} adopt an analogous two-condition structure for latent planning---a candidate planning feature must (i) precede the planned token and (ii) causally affect the planned token under intervention.
-
-\paragraph{Three levels of interpretive claim.}
-We follow the framing of~\citet{geiger2025causal}: Level~1 (operationally useful labels), Level~2 (downstream causal effects, validated against controls), Level~3 (full mechanistic identification of latent variables). \cref{def:opuseful} formalizes Levels~1--2; we explicitly disclaim Level~3 (\cref{sec:limitations}).

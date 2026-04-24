@@ -31,14 +31,12 @@
 \theoremstyle{remark}
 \newtheorem{remark}[theorem]{Remark}
 
-\icmltitlerunning{Probe Prompting: Concept-Aligned Supernodes for Attribution Graphs}
+\icmltitlerunning{Automated Circuit Interpretation via Probe Prompting}
 
 \begin{document}
 
 \twocolumn[
-  \icmltitle{Automated Circuit Interpretation via Probe Prompting:\\
-    Concept-Aligned Supernodes and a Matched-Control Causal-Validation\\
-    Harness for Attribution Graphs}
+  \icmltitle{Automated Circuit Interpretation via Probe Prompting}
 
   \begin{icmlauthorlist}
     \icmlauthor{Anonymous Authors}{anon}
@@ -56,7 +54,7 @@
 \printAffiliationsAndNotice{}
 
 \begin{abstract}
-Manual interpretation of attribution graphs is slow (approximately 2 hours per prompt) and yields inconsistent taxonomies. We introduce \emph{probe prompting}, a transparent rule-based pipeline that converts a graph into concept-aligned supernodes via Cross-Prompt Activation Signatures (CPAS). We define an \emph{operationally useful} label as one that satisfies two conditions: (i) \textbf{Specificity}---intervention via the labeled supernode redirects output toward the specific concept, and (ii) \textbf{Matched-Control}---intervention via a structurally matched random feature set (same count, same per-layer histogram, sampled outside concept-matching supernodes) does not produce the same effect. Across 5 domains and 42{,}184 entity-swap interventions, labeled supernodes satisfy both conditions in 4 of 5 domains (USA 67.3 vs 0.2\% hit; Books 63.8 vs 0.0\%), with Sounds (6 entities, structural confounds) failing Condition~2 (matched-control vsMax gap $+0.14$) and reported as a directional negative. The harness surfaces three regularities: input-field features \emph{interfere} with steering (less-is-more, +14--33 pp), the canonical $M{=}20$ default is \emph{over-steering} (winning $M$ is bimodal at $\sim$2.4 and $\sim$6.9), and graph scaffold compatibility is a perfect ordinal predictor of domain-level success. Code, datasets, and an interactive demo are released anonymously.
+Attribution graphs expose the circuits underlying a language model's output, but a single graph for a short factual prompt routinely contains thousands of cross-layer transcoder features and takes on the order of two hours to interpret by hand. Existing automated interpretation methods label individual features from corpus activations, yet they do not produce circuit-level groupings calibrated to a target logit, and the labels are not validated by causal intervention. We introduce \emph{probe prompting}, a transparent rule-based pipeline that groups the features of an attribution graph into concept-aligned supernodes from their responses on a small set of concept-targeted probe prompts, summarized as Cross-Prompt Activation Signatures (CPAS). A supernode label is \emph{operationally useful} when intervening on the labeled supernode redirects the generated output toward the target concept (Specificity) and a structurally matched random feature set fails to do so (Matched-Control). Across five factual domains on Gemma-2-2B-it with the public CLT-HP dictionary and $42{,}184$ entity-swap interventions, labeled supernodes satisfy both conditions in four of five domains (USA vsMax gap $+5.17$, Books $+6.13$, Products $+3.23$, Paintings $+1.58$ logits against matched random at default intervention settings), while the Sounds domain fails the matched-control condition (vsMax gap $+0.14$ in favor of random) and we report it as a directional negative. Secondary analyses on the same runs account for why default interventions sometimes miss: restricting the intervention to the intermediate and answer fields raises Hit-rate by $14$--$33$ percentage points in four of five domains, and an adaptive multiplier search shows that the $M{=}20$ default inherited from single-feature steering overshoots in the multi-feature regime, with most rescued pairs accepting $M$ in $[2, 7]$. Code, datasets, and an interactive demo are released anonymously as a reusable harness for calibrating supernode labels against causal interventions.
 \end{abstract}
 
 \input{sections/intro}

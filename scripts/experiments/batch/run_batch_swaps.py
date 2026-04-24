@@ -213,30 +213,57 @@ def _expand_control_variants(config: Dict[str, Any]) -> List[Tuple[Dict[str, Any
 
     For labeled mode or single-replicate controls, returns a single entry
     with no suffix.  For replicate controls, returns one entry per replicate.
-    For additivity with multiple ``runs``, returns one entry per variant.
+    For additivity with multiple ``runs``, returns one entry per field/role
+    subset variant.  For ``random_template_matched`` with ``runs``, returns
+    one entry per template variant x replicate so the random null inherits
+    the same field-subset search budget as labeled field-additivity runs.
     """
     import copy
     control_cfg = config.get("control", {})
     mode = control_cfg.get("mode", "labeled") if control_cfg else "labeled"
     replicates = control_cfg.get("replicates", 1)
 
+    def _subset_suffix(run_spec: Dict[str, Any], idx: int) -> Tuple[Dict[str, Any], str]:
+        """Turn a ``runs`` entry into (concept_subset_dict, human_suffix)."""
+        fields = run_spec.get("fields")
+        roles = run_spec.get("concept_subset", run_spec.get("roles"))
+        if fields is not None:
+            return {"fields": list(fields)}, "_".join(str(f) for f in fields)
+        if roles is not None and isinstance(roles, list):
+            return {"roles": list(roles)}, "_".join(str(r) for r in roles)
+        return dict(run_spec), f"v{idx}"
+
     if mode == "additivity" and "runs" in control_cfg:
         variants = []
         for i, run_spec in enumerate(control_cfg["runs"]):
             cfg = copy.deepcopy(config)
-            fields = run_spec.get("fields")
-            roles = run_spec.get("concept_subset", run_spec.get("roles"))
-
-            if fields is not None:
-                cfg["control"]["concept_subset"] = {"fields": fields}
-                suffix = "_".join(fields)
-            elif roles is not None and isinstance(roles, list):
-                cfg["control"]["concept_subset"] = {"roles": roles}
-                suffix = "_".join(roles)
-            else:
-                cfg["control"]["concept_subset"] = run_spec
-                suffix = f"v{i}"
+            subset, suffix = _subset_suffix(run_spec, i)
+            cfg["control"]["concept_subset"] = subset
             variants.append((cfg, f"add_{suffix}"))
+        return variants
+
+    if mode == "random_template_matched":
+        runs = control_cfg.get("runs")
+        reps = max(int(replicates), 1)
+        if runs:
+            variants = []
+            for i, run_spec in enumerate(runs):
+                subset, suffix = _subset_suffix(run_spec, i)
+                for r in range(reps):
+                    cfg = copy.deepcopy(config)
+                    cfg["control"]["concept_subset"] = copy.deepcopy(subset)
+                    cfg["control"]["_current_replicate"] = r
+                    variant_tag = f"rtm_{suffix}__r{r}"
+                    variants.append((cfg, variant_tag))
+            return variants
+        # No field-subset runs: just replicate the full template.
+        if reps <= 1:
+            return [(config, "")]
+        variants = []
+        for r in range(reps):
+            cfg = copy.deepcopy(config)
+            cfg["control"]["_current_replicate"] = r
+            variants.append((cfg, f"rtm_full__r{r}"))
         return variants
 
     if replicates <= 1:

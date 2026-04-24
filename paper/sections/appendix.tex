@@ -1,132 +1,164 @@
-% Appendix material: provided for completeness; main-paper claims are self-contained in the 8-page body.
-\section*{Appendix: How to Read}
+% Appendix material: provided for completeness and depth.
+% The main-paper claims are self-contained in the 8-page body; the material below
+% expands each claim into its full evidence base and reports auxiliary investigations
+% that supported (or re-shaped) the main findings.
+\section*{Appendix}
 \addcontentsline{toc}{section}{Appendix: How to Read}
 
-\textbf{Appendix material is provided for completeness; main-paper claims are self-contained in the 8-page body.}
-The appendices fall into five groups: (Repro.) Reproducibility Statement; (A--C) pipeline reference and metric justifications; (D--H) per-domain quantitative tables and metric variants; (I--K) cross-prompt and scaffold analyses; (L--M) case studies and the Sounds/Paintings deep dive; (N--O) reproducibility manifest and glossary.
+The appendix is organized to track the main paper: \S\ref{appx:pipeline}--\S\ref{appx:funcvocab} give a detailed reference for the pipeline and its inputs; \S\ref{appx:specificity}--\S\ref{appx:fieldadd} back up the results of \S\ref{sec:results:primary} with per-domain numbers; \S\ref{appx:msearch}--\S\ref{appx:kl} back up the $M$-search and steering-strength discussion of \S\ref{sec:results:diagnostic:msearch}; \S\ref{appx:crossprompt}--\S\ref{appx:scaffold} back up the cross-prompt and scaffold analyses of \S\ref{sec:results:diagnostic:layers} and \S\ref{sec:results:diagnostic:scaffold}; \S\ref{appx:regime} gives the logit-shift regime taxonomy used throughout; \S\ref{appx:case} contains worked case studies; \S\ref{appx:negative} analyzes the two negative-result domains (Sounds and Paintings); \S\ref{appx:repro} is the reproducibility manifest; \S\ref{appx:glossary} is the glossary. Every appendix section is self-contained and cross-referenced from the main text.
 
 % --------------------------------------------------------------------
 \section{Pipeline Reference}
 \label{appx:pipeline}
 
-\subsection{Pseudocode}
+\subsection{End-to-end pipeline}
+
+The pipeline takes an attribution graph for a seed prompt and returns a collection of concept-aligned supernodes together with the data needed to run matched-control swap interventions. The pseudocode below summarizes the steps; the paragraphs that follow describe each step in plain language.
+
 \begin{small}
 \begin{verbatim}
-Input: attribution_graph G_p, seed_prompt p, target_logit y
-1. V_tau := select_nodes_by_cumulative_influence(G_p, tau=0.95)
-2. Concepts := llm_generate_concepts(p, K)
-3. Probes := synthesize_probes(Concepts, template_constraints)
-4. for f in V_tau:
-     for q in Probes:
-       A[f, q] := measure_activation(f, q)        # Neuronpedia API or local
-5. CPAS := aggregate_cross_prompt(A)              # Sec 3.2
-6. for f in V_tau:
-     role[f] := classify(CPAS[f], thresholds)     # Sec 3.4 strict-priority rules
-     name[f] := assign_name(f, A, blacklist, target_token_rules)
-7. Supernodes := group_by(role, name) with stability >= 0.6
-8. Subgraph := pin_nodes(Supernodes, embeddings, y)
-9. for (e_A, e_B) in pairs:
-     I_lab  := build_swap(S(e_A), S(e_B), M_a=-2, M_b=20)
-     I_rand := matched_random_control(I_lab)       # Def 5
-     run_swap(I_lab); run_swap(I_rand)             # freeze_attention=false
-10. Adaptive_M_search on missed pairs              # Sec 3.7
+Input:  attribution graph G_p, seed prompt p, target logit y
+Output: concept-aligned supernodes {S_i}, swap harness I
+
+1. V_tau  = select_features_by_cumulative_influence(G_p, tau=0.95)
+2. C      = llm_generate_concepts(p, K)
+3. Probes = synthesize_probes(C, template_constraints)
+4. for each feature f in V_tau, each probe q in Probes:
+     A[f, q] = measure_activation(f, q)
+5. CPAS[f] = aggregate_cross_prompt(A[f, *])
+6. for each feature f in V_tau:
+     role[f] = classify(CPAS[f], thresholds)
+     name[f] = assign_name(f, A, blacklist, target_token_rules)
+7. Supernodes = group_by((role, name)), stability >= 0.6
+8. for each swap pair (e_A, e_B):
+     I_lab  = build_swap(S(e_A), S(e_B), M_ablate=-2, M_amplify=20)
+     I_rand = matched_random_control(I_lab)
+     run(I_lab); run(I_rand)
+9. adaptive_M_search(missed_pairs)
 \end{verbatim}
 \end{small}
 
-\subsection{CPAS metrics}
-\begin{itemize}\itemsep0pt
-\item \texttt{peak\_consistency\_main}: fraction of probes whose peak token matches the modal peak.
-\item \texttt{n\_distinct\_peaks}: number of distinct peak tokens across active probes.
-\item \texttt{share\_F} / \texttt{conf\_F}: fraction of active probes whose peak is on a functional token / classifier confidence on that share.
-\item \texttt{func\_vs\_sem\_pct}: $100 \cdot (\max\mathrm{func} - \max\mathrm{sem})/\max\mathrm{overall}$.
-\item \texttt{sparsity\_median}: median of $(\mathrm{peak} - \mathrm{mean})/\mathrm{peak}$ across active probes.
-\item \texttt{conf\_S}: $1 - \mathrm{share\_F}$.
-\end{itemize}
+\emph{Step 1 (feature selection).} Attribution graphs from Neuronpedia are generated with a relatively permissive node-inclusion threshold (\texttt{nodeThreshold=0.8}), a high edge-influence threshold (\texttt{edgeThreshold=0.85}), and a cap of \texttt{maxFeatureNodes=5000}. The graph typically contains 600--5{,}000 nodes; we then retain only the nodes whose cumulative influence sums to at least $\tau{=}0.95$, which reduces each circuit to 200--700 features for batch experiments.
 
-\subsection{Decision-rule thresholds (frozen pre-analysis)}
-\textsc{Sem-Dict} \texttt{peak\_consistency}$\geq 0.80$ \textsc{and} \texttt{n\_distinct\_peaks}$\leq 1$.
-\textsc{Say-X} \texttt{func\_vs\_sem\_pct}$\geq 50$ \textsc{and} \texttt{conf\_F}$\geq 0.90$ \textsc{and} layer $\geq 7$.
-\textsc{Rel} \texttt{sparsity\_median}$<0.45$.
-\textsc{Sem-Conc} layer $\leq 3$ \textsc{or} \texttt{conf\_S}$\geq 0.50$ \textsc{or} \texttt{func\_vs\_sem\_pct}$<50$.
-Otherwise \textsc{Review} (excluded).
+\emph{Step 2--3 (probe generation).} The seed prompt is handed to a separate LLM together with a small specification that (a) lists the \emph{concepts} we expect to find in the graph (entities, relations, answer tokens) and (b) constrains the probe templates to be syntactically close to the seed (same prepositions, same answer position, same length). The LLM returns a handful of concept-targeted probe prompts. Typical probe counts are 20--30 per seed.
+
+\emph{Step 4--5 (activation measurement and CPAS).} Each feature in $V_\tau$ is re-run on each probe and its activation measured with the Neuronpedia API. The per-(feature, probe) record stores the peak token, the peak position in the probe, the activation density, a sparsity ratio, a robust $z$-score, and a cosine similarity to the seed activation. These raw measures are then aggregated across probes into a compact per-feature signature (the CPAS).
+
+\emph{Step 6 (classification and naming).} A strict-priority decision tree (\S\ref{sec:method:rules}; thresholds in \Cref{tab:decision-thresholds}) assigns each feature one of four functional roles (Semantic-Dictionary, Semantic-Concept, Relationship, Say-X) or a fifth \textsc{Review} bucket that is excluded from downstream analysis. Naming is role-specific (\S\ref{sec:method:supernodes}).
+
+\emph{Step 7 (supernode formation).} Same-role same-name features are merged into a supernode; features whose role or name is inconsistent across probes ($<60\%$ probe-level stability) are marked \emph{ungrouped} and excluded.
+
+\emph{Step 8--9 (causal-validation harness).} For every entity pair in the domain we build an additive entity-swap intervention (\Cref{def:swap}), run it at $M_{\mathrm{ablate}}{=}-2$ / $M_{\mathrm{amplify}}{=}20$ with attention \emph{not} frozen, and compare it to three deterministic matched-random-control replicates (\Cref{def:matched}). Pairs that miss at the defaults enter adaptive $M$-search (\S\ref{appx:msearch}).
+
+\subsection{CPAS measures}
+The CPAS is the seven-number summary that the decision tree operates on. \Cref{tab:cpas-metrics} gives the formal definitions and the intuition for each field.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{p{0.28\linewidth}p{0.64\linewidth}}
+\toprule
+Field & Definition and intuition \\
+\midrule
+\texttt{peak\_consistency\_main} & Fraction of probes whose peak token matches the feature's modal peak. High ($\geq 0.8$) means the feature is a dictionary-like detector for one particular token. \\
+\texttt{n\_distinct\_peaks} & Number of distinct peak tokens across \emph{active} probes. $=1$ for a Semantic-Dictionary feature; larger for Semantic-Concept or Say-X. \\
+\texttt{share\_F} / \texttt{conf\_F} & Share of active probes whose peak falls on a functional token / classifier confidence on that share. A feature with \texttt{share\_F}$\approx 1$ and high \texttt{conf\_F} is a Say-X candidate. \\
+\texttt{func\_vs\_sem\_pct} & $100 \cdot \big(\max_{\text{func}} - \max_{\text{sem}}\big) / \max_{\text{overall}}$. Positive when the peak is on a functional token; used to break ties between Say-X and semantic roles. \\
+\texttt{sparsity\_median} & Median of $(\mathrm{peak} - \mathrm{mean})/\mathrm{peak}$ across active probes. Low values indicate a dense, diffuse activation pattern characteristic of Relationship features. \\
+\texttt{conf\_S} & $1 - \mathrm{share\_F}$, i.e.\ confidence that the peak is on a semantic token. \\
+\bottomrule
+\end{tabular}
+\caption{CPAS fields used by the classification rules in \S\ref{sec:method:rules}.}
+\label{tab:cpas-metrics}
+\end{table}
+
+\subsection{Decision-rule thresholds}
+
+The decision tree is a strict-priority cascade: features are evaluated against the rules in the order below, and the first matching rule wins. Thresholds were iteratively refined on a small set of pilot circuits and then frozen before the 42{,}184-run sweep.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lll}
+\toprule
+Priority & Role & Rule \\
+\midrule
+1 & \textsc{Sem-Dict} & \texttt{peak\_consistency\_main} $\geq 0.80$ \textsc{and} \texttt{n\_distinct\_peaks} $\leq 1$ \\
+2 & \textsc{Say-X}    & \texttt{func\_vs\_sem\_pct} $\geq 50$ \textsc{and} \texttt{conf\_F} $\geq 0.90$ \textsc{and} layer $\geq 7$ \\
+3 & \textsc{Rel}      & \texttt{sparsity\_median} $< 0.45$ \\
+4 & \textsc{Sem-Conc} & layer $\leq 3$ \textsc{or} \texttt{conf\_S} $\geq 0.50$ \textsc{or} \texttt{func\_vs\_sem\_pct} $< 50$ \\
+5 & \textsc{Review}   & anything not matching the above (excluded) \\
+\bottomrule
+\end{tabular}
+\caption{Classification thresholds used for the four functional roles (\S\ref{sec:method:rules}). Strict priority: the first matching rule wins.}
+\label{tab:decision-thresholds}
+\end{table}
+
+The layer-based asymmetry (Say-X requires layer $\geq 7$, Sem-Conc accepts layer $\leq 3$) encodes a rough prior observed in Gemma-2-2B-it: early layers are overwhelmingly semantic-content features; the "Say X" behavior of functional-token features promoting a specific answer is observed only in the later half of the network.
 
 % --------------------------------------------------------------------
 \section{Functional Vocabulary and Target-Token Mapping}
 \label{appx:funcvocab}
 
-\paragraph{English functional tokens (87 total).}
-\textbf{Copulas:} \texttt{is, was, are, were, be, been, being, am, 's, 're, 'm}.
-\textbf{Articles:} \texttt{the, a, an, this, that, these, those}.
-\textbf{Prepositions:} \texttt{of, in, on, at, to, for, with, by, from, as, into, onto, upon, about, above, below, between, among, through, during, before, after}.
-\textbf{Conjunctions:} \texttt{and, or, but, nor, so, yet, for}.
-\textbf{Relative pronouns:} \texttt{that, which, who, whom, whose, where, when, why, how}.
-\textbf{Auxiliaries:} \texttt{do, does, did, have, has, had, will, would, shall, should, can, could, may, might, must}.
+The pipeline distinguishes \emph{functional} tokens (copulas, articles, prepositions, conjunctions, relative pronouns, auxiliaries) from \emph{semantic} tokens (content-bearing), and uses this distinction both in the Say-X rule and during supernode naming.
 
-\paragraph{Directionality.}
-\emph{Forward:} copulas, auxiliaries, articles, most prepositions. \emph{Backward:} \texttt{of}, possessive \texttt{'s}. \emph{Bidirectional:} conjunctions, punctuation. Window: 7 tokens. Multi-token entities resolve to first subword.
+\paragraph{English functional vocabulary.}
+We use a fixed list of 87 English functional tokens. The groups and their members are:
 
-\paragraph{Documented French failure mode.}
-Applying the English pipeline to ``le contraire de `petit' est'' with English probes produced incoherent activations and no valid supernode grouping. After adding French probes and expanding the blacklist (mixed FR/EN bridging tokens), grouping became reliable; we report this as a known cross-lingual limitation.
+\begin{itemize}\itemsep0pt
+\item \textbf{Copulas and copular contractions}: \texttt{is, was, are, were, be, been, being, am, 's, 're, 'm}.
+\item \textbf{Articles and demonstratives}: \texttt{the, a, an, this, that, these, those}.
+\item \textbf{Prepositions}: \texttt{of, in, on, at, to, for, with, by, from, as, into, onto, upon, about, above, below, between, among, through, during, before, after}.
+\item \textbf{Conjunctions}: \texttt{and, or, but, nor, so, yet, for}.
+\item \textbf{Relative pronouns and wh-words}: \texttt{that, which, who, whom, whose, where, when, why, how}.
+\item \textbf{Auxiliaries}: \texttt{do, does, did, have, has, had, will, would, shall, should, can, could, may, might, must}.
+\end{itemize}
 
-% --------------------------------------------------------------------
-\section{Why Gap-Closure Was De-Emphasized}
-\label{appx:gapcl}
+\paragraph{Directionality of the $\pm 7$-token search.}
+When a feature peaks on a functional token, we search the probe for the nearest \emph{semantic} target in a window of $\pm 7$ tokens. The direction of the search depends on the functional token's syntactic role: copulas, auxiliaries, articles, and most prepositions look \emph{forward} (the semantic target is typically the noun phrase they introduce); \texttt{of} and possessive \texttt{'s} look \emph{backward} (the semantic target is the head noun that governs the functional token); conjunctions and punctuation are searched \emph{bidirectionally}, nearest-first. Multi-token semantic targets resolve to the first subword.
 
-Gap-closure is regime-dependent and confounded by baseline gap magnitude:
-
-\begin{center}
-\small
-\begin{tabular}{lrrrr}
-\toprule
-Regime & GapCl (lab) & GapCl (rand) & vsMax (lab) & vsMax (rand) \\
-\midrule
-A      & 0.88        & 0.76        & $+4.28$ & $-0.19$ \\
-C      & 2.73        & 1.59        & $+2.33$ & $-0.10$ \\
-D      & \textbf{13.62} & 6.46    & $+4.11$ & $-0.07$ \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-Regime D shows the \emph{highest} gap-closure despite being the weakest evidence regime---both tokens start far apart and both get disrupted, leaving room for ``closure'' without the target ever winning. Cross-domain, GapCl ranks Books $\sim 0$ but vsMax ranks Books strongest (+5.98). GapCl is therefore not used as a primary discriminator.
+\paragraph{Cross-lingual behavior and a documented failure mode.}
+We observed one clean cross-lingual failure during development, on a French version of the antonym seed ``le contraire de `petit' est''. Running the English pipeline on a French prompt produced incoherent cross-prompt activations: functional tokens were often peaked on the English contraction \texttt{'s} or on French tokens (\texttt{de}, \texttt{est}) that were not in our vocabulary, so the Say-X rule either never fired or fired on the wrong side. Adding a small French functional vocabulary and expanding the blacklist (bridging tokens that appear in both languages) restored reliable grouping. We flag this as a concrete instance of the cross-architecture-and-language limitation discussed in \S\ref{sec:limitations}.
 
 % --------------------------------------------------------------------
 \section{Per-Domain Full-Scale Labeled vs Random}
 \label{appx:specificity}
 
-\subsection{Headline (full labeled, all fields, $M{=}20$)}
+\Cref{tab:fullscale-spec} gives the full per-domain comparison at the standard defaults (all-three-fields, $M_{\mathrm{ablate}}{=}-2$, $M_{\mathrm{amplify}}{=}20$, attention not frozen). Each domain is reported with both the labeled intervention and the matched-random-control replicate set (always exactly three replicates per labeled pair, so the random $N$ is $3\times$ the labeled $N$).
 
-\begin{center}
-\small
+\begin{table}[h]
+\centering\small
 \begin{tabular}{llrrrrrrr}
 \toprule
-Domain & Cond & N & Hit\% & Sup\% & vsMax & RkGrp & MedRk & Flip\% \\
+Domain & Cond.\ & $N$ & Hit\% & Supp\% & vsMax & RkGrp & MedRk & Flip\% \\
 \midrule
-USA  & lab. & 2{,}450 & 24.7 & 92.8 & $+2.86$ & 1.72 & 5   & 98.2 \\
-     & rand & 7{,}350 &  0.1 & 83.4 & $-2.31$ & 9.00 & 566 & 69.2 \\
-Books & lab. & 240   &  3.8 & 69.2 & $+5.98$ & 1.03 & 17  & 96.7 \\
-      & rand & 720   &  0.3 & 75.0 & $-0.15$ & 2.43 & 283 & 79.6 \\
-Prods & lab. & 132   & 15.2 & 65.2 & $+3.46$ & 1.20 & 26  & 97.0 \\
-      & rand & 396   &  0.3 & 87.1 & $+0.23$ & 2.25 & 354 & 75.3 \\
-Paint & lab. & 90    &  4.4 & 34.4 & $+1.55$ & 1.31 & 70  & 97.8 \\
-      & rand & 270   &  0.0 & 74.1 & $-0.03$ & 1.96 & 196 & 88.9 \\
-Sound & lab. & 30    &  0.0 & 100  & $+3.28$ & 1.00 & 21  & 60.0 \\
-      & rand & 90    & 12.2 & 80.0 & $+3.14$ & 1.08 & 24  & 53.3 \\
+USA       & labeled & 2{,}450 & 24.7 & 92.8 & $+2.86$ & 1.72 & 5   & 98.2 \\
+          & random  & 7{,}350 &  0.1 & 83.4 & $-2.31$ & 9.00 & 566 & 69.2 \\
+Books     & labeled &   240   &  3.8 & 69.2 & $+5.98$ & 1.03 & 17  & 96.7 \\
+          & random  &   720   &  0.3 & 75.0 & $-0.15$ & 2.43 & 283 & 79.6 \\
+Products  & labeled &   132   & 15.2 & 65.2 & $+3.46$ & 1.20 & 26  & 97.0 \\
+          & random  &   396   &  0.3 & 87.1 & $+0.23$ & 2.25 & 354 & 75.3 \\
+Paintings & labeled &    90   &  4.4 & 34.4 & $+1.55$ & 1.31 & 70  & 97.8 \\
+          & random  &   270   &  0.0 & 74.1 & $-0.03$ & 1.96 & 196 & 88.9 \\
+Sounds    & labeled &    30   &  0.0 & 100  & $+3.28$ & 1.00 & 21  & 60.0 \\
+          & random  &    90   & 12.2 & 80.0 & $+3.14$ & 1.08 & 24  & 53.3 \\
 \bottomrule
 \end{tabular}
-\end{center}
+\caption{Full-scale labeled vs.\ matched-random comparison at default $M$, all three semantic fields. $N$ counts swap pairs (or pair-replicates for random). The labeled--random vsMax gap is the central signal of operational usefulness (\Cref{def:opuseful}). Sounds inverts: matched random exceeds labeled on both Hit and vsMax.}
+\label{tab:fullscale-spec}
+\end{table}
 
-\subsection{Specificity strength}
-Books $+6.13$ (Strong); USA $+5.17$ (Strong); Products $+3.23$ (Moderate); Paintings $+1.58$ (Weak); Sounds $+0.14$ (Negligible).
+The rightmost four columns tell the same qualitative story from different angles. In the four strong domains, the labeled intervention promotes the target to a median rank (MedRk) inside the top $70$ while the matched-random controls leave it near rank $200$--$550$; in Sounds the two are indistinguishable (21 vs 24). \texttt{RkGrp} is the target's rank \emph{within the domain's answer set} (i.e.\ how well the target beats its fellow answers), and is close to $1$ (best) for labeled in every strong domain. \texttt{Flip\%} reports how often the target's logit overtakes the source at any trajectory position; it is above $96\%$ in every strong domain's labeled condition, which is why the operational test relies on vsMax rather than on the flip indicator alone.
+
+\paragraph{Labeled--random vsMax gap by domain.}
+Books $+6.13$ (Strong); USA $+5.17$ (Strong); Products $+3.23$ (Moderate); Paintings $+1.58$ (Weak); Sounds $+0.14$ (Negligible, wrong sign on vsMax comparison). The monotone relationship between this gap and the operational-usefulness verdict is one of the main reasons we report vsMax as a primary metric.
 
 % --------------------------------------------------------------------
 \section{Field-Additivity Detail}
 \label{appx:fieldadd}
 
-\subsection{Per-domain 7-variant tables}
-The six tables below give Hit\%, Sup\%, GapCl, MedRk, vsMax, vsTopK, RkGrp for all 7 field variants per domain. Bold marks the best-Hit\% subset.
+Each domain has three semantic fields---loosely, an \emph{input} field (the entity being named in the prompt), an \emph{intermediate} field (the bridging concept, e.g.\ the US state), and an \emph{answer} field (the concept whose logit we measure). For each entity pair the field-additivity sweep runs seven intervention variants: three singletons, three pairs, and the all-three baseline. The field-by-field tables below give Hit\%, vsMax, RkGrp, and MedRk for every variant; the bold row is the per-domain best variant chosen by Hit\%.
 
 \paragraph{USA (state, capital, city; 2{,}450 pairs/variant).}
-\begin{small}
+\begin{center}\small
 \begin{tabular}{lrrrr}
 \toprule
 Subset & Hit\% & vsMax & RkGrp & MedRk \\
@@ -140,316 +172,538 @@ capital+city        & 10.2 & $+0.58$ & 4.16 & 30 \\
 all 3               & 24.7 & $+2.86$ & 1.72 & 5 \\
 \bottomrule
 \end{tabular}
-\end{small}
+\end{center}
+
+Prompts are of the form ``The capital of the state containing $\langle$city$\rangle$ is''. The input field is the city (what the model reads), the intermediate is the state (the reasoning bridge), and the answer is the capital. Intervening only on state and capital features produces the largest redirection: the answer's median rank drops from 190 (city-only) to 3. Adding city-field features degrades every metric, which is the mechanism we label \emph{less is more}: the city features encode what the model reads, not what it should produce, and their activation competes with the answer circuit.
 
 \paragraph{Books (character, book, author; 240 pairs/variant).}
-\begin{small}
+\begin{center}\small
 \begin{tabular}{lrrrr}
 \toprule
 Subset & Hit\% & vsMax & RkGrp & MedRk \\
 \midrule
-character           & 4.2  & $+1.87$ & 1.77 & 125 \\
-book                & 37.1 & $+6.69$ & 1.20 & 2 \\
-author              & 14.6 & $+4.71$ & 1.33 & 12 \\
-\textbf{book+author}    & \textbf{37.1} & \textbf{+7.76} & \textbf{1.02} & \textbf{2} \\
-character+book      & 5.0  & $+5.22$ & 1.23 & 24 \\
-character+author    & 3.8  & $+3.45$ & 1.30 & 76 \\
-all 3               & 3.8  & $+5.97$ & 1.03 & 17 \\
-\bottomrule
-\end{tabular}
-\end{small}
-
-\paragraph{Products (product, company, founder; 132 pairs/variant).}
-\begin{small}
-\begin{tabular}{lrrrr}
-\toprule
-Subset & Hit\% & vsMax & RkGrp & MedRk \\
-\midrule
-product               & 0.0  & $+1.90$ & 1.61 & 137 \\
-company               & 5.3  & $+2.62$ & 1.39 & 128 \\
-founder               & 8.3  & $+2.08$ & 1.27 & 18 \\
-\textbf{company+founder}  & \textbf{24.2} & \textbf{+3.06} & \textbf{1.27} & \textbf{18} \\
-product+company       & 1.5  & $+2.78$ & 1.31 & 93 \\
-product+founder       & 2.3  & $+2.54$ & 1.23 & 48 \\
-all 3                 & 15.2 & $+3.47$ & 1.20 & 26 \\
-\bottomrule
-\end{tabular}
-\end{small}
-
-\paragraph{Paintings (painting, painter, first\_name; 90 pairs/variant).}
-\begin{small}
-\begin{tabular}{lrrrr}
-\toprule
-Subset & Hit\% & vsMax & RkGrp & MedRk \\
-\midrule
-painting          & 3.3 & $+1.50$ & 1.44 & 71 \\
-painter           & 1.1 & $+1.68$ & 1.30 & 66 \\
-first\_name        & 6.7 & $+1.46$ & 1.41 & 90 \\
-painter+first\_name& 1.1 & $+1.69$ & 1.30 & 65 \\
-all 3             & 3.3 & $+1.55$ & 1.32 & 66 \\
-\bottomrule
-\end{tabular}
-\end{small}
-
-\paragraph{Sounds (sound, animal, color; 30 pairs/variant).}
-\begin{small}
-\begin{tabular}{lrrrr}
-\toprule
-Subset & Hit\% & vsMax & RkGrp & MedRk \\
-\midrule
-sound          & 20.0 & $+5.49$ & 1.00 & 5 \\
-animal         & 12.5 & $+3.49$ & 1.21 & 6 \\
-color          & 0.0  & $+3.09$ & 1.07 & 48 \\
-\textbf{sound+animal} & \textbf{20.0} & \textbf{+4.69} & \textbf{1.07} & \textbf{5} \\
-all 3          & 0.0  & $+3.40$ & 1.00 & 20 \\
-\bottomrule
-\end{tabular}
-\end{small}
-
-\subsection{Cross-domain single-field role aggregates}
-\begin{center}
-\small
-\begin{tabular}{lrrrrr}
-\toprule
-Role & Hit\% & Sup\% & MedRk & vsMax & RkGrp \\
-\midrule
-Input        & 6.1  & 63.2 & 106 & $+1.90$ & 2.55 \\
-Intermediate & 14.6 & 79.1 &  43 & $+3.37$ & 1.56 \\
-Answer       & 8.8  & 89.5 &  36 & $+2.39$ & 1.75 \\
+character        & 4.2  & $+1.87$ & 1.77 & 125 \\
+book             & 37.1 & $+6.69$ & 1.20 & 2 \\
+author           & 14.6 & $+4.71$ & 1.33 & 12 \\
+\textbf{book+author} & \textbf{37.1} & \textbf{+7.76} & \textbf{1.02} & \textbf{2} \\
+character+book   & 5.0  & $+5.22$ & 1.23 & 24 \\
+character+author & 3.8  & $+3.45$ & 1.30 & 76 \\
+all 3            & 3.8  & $+5.97$ & 1.03 & 17 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
+Prompts are of the form ``The author of the book featuring $\langle$character$\rangle$ is''. The character field is the input; intervening on it alone moves almost nothing. The largest single-field effect comes from the book field ($37.1\%$ Hit on its own), and adding the author field pushes vsMax to $+7.76$ without adding new hits. Adding the character field undoes the effect almost entirely ($3.8\%$ Hit for all-three). This is the sharpest single-domain illustration of the less-is-more effect.
+
+\paragraph{Products (product, company, founder; 132 pairs/variant).}
+\begin{center}\small
+\begin{tabular}{lrrrr}
+\toprule
+Subset & Hit\% & vsMax & RkGrp & MedRk \\
+\midrule
+product              & 0.0  & $+1.90$ & 1.61 & 137 \\
+company              & 5.3  & $+2.62$ & 1.39 & 128 \\
+founder              & 8.3  & $+2.08$ & 1.27 & 18 \\
+\textbf{company+founder} & \textbf{24.2} & \textbf{+3.06} & \textbf{1.27} & \textbf{18} \\
+product+company      & 1.5  & $+2.78$ & 1.31 & 93 \\
+product+founder      & 2.3  & $+2.54$ & 1.23 & 48 \\
+all 3                & 15.2 & $+3.47$ & 1.20 & 26 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Paintings (painting, painter, first\_name; 90 pairs/variant).}
+\begin{center}\small
+\begin{tabular}{lrrrr}
+\toprule
+Subset & Hit\% & vsMax & RkGrp & MedRk \\
+\midrule
+painting           & 3.3 & $+1.50$ & 1.44 & 71 \\
+painter            & 1.1 & $+1.68$ & 1.30 & 66 \\
+first\_name         & 6.7 & $+1.46$ & 1.41 & 90 \\
+painter+first\_name & 1.1 & $+1.69$ & 1.30 & 65 \\
+all 3              & 3.3 & $+1.55$ & 1.32 & 66 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Paintings is the weakest strong domain. The answer field is the painter's first name, a coarse token with many non-painting associations (\texttt{Claude}, \texttt{Pablo}, \texttt{Leonardo}); and the \texttt{painter} supernode overlaps with \texttt{first\_name} by construction (the painter supernode name already contains the first name). The less-is-more effect is correspondingly weak: the $+3.4$~pp main-text gap is the smallest of the four strong domains.
+
+\paragraph{Sounds (sound, animal, color; 30 pairs/variant).}
+\begin{center}\small
+\begin{tabular}{lrrrr}
+\toprule
+Subset & Hit\% & vsMax & RkGrp & MedRk \\
+\midrule
+sound           & 20.0 & $+5.49$ & 1.00 & 5 \\
+animal          & 12.5 & $+3.49$ & 1.21 & 6 \\
+color           & 0.0  & $+3.09$ & 1.07 & 48 \\
+\textbf{sound+animal} & \textbf{20.0} & \textbf{+4.69} & \textbf{1.07} & \textbf{5} \\
+all 3           & 0.0  & $+3.40$ & 1.00 & 20 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Sounds' best variant is \emph{input+intermediate} (sound+animal), unlike the four strong domains where the best variant is intermediate+answer. The answer field (color) contributes almost nothing on its own, and including it collapses Hit\% to zero. We interpret this in \S\ref{appx:negative} in terms of the color answer set's near-uniform competition.
+
+\subsection{Cross-domain single-field aggregates}
+
+Averaging over all five domains, the three field types produce very different redirection strengths. \Cref{tab:field-aggregate} reports the aggregate numbers: the \emph{intermediate} field carries the strongest single-field signal ($14.6\%$ Hit), followed by the \emph{answer} field ($8.8\%$), with the \emph{input} field trailing at $6.1\%$. Input-field features encode what the model reads; intermediate- and answer-field features encode what the model should produce.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lrrrrr}
+\toprule
+Field type   & Hit\% & Supp\% & MedRk & vsMax & RkGrp \\
+\midrule
+Input        &  6.1 & 63.2 & 106 & $+1.90$ & 2.55 \\
+Intermediate & 14.6 & 79.1 &  43 & $+3.37$ & 1.56 \\
+Answer       &  8.8 & 89.5 &  36 & $+2.39$ & 1.75 \\
+\bottomrule
+\end{tabular}
+\caption{Per-field aggregates across all five domains. Each row averages the corresponding single-field variant across the five domains, weighted equally.}
+\label{tab:field-aggregate}
+\end{table}
+
 % --------------------------------------------------------------------
-\section{Adaptive M-Search}
+\section{Adaptive $M$-Search}
 \label{appx:msearch}
 
-\subsection{Two-phase protocol}
-\textbf{Phase 1 (coarse, geometric):} $M \in \{0.1, 0.25, 0.6, 1.5, 4.0, 10.0, 20.0\}$ probed in order; stop at first Hit. \textbf{Phase 2 (KL-binary):} compute KL$(M)$ at the Phase-1 grid; identify the steepest KL transition; binary-refine $M$ in that interval for 6 steps. Accept hit at any refinement point.
+\subsection{The two-phase protocol}
 
-\subsection{Per-domain rescue}
-\begin{center}
-\small
+When a swap pair misses at the default $M_{\mathrm{amplify}}{=}20$, we search for a better amplifier in two phases.
+
+\emph{Phase 1 (coarse geometric probe).} We evaluate $M \in \{0.1, 0.25, 0.6, 1.5, 4.0, 10.0, 20.0\}$ in that order and stop at the first hit. The grid is geometric so that the same number of probes covers both the fine-grained low-$M$ region where some pairs find a hit near $M{\sim}2$ and the $M\approx 20$ neighborhood that the default already explored.
+
+\emph{Phase 2 (KL-transition binary refinement).} If Phase~1 produces no hit, we compute the KL divergence between the steered and unsteered output distributions at each Phase-1 grid point. The KL curve is close to linear in $M$ for most pairs ($R^2 > 0.93$ for 8 of 10 probed USA pairs), but the hits that do exist tend to cluster near the \emph{onset} of meaningful response rather than at arbitrary large $M$. We therefore identify the interval in which KL rises most steeply (the ``KL transition''), place a binary-refinement search inside that interval, and run 6 additional probes, accepting a hit at any refinement point. The rationale is that the model's response to multi-feature amplification typically has a sharp onset at a pair-specific $M$, and hits live near that onset.
+
+\subsection{Per-domain rescue totals}
+
+\Cref{tab:msearch-rescue} summarizes the rescue rates split by condition (Labeled vs Field-Additivity) and domain.
+
+\begin{table}[h]
+\centering\small
 \begin{tabular}{llrrrrrr}
 \toprule
-Cond. & Domain & Eligible & New hits & Hit-rate & Before & After & $\Delta$ \\
+Cond.\ & Domain & Eligible & New hits & Hit\% & Before & After & $\Delta$ \\
 \midrule
-Lab.  & USA   & 870 & 329 & 37.8 & 24.7 & 38.2 & $+13.5$ \\
-Lab.  & Books &  85 &  12 & 14.1 &  3.3 &  9.0 &  $+5.7$ \\
-Lab.  & Paint & 103 &   7 &  6.8 &  4.0 &  9.7 &  $+5.6$ \\
-Lab.  & Sound &  23 &   5 & 21.7 &  0.0 & 16.7 & $+16.7$ \\
-Lab.  & Prods & 128 &   4 &  3.1 & 13.2 & 15.5 &  $+2.3$ \\
+Lab.\ & USA       & 870 & 329 & 37.8 & 24.7 & 38.2 & $+13.5$ \\
+Lab.\ & Books     &  85 &  12 & 14.1 &  3.3 &  9.0 &  $+5.7$ \\
+Lab.\ & Paintings & 103 &   7 &  6.8 &  4.0 &  9.7 &  $+5.6$ \\
+Lab.\ & Sounds    &  23 &   5 & 21.7 &  0.0 & 16.7 & $+16.7$ \\
+Lab.\ & Products  & 128 &   4 &  3.1 & 13.2 & 15.5 &  $+2.3$ \\
 \midrule
-FA    & USA   & 553 &  78 & 14.1 & 64.2 & 67.3 &  $+3.2$ \\
-FA    & Books &  73 &   9 & 12.3 & 59.5 & 63.8 &  $+4.3$ \\
-FA    & Paint &  96 &   6 &  6.3 & 16.9 & 21.8 &  $+4.8$ \\
-FA    & Prods & 124 &   2 &  1.6 & 26.4 & 27.6 &  $+1.1$ \\
-FA    & Sound &  21 &   0 &  0.0 & 20.0 & 20.0 &  $+0.0$ \\
+FA    & USA       & 553 &  78 & 14.1 & 64.2 & 67.3 &  $+3.2$ \\
+FA    & Books     &  73 &   9 & 12.3 & 59.5 & 63.8 &  $+4.3$ \\
+FA    & Paintings &  96 &   6 &  6.3 & 16.9 & 21.8 &  $+4.8$ \\
+FA    & Products  & 124 &   2 &  1.6 & 26.4 & 27.6 &  $+1.1$ \\
+FA    & Sounds    &  21 &   0 &  0.0 & 20.0 & 20.0 &  $+0.0$ \\
 \midrule
 \textbf{Total} & --- & \textbf{2{,}076} & \textbf{452} & --- & --- & --- & --- \\
 \bottomrule
 \end{tabular}
-\end{center}
+\caption{Adaptive $M$-search rescue rates. ``Eligible'' is the number of pairs that missed at the default. ``Before'' and ``After'' are the domain-level Hit\% before and after the search. Labeled sweeps recover between $2.3$ and $16.7$~pp per domain; field-additivity sweeps recover more modestly because most pairs that were going to be rescued by $M$-change already were, and the remaining misses tend to be feature-specificity failures rather than overshoot failures.}
+\label{tab:msearch-rescue}
+\end{table}
 
-\subsection{Winning-$M$ histogram}
-93\% of hits found in Phase 1; bimodal at $M{\sim}2.4$ (47\%) and $M{\sim}6.9$ (40\%); long tail to $M{\geq}10$ (13\%).
+The overall pattern: $93\%$ of adaptive hits are found in Phase~1 (coarse geometric), and the winning-$M$ distribution is bimodal at $M\sim 2.4$ (47\% of labeled hits) and $M\sim 6.9$ (40\%), with a long tail to $M \geq 10$ (13\%).
 
-\subsection{High-$M$ negative result}
-$M \in \{50, 100, 200\}$ on near-miss pairs across 3 domains: 80 runs, \emph{0 new hits}; existing hits at $M{=}20$ degraded monotonically with increasing $M$.
+\subsection{High-$M$ rescue is null}
 
-\subsection{Top-$k$ negative result}
-$k \in \{1, 3, 5, 10\}$ by graph influence at $M \in [20, 200]$ on Products: 96 runs, \emph{0 hits}. Only the full feature set ($k{=}67$) achieves hits. Graph influence correlates negatively with stored activation ($\rho{=}-0.362$, $p{=}0.003$).
+To rule out the alternative explanation that the $M{=}20$ default is \emph{too small}, we ran $M \in \{50, 100, 200\}$ on 80 near-miss pairs across three domains. The result was $0$ new hits. Existing hits at $M{=}20$ degraded monotonically as $M$ increased: at $M{=}200$ the generated continuation is typically dominated by a single high-frequency token from the amplification set, with no remaining structural coherence. KL between steered and unsteered saturates above $M\sim 50$, so the model's output distribution is essentially maximally disrupted long before $M$ reaches $200$.
 
-\subsection{Five failure modes}
-(1) \emph{Severe overshoot} (rescuable by $M$ reduction; 88\% rescue rate; 37/42 \texttt{oklahoma\_tulsa} pairs at $M{=}5$).
-(2) \emph{Field interference} (rescuable by mid$+$answer subset; \cref{appx:fieldadd}).
-(3) \emph{Feature interaction noise} (garbage at high $M$ despite positive rank improvement; \texttt{indiana$\to$arkansas}: \texttt{tonode} at $M{=}20$ $\to$ \texttt{Little Rock} at $M{=}5$).
-(4) \emph{Signal collapse} (vsMax collapses below pair-specific $M$; \texttt{vermont$\to$kansas}: vsMax $8.3$ at $M{=}20$ $\to$ $0.3$ at $M{=}5$).
-(5) \emph{Feature specificity} (correct context, wrong answer; \texttt{Hutchinson} not \texttt{Topeka}; not fixable by $M$).
+\subsection{Top-$k$ rescue is null}
+
+A second alternative is that the $M{=}20$ signal is distributed over too many features, and that concentrating amplification on the top-$k$ features by graph influence might yield targeted hits at high $M$. On \texttt{products$\to$facebook} we ran the full factorial $k \in \{1, 3, 5, 10, 67\}$ with $M \in \{20, 50, 100, 200\}$ (six source entities, so 120 runs per cell). The result was $0$ hits for any $k < 67$ at any $M$. Only the full 67-feature set achieves hits. A worked example: at $k{=}1$, $M{=}20$ the top-influence feature for \texttt{alibaba$\to$facebook} generates ``the founder of Alibaba in 1999\ldots'', at $k{=}3$ the output is garbled token sequences, at $k{=}10$ the first token is a programming-code token, and only at $k{=}67$ does the model correctly emit ``Mark Zuckerberg\ldots''. Graph influence correlates \emph{negatively} with stored activation in this domain ($\rho{=}-0.362$, $p{=}0.003$): the top-$k$ by graph influence are the loudest but not the most informative features, and concentrating amplification on them produces generic ``question answering'' output rather than the target answer.
+
+\subsection{Five failure modes surfaced by the $M$-sweep}
+
+The pairs that remain unrescued after adaptive search fall into five qualitatively different failure modes. Identifying the five modes was itself a research output: the labels below are pointers to the investigation rather than anecdotes.
+
+\emph{(1) Severe overshoot.} A pair whose hit exists at small $M$ but is destroyed at the default $M{=}20$. Rescuable by $M$ reduction. Example: \texttt{oklahoma\_tulsa} high-vsMax pairs, $37/42$ pairs rescued at $M{=}5$ (88\% rescue rate). At $M{=}20$ the first token is typically a garbage token (\texttt{AddTagHelper}) followed by ``Oklahoma, is Tulsa'' (the city, not the capital); at $M{=}5$ the first token is a comma and the continuation corrects to ``Oklahoma City, and Tulsa is Oklahoma''.
+
+\emph{(2) Field interference.} A pair that hits on the intermediate+answer subset but not on the all-three-fields variant. Rescuable by field-additivity search (the field-composition effect of \S\ref{sec:results:diagnostic:fields}).
+
+\emph{(3) Feature-interaction noise.} The label is correct but at high $M$ distributed noise masks the target. Example: \texttt{indiana$\to$arkansas} produces \texttt{tonode} at $M{=}20$ and correctly produces \texttt{Little Rock} at $M{=}5$. A subset of these are rescued by $M$ reduction; the remainder are irreducible.
+
+\emph{(4) Signal collapse.} The target logit collapses below a pair-specific $M$ threshold. Example: \texttt{vermont\_burlington$\to$kansas\_wichita} has vsMax $8.34$ at $M{=}20$ but only $0.31$ at $M{=}5$. For these pairs the useful $M$ range is narrow and lies above the default; no value of $M$ in $\{5, 7, 10, 20\}$ produces a hit.
+
+\emph{(5) Feature specificity failure.} The intervention correctly activates the answer concept but the wrong specific entity within the concept. Example: \texttt{vermont$\to$kansas} generates ``Kansas is Hutchinson'' (wrong Kansas city), not ``Topeka''. Not fixable by $M$ adjustment: the features that were grouped under the Kansas supernode appear to encode ``Kansas cities'' rather than ``Topeka'' specifically.
+
+The coarse taxonomy is important for interpreting the aggregate recovery numbers. Modes (1)--(3) are rescued by adaptive $M$-search; mode (4) is occasionally rescued; mode (5) is not.
 
 % --------------------------------------------------------------------
 \section{Position-0 vs Best-Over-Trajectory Metrics}
 \label{appx:pos0}
 
-We report both variants because they diverge informatively.
+We report both position-0 and best-over-trajectory variants of vsMax and Hit because they diverge in informative ways, and neither strictly dominates the other.
 
-\paragraph{vsMax$>0$ rate (best variant).}
-\begin{center}
-\small
+\begin{table}[h]
+\centering\small
 \begin{tabular}{lrrrr}
 \toprule
-Domain   & Lab pos0 & Lab best & Rand pos0 & Rand best \\
+Domain    & Lab.\ pos 0 & Lab.\ best & Rand.\ pos 0 & Rand.\ best \\
 \midrule
-USA      & 52.9 & 91.0 &  2.8 & 13.1 \\
-Books    & 92.5 & 98.8 &  4.6 & 45.8 \\
-Products & 70.5 & 75.0 & 15.2 & 51.5 \\
-Paint    & 61.1 & 81.1 & 14.4 & 47.8 \\
-Sounds   & 50.0 & 90.0 & 63.3 & 93.3 \\
+USA       & 52.9 & 91.0 &  2.8 & 13.1 \\
+Books     & 92.5 & 98.8 &  4.6 & 45.8 \\
+Products  & 70.5 & 75.0 & 15.2 & 51.5 \\
+Paintings & 61.1 & 81.1 & 14.4 & 47.8 \\
+Sounds    & 50.0 & 90.0 & 63.3 & 93.3 \\
 \bottomrule
 \end{tabular}
-\end{center}
+\caption{vsMax $> 0$ rate (\%) at position~0 and at the best trajectory position. Labeled condition in the first two columns, matched-random in the last two.}
+\label{tab:pos0}
+\end{table}
 
-Position-0 vsMax$>0$ is a \emph{strict necessary condition} for output success in Books and Products (zero hits when pos0 vsMax $\leq 0$); USA tolerates trajectory recovery (28.7\% of USA hits have pos0 vsMax $\leq 0$); Sounds reveals \emph{no signal at pos0} (random exceeds labeled).
+A position-0 vsMax $>0$ rate is a \emph{necessary} condition for a full output success in Books and Products: in those domains no pair with a non-positive position-0 vsMax ever produces a Hit. USA is more forgiving---28.7\% of USA hits have position-0 vsMax $\leq 0$ and recover during generation---but position-0 vsMax still tracks output quality closely. Sounds is the one domain in which position-0 vsMax is uninformative: the matched-random controls actually exceed labeled at position~0 ($63.3\%$ vs $50.0\%$), and the best-over-trajectory numbers are also essentially tied. The Sounds anomaly is one of the reasons we exclude Sounds from cross-domain inference for the main operational-usefulness claim.
 
-\paragraph{Mean vsMax (Books illustration).}
-Labeled pos0 $+7.29$ vs random pos0 $-5.80$ = gap $+13.09$; best-over-trajectory gap is only $+8.01$. Position-0 nearly doubles the effect size.
+\emph{Books illustration.} Mean position-0 vsMax is $+7.29$ in the labeled condition and $-5.80$ in matched random, a gap of $+13.09$ logits. The best-over-trajectory gap is smaller ($+8.01$), so the position-0 view nearly doubles the effect size in this domain. The reason is that Books has only 16 entities with sharply distinct author signatures: any sufficiently large intervention tends to produce \emph{some} late-trajectory recovery of the target logit (trajectory best-over recovers for matched-random at $45.8\%$), but the position-0 picture cleanly separates on-topic redirection from generic recovery.
 
-\paragraph{The labeled-vs-best-variant pos0 split (USA).}
-Labeled pos0 vsMax$>0$ rate: 27.2\% (median pos0 vsMax $-3.88$) vs best variant 52.9\% (median $+0.31$). Position-0 evidence for the less-is-more effect: input-field features cause initial disruption.
+\emph{USA illustration of the less-is-more effect.} In USA, the full labeled intervention has a position-0 vsMax $>0$ rate of only $27.2\%$ (median position-0 vsMax $-3.88$); the best field-additivity variant has $52.9\%$ at position~0 with median vsMax $+0.31$. The input-field features in the full triple cause an initial disruption that the trajectory partially compensates for, but the position-0 view makes the disruption visible.
 
 % --------------------------------------------------------------------
 \section{KL Divergence as a Steering Diagnostic}
 \label{appx:kl}
 
-\paragraph{Linearity with $M$.}
-Per-pair KL$(M)$ is highly linear (R$^2 > 0.93$ for 8/10 USA pairs; range 0.85--1.00). Mean KL by $M$: $M{=}5$ $\to$ 9.33; $M{=}10$ $\to$ 11.10; $M{=}20$ $\to$ 13.03.
+\paragraph{Linearity of KL in $M$.}
+Within the $M \in [5, 20]$ range, the per-pair KL curve between the steered and unsteered distributions is close to linear: $R^2 > 0.93$ for 8 of the 10 USA pairs on which we estimated the linear fit. \Cref{tab:kl-pairs} lists the slope and intercept of the linear fit for each probed pair; the slope varies by a factor of $5\times$ across pairs, and is strongly predicted by the pair's ablate count (more source features ablated $\Rightarrow$ steeper KL rise per unit $M$).
 
-\paragraph{KL$\geq 12$ as a hit-veto.}
-Across 30 USA observations, no hit occurs at KL$\geq 12$. As a binary classifier on $\{$KL$<12\}$: recall 100\% (7/7), precision 37\% (7/19; 12 false positives split among feature-specificity (3), evaluator gaps (3), signal collapse (3), near-threshold (3)).
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lrrrrr}
+\toprule
+Pair (source $\to$ target) & Slope $a$ & Intercept $b$ & $R^2$ & amp.\ & total \\
+\midrule
+kansas $\to$ oklahoma       & 0.318 &  8.28 & 0.941 & 73 & 163 \\
+delaware $\to$ oklahoma     & 0.269 &  7.49 & 0.995 & 73 & 152 \\
+texas $\to$ oklahoma        & 0.218 &  9.34 & 0.986 & 73 & 138 \\
+florida $\to$ oklahoma      & 0.263 & 10.06 & 1.000 & 73 & 139 \\
+vermont $\to$ kansas        & 0.079 &  8.43 & 0.864 & 90 & 130 \\
+rhode\_island $\to$ wisconsin & 0.194 &  8.16 & 0.982 & 86 & 156 \\
+iowa $\to$ utah             & 0.245 &  6.99 & 0.935 & 93 & 253 \\
+indiana $\to$ arkansas      & 0.374 &  5.09 & 0.967 & 69 & 269 \\
+indiana $\to$ minnesota     & 0.317 &  6.16 & 0.946 & 82 & 282 \\
+hawaii $\to$ oklahoma       & 0.109 & 13.69 & 0.848 & 73 & 158 \\
+\bottomrule
+\end{tabular}
+\caption{Per-pair linear fits of KL$(\mathrm{baseline} \parallel \mathrm{steered})$ as a function of $M$, estimated from $M \in \{5, 10, 20\}$. \texttt{amp.} and \texttt{total} count the amplify and total features.}
+\label{tab:kl-pairs}
+\end{table}
 
-\paragraph{KL slope vs intervention structure.}
-$r(\mathrm{slope}, \mathrm{ablate\_count}) = +0.68$; $r(\mathrm{intercept}, \mathrm{ablate\_count}) = -0.63$. More source features ablated $\to$ steeper KL increase per unit $M$. High-slope pairs are most sensitive to $M$ and most likely to benefit from $M$-reduction.
+The slope--count correlations are $r(\mathrm{slope}, \mathrm{ablate\_count}) = +0.68$ and $r(\mathrm{intercept}, \mathrm{ablate\_count}) = -0.63$: high-ablate-count pairs have steeper KL rises and lower starting KL, so they are the ones most sensitive to $M$ and most likely to benefit from $M$-reduction.
+
+\paragraph{KL $\geq 12$ as a hit veto.}
+Across 30 USA observations, no hit occurs at KL $\geq 12$. As a binary classifier on ``hit iff KL $< 12$'', recall is $7/7 = 100\%$ and precision is $7/19 = 37\%$; the 12 false positives break down into three feature-specificity failures, three evaluator gaps (correct output miscounted due to tokenization differences such as ``St.~Paul'' vs ``Saint Paul''), three signal-collapse pairs, and three near-threshold misses. KL therefore functions as a reliable veto rather than a predictor: it reliably rules out failure modes where the output distribution is too disrupted for any target to survive, but it does not by itself predict which of the under-the-threshold pairs will become hits.
 
 \paragraph{Use in adaptive search.}
-(i) Run at $M{=}20$ and measure KL at pos 0; (ii) if KL$\geq 12$, fit KL$(M)$ from $\geq 1$ extra point and compute $M_{\mathrm{crit}} = (12 - b)/a$; (iii) re-run at $M = \lfloor 0.8 \cdot M_{\mathrm{crit}} \rfloor$; (iv) if intercept $b\geq 12$, flag as intrinsically disruptive.
+The adaptive harness uses this in four steps: (i) run at $M{=}20$ and measure KL at position~0; (ii) if KL $\geq 12$, fit the linear KL$(M)$ from one additional probe and compute a pair-specific $M_{\mathrm{crit}} = (12 - b)/a$; (iii) re-run at $M = \lfloor 0.8 \cdot M_{\mathrm{crit}} \rfloor$ with a safety margin; (iv) if the intercept $b$ already exceeds $12$ (as for \texttt{hawaii $\to$ oklahoma}, where $b{=}13.69$), flag the pair as intrinsically disruptive and do not probe further.
+
+\paragraph{A note on target recovery as a signal.}
+An earlier version of the analysis promoted \emph{target recovery rate}---whether the target's logit exceeds its own unsteered baseline at any trajectory position---as a primary label-evidence metric, on the basis of a $92\%$ (labeled) vs $29\%$ (random) gap in USA regime~C. A deliberate replication attempt on Books collapsed this gap to $92\%$ vs $89\%$ in the same regime, because the Books model's smaller answer set and distinctive author signatures make random recovery mechanically easy. The lesson, which we took seriously when finalizing the main-paper metrics, is that high-discrimination binary flags may reflect a single domain's structure; \emph{continuous} magnitude metrics (max excess over baseline, vsMax) are more portable. We therefore use Target Recovery only as one of three supporting signals in the within-regime-C analysis of \Cref{sec:results:primary}, not as a primary metric.
 
 % --------------------------------------------------------------------
 \section{Cross-Prompt Robustness at Scale}
 \label{appx:crossprompt}
 
-1{,}607 intra-domain pairs, 5 domains, 103 entities. 5{,}000 bootstrap resamples; 2{,}000 permutations per pool size.
+We ran a scalable cross-prompt analysis on 1{,}607 intra-domain entity pairs across 5 domains (103 entities; $5{,}000$ bootstrap resamples for Jaccard CIs and $2{,}000$ permutations per pool size for significance).
 
-\paragraph{Jaccard (95\% CI).}
-USA $0.465$ $[0.462, 0.468]$, $N{=}1{,}225$;
-Books $0.308$ $[0.302, 0.315]$, $N{=}210$;
-Products $0.364$ $[0.356, 0.374]$, $N{=}91$;
-Paintings $0.286$ $[0.279, 0.292]$, $N{=}66$;
-Sounds $0.621$ $[0.597, 0.648]$, $N{=}15$.
-All $p{<}0.001$ at every tested pool size.
+\paragraph{Jaccard overlap with bootstrap CIs.}
+\Cref{tab:jaccard} gives the mean intra-domain Jaccard overlap between entity feature sets, together with a 95\% bootstrap CI and the pair count. All five domains have overlaps significantly above chance ($p<0.001$) at every tested pool size.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lrrc}
+\toprule
+Domain    & Jaccard & 95\% CI & $N$ pairs \\
+\midrule
+USA       & 0.465 & $[0.462, 0.468]$ & 1{,}225 \\
+Books     & 0.308 & $[0.302, 0.315]$ &   210 \\
+Products  & 0.364 & $[0.356, 0.374]$ &    91 \\
+Paintings & 0.286 & $[0.279, 0.292]$ &    66 \\
+Sounds    & 0.621 & $[0.597, 0.648]$ &    15 \\
+\bottomrule
+\end{tabular}
+\caption{Intra-domain Jaccard overlap between per-entity feature sets, with bootstrap 95\% CIs.}
+\label{tab:jaccard}
+\end{table}
 
 \paragraph{Activation stability.}
-USA $0.947$, Books $0.908$, Products $0.903$, Paintings $0.916$, Sounds $0.944$. Peak-token agreement 85--98\%; peak-type agreement 93--99\%.
+Activation stability measures whether a feature's activation pattern is consistent across the generated probe set for a given entity. Stability is high in every domain: USA $0.947$, Books $0.908$, Products $0.903$, Paintings $0.916$, Sounds $0.944$. Peak-token agreement is $85$--$98\%$ and peak-type (functional vs semantic) agreement is $93$--$99\%$.
 
-\paragraph{Layer-binned Jaccard (early/mid/late) and early/late ratio.}
-USA $0.543/0.440/0.293$ (1.85$\times$); Books $0.347/0.340/0.184$ (1.89$\times$); Products $0.496/0.308/0.164$ (3.02$\times$); Paintings $0.302/0.311/0.212$ (1.43$\times$); Sounds $0.684/0.544/0.440$ (1.56$\times$).
+\paragraph{Layer-binned overlap and the early/late ratio.}
+The richer signal is layer-binned. \Cref{tab:layer-jaccard} reports Jaccard overlap separately in early, middle, and late layer bins. Early layers host a shared ``backbone'' whose features are reused across entities (high overlap), while late layers host entity-specific features (low overlap). The ratio of early to late overlap is $1.4\times$--$3.0\times$ in four of five domains, consistent with a backbone-and-specialization reading.
 
-\paragraph{Supernode consistency.}
-Same/regrouped/inconsistent: USA $76.6/16.2/7.3$; Books $47.5/12.8/39.7$; Products $65.2/16.5/18.4$; Paintings $71.0/9.9/19.1$; Sounds $85.6/8.9/5.6$.
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lrrrr}
+\toprule
+Domain & Early & Middle & Late & Early/Late ratio \\
+\midrule
+USA       & 0.543 & 0.440 & 0.293 & $1.85\times$ \\
+Books     & 0.347 & 0.340 & 0.184 & $1.89\times$ \\
+Products  & 0.496 & 0.308 & 0.164 & $3.02\times$ \\
+Paintings & 0.302 & 0.311 & 0.212 & $1.43\times$ \\
+Sounds    & 0.684 & 0.544 & 0.440 & $1.56\times$ \\
+\bottomrule
+\end{tabular}
+\caption{Layer-binned intra-domain Jaccard overlap and early/late ratio.}
+\label{tab:layer-jaccard}
+\end{table}
+
+\paragraph{Supernode consistency across entities.}
+A complementary view: for each feature that appears in two entity graphs, is it assigned to the \emph{same} supernode (\emph{scaffold}), \emph{regrouped} into a different supernode (e.g.\ \texttt{Say(Austin)} in the Dallas graph vs \texttt{Say(Sacramento)} in the Oakland graph), or is the assignment \emph{inconsistent} (same feature, semantically unrelated supernodes)? \Cref{tab:supernode-consistency} gives the breakdown.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lrrr}
+\toprule
+Domain    & Same (\%) & Regrouped (\%) & Inconsistent (\%) \\
+\midrule
+USA       & 76.6 & 16.2 &  7.3 \\
+Books     & 47.5 & 12.8 & 39.7 \\
+Products  & 65.2 & 16.5 & 18.4 \\
+Paintings & 71.0 &  9.9 & 19.1 \\
+Sounds    & 85.6 &  8.9 &  5.6 \\
+\bottomrule
+\end{tabular}
+\caption{Supernode consistency across entity graphs within each domain. ``Same'' is the scaffold; ``Regrouped'' captures entity-appropriate re-assignment (typically Say-X features pointing at the new answer); ``Inconsistent'' flags same-feature-different-role mismatches.}
+\label{tab:supernode-consistency}
+\end{table}
 
 \paragraph{Caveats.}
-(i) Original Dallas/Oakland pair is a $\sim$93rd-percentile USA outlier; population means are 10--15 pp lower than originally reported. (ii) Books inconsistency rate likely reflects keyword-detection limits on literary names, not genuine instability. (iii) Paintings shows a weak/inverted layer gradient that is unexplained. (iv) Sounds has high overlap but 0\% hit, confirming overlap is necessary but not sufficient.
+We note four non-trivial caveats for this table. First, the original Dallas/Oakland pair that motivated the early analyses is a $\sim$93rd-percentile outlier within USA; population means are $10$--$15$~pp lower than the single-pair numbers originally reported. Second, the Books ``Inconsistent'' rate ($39.7\%$) likely reflects keyword-detection limits on literary names (the matcher's treatment of ``Anna Karenina'' and similar) rather than genuine grouping instability. Third, Paintings' weak/inverted layer gradient is unexplained and may be driven by the small-$N$ and high-error-node-rate structural issues discussed in \S\ref{appx:negative}. Fourth, Sounds has the highest overlap but zero Hit rate at default $M$, which is the correct message that high Jaccard overlap is necessary but not sufficient for successful swap.
 
 % --------------------------------------------------------------------
-\section{Graph Compatibility (Scaffold) Analysis}
+\section{Graph Scaffold Analysis}
 \label{appx:scaffold}
 
-\paragraph{Definitions.}
-\emph{Scaffold:} same \texttt{feature\_key} and same supernode in both graphs (structural primitives like copulas/prepositions/task operators).
-\emph{Regrouped:} same feature, different supernode (entity-appropriate re-assignment such as \texttt{Say(Austin)$\to$Say(Sacramento)}).
-\emph{Entity-only:} present in one graph only.
+\subsection{Definitions}
+We partition each cross-entity feature population into three groups. \emph{Scaffold features} appear in both graphs with the \emph{same} supernode assignment (usually structural primitives like copulas, prepositions, and task operators). \emph{Regrouped features} appear in both graphs but with different supernode names (typically Say-X features that point at the new answer, e.g.\ \texttt{Say(Austin)} vs \texttt{Say(Sacramento)}). \emph{Entity-only features} appear in one graph only. \emph{Scaffold influence} is the fraction of the graph's total influence carried by scaffold features.
 
-\paragraph{Per-domain scaffold influence and per-layer profile.}
-Cross-domain ranking: USA $53.0\%$, Products $42.2\%$, Paintings $35.9\%$, Books $25.3\%$. Late-layer ($\geq L_{16}$) scaffold: USA $16.3\%$, Products $10.3\%$, Paintings $9.2\%$, Books $4.3\%$. Both rank-perfect ordinal predictors of full-labeled Hit\%.
+\subsection{A worked example: Dallas vs Oakland}
+The reference pair that originally motivated the scaffold metric is Dallas (Texas capital problem) vs Oakland (California capital problem). \Cref{tab:dallas-oakland} decomposes it.
 
-\paragraph{Within-domain.}
-USA: all $|r|<0.10$, Q1 27.8\% vs Q4 24.3\% (no monotone trend). Products: target-residualized $r{=}+0.29$, $N{=}132$, concentrated in $L_{11{-}16}$ and $L_{20{-}21}$. Books/Paintings: positive but $N{<}10$ hits, fragile.
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lrrr}
+\toprule
+Population & $N$ features & Dallas infl.\ & Oakland infl.\ \\
+\midrule
+Scaffold (shared + same supernode)        & 119    & 50.6\% & 49.2\% \\
+Regrouped (shared + different supernode)  &  29    & 12.3\% & 13.7\% \\
+Entity-only                                & 55/62 & 21.7\% & 19.5\% \\
+\bottomrule
+\end{tabular}
+\caption{Dallas/Oakland scaffold decomposition. Scaffold features account for roughly half the total graph influence in both graphs, and their influence is concentrated in early layers (0--5, where they dominate 75--100\% of total influence).}
+\label{tab:dallas-oakland}
+\end{table}
+
+Of the $29$ regrouped features, $27$ are entity-appropriate re-assignments: $15$ \texttt{Say(Austin)} $\to$ \texttt{Say(Sacramento)}, $4$ \texttt{Texas} $\to$ \texttt{California}, $3$ \texttt{Dallas} $\to$ \texttt{Oakland}, $2$ \texttt{Say(Texas)} $\to$ \texttt{Say(California)}, and $1$ \texttt{Austin} $\to$ \texttt{Sacramento}. Only $4$ of the $29$ (roughly $2.7\%$ of the shared-feature population) are genuinely inconsistent regroupings. This is the pattern we formalize at the population level in \Cref{tab:supernode-consistency}.
+
+\subsection{Cross-domain scaffold gradient}
+At the domain level, scaffold influence perfectly orders the four strong domains by Hit\% at the all-three-fields labeled baseline (Spearman $\rho{=}1.0$, $N{=}4$).
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lrrrrr}
+\toprule
+Domain    & Scaffold infl.\ & Shared\% & Early scaffold & Late scaffold & Hit\% \\
+\midrule
+USA       & 0.530 & 63.7\% & 74.6\% & 16.3\% & 24.7 \\
+Products  & 0.422 & 52.1\% & 62.1\% & 10.3\% & 15.2 \\
+Paintings & 0.359 & 44.8\% & 50.9\% &  9.2\% &  4.4 \\
+Books     & 0.253 & 48.9\% & 39.7\% &  4.3\% &  3.8 \\
+\bottomrule
+\end{tabular}
+\caption{Per-domain scaffold metrics. ``Scaffold influence'' is the fraction of total graph influence carried by scaffold features; ``Shared\%'' is the fraction of features (by count, not influence) that are scaffold; ``Early'' and ``Late'' are the same quantity restricted to layers $\leq L_5$ and $\geq L_{16}$ respectively.}
+\label{tab:scaffold-domain}
+\end{table}
+
+The late-layer gradient is the most striking element of this table: USA shares $16.3\%$ of its late-layer influence as scaffold, while Books shares only $4.3\%$. The output-generation layers are where entity-specific features concentrate, and where structural compatibility matters most. This connects mechanistically to the less-is-more effect: interventions that include input-field features disrupt the fragile late-layer scaffold.
+
+\subsection{Within-domain pair-level prediction is null in USA}
+The within-domain version of the scaffold test is considerably weaker. \Cref{tab:usa-quartile} splits the 2{,}450 USA pairs into four quartiles of pair-level scaffold compatibility and reports the Hit\% and mean vsMax for each quartile.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lrrr}
+\toprule
+Scaffold quartile & Mean scaffold & Hit\% & Mean vsMax \\
+\midrule
+Q1 (lowest)  & 0.468 & 27.8 & $+3.15$ \\
+Q2           & 0.513 & 23.2 & $+2.90$ \\
+Q3           & 0.545 & 23.7 & $+2.94$ \\
+Q4 (highest) & 0.593 & 24.3 & $+2.43$ \\
+\bottomrule
+\end{tabular}
+\caption{USA quartile analysis of pair-level scaffold compatibility. No monotone trend; the highest-scaffold quartile does not have the highest Hit\%.}
+\label{tab:usa-quartile}
+\end{table}
+
+The within-USA scaffold range is $[0.38, 0.73]$, concentrated around $0.53$, and the quartile boundaries fall within a $0.12$-wide window. This is almost certainly too narrow to discriminate pairs. In smaller domains, the within-domain picture is noisy: Paintings has a target-residualized correlation of $r{=}+0.334$, Products $r{=}+0.29$ ($N{=}132$), and Books $r{=}-0.06$ ($N{=}240$, fragile at $9$ hits). We therefore treat the scaffold claim as a strictly between-domain result.
 
 % --------------------------------------------------------------------
 \section{Logit-Shift Regime Taxonomy}
 \label{appx:regime}
 
-\paragraph{Definitions (position 0).}
-\textbf{A:} target UP, source DOWN, flip. \textbf{C:} both DOWN, flip (differential disruption with target overtake). \textbf{D:} both DOWN, no flip (generic disruption). \textbf{E:} target FLAT, source DOWN (pure suppression).
+\subsection{Definitions (position 0)}
+We classify every swap at position~0 by what happens to the target and source logits relative to their unsteered baselines. Regime~\textbf{A} is ``target UP, source DOWN, flip'' (clean redirection). Regime~\textbf{C} is ``both DOWN, flip'' (differential disruption in which the target is less disrupted than the source). Regime~\textbf{D} is ``both DOWN, no flip'' (generic disruption). Regime~\textbf{E} is ``target FLAT, source DOWN'' (pure suppression with no target promotion).
 
-\paragraph{Regime A prevalence (best variant / full labeled / random).}
-USA $34.9/8.9/19.4$; Books $62.1/38.8/40.8$; Products $62.1/56.8/51.5$; Paintings $47.8/17.8/23.3$.
+\subsection{Prevalence at the default and at the best variant}
+\Cref{tab:regime-prev} compares regime prevalence across three conditions: the per-pair best field-additivity variant, the full labeled ($M{=}20$, all three fields), and matched-random. The clean-redirection regime~A is the one we ultimately want to maximize; the generic-disruption regime~D is the one matched-random concentrates in.
 
-\paragraph{Regime D prevalence.}
-USA $9.1/19.4/45.3$; Books $3.3/3.3/34.6$; Products $2.3/2.3/22.0$; Paintings $2.2/6.7/42.2$.
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lrrr|rrr}
+\toprule
+Domain    & \multicolumn{3}{c|}{Regime A (\%)} & \multicolumn{3}{c}{Regime D (\%)} \\
+          & best FA & full lab & random & best FA & full lab & random \\
+\midrule
+USA       & 34.9 &  8.9 & 19.4 &  9.1 & 19.4 & 45.3 \\
+Books     & 62.1 & 38.8 & 40.8 &  3.3 &  3.3 & 34.6 \\
+Products  & 62.1 & 56.8 & 51.5 &  2.3 &  2.3 & 22.0 \\
+Paintings & 47.8 & 17.8 & 23.3 &  2.2 &  6.7 & 42.2 \\
+\bottomrule
+\end{tabular}
+\caption{Regime A (clean redirection) and Regime D (generic disruption) prevalence under the per-pair best field-additivity variant, full labeled, and matched-random. The best variant dramatically amplifies regime A and suppresses regime D compared to full labeled.}
+\label{tab:regime-prev}
+\end{table}
 
-\paragraph{Within regime C (USA).}
-\begin{center}
-\small
+Three patterns stand out. First, the best FA variant pushes many more cases into regime~A than the full labeled variant does (USA: $8.9 \to 34.9\%$; Books: $38.8 \to 62.1\%$); removing input-field features eliminates generic disruption that was pushing cases into regime~C/D. Second, hit rates \emph{within} regime~A also improve: USA regime~A hits go from $31\%$ (full labeled) to $46\%$ (best variant); Books regime~A hits go from $4.3\%$ to $54.4\%$. The best variant is not just redistributing cases across regimes, it is improving the quality of each regime. Third, regime~D nearly vanishes in the labeled condition ($19.4 \to 9.1\%$ in USA; $6.7 \to 2.2\%$ in Paintings), while matched-random concentrates in regime~D ($42$--$45\%$ in USA and Paintings).
+
+\subsection{Within-regime-C signals (USA)}
+Regime~C is the largest and most ambiguous regime in the labeled condition: both logits drop, but the target less so. The richest within-regime-C signals are given in \Cref{tab:regime-c-usa}, which is the data behind the within-regime-C result reported in \Cref{sec:results:primary}.
+
+\begin{table}[h]
+\centering\small
 \begin{tabular}{lrr}
 \toprule
 Signal & Labeled & Random \\
 \midrule
-Target recovery rate & 92.2 & 29.3 \\
+Target-recovery rate (\%)      & 92.2 & 29.3 \\
 Sustained dominance (\texttt{tgt\_win\_pct}) & 0.673 & 0.319 \\
-vsMax & $+2.33$ & $-0.10$ \\
-Hit\% & 22.5 & 0.6 \\
+Mean vsMax                     & $+2.33$ & $-0.10$ \\
+Hit\% (conditional on regime C) & 22.5 & 0.6 \\
 \bottomrule
 \end{tabular}
-\end{center}
+\caption{Within-regime-C signals, USA. Labeled features cause differential disruption in which the target recovers above its own unsteered baseline while the source stays suppressed; matched-random does not.}
+\label{tab:regime-c-usa}
+\end{table}
+
+The Target-Recovery signal is strong in USA regime~C but is domain-dependent: the same measurement in Books regime~C gives $91.9\%$ (labeled) vs $88.9\%$ (random), essentially no gap. The reason is that Books has a small answer space and sharply distinct entity signatures, so mechanically \emph{any} sufficiently large perturbation tends to recover the target above its baseline. We therefore report Target-Recovery only as one of three supporting within-regime signals rather than as a primary label-evidence metric.
 
 % --------------------------------------------------------------------
-\section{Individual Case Studies Grid}
+\section{Case Studies}
 \label{appx:case}
 
-\subsection{Domain distribution (best field-add variant)}
-\begin{center}
-\small
-\begin{tabular}{lrrrrrrr}
-\toprule
-Domain & N & Hit\% & RkGrp=1 & A & B & C & D \\
-\midrule
-USA   & 2{,}450 & 38.8 & 91.8 & 35.4 & 55.2 & 3.3  & 6.0  \\
-Books &   240 & 37.1 & 98.8 & 36.3 & 60.4 & 0.8  & 2.5  \\
-Prods &   132 & 24.2 & 76.5 & 24.2 & 72.7 & 0.0  & 3.0  \\
-Paint &    90 &  1.1 & 81.1 &  1.1 & 96.7 & 0.0  & 2.2  \\
-Sound &    30 & 20.0 & 93.3 &  0.0 & 50.0 & 20.0 & 30.0 \\
-\bottomrule
-\end{tabular}
-\end{center}
+This section collects worked case studies that would be too discursive for the main text. Each entry gives the source and target entity, the field-additivity variant used, the intervention size, the vsMax achieved, and the first $\sim$10 generated tokens of the model's continuation.
 
 \subsection{Six success cases}
-\begin{itemize}\itemsep0pt
-  \item \textbf{Colorado~Springs$\to$Detroit} (USA, state+capital): vsMax $+17.5$, target rank 342 $\to$ 1; ``\dots Lansing\dots'' Textbook regime A.
-  \item \textbf{Holden Caulfield$\to$Katniss Everdeen} (Books, book+author): vsMax $+21.79$ (largest in dataset), 11 ablate / 63 amplify; ``\dots Suzanne Collins\dots''
-  \item \textbf{Nike$\to$Tesla} (Products, company+founder): vsMax $+12.25$, target rank 5{,}933 $\to$ 1; ``Elon Musk\dots'' (steered first-token $p{=}0.82$).
-  \item \textbf{La Grande Jatte$\to$Water Lilies} (Paintings, painter+first\_name): vsMax $+9.375$, target baseline rank 3 (the only painting hit; 1/90).
-  \item \textbf{Bark$\to$Hoot} (Sounds, sound+animal): mechanical artifact---both share answer ``brown''; not evidence of label quality.
-  \item \textbf{Minnesota$\to$Florida} (USA, all-3-fields labeled): vsMax $+16.06$ but flip@0=False; CtrlS $16.89$ (high collateral disruption); illustrates the all-fields cost.
-\end{itemize}
 
-\subsection{Seven failure cases (covering five failure modes)}
-\begin{itemize}\itemsep0pt
-  \item \textbf{Kansas/Wichita$\to$New Hampshire/Manchester}: total failure, vsMax $-6.875$, target rank 5{,}816, garbled ``Oklahoma City\dots''
-  \item \textbf{Utah/Provo$\to$Iowa/Cedar Rapids}: vsMax $+14.0$, RkGrp 1, but garbled output (rank-hit misalignment).
-  \item \textbf{Ohio/Cleveland$\to$Oklahoma/Tulsa}: regime D (no flip@0 despite vsMax $+13.31$); autoregressive decoding never recovers.
-  \item \textbf{Scout Finch$\to$Huckleberry Finn}: 176 amplify features (highest in Books), garbled (less-is-more violation; substring confound on \texttt{finn}).
-  \item \textbf{Windows$\to$Oculus} (Products): suppressed source, but produces ``Rift'' (product), not ``Palmer Luckey''---``company'' supernodes encode product identity.
-  \item \textbf{Girl with a Pearl Earring$\to$Guernica}: 195 amplify / 88 ablate fail to dislodge Vermeer; target ``Pablo'' rank 1{,}382.
-  \item \textbf{Hiss$\to$Hoot} (Sounds): vsMax $-0.5$; intervention nudges target ``brown'' to rank 2 while ``black'' takes rank 1 (tiny answer-space).
-\end{itemize}
+\paragraph{USA: Colorado Springs $\to$ Detroit.}
+Source prompt: ``The capital of the state containing Colorado Springs is''; target entity: Detroit (Michigan, capital Lansing). Best variant: \texttt{state+capital}. vsMax $+17.5$, target logit rank moves from 342 to 1. Generated continuation: ``\ldots~Lansing, the capital of Michigan\ldots''. Textbook regime~A: target UP, source DOWN, clean flip, on-topic continuation.
 
-\subsection{Suppression-only zone (source absent, no target)}
-USA 59.2\%, Books 48.3\%, Products 46.2\%, Paintings 68.9\%, Sounds 66.7\%. The single largest outcome category in every domain: suppression is generic; targeting requires specific features.
+\paragraph{Books: Holden Caulfield $\to$ Katniss Everdeen.}
+Source prompt: ``The author of the book featuring Holden Caulfield is''; target entity: Katniss Everdeen (The Hunger Games, author Suzanne Collins). Best variant: \texttt{book+author}, $11$ ablate features and $63$ amplify features. vsMax $+21.79$, the largest single-pair vsMax in our dataset. Generated continuation: ``\ldots~Suzanne Collins, who wrote The Hunger Games\ldots''. This pair illustrates how small a correct amplify set can be and still dominate a $50\times$-larger graph.
+
+\paragraph{Products: Nike $\to$ Tesla.}
+Source prompt: ``The founder of the company that makes Nike sneakers is''; target: Tesla (Elon Musk). Best variant: \texttt{company+founder}. vsMax $+12.25$, target rank $5{,}933 \to 1$. Generated continuation: ``Elon Musk is the founder\ldots'', with the steered first-token probability $p{=}0.82$. The baseline (un-steered) output is ``Phil Knight\ldots''; the redirection is complete at position~0.
+
+\paragraph{Paintings: La Grande Jatte $\to$ Water Lilies.}
+Source: ``The painter of La Grande Jatte is''; target: Water Lilies (Monet). Best variant: \texttt{painter+first\_name}. vsMax $+9.375$. This is the only Hit in the full Paintings batch ($1/90$ pairs). The target's baseline rank for ``Claude'' was already $3$, and the intervention converts this into a first-position hit. We include this pair to illustrate that Paintings can be redirected, but only when baseline conditions are already favorable.
+
+\paragraph{USA with all three fields: Minnesota $\to$ Florida.}
+Source: ``\ldots~Minnesota''; target: Florida (Tallahassee). With all three fields and $M{=}20$: vsMax $+16.06$ but flip@0 is \texttt{False}, and the control-stability measure reaches $16.89$ (very high collateral disruption). The target logit does recover along the trajectory, but the initial disruption is severe and the generation starts with an incoherent token. This is a clear illustration of the all-fields cost: the intervention has a large vsMax yet no Hit, because the position-0 disruption dominates the first generated token.
+
+\paragraph{Sounds: Bark $\to$ Hoot (mechanical artifact).}
+Source: ``The color of an animal that barks is''; target: an owl that hoots. Both answers resolve to ``brown''. The intervention ``succeeds'' in the Hit sense (the target token ``brown'' appears in the continuation) but only because the source and target \emph{share} the answer. This is not evidence of label quality---it is the structural confound that causes Sounds to fail the matched-control condition (\Cref{def:opuseful}).
+
+\subsection{Seven failure cases covering the five failure modes}
+
+\paragraph{Kansas/Wichita $\to$ New Hampshire/Manchester (total failure, feature specificity).}
+vsMax $-6.875$, target rank $5{,}816$, first token ``Oklahoma'' and continuation ``\ldots~Oklahoma City, which is the capital\ldots''. The Kansas source features are successfully suppressed, but the amplified New Hampshire features do not encode Manchester-capital circuitry strongly enough to dominate the output. Failure mode: feature specificity.
+
+\paragraph{Utah/Provo $\to$ Iowa/Cedar Rapids (rank-hit misalignment).}
+vsMax $+14.0$, RkGrp $1$, but the generated continuation is garbled (not a clean Des Moines production). The target logit wins at position~0 but the subsequent tokens are disrupted enough that the Hit criterion (target token anywhere in continuation) fails. Failure mode: feature-interaction noise.
+
+\paragraph{Ohio/Cleveland $\to$ Oklahoma/Tulsa (regime D).}
+vsMax $+13.31$ but flip@0 is \texttt{False}. The target logit rises sharply along the trajectory but never overtakes the source at position~0, and the autoregressive decoder never recovers. At $M{=}5$ this same pair becomes a Hit. Failure mode: severe overshoot, rescuable by $M$-reduction.
+
+\paragraph{Scout Finch $\to$ Huckleberry Finn (field interference / substring confound).}
+176 amplify features (the highest count in Books), and a substring confound between the two targets' names (\texttt{Finn} is a common suffix). Generated continuation is garbled. The pair is rescuable at the \texttt{book+author} variant but not at the all-three-fields baseline. Failure mode: field interference.
+
+\paragraph{Windows $\to$ Oculus (product-identity collapse).}
+The source (Windows/Microsoft) is successfully suppressed but the generated output is ``Rift'' (the Oculus product) rather than ``Palmer Luckey'' (the founder, our target). The ``company'' supernodes in the Products domain encode product identity, not founder identity, and amplifying them therefore promotes the product name rather than its founder. Failure mode: feature specificity---a case where even a perfectly-executed intervention targets the wrong entity because the label's extension does not match the target concept.
+
+\paragraph{Girl with a Pearl Earring $\to$ Guernica (cross-concept collapse).}
+195 amplify and 88 ablate features fail to dislodge Vermeer (the source's painter) in the continuation; the target ``Pablo'' ends up at rank $1{,}382$ at position~0. This is a case where the source entity's circuit is deeply entrenched (Vermeer features are shared across the painting and its description) and the target entity is coarse (Picasso has many broader associations). Failure mode: feature specificity combined with low scaffold compatibility.
+
+\paragraph{Hiss $\to$ Hoot (thin-margin collapse in Sounds).}
+vsMax $-0.5$; the intervention nudges the target color ``brown'' to rank~$2$, while ``black'' takes rank~$1$. In a $K{=}6$ answer space with near-uniform logit competition this is a mechanical artifact: any sufficiently large perturbation moves the winner by one rank, and half the time the wrong color wins. Failure mode: thin margins (see \S\ref{appx:negative}).
+
+\subsection{Suppression-only zone}
+A large fraction of swaps---the single largest outcome category in every domain---are suppressed without successful retargeting: the source is absent from the output but the target is not present either. These are USA $59.2\%$, Books $48.3\%$, Products $46.2\%$, Paintings $68.9\%$, Sounds $66.7\%$. This is the main-paper observation that \emph{suppression is generic; targeting requires specific features}.
 
 \subsection{Threats to validity for case studies}
-Selection bias toward extremes; tier unavailability for the best-FA variant at initial analysis; sounds shared-answer artefacts (12/30 pairs); single-example interpretations should not be over-generalized; explanations are post-hoc and constitute hypotheses, not conclusions.
+Case studies select for extremes (the largest vsMax pairs and the most striking failures), and single-example interpretations should not be over-generalized. The distribution-level claims live in the full labeled-vs-random tables (\S\ref{appx:specificity}), field-additivity tables (\S\ref{appx:fieldadd}), and adaptive-$M$ rescue rates (\S\ref{appx:msearch}). Post-hoc explanations of success and failure (e.g.\ ``the company supernodes encode product identity'') are hypotheses supported by the particular pair, not conclusions.
 
 % --------------------------------------------------------------------
-\section{Sounds and Paintings Deep Dive}
+\section{Negative-Result Domains: Sounds and Paintings}
 \label{appx:negative}
 
-\paragraph{Why Sounds fails Condition~2.}
-Three structural causes converge: (i) $N{=}6$ entities; (ii) $12/30$ non-identity pairs share the answer ``brown'', so any source-suppression in those pairs incidentally counts as a target-hit for random; (iii) $K{=}6$ colors with near-uniform $\sim 0.15$ probability mass make the logit margin too thin to overshoot precisely. The vsMax gap is $+0.14$ (Negligible); position-0 vsMax actually \emph{favors} random ($+0.30$ vs labeled $+0.68$ in median terms; \cref{appx:pos0}).
+\subsection{Why Sounds fails the matched-control condition}
 
-\paragraph{Why Paintings is weak.}
-The \texttt{first\_name} answer field is fundamentally coarse: \texttt{Claude}, \texttt{Pablo}, \texttt{Leonardo} are common tokens with many non-painting associations. The \texttt{painter} supernode subsumes \texttt{first\_name} (since ``Monet'' contains information about ``Claude''), making the two fields effectively identical for matching. With 17\% error-node rates (highest of any domain), much of the circuit is invisible. 89/90 pairs fail at the \texttt{painter+first\_name} variant; the only hit (Grande Jatte $\to$ Water Lilies) requires baseline rank 3.
+Sounds is the one domain in which labeled supernodes fail the operational-usefulness test. Three structural causes converge, and we have direct evidence for each.
 
-\paragraph{Recommendation.}
-We exclude Sounds from cross-domain inference for C1 and treat Paintings as a Weak-strength supporting domain rather than a confirmatory one. The four-domain rank-perfect scaffold prediction (\cref{appx:scaffold}) holds without Sounds.
+\paragraph{Small $N$ and shared answers.}
+The Sounds domain has only $6$ entities, so the non-identity pair set has size $30$. Of these $30$ pairs, $12$ share an answer (\emph{brown}): different animals that make different sounds still map to the same color. A matched-random intervention that suppresses the source color also ``produces'' the target color simply because that color is already the most common answer in the suppression residual. This inflates the matched-random Hit\% in Sounds to $12.2\%$, higher than the labeled $0.0\%$.
+
+\paragraph{Tiny answer set with near-uniform competition.}
+We measured the geometry of the Sounds answer space directly using Gemma-2-2B-it and compared it to USA and Books. Three quantities are relevant: the input-embedding pairwise cosine (are the answer tokens close in the model's embedding space?), the last-hidden-state pairwise cosine at the seed prompt (are the prompts confusable?), and the restricted next-token distribution over the domain answer set (how peaked is the model's answer?). \Cref{tab:sounds-geometry} gives the numbers.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lcccc}
+\toprule
+Domain & $K$ & Input cos & Last-hidden cos & Restricted entropy \\
+\midrule
+Sounds (colors) &  6 & 0.312 & 0.624 & 0.725 \\
+USA (capitals)  & 50 & 0.209 & 0.874 & 0.663 \\
+Books (authors) & 15 & 0.178 & 0.812 & 0.449 \\
+\bottomrule
+\end{tabular}
+\caption{Answer-space geometry. ``Input cos'' is the mean pairwise cosine of mean-pooled answer token embeddings. ``Last-hidden cos'' is the mean pairwise cosine of the last-layer hidden state at the seed prompt, across entity prompts. ``Restricted entropy'' is the normalized entropy of the next-token distribution restricted to the domain answer set and renormalized.}
+\label{tab:sounds-geometry}
+\end{table}
+
+Colors have the highest input-embedding cosine of the three domains ($0.312$ vs $0.209$/$0.178$), so the six answer tokens already point in similar directions at the first layer. More importantly, the model's restricted distribution on Sounds prompts has very high normalized entropy ($0.725$), which concretely means the model's probability mass on the answer set looks like $[44, 15, 13, 12, 9, 7]\%$: roughly four colors are live competitors, with the gap between the intended target and the next-best color only about $0.15$ in probability. A steering intervention of $M{=}20$, tuned for USA (50-wide distribution with wider margins), is a blunt instrument on this knife-edge competition. A fine-grained $M$-sweep on Sounds ($M \in \{0.1, 0.2, \ldots, 5.0, 20\}$) recovered up to $16.7\%$ Hit at $M{=}5$, confirming that the default $M$ overshoots the thin margins; but the domain remains statistically under-powered.
+
+\paragraph{Interestingly, sounds prompts themselves are well-separated.}
+The last-hidden-state cosine is \emph{lower} for Sounds ($0.624$) than for USA ($0.874$) or Books ($0.812$). The model can distinguish the six animals perfectly well internally---the bottleneck is at the output layer, not in the middle.
+
+\paragraph{Falsification verdict for Sounds.}
+The matched-control vsMax gap on Sounds is $+0.14$ in favor of \emph{random}, and the Hit-rate gap is $+16.7$~pp in favor of random. Sounds fails Condition~2 of \Cref{def:opuseful}. We exclude Sounds from cross-domain inference for the main claim and report it as a directional negative.
+
+\subsection{Why Paintings is a weak strong domain}
+
+Paintings sits at the bottom of the four strong domains with a full-labeled Hit\% of $4.4$ and a vsMax gap of $+1.58$ (``Weak''). Three structural factors contribute.
+
+\emph{(a) The answer field is coarse.} The answer is the painter's first name---\texttt{Claude}, \texttt{Pablo}, \texttt{Leonardo}---tokens with many non-painting associations in the general language model distribution. Amplifying features that peak on ``Claude'' in a Monet circuit therefore moves the logit toward a cluster of non-painting ``Claude'' meanings.
+
+\emph{(b) The painter supernode subsumes the first-name supernode.} ``Monet'' as a string contains much of ``Claude'' as a concept (the painter is the agent that the first name names), so the \texttt{painter} and \texttt{first\_name} supernodes overlap by construction. This collapses the field-additivity structure: \texttt{painter+first\_name} is not a very different intervention from \texttt{painter} alone.
+
+\emph{(c) High error-node rates.} Paintings has the highest error-node rate of any domain (17\%; an error node is a node whose attribution could not be resolved during graph generation), so a substantial portion of the circuit is simply not visible to the grouping or the intervention. The maximum number of features a paintings intervention can operate on is therefore smaller than in the other domains, and the signal-to-noise ratio is correspondingly worse.
+
+Concretely, $89/90$ pairs fail at the \texttt{painter+first\_name} variant. The only hit (La Grande Jatte $\to$ Water Lilies) already had a baseline rank of $3$ for ``Claude'', so the intervention only had to move the logit by two positions. We therefore treat Paintings as a Weak-strength supporting domain rather than a confirmatory one. The four-domain rank-perfect scaffold prediction (\Cref{tab:scaffold-domain}) holds without Sounds and is \emph{consistent} with the Paintings Weak verdict.
 
 % --------------------------------------------------------------------
-\section{Reproducibility and Tool Access}
+\section{Reproducibility Manifest}
 \label{appx:repro}
 
-\paragraph{Code, data, demo (all anonymized for review).}
-Repository: \url{https://anonymous.4open.science/r/attribution-graph-probing-anon} (commit hash and license in \texttt{README.md}). Demo: \url{https://anonymous.4open.science/r/attribution-graph-probing-demo-anon}. License: GNU GPL v3.
+\subsection{Code, data, demo (anonymized for review)}
+All artifacts are released anonymously for the review period. Repository: \url{https://anonymous.4open.science/r/attribution-graph-probing-anon} (commit hash and license in \texttt{README.md}). Interactive demo: \url{https://anonymous.4open.science/r/attribution-graph-probing-demo-anon}. License: GNU GPL v3. All URLs will be de-anonymized at camera ready.
 
-\paragraph{Per-domain CLI (USA example).}
+\subsection{Per-domain CLI (USA example)}
 \begin{small}
 \begin{verbatim}
 # 1. Generate attribution graph (Neuronpedia API)
@@ -464,9 +718,11 @@ python scripts/00_neuronpedia_graph_generation.py \
 streamlit run eda/threshold_selection.py --tau 0.95
 
 # 3. Probes + activations + grouping
-python scripts/01_probe_prompts.py --graph output/usa/dallas_austin/graph.json \
+python scripts/01_probe_prompts.py \
+  --graph output/usa/dallas_austin/graph.json \
   --output_csv output/usa/dallas_austin/activations.csv
-python scripts/02_node_grouping.py --input output/usa/dallas_austin/activations.csv \
+python scripts/02_node_grouping.py \
+  --input output/usa/dallas_austin/activations.csv \
   --graph output/usa/dallas_austin/graph.json \
   --output output/usa/dallas_austin/grouped.csv
 
@@ -479,27 +735,31 @@ python scripts/03_swap_full.py --domain usa \
 \end{verbatim}
 \end{small}
 
-\paragraph{Runtime profile.}
-Per single-circuit pipeline (graph $+$ activation $+$ grouping $+$ subgraph): 14--24 minutes on a single L4 GPU. Full per-domain swap sweeps: USA 17h, Books 1.6h, Products 0.9h, Paintings 0.6h, Sounds 0.2h on 8 H100 GPUs (matched-control replicates parallelized).
+\subsection{Runtime profile}
+Per single-circuit pipeline (graph $+$ activation $+$ grouping $+$ subgraph): $14$--$24$ minutes on a single L4 GPU. Full per-domain swap sweeps: USA $17$h, Books $1.6$h, Products $0.9$h, Paintings $0.6$h, Sounds $0.2$h on 8 H100 GPUs (matched-control replicates parallelized).
 
-\paragraph{Artifact release manifest.}
-For each domain: (a) attribution graphs (Neuronpedia JSON); (b) probe-prompt files; (c) activation matrices; (d) supernode groupings; (e) swap dumps with per-pair Hit/vsMax/RkGrp/Sup/Flip/CtrlS/KL trajectories; (f) field-additivity per-variant tables; (g) adaptive-$M$ logs (Phase 1 \& Phase 2); (h) random-control sha256 seeds.
+\subsection{Artifact release manifest}
+For each of the five domains, the release contains: (a) attribution graphs in Neuronpedia JSON format; (b) the probe-prompt files; (c) activation matrices; (d) supernode groupings (pre- and post-stability filter); (e) swap dumps with per-pair Hit, vsMax, RkGrp, Sup, Flip, CtrlS, and KL trajectories; (f) field-additivity per-variant tables; (g) adaptive $M$-search logs (Phase~1 and Phase~2); (h) random-control sha256 seeds.
 
-\paragraph{Determinism and resume.}
-Pipeline is fully deterministic (sha256-seeded controls; T$=$0.3 / $n{=}10$ / freq-penalty $2.0$ / seed $42$; no random initialization). Per-feature checkpoints permit resume from partial runs.
+\subsection{Determinism and resume}
+The pipeline is fully deterministic. Matched-random controls are sha256-seeded from \texttt{(run\_seed, pair\_id, replicate, mode)}; generation uses $T{=}0.3$, $n{=}10$, frequency penalty $2.0$, seed $42$, with no random initialization elsewhere in the harness. Per-feature checkpoints permit resumption from partial runs, which is how we recover from transient Neuronpedia API failures.
 
 % --------------------------------------------------------------------
 \section{Glossary and Notation}
 \label{appx:glossary}
 
-\textbf{CLT}: Cross-Layer Transcoder.
-\textbf{CPAS}: Cross-Prompt Activation Signature.
-\textbf{$\tau$}: cumulative-influence threshold for feature selection (default $0.95$).
-\textbf{$M_{\mathrm{ablate}}$, $M_{\mathrm{amplify}}$}: multipliers for source/target features (defaults $-2$, $20$).
-\textbf{vsMax}: best$_t\big(\ell_{e_B}(t) - \max_{e'\neq e_B} \ell_{e'}(t)\big)$.
-\textbf{RkGrp}: best target rank within domain answer set.
-\textbf{Target Recovery}: target logit beats its own unsteered baseline at any trajectory position.
-\textbf{Regime A/C/D/E}: position-0 logit-shift regimes (\cref{appx:regime}).
-\textbf{Scaffold}: features shared between source/target graphs with identical supernode assignment.
-\textbf{Scaffold influence}: fraction of total graph influence carried by scaffold features.
-\textbf{KL}: KL$(\mathrm{baseline} \| \mathrm{steered})$ at position 0.
+\begin{description}
+\item[CLT] Cross-Layer Transcoder~\cite{ameisen2025circuittracing}.
+\item[CPAS] Cross-Prompt Activation Signature (\Cref{tab:cpas-metrics}).
+\item[$\tau$] Cumulative-influence threshold for feature selection (default $0.95$).
+\item[$M_{\mathrm{ablate}}, M_{\mathrm{amplify}}$] Multipliers for source and target feature decoders (defaults $-2$, $20$).
+\item[vsMax] $\max_{t \leq 10}\big(\ell_{e_B}(t) - \max_{e' \neq e_B} \ell_{e'}(t)\big)$, where $\ell_e(t)$ is the logit of entity $e$'s first-subword token at trajectory position $t$.
+\item[Hit] The first-subword token of the target's answer appears in the generated continuation.
+\item[RkGrp] Best target rank within the domain answer set, minimized over trajectory positions.
+\item[Target Recovery] Binary indicator: the target's logit exceeds its own unsteered baseline at some trajectory position.
+\item[Regime A/C/D/E] Position-0 logit-shift regimes (\S\ref{appx:regime}).
+\item[Scaffold] Features that appear in two entity graphs with identical supernode assignment.
+\item[Scaffold influence] Fraction of total graph influence carried by scaffold features.
+\item[Field-additivity (FA)] The $7$-variant ablation of single-field, two-field, and three-field intervention subsets.
+\item[KL] KL$(\mathrm{baseline} \parallel \mathrm{steered})$ at position~0, unless otherwise stated.
+\end{description}

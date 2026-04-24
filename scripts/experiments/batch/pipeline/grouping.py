@@ -360,15 +360,23 @@ def process_grouping_step(config: Dict[str, Any], seed: Dict[str, Any],
     if blacklist_arg:
         cmd.extend(['--blacklist', blacklist_arg])
     
-    # Add threshold overrides
-    if 'dict_peak_consistency_min' in thresholds:
-        cmd.extend(['--dict-consistency-min', str(thresholds['dict_peak_consistency_min'])])
-    if 'sayx_func_vs_sem_min' in thresholds:
-        cmd.extend(['--sayx-func-min', str(thresholds['sayx_func_vs_sem_min'])])
-    if 'sayx_layer_min' in thresholds:
-        cmd.extend(['--sayx-layer-min', str(thresholds['sayx_layer_min'])])
-    if 'rel_sparsity_max' in thresholds:
-        cmd.extend(['--rel-sparsity-max', str(thresholds['rel_sparsity_max'])])
+    # Forward every DEFAULT_THRESHOLDS key that appears in config. The full
+    # surface is exposed so sweep configs can vary any threshold (e.g. +/-10%
+    # sensitivity studies) without editing this file.
+    _THRESHOLD_CLI_MAP = {
+        'dict_peak_consistency_min': '--dict-consistency-min',
+        'dict_n_distinct_peaks_max': '--dict-n-distinct-peaks-max',
+        'sayx_func_vs_sem_min': '--sayx-func-min',
+        'sayx_conf_f_min': '--sayx-conf-f-min',
+        'sayx_layer_min': '--sayx-layer-min',
+        'rel_sparsity_max': '--rel-sparsity-max',
+        'sem_layer_max': '--sem-layer-max',
+        'sem_conf_s_min': '--sem-conf-s-min',
+        'sem_func_vs_sem_max': '--sem-func-vs-sem-max',
+    }
+    for key, cli_flag in _THRESHOLD_CLI_MAP.items():
+        if key in thresholds:
+            cmd.extend([cli_flag, str(thresholds[key])])
     
     if verbose:
         cmd.append('--verbose')

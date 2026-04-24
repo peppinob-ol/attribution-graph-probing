@@ -1675,10 +1675,22 @@ def main():
         help=f"Soglia min peak_consistency per Dictionary (default: {DEFAULT_THRESHOLDS['dict_peak_consistency_min']})"
     )
     parser.add_argument(
+        "--dict-n-distinct-peaks-max",
+        type=int,
+        default=None,
+        help=f"Soglia max n_distinct_peaks per Dictionary (default: {DEFAULT_THRESHOLDS['dict_n_distinct_peaks_max']})"
+    )
+    parser.add_argument(
         "--sayx-func-min",
         type=float,
         default=None,
         help=f"Soglia min func_vs_sem_pct per Say X (default: {DEFAULT_THRESHOLDS['sayx_func_vs_sem_min']})"
+    )
+    parser.add_argument(
+        "--sayx-conf-f-min",
+        type=float,
+        default=None,
+        help=f"Soglia min conf_f per Say X (default: {DEFAULT_THRESHOLDS['sayx_conf_f_min']})"
     )
     parser.add_argument(
         "--sayx-layer-min",
@@ -1691,6 +1703,24 @@ def main():
         type=float,
         default=None,
         help=f"Soglia max sparsity per Relationship (default: {DEFAULT_THRESHOLDS['rel_sparsity_max']})"
+    )
+    parser.add_argument(
+        "--sem-layer-max",
+        type=int,
+        default=None,
+        help=f"Soglia max layer per Semantic (default: {DEFAULT_THRESHOLDS['sem_layer_max']})"
+    )
+    parser.add_argument(
+        "--sem-conf-s-min",
+        type=float,
+        default=None,
+        help=f"Soglia min conf_s per Semantic (default: {DEFAULT_THRESHOLDS['sem_conf_s_min']})"
+    )
+    parser.add_argument(
+        "--sem-func-vs-sem-max",
+        type=float,
+        default=None,
+        help=f"Soglia max func_vs_sem_pct per Semantic (default: {DEFAULT_THRESHOLDS['sem_func_vs_sem_max']})"
     )
     
     parser.add_argument(
@@ -1735,12 +1765,22 @@ def main():
         thresholds = DEFAULT_THRESHOLDS.copy()
         if args.dict_consistency_min is not None:
             thresholds['dict_peak_consistency_min'] = args.dict_consistency_min
+        if args.dict_n_distinct_peaks_max is not None:
+            thresholds['dict_n_distinct_peaks_max'] = args.dict_n_distinct_peaks_max
         if args.sayx_func_min is not None:
             thresholds['sayx_func_vs_sem_min'] = args.sayx_func_min
+        if args.sayx_conf_f_min is not None:
+            thresholds['sayx_conf_f_min'] = args.sayx_conf_f_min
         if args.sayx_layer_min is not None:
             thresholds['sayx_layer_min'] = args.sayx_layer_min
         if args.rel_sparsity_max is not None:
             thresholds['rel_sparsity_max'] = args.rel_sparsity_max
+        if args.sem_layer_max is not None:
+            thresholds['sem_layer_max'] = args.sem_layer_max
+        if args.sem_conf_s_min is not None:
+            thresholds['sem_conf_s_min'] = args.sem_conf_s_min
+        if args.sem_func_vs_sem_max is not None:
+            thresholds['sem_func_vs_sem_max'] = args.sem_func_vs_sem_max
         
         # Classifica
         df_classified = classify_nodes(

@@ -12,12 +12,14 @@ from typing import Any, Dict
 from .base import InterventionBuilder
 from .labeled import LabeledInterventionBuilder
 from .random_feature_matched import RandomFeatureMatchedBuilder
+from .random_template_matched import RandomTemplateMatchedBuilder
 from .low_specificity_groupings import LowSpecificityGroupingsBuilder
 from .additivity import AdditivityBuilder
 
 _REGISTRY: Dict[str, type] = {
     "labeled": LabeledInterventionBuilder,
     "random_feature_matched": RandomFeatureMatchedBuilder,
+    "random_template_matched": RandomTemplateMatchedBuilder,
     "low_specificity_groupings": LowSpecificityGroupingsBuilder,
     "additivity": AdditivityBuilder,
 }

@@ -1,90 +1,51 @@
 \section{Results}
 \label{sec:results}
 
-We organize results by claim. Each subsection ends with an explicit \textbf{Falsification verdict} relative to the thresholds in \cref{sec:intro,sec:definitions}.
-
-\subsection{C1: Concept-aligned supernodes carry entity-specific causal leverage that matched random controls do not}
-\label{sec:results:c1}
-
-\paragraph{Headline (\cref{tab:headline}).}
-With per-pair best field-add variant and adaptive $M$-search, labeled hit-rates dwarf matched-random controls in 4 of 5 domains:
+The evidence is organized in three blocks. Section~\ref{sec:results:primary} tests Definition~\ref{def:opuseful}'s two conditions using a canonical intervention protocol. Section~\ref{sec:results:diagnostic} uses the same $42{,}184$ runs to analyze the two primary levers that move a pair from miss to hit (semantic-field composition and amplification scale) and two structural correlates of domain-level steerability (cross-prompt feature overlap and graph-scaffold compatibility). Section~\ref{sec:results:negative} records the one domain in which the primary test fails and one within-domain null.
 
 \input{tables/T2_headline}
 
-\paragraph{Specificity decomposition.}
-Random controls achieve \emph{equal or higher} suppression than labeled in 3 of 5 domains (Books 75 vs 69\%; Products 87 vs 65\%; Paintings 74 vs 34\%; \cref{appx:specificity}). Suppression is generic; \emph{only targeting is specific}. This invalidates raw Sup\% as a label-quality metric and motivates Hit\%/vsMax/Target-Recovery as the discriminating signals.
+\subsection{Primary evaluation}
+\label{sec:results:primary}
 
-\paragraph{Within-disruption-regime evidence (Regime C).}
-Classifying every swap by what happens to target and source logits at position 0 yields four regimes (A: clean redirect; C: differential disruption with flip; D: generic disruption; E: pure suppression; \cref{appx:regime}). Random controls concentrate in regime D (42--45\% of pairs); the labeled best variant concentrates in regime A. \emph{Within} regime C, where both logits are disrupted but the target overtakes, labeled drives target above its unsteered baseline 92\% of the time vs.\ 29\% for random in USA (\cref{fig:regime}b). This is the cleanest within-regime signal that ``the model's circuits responded to the target concept'' rather than ``everything got disrupted.''
+We evaluate operational usefulness against Definition~\ref{def:opuseful} using the intervention harness of Section~\ref{sec:method:harness}. For each source--target pair $(e_A, e_B)$, the harness constructs an additive entity-swap on the concept-aligned supernodes of both entities and reports two operating points. The \emph{default} operating point fixes all three semantic fields (input, intermediate, answer) with ablation multiplier $M_{\mathrm{ablate}}{=}-2$ and amplification multiplier $M_{\mathrm{amplify}}{=}20$; the \emph{harness} operating point additionally selects the best field subset for the pair and accepts any amplification value identified by the adaptive $M$-search. The matched random control of Definition~\ref{def:matched} is evaluated at the same operating point as its labeled counterpart. Because labeled and random interventions share feature count and per-layer histogram by construction, any systematic gap between them reflects concept alignment.
 
-\paragraph{Statistical reporting.}
-Bootstrap 95\% CIs on hit-rate gaps and permutation tests on overlap statistics are reported in \cref{appx:specificity,appx:crossprompt}. With 2{,}450 USA pairs and 240 Books pairs, the observed Hit-rate gaps (67.1 and 63.8 pp) lie far outside any plausible null.
+At the default operating point, labeled supernodes produce a positive vsMax against matched random in every strong domain: $+2.86$ against $-2.31$ in USA, $+5.98$ against $-0.15$ in Books, $+3.46$ against $+0.23$ in Products, and $+1.55$ against $-0.03$ in Paintings (\cref{appx:specificity}), so the labeled--random vsMax gap ranges from $+1.58$ to $+6.13$ logits across the four strong domains. At the same default, labeled Hit-rate also exceeds matched random: USA $24.7$ vs $0.1$\%, Products $15.2$ vs $0.3$\%, Books $3.8$ vs $0.3$\%, Paintings $4.4$ vs $0.0$\%. In Books and Paintings the default labeled Hit-rates fall below the absolute $5$~pp threshold of Condition~1. At the harness operating point, labeled Hit-rate rises to $67.3$, $63.8$, $27.6$, and $21.8$\% in USA, Books, Products, and Paintings, while matched random stays below $2$\% in every domain (Table~\ref{tab:headline}), and the absolute threshold of Condition~1 is met in all four. Sounds inverts the vsMax ordering: labeled vsMax is $+3.28$ against matched random's $+3.14$, a gap of only $+0.14$ logits.
 
-\paragraph{Falsification verdict.}
-\begin{itemize}\itemsep0pt
-  \item \textbf{C1 supported} in USA, Books, Products, Paintings (Specificity gap $\geq 5$ pp \emph{and} vsMax gap $\geq 1.0$ logit; \cref{def:opuseful}).
-  \item \textbf{C1 not supported in Sounds} (vsMax gap $+0.14$, Hit-rate gap $+16.7$ pp on tiny $N{=}30$). Reported as a directional negative result in \cref{sec:results:negative}.
-\end{itemize}
+Raw source suppression does not discriminate labeled from random. Matched random controls achieve equal or higher suppression of the source answer than labeled interventions in three of five domains---Books $75$ vs $69$\%, Products $87$ vs $65$\%, Paintings $74$ vs $34$\% (\cref{appx:specificity})---yet redirect the output nowhere in particular. A per-swap disruption-regime taxonomy at position~$0$ confirms the distinction: matched random concentrates in a generic-disruption regime ($42$--$45$\% of USA and Paintings pairs), and the labeled harness concentrates in a clean-redirection regime (\cref{appx:regime}). Within the mixed regime in which both target and source logits drop but the target overtakes, the labeled intervention drives the target above its own unsteered baseline on $92.2$\% of USA pairs against $29.3$\% for matched random; sustained target dominance is $0.673$ against $0.319$, and within-regime vsMax is $+2.33$ against $-0.10$ (\cref{appx:regime}). The discriminating signal is therefore targeted redirection, and targeted redirection is a property of the labeled feature sets.
 
-\begin{figure*}[t]
-  \centering
-  \includegraphics[width=0.95\textwidth]{figures/fig3_regime_panel.pdf}
-  \caption{\textbf{C1 evidence: regime decomposition and within-regime~C signals.} (a) Stacked-bar regime distributions (A/C/D/E) for the per-pair best variant, the full labeled (M=20), and matched random across the 4 strong domains. The best variant concentrates in regime A; random concentrates in regime D. (b) Within regime~C in USA, labeled vs.\ random on three sub-regime signals: Target-Recovery rate (92.2 vs 29.3\%), sustained dominance (\texttt{tgt\_win\_pct} 0.673 vs 0.319), and vsMax ($+2.33$ vs $-0.10$). Numbers in \cref{appx:regime}.}
-  \label{fig:regime}
-\end{figure*}
+Bootstrap $95$\% confidence intervals on Hit-rate gaps and permutation tests on overlap statistics are reported in \cref{appx:specificity,appx:crossprompt}. With $2{,}450$ USA pairs and $240$ Books pairs, the observed labeled--random Hit-rate gaps of $67.1$ and $63.8$ percentage points lie far outside any plausible null under the matched-random distribution.
 
-\subsection{C2: The harness surfaces four mechanistic regularities}
-\label{sec:results:c2}
+The four strong domains satisfy both conditions of Definition~\ref{def:opuseful}. The labeled--random vsMax gap at the default operating point exceeds $1.0$ logit in every one ($+5.17$, $+6.13$, $+3.23$, $+1.58$ logits), satisfying the vsMax component of Condition~2 and the labeled--vsMax-positive component of Condition~1. At the harness operating point, the absolute labeled Hit-rate exceeds $5$~pp in every one ($67.3$, $63.8$, $27.6$, $21.8$\%) and the labeled--random Hit-rate gap exceeds $5$~pp in every one ($+67.1$, $+63.8$, $+26.5$, $+21.8$~pp), satisfying the Hit-rate components of both conditions. Sounds fails the vsMax component of Condition~2 and is reported in Section~\ref{sec:results:negative}.
 
-\subsubsection{C2.1: Less is more---input-field features interfere with steering}
-\label{sec:results:c2:lessismore}
-In 4 of 5 domains, the intermediate$+$answer subset beats the all-3-field intervention by 9--33~pp (\cref{tab:fieldadd}):
-\begin{itemize}\itemsep0pt
-  \item USA state$+$capital $38.8\%$ vs.\ all-3 $24.7\%$ ($+14.1$ pp);
-  \item Books book$+$author $37.1\%$ vs.\ all-3 $3.8\%$ ($+33.3$ pp);
-  \item Products company$+$founder $24.2\%$ vs.\ all-3 $15.2\%$ ($+9.0$ pp);
-  \item Sounds sound$+$animal $20.0\%$ vs.\ all-3 $0.0\%$ ($+20.0$ pp);
-  \item Paintings: weak baseline, weak gain ($+3.4$ pp).
-\end{itemize}
-\textbf{Interpretation.} Input-field features encode what the model \emph{reads}, not what it should \emph{produce}. Including them activates competing circuits that dilute or interfere with the answer signal. Cross-domain single-field aggregates confirm the role gradient: intermediate (Hit $14.6\%$) $>$ answer ($8.8\%$) $>$ input ($6.1\%$) (\cref{appx:fieldadd}).
+\subsection{Diagnostic analyses}
+\label{sec:results:diagnostic}
 
-\input{tables/T3_fieldadd}
+The analyses below use the same $42{,}184$ runs to characterize variation in intervention quality. Each is a follow-up to the primary test of Section~\ref{sec:results:primary}; the four-domain verdict above does not depend on any of these diagnostics individually.
 
-\subsubsection{C2.2: Default $M{=}20$ is over-steering; the winning $M$ distribution is bimodal}
-\label{sec:results:c2:msearch}
-Adaptive $M$-search rescues 452 missed pairs across all conditions. The winning-$M$ distribution is bimodal at $M{\sim}2.4$ (47\% of labeled hits) and $M{\sim}6.9$ (40\%) (\cref{fig:mhist}). Two control experiments confirm the mechanism rather than the tuning:
-\begin{itemize}\itemsep0pt
-  \item \textbf{High-$M$ rescue is null.} Testing $M{\in}\{50, 100, 200\}$ on near-miss pairs (80 runs across 3 domains) produced \emph{0 new hits}. KL saturates above $M{\sim}50$ while output quality continues to worsen.
-  \item \textbf{Top-$k$ rescue is null.} Testing top-$k$ features by graph influence ($k{\in}\{1, 3, 5, 10\}$) at $M{\in}[20, 200]$ on Products produced \emph{0/96 hits}. Only the full feature set ($k{=}67$) achieves hits.
-\end{itemize}
-\textbf{Interpretation.} The steering signal is \emph{distributed}, not concentrated. Multi-feature amplification at high $M$ produces distributed noise that overwhelms the target signal. This contrasts structurally with the single-feature paradigm in which high $M$ is a targeted directional push~\cite{templeton2024scaling}.
+\subsubsection{Semantic-field composition}
+\label{sec:results:diagnostic:fields}
+Restricting the intervention to a two-field subset substantially improves redirection over the default all-three-field configuration. In USA the best subset (\emph{state + capital}) raises Hit\% from $24.7$ to $38.8$; in Books (\emph{book + author}), from $3.8$ to $37.1$; in Products (\emph{company + founder}), from $15.2$ to $24.2$; in Sounds (\emph{sound + animal}), from $0.0$ to $20.0$. Paintings has a weaker baseline and a correspondingly weaker gain (best subset \emph{first\_name}, $3.3$ to $6.7$). Aggregated across the five domains, the intermediate field alone drives Hit\% $14.6\%$, the answer field $8.8\%$, and the input field only $6.1\%$ (\cref{appx:fieldadd}). Input-field features appear to encode the model's representation of the surface form, while the circuits that select the emitted answer concentrate in the intermediate and answer fields; including input-field features dilutes the redirection signal with activity that is not aligned with the target answer.
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.95\linewidth]{figures/fig4_mhist.pdf}
-  \caption{\textbf{Bimodal winning-$M$ distribution.} Histogram of $M_{\mathrm{amplify}}$ values rescuing missed pairs in adaptive search ($N{=}452$), with KL$(\mathrm{baseline} \| \mathrm{steered})$ overlay. The canonical $M{=}20$ default (dashed line) is to the right of both peaks ($\sim 2.4$ and $\sim 6.9$). High-$M$ rescue and top-$k$ rescue are both null (\cref{appx:msearch}).}
-  \label{fig:mhist}
-\end{figure}
+\subsubsection{Amplification scale}
+\label{sec:results:diagnostic:msearch}
+The $M{=}20$ amplification default inherited from single-feature steering overshoots in the multi-feature regime. Adaptive $M$-search rescues $452$ pairs across all conditions, and the distribution of winning values is bimodal, with peaks near $M{\sim}2.4$ ($47$\% of labeled hits) and $M{\sim}6.9$ ($40$\%), both below the default (\cref{appx:msearch}). Two controls rule out the alternative that the default is simply too small. Testing $M \in \{50, 100, 200\}$ on $80$ near-miss pairs across three domains produced $0$ additional hits; KL divergence between the steered and unsteered distributions saturates above $M{\sim}50$ while the generated text continues to degrade. Testing the top-$k$ features by graph influence ($k \in \{1, 3, 5, 10\}$) at $M \in [20, 200]$ on Products produced $0$ hits out of $96$, and only the full feature set yields hits. The steering signal is distributed across the feature set, and multi-feature amplification at high $M$ linearly amplifies every direction in the labeled set simultaneously, producing distributed noise that dilutes the target signal. The single-feature SAE setting of \citet{templeton2024scaling}, in which clamping at roughly $\pm 10\times$ maximum observed activation saturates one direction, behaves differently for a structural reason: a single direction cannot linearly superpose with itself.
 
-\subsubsection{C2.3: Backbone-and-specialization layer gradient}
-\label{sec:results:c2:layers}
-Cross-prompt scalable analysis on 1{,}607 intra-domain pairs across 5 domains (103 entities; \cref{appx:crossprompt}): activation stability $>90\%$ in all domains; Jaccard overlap $0.29$--$0.62$ (significantly above chance, $p<0.001$ via permutation at multiple pool sizes). Early/late Jaccard ratio is $1.4$--$3.0\times$ in 4 of 5 domains: early layers shared backbone, late layers entity-specific.
+\subsubsection{Cross-prompt feature overlap}
+\label{sec:results:diagnostic:layers}
+A scalable cross-prompt analysis on $1{,}607$ intra-domain entity pairs spanning $103$ entities characterizes how each entity's feature set distributes across the $26$ layers of Gemma-2-2B-it (\cref{appx:crossprompt}). Activation stability---the probability that a feature active on the seed prompt is also active on a concept-matched probe for the same entity---exceeds $90$\% in all domains, so the CPAS picture of each entity is reproducible at scale. Jaccard overlap between entity feature sets within a domain ranges from $0.29$ to $0.62$, all significantly above chance under permutation ($p < 0.001$ at several pool sizes), and the ratio of early-layer to late-layer Jaccard is between $1.4$ and $3.0\times$ in four of five domains. The pattern is consistent with a shared backbone of early-layer features reused across entities and entity-specific specialization concentrated in later layers.
 
-\subsubsection{C2.4: Scaffold influence is a perfect ordinal predictor of domain-level success}
-\label{sec:results:c2:scaffold}
-Graph scaffold compatibility---the fraction of total graph influence carried by features with \emph{identical} supernode assignment across two entity graphs---perfectly orders the four strong domains by Hit\% at the all-3-field labeled baseline (Spearman $\rho{=}1.0$, $N{=}4$; \cref{appx:scaffold}): USA 53.0\%$\to$24.7\%; Products 42.2\%$\to$15.2\%; Paintings 35.9\%$\to$4.4\%; Books 25.3\%$\to$3.8\%.
-The late-layer ($\geq L_{16}$) scaffold gradient is even steeper (USA 16.3\% vs Books 4.3\%; see \cref{appx:scaffold} for the per-layer profile). \emph{Within-domain pair-level prediction is null in USA} (Q1 27.8\% vs Q4 24.3\%, no monotone trend; the within-USA scaffold range $[0.38, 0.73]$ is too narrow to discriminate pairs) and only weak in smaller domains (Products residualized $r{=}+0.29$, $N{=}132$). We report this honestly in \cref{sec:results:negative}.
+\subsubsection{Scaffold compatibility}
+\label{sec:results:diagnostic:scaffold}
+Scaffold compatibility tracks cross-domain steerability. We define per-domain \emph{scaffold compatibility} as the fraction of total graph influence carried by features that receive identical supernode assignment across two entity graphs. With one scaffold number per domain, the metric orders the four strong domains by Hit\% at the default operating point in the same sequence (Spearman $\rho{=}1.0$, $N{=}4$; \cref{appx:scaffold}): USA (scaffold $0.53$, Hit\% $24.7$), Products ($0.42 \rightarrow 15.2$), Paintings ($0.36 \rightarrow 4.4$), and Books ($0.25 \rightarrow 3.8$). Restricting to later layers ($\geq L_{16}$) makes the gradient steeper. The cross-domain ordering does not carry down to a pair-level predictor within a single domain: in USA, splitting the $2{,}450$ pairs into quartiles of pair-level scaffold compatibility gives nearly flat Hit-rates ($27.8$, $24.7$, $24.3$, $24.3$\%) with absolute Pearson correlations below $0.10$ for every variant tested, plausibly because the within-USA scaffold range is narrow ($[0.38, 0.73]$). In smaller domains the within-domain signal is weak but non-zero (e.g., residualized $r{=}+0.29$ in Products with $N{=}132$). We therefore limit the scaffold claim to the between-domain level and report the within-USA null in Section~\ref{sec:results:negative}.
 
-\paragraph{Falsification verdict on C2.}
-Three of four sub-claims (C2.1, C2.2, C2.3) are supported with directional thresholds met in 4--5 domains. The cross-domain ordinal prediction in C2.4 is supported ($\rho{=}1.0$, $N{=}4$); the \emph{within-domain pair-level} prediction in C2.4 is null in USA and weak elsewhere, reported as a sub-claim negative.
+Collectively, these diagnostics account for the gap between the default and harness operating points. Semantic-field composition and amplification scale are the two levers that move a pair from miss to hit under the same labeled feature set, and the cross-prompt overlap and scaffold analyses locate a structural correlate of domain-level steerability.
 
-\subsection{Where the method fails}
+\subsection{Negative results}
 \label{sec:results:negative}
 
-We commit two named negative results to the main body, in line with the workshop's call for rigorous negative findings.
+We record two negatives alongside the primary evaluation.
 
-\paragraph{Negative result 1: Sounds.}
-On 6 entities, 12/30 non-identity pairs share the answer ``brown''. Random hits (3.3\%) come predominantly from these shared-answer pairs; matched-control vsMax exceeds labeled vsMax by $0.14$ logits. \emph{Sounds fails Condition~2 of \cref{def:opuseful}.} We report this as a domain-level negative and exclude Sounds from cross-domain inference for C1; we also identify three structural causes (small $N$, shared-answer artefacts, $K{=}6$ thin logit margins; \cref{appx:negative}).
+Sounds fails Condition~2 of Definition~\ref{def:opuseful}. The domain has six entities, and $12$ of the $30$ non-identity pairs share the target answer ``brown''. Matched random controls that suppress the source color produce the target color mechanically on the shared-answer subset, inflating random Hit\% to $12.2$\% at the harness operating point; the matched-control vsMax gap is $+0.14$ logits in favor of random. We attribute the failure to small $N$, shared answers, and the thin logit margins induced by the domain's $K{=}6$ answer set (\cref{appx:negative}) and exclude Sounds from cross-domain inference for the primary claim.
 
-\paragraph{Negative result 2: Within-USA scaffold prediction.}
-The scaffold metric is a perfect cross-domain ordinal predictor of Hit\% but a null within-domain pair-level predictor in USA, the most powered dataset (Q1--Q4 hit rates 27.8/24.7/24.3/24.3\%; $|r|<0.10$ for all variants; $N{=}2{,}450$). The within-USA scaffold range is too narrow to discriminate pairs. \emph{The scaffold story is a between-domain story; we explicitly do not claim within-domain predictive utility.}
+The scaffold metric does not predict pair-level Hit-rate within USA, our most statistically powered domain. Splitting the $2{,}450$ USA pairs into four quartiles of pair-level scaffold compatibility gives Hit-rates of $27.8 / 24.7 / 24.3 / 24.3\%$, essentially flat, with $|r|<0.10$ for all variants tested. The likely reason is that within-domain scaffold values in USA lie in the narrow range $[0.38, 0.73]$, too narrow to separate pairs. The scaffold claim is therefore between-domain only, and we do not use scaffold compatibility as a within-domain predictor.

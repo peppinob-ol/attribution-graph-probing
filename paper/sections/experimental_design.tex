@@ -1,16 +1,14 @@
-\section{Experimental Design: Five Domains, 42{,}184 Swap Runs}
+\section{Experimental Design}
 \label{sec:expdesign}
 
 \subsection{Domains and seed prompts}
 \label{sec:expdesign:domains}
-We evaluate on five domains spanning single-hop factual recall in different relational structures and answer geometries (\cref{tab:domains}). The first four are the \emph{strong} domains used for cross-domain inference; \emph{Sounds} (6 entities, 12/30 pairs share answers, $K{=}6$) is reported separately due to known structural confounds (\cref{sec:results:negative}, \cref{sec:limitations}).
-
-\input{tables/T_domains}
+We evaluate on five domains spanning two-hop factual recall in different relational structures and answer geometries. Each domain has a fixed seed-prompt template with three semantic fields (input, intermediate, answer): USA (``capital of state containing $X$''; 50 entities, 2{,}450 non-identity swap pairs, answer-set size $K{=}50$), Books (``character $X$ from book by''; 16/240/25), Products (``product $X$ from company by''; 12/132/25), Paintings (``painting $X$ by painter''; 10/90/20), and Sounds (``sound $X$ from animal of color''; 6/30/6). The first four are the \emph{strong} domains used for cross-domain inference; Sounds has $12/30$ pairs sharing an answer and is reported separately as a directional negative (\cref{sec:results:negative}, \cref{sec:limitations}).
 
 \subsection{Experimental matrix}
 \label{sec:expdesign:matrix}
-Each swap pair is run under: (a) labeled (3-field) baseline at $M{=}20$; (b) matched random control (3 replicates per pair); (c) field-additivity (7 variants per pair); (d) adaptive $M$-search on labeled and on the best field-add variant per missed pair. The total is \textbf{42{,}184 swap runs} across all conditions, domains, and $M$ values (per-condition counts in \cref{tab:domains}).
+Each swap pair is run under: (a) labeled (3-field) baseline at $M{=}20$; (b) matched random control (3 replicates per pair); (c) field-additivity (7 variants per pair); (d) adaptive $M$-search on labeled and on the best field-add variant per missed pair. The total is \textbf{42{,}184 swap runs} across all conditions, domains, and $M$ values.
 
 \subsection{Pre-registered evaluation choices}
 \label{sec:expdesign:prereg}
-Before analysis we fixed: (i) contrast group $\mathcal{A}$ = all other dataset answers; (ii) first-subword resolution for multi-token answers; (iii) explicit \texttt{answer\_field} decoupling intervention from measurement; (iv) generation parameters (T$=$0.3, $n{=}10$, frequency-penalty $2.0$, seed $42$); (v) sha256-seeded matched-control replicates; (vi) pair-level definition of Hit (any of 3 random replicates is a hit counts as a random-hit for that pair). Ranges, thresholds, and seeds were frozen prior to running the 42{,}184-run sweep.
+Before running the sweep we fixed the evaluation protocol. The contrast set used by vsMax is the set of all other dataset answers in the same domain, and multi-token answers are resolved to their first subword so that Hit is a deterministic substring check. Intervention and measurement are explicitly decoupled: the intervention operates on supernodes tied to entity fields, while the Hit/vsMax readout is always taken on the answer field. Generation uses temperature $0.3$, a maximum of 10 new tokens, a frequency penalty of $2.0$, and a fixed seed; matched-control replicates are drawn with sha256-based seeding from the run seed and pair identifier. At the pair level we count a random-hit if any of the three matched-control replicates is a hit, so the random baseline is deliberately optimistic. Ranges, thresholds, and seeds were frozen prior to the 42{,}184-run sweep. Full details are in \cref{appx:pipeline}.
