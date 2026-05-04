@@ -1,0 +1,81 @@
+version: 0.1
+experiment_name: smoke_swap_human_target_dallas
+display_demo: false
+
+# Phase-3 smoke condition: HUMAN-DALLAS as TARGET subgraph.
+# Direction is reversed from the previous smoke runs: every pair has Dallas
+# as the *target* (i.e. the model is being steered TOWARDS "Austin" when
+# given a non-Texas source prompt). The customized texas_dallas grouping
+# drives the amplification side. Sources are canonical auto runs.
+#
+# Target grouping (texas_dallas) = the 22 features the human pinned in
+# `gemma-fact-dallas-austin`, tagged with the 5 human supernodes
+# (preposition-followed-by-place-name folded into `state`; 3 standalone
+# clerps used as their own supernodes).
+# Source grouping (5 other states) = our auto pipeline -- same auto run
+# for all 4 conditions, so any condition difference comes from the Dallas
+# *target* side.
+inputs:
+  source_config: configs/smoke_fact_6states.yml
+  graphs_root: output/usa_states_fact_batch/_swap_conditions/human_dallas
+
+swap:
+  mode: defined_pairs
+  pairs:
+    - [california_oakland, texas_dallas]
+    - [new_york_new_york_city, texas_dallas]
+    - [florida_miami, texas_dallas]
+    - [illinois_chicago, texas_dallas]
+    - [washington_seattle, texas_dallas]
+  concept_fields: &concept_fields
+    - state
+    - capital
+    - city
+  answer_field: capital
+
+ct_steering:
+  model_id: google/gemma-2-2b
+  transcoder_set: gemma
+  M_ablate: -2
+  M_amplify: 20
+  temperature: 0.3
+  n_tokens: 10
+  freq_penalty: 2.0
+  seed: 42
+  top_k: 5
+  freeze_attention: false
+  track_trajectory: true
+
+compute:
+  inherit_from_source: false
+  remote:
+    enabled: false
+
+steps:
+  validate_inputs: true
+  prepare_features: true
+  run_steering: true
+  aggregate_results: true
+
+control:
+  mode: additivity
+  runs:
+    - fields: [state]
+    - fields: [capital]
+    - fields: [city]
+    - fields: [state, capital]
+    - fields: [state, city]
+    - fields: [capital, city]
+    - fields: *concept_fields
+
+# M-search: for every (variant, pair) cell that misses at canonical M_amplify=20,
+# adaptively probe lower M values (0.1 ... 20, log-spaced) and find the smallest
+# M that produces an Austin hit. Tests whether the auto-Dallas over-amplification
+# artifact (the U+24E7 token in 'isX, Texas, is Austin') resolves at lower M.
+m_search:
+  enabled: true
+  m_min: 0.1
+  n_coarse_probes: 6
+  n_fine_steps: 6
+  log_tolerance: 0.1
+  min_kl_drop: 1.0

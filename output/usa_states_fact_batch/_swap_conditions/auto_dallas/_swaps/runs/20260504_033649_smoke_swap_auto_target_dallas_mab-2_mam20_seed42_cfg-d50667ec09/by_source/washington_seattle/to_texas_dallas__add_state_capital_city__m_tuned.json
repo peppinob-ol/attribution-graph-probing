@@ -1,0 +1,191 @@
+{
+  "swap_id": "washington_seattle__to__texas_dallas",
+  "source": {
+    "slug": "washington_seattle",
+    "city": "Seattle",
+    "state": "Washington",
+    "capital": "Olympia",
+    "prompt": "<bos>Fact: The capital of the state containing Seattle is",
+    "concept": "washington"
+  },
+  "target": {
+    "slug": "texas_dallas",
+    "city": "Dallas",
+    "state": "Texas",
+    "capital": "Austin",
+    "concept": "texas"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 427,
+    "total_count": 427
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Seattle",
+      "state": "Washington",
+      "capital": "Olympia"
+    },
+    "ground_truth_to": {
+      "city": "Dallas",
+      "state": "Texas",
+      "capital": "Austin"
+    },
+    "answer_field": "capital",
+    "from_answer": "Olympia",
+    "to_answer": "Austin",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Olympia",
+      "default_prob": 0.62109375,
+      "steered": " College",
+      "steered_prob": 0.349609375
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": 0.62109375,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.62109375,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>Fact: The capital of the state containing Seattle is Olympia.\n\nFact: The state of Washington is",
+      "steered_output": "<bos><bos>Fact: The capital of the state containing Seattle is College Station is Austin.\n\nThe city of Austin,",
+      "default_topk": [
+        {
+          "token": " Olympia",
+          "prob": 0.62109375
+        },
+        {
+          "token": " Seattle",
+          "prob": 0.039794921875
+        },
+        {
+          "token": " the",
+          "prob": 0.039794921875
+        },
+        {
+          "token": " Tacoma",
+          "prob": 0.031005859375
+        },
+        {
+          "token": " Washington",
+          "prob": 0.031005859375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " College",
+          "prob": 0.349609375
+        },
+        {
+          "token": " Forth",
+          "prob": 0.1650390625
+        },
+        {
+          "token": ",",
+          "prob": 0.1455078125
+        },
+        {
+          "token": " D",
+          "prob": 0.041748046875
+        },
+        {
+          "token": " the",
+          "prob": 0.036865234375
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 2.1635,
+      "steered_entropy": 2.7242,
+      "entropy_delta": 0.5608,
+      "kl_baseline_to_steered": 14.1435
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 6.071531128429615,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-05-04T06:48:31.612705",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 6.071531,
+    "phase": 2,
+    "total_steps": 9,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 8.762
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 7.9813
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 7.4836
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 9.32
+      },
+      {
+        "m": 6.931448,
+        "hit": false,
+        "kl": 14.4952
+      },
+      {
+        "m": 20.0,
+        "hit": false,
+        "kl": 17.2387
+      }
+    ],
+    "phase2_steps": [
+      {
+        "m": 4.080572,
+        "hit": false,
+        "kl": 12.9044
+      },
+      {
+        "m": 5.318296,
+        "hit": false,
+        "kl": 13.8617
+      },
+      {
+        "m": 6.071531,
+        "hit": true,
+        "kl": 14.1435
+      }
+    ],
+    "kl_transition": {
+      "m_lo": 2.402249,
+      "m_hi": 6.931448,
+      "kl_drop": 5.1752
+    }
+  }
+}

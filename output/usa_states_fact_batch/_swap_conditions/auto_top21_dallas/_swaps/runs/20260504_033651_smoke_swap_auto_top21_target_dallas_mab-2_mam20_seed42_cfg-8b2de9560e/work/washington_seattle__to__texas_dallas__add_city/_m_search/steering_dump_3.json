@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Seattle is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Seattle is not Seattle.\n\nFact: The city of Seattle has",
+      "default": "<bos><bos>Fact: The capital of the state containing Seattle is Olympia.\n\nFact: The state of Washington is",
+      "steered_topk": [
+        {
+          "token": " the",
+          "prob": 0.169921875
+        },
+        {
+          "token": " Seattle",
+          "prob": 0.1328125
+        },
+        {
+          "token": " not",
+          "prob": 0.1328125
+        },
+        {
+          "token": " Washington",
+          "prob": 0.0908203125
+        },
+        {
+          "token": " Oregon",
+          "prob": 0.0625
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Olympia",
+          "prob": 0.62109375
+        },
+        {
+          "token": " Seattle",
+          "prob": 0.039794921875
+        },
+        {
+          "token": " the",
+          "prob": 0.039794921875
+        },
+        {
+          "token": " Tacoma",
+          "prob": 0.031005859375
+        },
+        {
+          "token": " Washington",
+          "prob": 0.031005859375
+        }
+      ],
+      "intervention_count": 71,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 2.1635,
+        "steered_entropy": 3.2611,
+        "entropy_delta": 1.0976,
+        "kl_baseline_to_steered": 4.3653
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

@@ -91,8 +91,18 @@ def process_graph_step(config: Dict[str, Any], seed: Dict[str, Any], paths: Dict
         
         # Get graph generation params from config
         graph_gen = config.get('graph_generation', {})
+        api_params = graph_gen.get('api_params', {}) or {}
         model_id = config['model']['id']
-        source_set_name = graph_gen.get('source_set_name', config['model']['source_set'])
+        # Precedence (most specific first):
+        #   1. graph_generation.api_params.sourceSetName  (Neuronpedia API param name)
+        #   2. graph_generation.source_set_name           (legacy snake_case key)
+        #   3. model.source_set                           (UI/source-set alias, may differ from
+        #                                                  the actual transcoder used to build the graph)
+        source_set_name = (
+            api_params.get('sourceSetName')
+            or graph_gen.get('source_set_name')
+            or config['model']['source_set']
+        )
         
         # Call generation function
         try:

@@ -2,25 +2,25 @@
 \label{sec:limitations}
 
 \paragraph{1.\ No grouping-method baseline.}
-We do not compare against geometric clustering (cosine, layer-adjacency, $k$-means, HDBSCAN). A grouping derived from a behavior-grounded signature outperforms a purely geometric grouping on behavior-grounded metrics nearly by construction, so such a comparison would be structurally biased in our favor; and there is no canonical feature-clustering baseline in the SAE/CLT literature to anchor the comparison. We validate instead via intervention against matched random controls (\cref{def:matched}), which is method-agnostic and applicable to any future grouping, including learned ones, and we encourage comparisons on our harness.
+We compare labeled supernodes against matched random controls rather than against geometric or learned clustering: a behavior-grounded grouping beats a geometric one on behavior-grounded metrics by construction, and there is no canonical feature-clustering baseline in the SAE/CLT literature. The harness (\S\ref{sec:method:harness}) is method-agnostic and we encourage future groupings to be evaluated on it.
 
 \paragraph{2.\ Attention-circuit blindspot.}
-Attribution graphs freeze attention; our swaps run with attention free. The asymmetry plausibly explains part of the 33--79\% miss rate in the strong domains~\cite{ameisen2025circuittracing}. Attention-aware variants are listed as future work (\cref{sec:discussion}).
+Attribution graphs freeze attention; our swaps run with attention free. The asymmetry plausibly accounts for part of the residual miss rate; attention-aware variants are future work (\cref{sec:discussion}).
 
-\paragraph{3.\ Sounds dataset structural issues.}
-Six entities, $12/30$ pairs share answers, $K{=}6$. Sounds fails Condition~2 of \cref{def:opuseful} (\cref{sec:results:negative}) and is excluded from cross-domain inference for the main claim.
+\paragraph{3.\ Substring matching and multi-token heuristics.}
+The concept-to-supernode matcher uses bidirectional substring matching, which admits spurious containment (e.g.\ \texttt{is} $\subset$ \texttt{mississippi}). We audited the behavior and corrected unambiguous mismatches before the sweep; tightening the matcher remains future work.
 
-\paragraph{4.\ Substring matching and multi-token heuristics.}
-The concept-to-supernode matcher uses bidirectional substring matching, which allows reverse containment (e.g., the short supernode name \texttt{is} matching the longer concept \texttt{mississippi}, or \texttt{port} matching \texttt{gulfport}). We audited this behavior and found that entities with the highest reverse-substring rates still perform at or above their dataset mean on vsMax (for example, the USA entity with the highest such rate, Mississippi/Gulfport, has vsMax $3.20$ vs a USA mean of $2.86$), and that within-entity field-additivity does not show a disproportionate drop when reverse-substring matches are added. The labels used in the main-paper experiments were manually inspected against the generated supernode names for every seed; the few cases we found to be unambiguous mismatches were corrected before the sweep. Multi-word answers resolve to their first subword, which can miss or produce spurious matches (e.g., ``St.~Paul'' vs stored ``Saint Paul''). Tightening the matcher is a first-pass improvement for future work.
+\paragraph{4.\ Threshold sensitivity is unmeasured.}
+Decision-rule thresholds were iteratively refined on pilot circuits; we did not run a formal $\pm 10$--$20\%$ sensitivity sweep. Thresholds are configurable defaults in the released code.
 
-\paragraph{5.\ Threshold sensitivity is unmeasured.}
-Decision-rule thresholds were iteratively refined on pilot circuits; we did not run a formal $\pm 10$--$20\%$ sensitivity sweep. Thresholds are treated as configurable defaults in the released code.
+\paragraph{5.\ Cross-prompt robustness is observational.}
+The early-vs-late layer-overlap pattern (\S\ref{sec:results:diagnostic:layers}) is descriptive: we did not directly intervene on early- vs late-layer features to verify the backbone-and-specialization reading.
 
-\paragraph{6.\ Cross-prompt robustness is observational.}
-The cross-prompt feature-overlap pattern (\S\ref{sec:results:diagnostic:layers}) comes from measuring feature-set overlap across 1{,}607 entity pairs; we did not then \emph{intervene} on shared-early-layer features to verify that ablating them damages many entities uniformly, nor on specialized late-layer features to verify that ablating them damages only one entity. The Jaccard pattern is consistent with a shared early-layer backbone and late-layer specialization, but that reading remains correlational until tested by intervention.
+\paragraph{6.\ Within-domain pair-level scaffold prediction is null in USA.}
+Scaffold compatibility orders our four domains exactly but does not predict pair-level Hit-rate within USA, plausibly because the within-domain scaffold range is too narrow. The scaffold claim is between-domain only (\cref{sec:results:negative}).
 
-\paragraph{7.\ Within-domain pair-level scaffold prediction is null in USA.}
-Scaffold compatibility orders our four strong domains by Hit\% exactly at the between-domain level ($N{=}4$) but does not predict Hit-rate at the pair level within USA, our most statistically powered domain (\cref{sec:results:negative}). The within-domain scaffold range ($[0.38, 0.73]$ for USA) is probably too narrow to discriminate pairs; we therefore limit the scaffold claim to the between-domain level.
+\paragraph{7.\ Domain scope: two-hop factual recall only.}
+Our four evaluation domains are all two-hop factual-recall prompts. Whether the pipeline transfers to relational tasks with different structure (multi-hop reasoning, antonymy, code, dialogue, instruction-following) is untested.
 
 \paragraph{8.\ Three levels of interpretive claim; single model and language.}
-In the three-level framing of \citet{geiger2025causal}---Level~1 operationally useful labels, Level~2 downstream causal effects validated against controls, Level~3 full mechanistic identification of latent variables---we claim Levels~1 and~2 only; Level~3 is disclaimed. All experiments use Gemma-2-2B-it with CLT-HP and English two-hop prompts (\cref{sec:expdesign:domains}); cross-architecture, cross-dictionary, and multilingual generalization are open.
+In the three-level framing of \citet{geiger2025causal} we claim Levels~1 and~2 only; Level~3 (full mechanistic identification of latent variables) is disclaimed. All experiments use Gemma-2-2B-it with CLT-HP on English (\cref{sec:method:domains}); cross-architecture, cross-dictionary, and multilingual generalization are open.

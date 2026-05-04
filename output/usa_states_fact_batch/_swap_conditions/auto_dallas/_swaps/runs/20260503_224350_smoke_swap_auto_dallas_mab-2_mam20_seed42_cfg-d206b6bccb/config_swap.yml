@@ -1,0 +1,60 @@
+version: 0.1
+experiment_name: smoke_swap_auto_dallas
+display_demo: false
+
+# Phase-3 smoke condition: AUTO-DALLAS (baseline).
+# Source grouping = our auto pipeline's full grouping for texas_dallas
+# (1182 features, 44 supernodes).
+# Target grouping = same auto run for the 5 target states.
+inputs:
+  source_config: configs/smoke_fact_6states.yml
+  graphs_root: output/usa_states_fact_batch/_swap_conditions/auto_dallas
+
+swap:
+  mode: defined_pairs
+  pairs:
+    - [texas_dallas, california_oakland]
+    - [texas_dallas, new_york_new_york_city]
+    - [texas_dallas, florida_miami]
+    - [texas_dallas, illinois_chicago]
+    - [texas_dallas, washington_seattle]
+  concept_fields: &concept_fields
+    - state
+    - capital
+    - city
+  answer_field: capital
+
+ct_steering:
+  model_id: google/gemma-2-2b
+  transcoder_set: gemma
+  M_ablate: -2
+  M_amplify: 20
+  temperature: 0.3
+  n_tokens: 10
+  freq_penalty: 2.0
+  seed: 42
+  top_k: 5
+  freeze_attention: false
+  track_trajectory: true
+
+compute:
+  inherit_from_source: false
+  remote:
+    enabled: false
+
+steps:
+  validate_inputs: true
+  prepare_features: true
+  run_steering: true
+  aggregate_results: true
+
+control:
+  mode: additivity
+  runs:
+    - fields: [state]
+    - fields: [capital]
+    - fields: [city]
+    - fields: [state, capital]
+    - fields: [state, city]
+    - fields: [capital, city]
+    - fields: *concept_fields

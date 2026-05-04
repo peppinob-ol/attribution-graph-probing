@@ -114,6 +114,8 @@ It does:
 
 **Supernode formation**: Features sharing the same classification and name are grouped into supernodes. Each feature belongs to exactly one supernode.
 
+**Empirical validation of the partition**: Section 4.9 tests this decision tree against the 6-D feature-metric space directly. Threshold sensitivity is below 1.5% per cut, the four classes occupy spatially coherent regions in t-SNE, UMAP, and PCA across all five datasets, and unsupervised recovery (KMeans, GMM, Ward, HDBSCAN) yields ARI 0.51-0.63 with rule labels. However, three principled criteria (BIC, density, silhouette plateau) independently prefer `k = 8-13` natural components rather than 4, indicating that the rule partition is a coherent coarse-graining of a finer manifold rather than a discovery of natural classes. The most visible artefact is `Semantic (Dictionary fallback)`, which consistently splits into multiple disconnected regions.
+
 ### 2.4 Causal Testing via Feature Swapping
 
 **Goal**: Test whether labeled supernodes have entity-specific causal influence on model output.
@@ -476,6 +478,57 @@ In smaller domains, hit pairs consistently have slightly higher scaffold than mi
 
 ---
 
+### 4.9 Feature Classification Geometry: Coarse-Graining of a Finer Manifold
+
+The decision tree of Section 2.3 carves the 6-dimensional feature-metric space (`peak_consistency_main`, `n_distinct_peaks`, `func_vs_sem_pct`, `conf_F`, `sparsity_median`, `layer`) with axis-aligned thresholds. Whether those thresholds reflect natural structure or impose arbitrary cuts has been an open L1 question. We tested it directly across all five datasets.
+
+**Manifest construction**: Per-feature metrics were rebuilt by reapplying `aggregate_feature_metrics` to every `node_grouping.csv` from the five batches, yielding 27,817 `(dataset, entity, feature)` rows and 8,314 deduped global `(layer, feature)` rows (manifest at `output/research/feature_manifest.csv`).
+
+**Threshold sensitivity**: Each of the four primary cuts was perturbed by +/-10% on the all-rows manifest. Flip rates were 0.05-1.52% per cut and 0.29-3.62% within tight neighborhoods of the cut. The simplest "many points sit on arbitrary boundaries" explanation is inconsistent with these rates.
+
+**Unsupervised recovery -- five methods, deduped frame**:
+
+| Method | Setting | Components or k | ARI vs rules | NMI | Silhouette |
+|---|---|---:|---:|---:|---:|
+| KMeans | k=4 | 4 | 0.51 | 0.49 | 0.54 |
+| KMeans | k=6 | 6 | 0.59 | 0.60 | 0.67 |
+| GMM (diag) | k=4 | 4 | 0.51 | 0.49 | 0.52 |
+| Ward agglomerative | k=8 (silhouette plateau) | 8 | 0.53 | 0.57 | 0.66 |
+| HDBSCAN | min_cluster_size=150 | 13 (excl. ~33% noise) | 0.32 | -- | 0.74 |
+| GMM full | BIC-preferred k* | **10** | **0.63** | -- | 0.57 |
+| GMM diag | BIC-preferred k* | **12** | **0.62** | -- | 0.56 |
+
+Lower BIC = better fit; the BIC drop from k=4 to k=10 (full covariance) was 113,212 nats, well beyond any plausible noise level.
+
+**Cross-method convergence**: Three principled criteria for selecting the number of natural components -- density (HDBSCAN), BIC (Gaussian mixture), and silhouette plateau (Ward) -- independently land in the range `k = 8-13`. The classification's nominal four-class story does not appear in any of these estimates as the preferred number.
+
+**Per-dataset transfer (KMeans k=4)**:
+
+| Dataset | KMeans ARI | GMM ARI |
+|---|---:|---:|
+| Books | 0.50 | 0.51 |
+| Paintings | 0.24 | 0.25 |
+| Products | 0.60 | 0.62 |
+| Sounds | 0.49 | 0.39 |
+| USA states | 0.35 | 0.35 |
+
+The rule geometry transfers most cleanly to products and books, weakly to paintings, and only partially to USA. This is consistent with USA's heavier mix of fallback Dictionary features and with paintings' smaller and more idiosyncratic feature population.
+
+**Visual structure**: t-SNE and UMAP on the standardized 6-D vector show that all four primary classes occupy spatially coherent regions, with `Relationship` features forming the cleanest single arc and `Say "X"` features forming a tight late-layer cluster. `Semantic (Dictionary fallback)` consistently splits into multiple visually disconnected regions in UMAP across all five datasets, suggesting that the fallback branch of the decision tree (rule 4 in Section 2.3) sweeps up two or more genuinely different feature populations. This matches the BIC and HDBSCAN estimates that the natural geometry is finer than four classes.
+
+**Interpretation**: The decision tree produces a partition that is (i) spatially coherent (low threshold-fragility, visible class regions in three projections), (ii) consistent with the natural geometry at coarse scales (ARI 0.51 at k=4, 0.62-0.63 at the BIC-preferred k = 10-12), and (iii) a coarse-graining rather than a discovery of natural classes -- multiple naturally distinct dense regions are merged under the same rule label, the most visible example being the bimodal `Dictionary fallback` bucket.
+
+**Operational consequence**: The L1 claim that the rule labels are "behaviorally distinct and useful for navigating circuits" survives. Threshold sensitivity, spatial coherence, and ARI at the right `k` all support it. The L1 claim that there are exactly four natural classes does not survive: BIC, density, and silhouette saturation all point to ~10-12 underlying components. This suggests two future directions: (a) refining the `Dictionary fallback` branch into the two or more sub-classes the data prefers, and (b) testing whether the natural fine-grained clusters have differential downstream causal leverage in feature-swap experiments (an L2 test).
+
+**Confidence**:
+- **High** that the data prefers many more than 4 components (replicated under three independent criteria, BIC differences far beyond noise).
+- **Medium-to-High** that the rule partition is a coherent coarse-graining (ARI > 0.5 at k=8, low threshold-flip rate, cross-method agreement).
+- **Low** on any specific count of natural classes; the principled estimates span 8-13.
+
+Full investigation log: `output/research/_LOG.md` entries dated 2026-05-01 and 2026-05-02. Reproducible analysis in `output/research/feature_clustering.ipynb` and the dependency-light runner `scripts/research/feature_clustering_analysis.py`. Manifest: `output/research/feature_manifest.csv`.
+
+---
+
 ## 5. Methodological Strengths
 
 1. **Transparency**: All classification rules are explicit thresholds, not learned parameters. Every assignment is traceable to specific threshold crossings.
@@ -563,7 +616,7 @@ This is the report's main advance. Four lines of evidence support entity-specifi
 
 ### Level 3 -- Full Mechanistic Explanation: NOT CLAIMED
 
-The labels are behavioral abstractions, not ontological identifications of latent variables. The classification thresholds have not undergone sensitivity analysis. Whether the feature categories correspond to natural computational types or to arbitrary partitions of a continuous behavioral space remains an open question.
+The labels are behavioral abstractions, not ontological identifications of latent variables. Section 4.9 has now closed the previously open question of whether the threshold cuts are arbitrary: they are not. Threshold sensitivity is under 1.5% per cut, classes occupy spatially coherent regions in t-SNE/UMAP/PCA, and unsupervised recovery reaches ARI 0.62-0.63 once enough components are allowed. However, the same analysis shows that the data prefers `k = 8-13` natural components rather than 4 under three independent criteria (BIC, density, silhouette plateau). The four nominal categories are a coherent coarse-graining of a finer underlying manifold, not a discovery of natural classes; the `Semantic (Dictionary fallback)` bucket in particular merges at least two distinct subpopulations. Whether the natural fine-grained clusters correspond to mechanistically distinct feature types -- and whether they have differential downstream causal leverage in feature-swap experiments -- remains an open L2/L3 question.
 
 ### Overall Assessment
 

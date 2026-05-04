@@ -12,6 +12,7 @@ import math
 from typing import List, Tuple, Optional
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import matplotlib.patheffects as pe
 from matplotlib.figure import Figure
 import numpy as np
 
@@ -111,7 +112,7 @@ class ActivationHeatmapVisualizer:
         replacements = {
             '\n': '↵',
             '\t': '→',
-            ' ': '·',
+            ' ': '',
             '<bos>': '<BOS>',
             '<eos>': '<EOS>',
             '<|endoftext|>': '<EOT>',
@@ -241,18 +242,62 @@ class ActivationHeatmapVisualizer:
         plt.tight_layout()
         return fig
     
+    @staticmethod
+    def _slice_after_first_colon(tokens: List[str], values: List[float]) -> Tuple[List[str], List[float]]:
+        """
+        Drop tokens up to and including the first ":" token.
+
+        Used to strip prompt-type prefixes like "entity:" / "attribute:" /
+        "relationship:" (along with any leading <BOS>) from probe rows.
+        Returns the original lists unchanged if no ":" token is found.
+        """
+        for i, t in enumerate(tokens):
+            s = t.strip()
+            if s == ':' or s.endswith(':'):
+                return tokens[i + 1:], values[i + 1:]
+        return tokens, values
+
+    @staticmethod
+    def _capitalize_first_token(tokens: List[str]) -> List[str]:
+        """
+        Return a copy of ``tokens`` with the first letter of the first non-empty
+        token uppercased. Preserves any leading whitespace on the token (e.g.
+        " the" -> " The") so tokenization isn't disturbed for downstream code.
+        Returns ``tokens`` unchanged if the first character is already non-lower.
+        """
+        if not tokens:
+            return tokens
+        first = tokens[0]
+        stripped = first.lstrip()
+        if not stripped or not stripped[0].islower():
+            return tokens
+        leading = first[:len(first) - len(stripped)]
+        new = list(tokens)
+        new[0] = leading + stripped[0].upper() + stripped[1:]
+        return new
+
     def visualize_stacked_prompts_for_feature(self,
                                              feature_id: str,
                                              all_probe_data: List[dict],
-                                             output_path: Optional[Path] = None) -> Figure:
+                                             output_path: Optional[Path] = None,
+                                             seed_row: Optional[dict] = None,
+                                             clamp_after_colon: bool = True) -> Figure:
         """
         Create stacked visualization of multiple prompts for a single feature.
-        
+
         Args:
             feature_id: Feature identifier (e.g., "0-clt-hp:40780" or just "40780")
             all_probe_data: List of probe result dictionaries
             output_path: If provided, saves figure to this path
-            
+            seed_row: Optional dict with keys ``tokens`` (List[str]) and ``values``
+                (List[float]) describing the seed prompt's per-token activations
+                for this feature. When provided, it is rendered as the first row
+                with a darker border to distinguish it from probe rows.
+            clamp_after_colon: If True, drop tokens up to and including the first
+                ":" token in each probe (strips "entity:", "attribute:" prefixes).
+                The seed row is exempt from this clamp; only its leading <bos>
+                token is stripped.
+
         Returns:
             Matplotlib Figure object
         """
@@ -295,10 +340,49 @@ class ActivationHeatmapVisualizer:
         
         if not matched_probes:
             raise ValueError(f"Feature {feature_id} not found in any probe data")
-        
+
         print(f"Found {len(matched_probes)} probes with feature {feature_id}")
-        
-        # Calculate global max for consistent coloring
+
+        # Optionally drop tokens up to and including the first ':' so probe rows
+        # start at the substantive prompt (skipping "entity:", "attribute:", etc.).
+        if clamp_after_colon:
+            for probe_data in matched_probes:
+                probe_data['tokens'], probe_data['values'] = self._slice_after_first_colon(
+                    probe_data['tokens'], probe_data['values']
+                )
+
+        # Prepend the seed-prompt row (if provided) before any layout/coloring math
+        # so it participates in global_max and longest-token calculations.
+        has_seed_row = bool(
+            seed_row
+            and seed_row.get('tokens')
+            and seed_row.get('values') is not None
+            and len(seed_row['tokens']) == len(seed_row['values'])
+        )
+        if has_seed_row:
+            seed_tokens = list(seed_row['tokens'])
+            seed_values = list(seed_row['values'])
+            # Strip a leading <bos>-like marker so the seed row aligns visually
+            # with the colon-clamped probe rows.
+            if seed_tokens and seed_tokens[0].strip().lower() in (
+                '<bos>', '<|begin_of_text|>', '<|endoftext|>'
+            ):
+                seed_tokens = seed_tokens[1:]
+                seed_values = seed_values[1:]
+            matched_probes.insert(0, {
+                'prompt': seed_row.get('prompt', ''),
+                'tokens': seed_tokens,
+                'values': seed_values,
+                'feature_info': matched_probes[0]['feature_info'],
+                '_is_seed': True,
+            })
+
+        # Capitalize the first letter of every row's first token so probes that
+        # start lowercase (e.g. "the state in which...") render as "The ...".
+        for probe_data in matched_probes:
+            probe_data['tokens'] = self._capitalize_first_token(probe_data['tokens'])
+
+        # Calculate global max for consistent coloring (computed on what we'll render).
         global_max = 0.0
         for probe_data in matched_probes:
             max_val = self.calculate_max_value(probe_data['tokens'], probe_data['values'])
@@ -307,64 +391,92 @@ class ActivationHeatmapVisualizer:
         # Calculate layout
         n_probes = len(matched_probes)
         max_tokens = max(len(p['tokens']) for p in matched_probes)
-        n_cols = self.tokens_per_row
-        
-        # Adjust figure size for stacked view - reduced height
+        n_cols = max(1, min(max_tokens, self.tokens_per_row))
+
+        # Estimate the widest displayed token (in characters) so cells can be
+        # widened to fit longer words without truncation.
+        longest_display_chars = 1
+        for probe_data in matched_probes:
+            for token in probe_data['tokens'][:n_cols]:
+                longest_display_chars = max(
+                    longest_display_chars,
+                    len(self.replace_special_tokens(token)),
+                )
+
+        # Approximate width of a bold monospace character at the token font size.
+        # Empirically tuned: tight cells, but wide enough that 10-char bold-mono
+        # tokens like "government" / "containing" sit clear of the cell borders.
+        char_width_in = 0.067 * (self.font_size + 1) / 8.0
+        # Minimal horizontal padding around the longest token.
+        cell_width_in = max(0.32, (longest_display_chars + 0.4) * char_width_in)
+        # Width is driven purely by cell content.
+        fig_width = max(6.0, cell_width_in * n_cols)
+
+        # Adjust figure size for stacked view - reduced height. The bold title is
+        # gone, so we only need a tiny margin above the cells.
         row_height = 0.4  # Reduced by 10x from 1.2
-        title_space = 0.4  # Reduced title space
-        fig_height = n_probes * row_height + title_space
-        
-        fig, ax = plt.subplots(figsize=(self.figsize[0], fig_height))
-        ax.set_xlim(0, n_cols)
-        ax.set_ylim(0, n_probes + 0.5)
+        top_space = 0.08
+        fig_height = n_probes * row_height + top_space
+
+        # Reserve a left margin for per-row labels ("seed", "probe N").
+        left_label_pad = 0.95
+        fig, ax = plt.subplots(
+            figsize=(fig_width + left_label_pad * cell_width_in, fig_height)
+        )
+        ax.set_xlim(-left_label_pad, n_cols)
+        ax.set_ylim(0, n_probes + 0.05)
         ax.axis('off')
-        
-        # Main title
-        feature_label = f"{matched_probes[0]['feature_info'].get('source', 'unknown')}:{target_index}"
-        title = f"Feature {feature_label} - Stacked Prompts"
-        if self.exclude_bos:
-            title += f" (excl. BOS) | Global Max: {global_max:.2f}"
-        else:
-            title += f" | Global Max: {global_max:.2f}"
-        
-        ax.text(n_cols / 2, n_probes + 0.05, title,
-               ha='center', va='bottom', fontsize=self.font_size + 4,
-               fontweight='bold')
-        
+
+        # Number probes sequentially, leaving the seed (if present) at index 0.
         # Draw each probe as a row
+        probe_counter = 0
         for probe_idx, probe_data in enumerate(matched_probes):
             row = n_probes - probe_idx - 1
             tokens = probe_data['tokens']
             values = probe_data['values']
-            
+            is_seed = bool(probe_data.get('_is_seed'))
+
+            # Left-side label for every row.
+            if is_seed:
+                row_label = 'seed'
+            else:
+                probe_counter += 1
+                row_label = f'probe {probe_counter}'
+            ax.text(-left_label_pad + 0.05, row + 0.5, row_label,
+                   ha='left', va='center',
+                   fontsize=self.font_size,
+                   color='dimgray',
+                   fontstyle='italic',
+                   zorder=2)
+
             # Draw tokens for this probe
             for token_idx, (token, value) in enumerate(zip(tokens, values)):
                 if token_idx >= n_cols:
                     break
-                
+
                 col = token_idx
-                
+
                 # Get background color using global max
                 bg_color = self.get_background_color(value, global_max)
-                
+
+                # Seed row uses a darker/thicker border to set it apart visually.
+                edge = '#5a6268' if is_seed else 'lightgray'
+                ew = 1.0 if is_seed else 0.5
+
                 # Draw background rectangle
                 rect = patches.Rectangle(
                     (col, row), 1, 1,
-                    linewidth=0.5,
-                    edgecolor='lightgray',
+                    linewidth=ew,
+                    edgecolor=edge,
                     facecolor=bg_color,
                     zorder=1
                 )
                 ax.add_patch(rect)
                 
-                # Display token
+                # Display token (always black for consistent legibility on green).
                 display_token = self.replace_special_tokens(token)
-                text_color = 'black' if bg_color[3] < 0.5 else 'white'
-                
-                # Shorter token display for compact view
-                if len(display_token) > 10:
-                    display_token = display_token[:9] + '...'
-                
+                text_color = 'black'
+
                 ax.text(col + 0.5, row + 0.7, display_token,
                        ha='center', va='top',
                        fontsize=self.font_size + 1,
@@ -373,15 +485,25 @@ class ActivationHeatmapVisualizer:
                        zorder=2,
                        fontweight='bold')
                 
-                # Show value if significant
-                if self.show_values and value > self.MINIMUM_THRESHOLD and value > global_max * 0.1:
-                    ax.text(col + 0.5, row + 0.1,
+                # Show value if significant, with a contrasting halo for legibility.
+                # On the seed row we surface even small activations so the seed
+                # prompt's signal is visible relative to the probe activations.
+                value_visibility_floor = self.MINIMUM_THRESHOLD if is_seed else max(
+                    self.MINIMUM_THRESHOLD, global_max * 0.1
+                )
+                if self.show_values and value > value_visibility_floor:
+                    halo_color = 'white' if text_color == 'black' else 'black'
+                    ax.text(col + 0.5, row + 0.02,
                            f"{value:.1f}",
                            ha='center', va='bottom',
-                           fontsize=self.font_size / 2,
+                           fontsize=max(6.0, self.font_size * 0.85),
                            color=text_color,
-                           zorder=2,
-                           alpha=0.8)
+                           fontweight='bold',
+                           zorder=3,
+                           alpha=1.0,
+                           path_effects=[
+                               pe.withStroke(linewidth=2.0, foreground=halo_color, alpha=0.9)
+                           ])
         
         plt.tight_layout()
         
@@ -504,6 +626,95 @@ class ActivationHeatmapVisualizer:
         return fig
 
 
+def _build_seed_row_from_graph(
+    graph_json_path: Path,
+    feature_id: str,
+    override_prompt: Optional[str] = None,
+) -> Optional[dict]:
+    """
+    Construct a seed-prompt row (tokens + per-token activations for ``feature_id``)
+    from the attribution graph at ``graph_json_path``.
+
+    The attribution graph is generated *on* the seed prompt and stores, for each
+    feature node, the (layer, local_feature_index, ctx_idx, activation) tuple.
+    We rebuild a dense per-token activation array of length ``len(prompt_tokens)``
+    by summing activations from every node whose (layer, local_feature_index)
+    matches the requested feature.
+
+    Returns a dict ``{'tokens', 'values', 'prompt'}`` ready for
+    ``visualize_stacked_prompts_for_feature``, or ``None`` if the graph file is
+    missing / unreadable / does not contain matching nodes.
+    """
+    if not graph_json_path.exists():
+        return None
+
+    try:
+        with open(graph_json_path, 'r', encoding='utf-8') as f:
+            graph = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"Could not read seed graph at {graph_json_path}: {e}")
+        return None
+
+    metadata = graph.get('metadata', {}) or {}
+    prompt_tokens = metadata.get('prompt_tokens')
+    if not prompt_tokens:
+        return None
+
+    # Parse the requested feature id: "<layer>-<set>:<index>" or just "<index>".
+    if ':' in feature_id:
+        target_source, idx_str = feature_id.split(':', 1)
+        target_index = int(idx_str)
+        # Layer is the leading numeric portion of the source (e.g. "20-clt-hp" -> 20).
+        layer_str = target_source.split('-', 1)[0]
+        try:
+            target_layer = int(layer_str)
+        except ValueError:
+            target_layer = None
+    else:
+        target_source = None
+        target_layer = None
+        target_index = int(feature_id)
+
+    values = [0.0] * len(prompt_tokens)
+    found_any = False
+    for node in graph.get('nodes', []) or []:
+        # node_id format: "<layer>_<local_feature_index>_<ctx_idx>"
+        node_id = node.get('node_id', '')
+        parts = node_id.split('_')
+        if len(parts) < 3:
+            continue
+        try:
+            n_layer = int(parts[0])
+            n_feat = int(parts[1])
+            n_ctx = int(parts[-1])
+        except ValueError:
+            continue
+        if target_layer is not None and n_layer != target_layer:
+            continue
+        if n_feat != target_index:
+            continue
+        if 0 <= n_ctx < len(values):
+            values[n_ctx] += float(node.get('activation', 0.0))
+            found_any = True
+
+    if not found_any:
+        # No graph node for this feature on the seed prompt; show an all-zero row
+        # only if the user explicitly asked via override_prompt, else skip.
+        if override_prompt is None:
+            return None
+
+    seed_prompt_text = override_prompt or metadata.get('prompt', '')
+    print(
+        f"Seed row from graph: prompt={seed_prompt_text!r}, "
+        f"max_activation={max(values) if values else 0.0:.4f}"
+    )
+    return {
+        'tokens': list(prompt_tokens),
+        'values': values,
+        'prompt': seed_prompt_text,
+    }
+
+
 def main():
     """Main function to process activation dump and create visualizations."""
     parser = argparse.ArgumentParser(
@@ -558,7 +769,19 @@ def main():
         action='store_true',
         help='Include BOS token in max value calculation (default: exclude)'
     )
-    
+    parser.add_argument(
+        '--seed-prompt',
+        type=str,
+        default=None,
+        help='Seed prompt to display as subtitle. If omitted, the script tries '
+             'to auto-discover it from "<dump_dir>/../00 Graph Generation/graph.json".'
+    )
+    parser.add_argument(
+        '--no-clamp-colon',
+        action='store_true',
+        help='Disable clamping of probe rows to start after the first ":" token.'
+    )
+
     args = parser.parse_args()
     
     # Load JSON data
@@ -580,19 +803,29 @@ def main():
         print(f"\nGenerating stacked visualization for feature {args.feature_id}")
         output_dir = Path(args.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        
+
+        # Try to build a seed row (tokens + per-token activations for this feature)
+        # from the attribution graph generated on the seed prompt.
+        seed_row = _build_seed_row_from_graph(
+            graph_json_path=input_path.parent.parent / "00 Graph Generation" / "graph.json",
+            feature_id=args.feature_id,
+            override_prompt=args.seed_prompt,
+        )
+
         # Initialize visualizer
         visualizer = ActivationHeatmapVisualizer(
             tokens_per_row=args.tokens_per_row,
             show_values=not args.no_values,
             exclude_bos=not args.include_bos
         )
-        
+
         output_path = output_dir / f"feature_{args.feature_id.replace(':', '_')}_stacked.png"
         visualizer.visualize_stacked_prompts_for_feature(
             feature_id=args.feature_id,
             all_probe_data=results,
-            output_path=output_path
+            output_path=output_path,
+            seed_row=seed_row,
+            clamp_after_colon=not args.no_clamp_colon,
         )
         
         print(f"\nStacked visualization saved to: {output_path}")

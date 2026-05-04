@@ -501,21 +501,26 @@ def run_single_swap(
     pair: SwapPair,
     verbose: bool = True,
     control_socket: Optional[str] = None,
+    variant_suffix: str = "",
 ) -> Optional[Dict[str, Any]]:
     """
     Run a single swap experiment.
-    
+
     Args:
         ct_steering: The ct_steering module
         config: Swap configuration
         pair: The swap pair to run
         verbose: Print progress
         control_socket: Optional SSH ControlMaster socket for connection reuse
-    
+        variant_suffix: Optional control-variant tag (e.g. ``"add_state"``).
+            When non-empty, the output JSON and per-pair work directory are
+            namespaced by this suffix so that different variants of the same
+            pair do not overwrite each other.
+
     Returns:
         Complete result dict, or None if failed
     """
-    paths = get_swap_paths(config, pair)
+    paths = get_swap_paths(config, pair, variant_suffix=variant_suffix)
     start_time = time.time()
     
     if verbose:
@@ -708,7 +713,8 @@ def run_single_swap(
             min_kl_drop=m_search_cfg.get("min_kl_drop", 1.0),
         )
         if tuned:
-            tuned_path = get_swap_output_path(config, pair, variant_suffix="m_tuned")
+            tuned_suffix = f"{variant_suffix}__m_tuned" if variant_suffix else "m_tuned"
+            tuned_path = get_swap_output_path(config, pair, variant_suffix=tuned_suffix)
             tuned_path.parent.mkdir(parents=True, exist_ok=True)
             with open(tuned_path, "w", encoding="utf-8") as f:
                 json.dump(tuned, f, indent=2, ensure_ascii=False)
@@ -1123,6 +1129,7 @@ def run_batch_swaps(
                 try:
                     result = run_single_swap(
                         ct_steering, variant_config, pair, verbose=verbose,
+                        variant_suffix=variant_suffix,
                     )
                     if result:
                         results.append(result)

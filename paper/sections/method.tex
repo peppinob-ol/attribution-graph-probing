@@ -1,25 +1,35 @@
 \section{Method}
 \label{sec:method}
 
+\subsection{Domains and seed prompts}
+\label{sec:method:domains}
+We set  four domains spanning two-hop factual recall in different relational structures and answer geometries. Each domain has a fixed seed-prompt template with three semantic fields (input, intermediate, answer): 
+\begin{itemize}\itemsep0pt
+\item USA: ``capital of state containing $X$''; 50 entities, 2{,}450 non-identity swap pairs.
+\item Books: ``character $X$ appears in a book by''; 16 entities, 240 non-identity swap pairs.
+\item Products: ``founder of the company that makes $X$''; 12 entities, 132 non-identity swap pairs.
+\item Paintings: ``first name of the painter of $X$''; 10 entities, 90 non-identity swap pairs.
+\end{itemize}
+
 \subsection{Setting and attribution-graph generation}
 \label{sec:method:setting}
-We use Gemma-2-2B-it with the public CLT-HP dictionary ($\sim$2.5M features over 26 layers; \citealp{hanna2025clthp,ameisen2025circuittracing}). Attribution graphs are generated via the Neuronpedia API with a relatively permissive node-inclusion threshold, a high edge-influence threshold, and a cap on the number of feature nodes per graph; exact API parameter names and values are in \cref{appx:pipeline}. From each graph we select a feature universe $V_p^{\tau}$ by cumulative-influence threshold $\tau{=}0.95$ for batch experiments. The replacement model freezes attention during graph computation; downstream interventions (\cref{def:swap}) run with attention free, making positive results harder than under frozen attention~\cite{ameisen2025circuittracing}.
+We use Gemma-2-2B-it with the public CLT-HP dictionary ($\sim$2.5M features over 26 layers; \citealp{hanna2025clthp,ameisen2025circuittracing}). Attribution graphs are generated via the Neuronpedia API; exact API parameter names and values are in \cref{appx:pipeline}. The replacement model freezes attention during graph computation.
 
 \subsection{Probe prompt generation}
 \label{sec:method:probes}
-Given a seed prompt $p$ (e.g., ``the capital of the state containing Dallas is''), we use an LLM in two passes to generate a small set of concept-targeted probes. The first pass extracts the $K$ most salient concepts from $p$ (and, when available, from the model's output), each tagged with a category (entity, process, relationship, attribute) and a short description. The second pass turns the extracted concepts into probe prompts that share the seed's surface structure (same prepositions, same answer position, comparable length) while varying the content entity. A typical seed yields 20--30 probes. The full system prompt and the concept-to-probe template are reproduced in \cref{appx:pipeline}.
+Given a prompt used to generate the attribution graph $p$ (e.g., ``the capital of the state containing Dallas is''), we use an LLM to generate a small set of concept-targeted probes. First, we extract the $K$ most salient concepts from $p$ (and, when available, from the model's output), each tagged with a short description. The second pass turns the extracted concepts into probe prompts that share the seed's surface structure (same prepositions, same answer position, comparable length) while varying the content entities. A typical seed yields 4--5 probes. The full system prompt and the concept-to-probe template are reproduced in \cref{appx:pipeline}.
 
 \subsection{Cross-Prompt Activation Signatures (CPAS)}
 \label{sec:method:cpas}
-For each (feature, probe) pair we record a small set of per-probe measures: which token receives the feature's peak activation and where in the sequence it occurs, how sparsely the feature fires across the probe set, and a robust $z$-score and cosine similarity of the feature's activations relative to the seed prompt. Aggregating across probes yields a compact per-feature signature (the CPAS): a handful of summary numbers capturing how consistent the peak token is across probes, how many distinct tokens the feature peaks on, the balance between peaks on functional and semantic tokens, and the feature's confidence in its dominant role. Formal definitions and raw-measure specifications are in \cref{appx:pipeline}.
+For each (feature, probe prompt) pair we record a small set of per-probe measures: which token position receives the feature's peak activation, how sparsely the feature fires across the probe set, and a robust $z$-score and cosine similarity of the feature's activations relative to the seed prompt. Aggregating across probes yields a compact per-feature signature (the CPAS): a handful of summary numbers capturing how consistent the peak token is across probes, how many distinct tokens the feature peaks on, and the feature's confidence in its dominant role. Formal definitions and raw-measure specifications are in \cref{appx:pipeline}.
 
 \subsection{Functional vs.\ semantic tokens; target-token mapping}
 \label{sec:method:funcsem}
-Tokens are labeled \emph{functional} (copulas, articles, prepositions, conjunctions, relative pronouns, auxiliaries) or \emph{semantic} (content-bearing). When a feature peaks on a functional token, a $\pm 7$-token directional search identifies the nearest semantic target (e.g., forward for \texttt{is}/\texttt{are}/articles/most prepositions; backward for \texttt{of}/possessive \texttt{'s}; bidirectional for conjunctions/punctuation). The full vocabulary and edge cases are in \cref{appx:funcvocab}.
+Tokens are labeled \emph{functional} (eg. copulas, articles, prepositions) or \emph{semantic} (content-bearing). When a feature peaks on a functional token, a $\pm 7$-token directional search identifies the nearest semantic peak (e.g., forward for articles; backward for the possessive \texttt{’s} ). 
 
 \subsection{Four functional roles}
 \label{sec:method:rules}
-Each feature in $V_p^{\tau}$ is assigned one of four functional roles. The four-role vocabulary is an empirical extension of the supernode types that appear in circuit-tracing case studies~\cite{lindsey2025biology,ameisen2025circuittracing}; we found that these four roles covered the vast majority of features we encountered during pilot analyses, and we formalize them here as the pipeline's output types.
+Each feature is assigned one of four functional roles. The four-role vocabulary is an empirical extension of the supernode types that appear in circuit-tracing case studies~\cite{lindsey2025biology,ameisen2025circuittracing}; we found that these four roles covered the vast majority of features we encountered during pilot analyses, and we formalize them here as the pipeline's output types.
 
 \begin{itemize}\itemsep0pt
 \item \textbf{Semantic-Dictionary (\textsc{Sem-Dict}).} The feature fires consistently on the \emph{same} semantic token across probes---a dictionary-like detector for a specific concept (e.g., a feature that reliably peaks on ``Texas'' whenever Texas is mentioned).
@@ -28,37 +38,31 @@ Each feature in $V_p^{\tau}$ is assigned one of four functional roles. The four-
 \item \textbf{Say-X (\textsc{Say-X}).} The feature peaks on functional tokens (e.g., \texttt{is}, \texttt{the}) in predictable positions relative to a semantic target, and sits in the later half of the network. After the $\pm 7$-token directional search (\cref{sec:method:funcsem}), the feature is named by the \emph{target} semantic token that follows or precedes the functional peak.
 \end{itemize}
 
-A strict-priority decision tree on the CPAS assigns each feature to one of these roles; a fifth bucket (\textsc{Review}) captures features that do not match any rule confidently, and is excluded from downstream analysis. The exact thresholds and priority ordering are in \cref{appx:pipeline}. We chose rules rather than a learned classifier because the grouping itself is the object of interpretability research---every assignment maps back to a specific threshold crossing that can be audited and edited by a researcher.
+The exact thresholds and priority ordering are in \cref{appx:pipeline}.
 
 \subsection{Supernode formation and naming}
 \label{sec:method:supernodes}
-Same-role same-name features form a supernode (\cref{def:supernode}). Cross-prompt stability is enforced ($\geq 60\%$ of probes); features failing this are marked \emph{ungrouped} (5--10\% of candidates) and excluded. Naming is role-specific.
+Same-role same-name features form a supernode. Naming is role-specific.
 
-\emph{Semantic} features (both \textsc{Sem-Dict} and \textsc{Sem-Conc}) are named by the semantic token at which they activate most strongly: we filter the feature's per-probe records to those where the peak is on a semantic token, sort by activation strength, and select the highest-activation token that is not in a configurable blacklist. A feature that consistently peaks on ``Texas'' receives the name \emph{Texas}; if no semantic peaks are found, the system falls back to the corresponding token in the seed prompt.
+\emph{Semantic} features (both \textsc{Sem-Dict} and \textsc{Sem-Conc}) are named by the semantic token at which they activate most strongly: a feature that consistently peaks on ``Texas'' receives the name \emph{Texas}.
 
-\emph{Say-X} features are named by the semantic token they appear to promote. Since these features peak on functional tokens, the naming uses the semantic target discovered during the directional search of \cref{sec:method:funcsem}; the final format is \emph{Say (token)}, e.g., \emph{Say (Austin)} for a feature peaking on \texttt{is} immediately before ``Austin''.
+\emph{Say-X} features are named by the semantic token they appear to promote: e.g., \emph{Say (Austin)} for a feature peaking on \texttt{is} immediately before ``Austin''.
 
-\emph{Relationship} features are named through a two-stage process. We first build an extended semantic vocabulary combining tokens from the seed prompt with concept names already discovered for semantic features; we then aggregate activation across all probes for each semantic token and pick the highest-activation entry not in the blacklist. The format is \emph{(token) related}, producing names like \emph{(containing) related} for features that fire diffusely on spatial-relationship phrases.
+\emph{Relationship} features are named by the highest-activation semantic token . The format is \emph{(token) related}, producing names like \emph{(containing) related} for features that fire diffusely on spatial-relationship phrases.
 
 \subsection{Pipeline output}
 \label{sec:method:compression}
-The pipeline output is a property of the method. Concept-aligned subgraphs compress 600$+$ raw features into 30--50 named supernodes per circuit while preserving Neuronpedia \emph{Completeness} (mean $0.83$ over the five illustrative circuits) and accepting a \emph{Replacement} drop to $0.54$. The trade-off is intentional: low-influence nodes are treated as error to maximize legibility. The unit of analysis in \cref{sec:results} is the supernode.
+The pipeline output is a property of the method. Concept-aligned subgraphs compress 600$+$ raw features into 30--50 named supernodes per circuit while preserving Neuronpedia \emph{Completeness} (fraction of incoming edges to all nodes that originate from grouped features, weighted by influence on output; mean $0.89$ over 88 entities across 4 datasets)  \emph{Replacement} (fraction of end-to-end influence from input tokens to output logits that flows through grouped features; mean $0.69$).  The unit of analysis in \cref{sec:results} is the supernode.
 
 \subsection{Causal-validation harness}
 \label{sec:method:harness}
+The harness tests whether supernodes have an operational causal consequence. For a source--target pair \$(e\_A, e\_B)\$, the intervention asks: if we suppress the features labeled as related to the source entity and amplify the features labeled as related to the target entity, does the model redirect its answer from \$e\_A\$ toward \$e\_B\$? 
+For each intervened feature, $M \cdot v_{\mathrm{orig}}$ scales the decoder vectors and adds the result to the residual stream at the downstream layers. Attention is not frozen during the intervention; positive results are stronger evidence than in patching of frozen-attention where some direct effects are forced by construction~\cite{ameisen2025circuittracing}.
 
-\paragraph{Intervention mechanism.}
-Additive delta injection via CLT decoder vectors (\cref{def:swap}). For each intervened feature, $v_{\mathrm{new}} = M \cdot v_{\mathrm{orig}}$ scales the decoder vectors and adds the result to the residual stream at downstream layers. Defaults: $M_{\mathrm{ablate}}{=}-2$, $M_{\mathrm{amplify}}{=}20$. Attention is not frozen during intervention; positive results are stronger evidence than under frozen-attention patching where some direct effects are forced by construction~\cite{ameisen2025circuittracing}.
+We use three primary metrics: \textbf{Hit\%}, the fraction of pairs whose generated continuation contains the target's first-subword token; \textbf{vsMax}, the maximum over the generated trajectory of the target's logit minus the best other answer in the domain (positive means the target is ahead); and \textbf{Target Recovery}, the fraction of pairs in which the target's logit at some trajectory position exceeds its own unsteered baseline, indicating the intervention actually moved the target-direction and did not just suppress the source. A small set of secondary diagnostics is described in \cref{appx:pipeline}.
 
-\paragraph{Matched random control (\cref{def:matched}).}
-For each swap pair we construct a random feature set with the same feature count and per-layer histogram as the labeled intervention, drawing features from $V_p^{\tau}$ \emph{outside} every concept-aligned supernode in the domain so that the only property that varies is concept alignment. Three deterministic replicates per pair yield Hit-rate and vsMax distributions over random feature sets. The protocol is grouping-method-agnostic and can be re-run on any competing grouping, including future learned ones.
+For each swap pair we construct a random feature set with the same feature count and per-layer histogram as the labeled intervention, drawing features from \emph{outside} every concept-aligned supernode in the domain so that the only property that varies is concept alignment. Three deterministic replicates per pair yield Hit-rate and vsMax distributions over random feature sets. 
 
-\paragraph{Field-additivity decomposition.}
-Each domain has 3 semantic fields (input, intermediate, answer; see \cref{sec:expdesign}). For each pair, 7 variants are run: 3 single-field, 3 two-field, 1 all-three. Each selected field drives both ablation and amplification; this isolates which fields carry the causal signal.
+Each domain has 3 semantic fields connected to the two-hop logic (input, intermediate, answer; see \cref{sec:method:domains}). For each pair, 7 variants are run: 3 single-field, 3 two-field, 1 all-three. Each selected field drives both ablation and amplification; this isolates which fields carry the causal signal.
 
-\paragraph{Adaptive $M$-search.}
-When a swap misses at the default $M_{\mathrm{amplify}}{=}20$, we search for a better amplifier in two phases. Phase~1 probes a coarse geometric grid on $[0.1, 20]$ (6 points) and stops at the first hit. If Phase~1 finds no hit, Phase~2 uses the fact that the steering effect typically has a sharp onset: we compute the KL divergence of the steered output against the unsteered baseline at each probed $M$, locate the interval in which KL rises most steeply, and binary-refine inside that interval for 6 further steps, accepting a hit at any refinement point. The rationale is that hits tend to cluster near the onset of a meaningful model response. Applied to labeled and field-additivity runs (1{,}210 + 867 eligible pairs); full pseudocode in \cref{appx:msearch}.
-
-\subsection{Metrics}
-\label{sec:method:metrics}
-We use three primary metrics (per \cref{def:hit}): \textbf{Hit\%}, the fraction of pairs whose generated continuation contains the target's first-subword token; \textbf{vsMax}, the maximum over the generated trajectory of the target's logit minus the best other answer in the domain (positive means the target is ahead); and \textbf{Target Recovery}, the fraction of pairs in which the target's logit at some trajectory position exceeds its own unsteered baseline, indicating the intervention actually moved the target-direction and did not just suppress the source. A small set of secondary diagnostics (suppression of the source, target--source rank crossover, rank of the target within the domain answer set, a control-token stability measure, and KL at position~0) is described in \cref{appx:pipeline}.
+When a swap misses at the default $M_{\mathrm{amplify}}{=}20$, we search for a better amplifier in two phases. Phase~1 probes a coarse geometric grid and stops at the first hit. If Phase~1 finds no hit, Phase~2 uses the fact that the steering effect typically has a sharp onset: we compute the KL divergence of the steered output against the unsteered baseline at each probed $M$, locate the interval in which KL rises most steeply, and binary-refine inside that interval for 6 further steps, accepting a hit at any refinement point. Full pseudocode in \cref{appx:msearch}.

@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Oakland is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Oakland is not Oakland.\n\nFact: The city of Oakland has",
+      "default": "<bos><bos>Fact: The capital of the state containing Oakland is Sacramento.\n\nFact: The state of California is",
+      "steered_topk": [
+        {
+          "token": " the",
+          "prob": 0.140625
+        },
+        {
+          "token": " called",
+          "prob": 0.0849609375
+        },
+        {
+          "token": " Oakland",
+          "prob": 0.0751953125
+        },
+        {
+          "token": " not",
+          "prob": 0.0751953125
+        },
+        {
+          "token": " a",
+          "prob": 0.04541015625
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Sacramento",
+          "prob": 0.2421875
+        },
+        {
+          "token": " San",
+          "prob": 0.0693359375
+        },
+        {
+          "token": " the",
+          "prob": 0.0693359375
+        },
+        {
+          "token": " Oakland",
+          "prob": 0.047607421875
+        },
+        {
+          "token": " Harrisburg",
+          "prob": 0.0255126953125
+        }
+      ],
+      "intervention_count": 56,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 3.9442,
+        "steered_entropy": 4.1044,
+        "entropy_delta": 0.1601,
+        "kl_baseline_to_steered": 1.4658
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

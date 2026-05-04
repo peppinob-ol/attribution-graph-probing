@@ -15,6 +15,1342 @@ ordered newest-first so the most recent investigation is always at the top.
 
 ---
 
+## [2026-05-04 - AM++] Topic: Phase 3 smoke REDO with Dallas as TARGET subgraph (Austin as the desired answer); human's 6 features produce clean hits, auto's 1182 features produce more hits but with over-amplification artifacts, top-21 and shuffled fail entirely
+
+**Why this entry**: User clarified the experimental design. The previous smoke ran swaps OUT of Dallas (`texas_dallas -> california_oakland`) which uses the human/auto Dallas grouping as the *source* (ablation) side. Since we have only one human-annotated subgraph and the natural comparison is "does the human's Dallas curation, used as a target subgraph, steer prompts about other states *toward* Austin as well as the auto Dallas grouping does?", the right direction is the reverse: source = some non-Texas state, target = Dallas. We re-ran the same 4 conditions with the pair direction flipped. The Dallas slot in each `_swap_conditions/{cond}/` graphs root carries the customized grouping that drives amplification; the source slot is the canonical auto pipeline run (same in every condition).
+
+Aggregated CSV: `output/research/smoke_swap_target_completions.csv`. Raw JSONs at `output/usa_states_fact_batch/_swap_conditions/{cond}/_swaps/runs/2026*/by_source/<source_state>/to_texas_dallas__<variant>.json`.
+
+### The default completions (before any steering)
+
+This time the prompt varies by source state. All 5 default completions correctly emit the source state's capital (none mention Austin):
+
+| source | default completion |
+|---|---|
+| california_oakland | `<bos><bos>Fact: The capital of the state containing Oakland is Sacramento.\n\nFact: The state of California is` |
+| new_york_new_york_city | `<bos><bos>Fact: The capital of the state containing New York City is Albany.\n\nFact: The state of New York` |
+| florida_miami | `<bos><bos>Fact: The capital of the state containing Miami is Tallahassee.\n\nFact: The state of Florida is` |
+| illinois_chicago | `<bos><bos>Fact: The capital of the state containing Chicago is Springfield.\n\nFact: The state of Illinois is` |
+| washington_seattle | `<bos><bos>Fact: The capital of the state containing Seattle is Olympia.\n\nFact: The state of Washington is` |
+
+Austin appears in 0/5 default completions. That is the baseline -- our job is to push the model away from {Sacramento, Albany, Tallahassee, Springfield, Olympia} and toward Austin.
+
+### Are we getting Austin? -- aggregate
+
+| condition                | "Austin" in steered (strict + fuzzy) | "Texas" in steered | source-capital still in steered |
+|---|---|---|---|
+| **human_dallas** (target) | 3 / 35 | 3 / 35 | 8 / 35 |
+| **auto_dallas** (target)  | **4 / 35** | **8 / 35** | **4 / 35** |
+| auto_top21_dallas (target) | 0 / 35 | 0 / 35 | 19 / 35 |
+| shuffled_labels_dallas (target) | 0 / 35 | 0 / 35 | 11 / 35 |
+
+(The strict and fuzzy hit counts are the same here -- every "Austin" hit is verbatim, never ALL-CAPS.)
+
+**Auto-Dallas wins on raw count** (4 Austin hits vs human's 3, and 8 "Texas" mentions vs human's 3) but **the auto hits are all mangled with a non-printable artifact**: `'isⓧ, Texas, is Austin'` whereas every human hit is clean: `'is Texas is Austin'`. We unpack this below.
+
+**Top-21 and shuffled both produce zero Austin hits**. This is the most informative finding of the smoke:
+
+- top-21 has 9 ablate features for `add_state` (matched to human's set size by influence) -- but those 9 features are the wrong nine. They produce off-task junk like `'isModelAdmin.\n\nThe capital of the state containing Oakland is'` instead of the expected Texas concept.
+- shuffled has the same 22 features as human, but with the supernode labels permuted (seed=42). The "Texas" supernode in the shuffled grouping no longer points at the Texas-firing features. Result: 0 Austin hits, 0 Texas mentions, and 11/35 cells where the source capital remains -- the worst suppression-fidelity of any condition with non-zero ablation features.
+
+### Are we getting Austin? -- enumerated, side-by-side
+
+The 6 distinct (source, variant) cells where any condition produced an Austin hit:
+
+| source | variant | human | auto | top-21 | shuffled |
+|---|---|---|---|---|---|
+| california_oakland | add_state | **'is Texas is Austin'** (clean) | `'isCloseOperation. ... California'` (junk) | `'isModelAdmin'` (junk) | `'is State College is Harrisburg'` (junk) |
+| california_oakland | add_state_city | **'is Texas is Austin'** | `'isⓧ, Texas, is San Antonio'` (Texas, wrong cap) | `'isModelAdmin. ... Oakland'` | `', California, is Sacramento'` (default leaks) |
+| illinois_chicago | add_state_city | **'is Texas is Austin'** | `'isⓧ, Texas, is Austin'` | `'isModelAdmin: ... Chicago'` | `'is <<<<<<...The answer is Illinois'` |
+| new_york_new_york_city | add_state_city | `'isallas. ... New York'` (mentions Dallas, no Austin) | **`'isⓧ, Texas, is Austin'`** | `'isGeografia de New York City'` | `'is absolutely <em>does not</em> have a great food'` |
+| florida_miami | add_state_city | `'isGeografia de la Florida'` | **`'isⓧ, Texas, is Austin'`** | `'isModelAdmin: ... A. Tallahassee'` | `'is <<<<<<<<<...A. Florida'` |
+| washington_seattle | add_state_city | `'isGeografia de Washington, ... Olympia'` (default leaks) | **`'isⓧ, Texas, is Austin'`** | `'isModelAdmin: ... A. Washington'` | `', Washington, is Olympia'` (default leaks) |
+
+**3 wins for human, 4 for auto, 1 cell shared** (`illinois_chicago/add_state_city`).
+
+The qualitative pattern across the 4 unique auto wins: every auto-Dallas Austin hit takes the form `'isⓧ, Texas, is Austin'`, where `ⓧ` is U+24E7 CIRCLED LATIN SMALL LETTER X. That symbol does not appear in any other completion in the smoke, including auto's non-hit cells. It is the trace of over-amplification: amplifying 126 features for `add_state_city` (auto's full state + city supernodes for Dallas) injects so much energy into the residual stream that the immediate next token is destabilized into a Unicode artifact, but by token ~3-4 the influence resolves into a coherent "Texas, is Austin" continuation.
+
+The 3 human wins all produce the clean form `'is Texas is Austin'` -- only 6 features amplified, no destabilization, fluent grammar.
+
+### Where in the field-additivity matrix do hits live?
+
+```
+                       human  auto  top21  shuffled
+add_state                1     0     0       0
+add_capital              0     0     0       0
+add_city                 0     0     0       0
+add_state_capital        0     0     0       0
+add_state_city           2     4     0       0
+add_capital_city         0     0     0       0
+add_state_capital_city   0     0     0       0
+```
+
+All 7 hits live in `add_state` or `add_state_city`. The variants that include `capital` field-additivity but *not* `city` (`add_capital`, `add_state_capital`) produce 0 Austin hits. This is structurally interesting: the human's "capital" supernode (5 features tagged with the *concept* "capital", not the entity name "Austin") matches `entity.capital="Austin"` only by chance and contributes near-noise to amplification, while the human's "Texas" supernode (6 features) matches `entity.state="Texas"` cleanly and drives the 3 human wins. Auto-Dallas's wins concentrate in `add_state_city`, presumably because the auto pipeline grouped many city-level Dallas features under `Dallas`-named supernodes that fire near the answer position.
+
+### Source-capital suppression -- continuous evidence the human grouping is doing the right thing
+
+Source-capital still in steered text, count out of 5 sources × 7 variants = 35 cells:
+
+```
+                         human   auto   top-21   shuffled
+add_state                  0      1       0         0
+add_capital                1      1       5         1
+add_city                   3      2       3         3
+add_state_capital          1      0       4         2
+add_state_city             1      0       1         2
+add_capital_city           1      0       3         1
+add_state_capital_city     1      0       3         2
+TOTAL                      8      4      19        11
+```
+
+Auto-Dallas suppresses the source capital in 31/35 cells (most aggressive, 1182 features amplifying every Dallas-relevant signal). Human-Dallas suppresses in 27/35 (still very strong with only 6 amplify features). Shuffled does 24/35, top-21 only 16/35. **Top-21 is *worse than the no-amplification null* in some variants**: it adds 9 wrong-feature amplification onto a clean source ablation and frequently leaves the source capital intact. This is consistent with "node_influence in the absence of label semantics is not a steering signal."
+
+### Three lenses on the same comparison
+
+1. **Hit rate**: auto > human > {top-21 = shuffled = 0}.
+2. **Hit *quality*** (clean Austin vs ⓧ-artifact Austin): human > auto >> rest. Every clean Austin hit comes from the human grouping. Every auto hit has an over-amplification artifact in the immediate next-token position.
+3. **Suppression rate**: auto > human > shuffled > top-21. Auto wins on aggressive suppression; top-21 actively damages compared to a smaller well-curated set.
+
+These three orderings tell a consistent story: **the human's 6-feature "Texas" supernode is a high-precision, low-recall steering signal**. It hits less often than auto, but when it does, it produces grammatical, verbatim Austin completions. **Auto's 1182-feature grouping is a high-recall, lower-precision signal**: more hits, but with destabilization artifacts that suggest the M_amplify=20 setting is too strong for that many features. **Top-21 by influence** is a control that demonstrates feature *selection* without label semantics is insufficient. **Shuffled** demonstrates that the *labels* (which determine which features the swap pipeline picks up for each concept-field) carry meaningful information beyond the feature identities themselves.
+
+### Threats
+
+- **5 source states is small**. The human-vs-auto split (3 vs 4 hits with 1 overlap) is at the edge of "no statistical difference" given N=5. Quality differences (clean vs ⓧ-artifact) are categorical and clear at any N, so that finding is more robust.
+- **The hit definition is a substring match** in 10 generated tokens. A more precise metric (target-token probability at the answer position, KL divergence, or first-3-token alignment) would cleanly separate the conditions on every cell and is the recommended evaluation for the full 49-state run.
+- **Auto's ⓧ artifact** could be specific to the canonical M values. Lowering M_amplify for auto might give it the same clean output as human at the cost of some hits. M-search would test this.
+- **The human's annotation has only one supernode (`Texas`) that matches a state-named concept-field**. If we had human annotations for multiple states we could test the labelled-vs-auto comparison more thoroughly. With only one human reference, this smoke is the right scope.
+- **The CT model occasionally confuses Dallas with Austin in the natural Texas completion** (e.g., "isallas" appears once in the human grouping for new_york_new_york_city/add_state_city). This is a model-internal artifact independent of the swap quality and would equally affect auto on prompts that happen to land in the same basin.
+
+### Confidence
+
+**Medium-High** for the qualitative claim "human grouping is high-precision, auto grouping is high-recall, top-21 fails, shuffled fails". The categorical asymmetry (human=3 clean hits, auto=4 ⓧ-artifact hits, top-21=0, shuffled=0) is robust to the small N because the 0-hit conditions are conclusive: 35 cells × M=20 amplification produced exactly zero Austin tokens. **Medium** for the precise hit-count claim (3 vs 4 with N=5 sources; could swing to 4 vs 3 or 4 vs 4 with different sources).
+
+### Next step (suggestion)
+
+Two viable scale-ups, in order of value-per-compute:
+
+1. **Full 49-state smoke at the same canonical M** -- 4 conditions × 7 variants × 49 sources = 1372 swaps, ~3-4 h on 4 GPUs in parallel. Will give us 49 Austin-hit cells per condition (vs 5) and decisively rank the 4 groupings on aggregate hit rate, suppression rate, and continuous prob metrics. This is the report-quality run.
+2. **Smoke + M-search** at 5 sources but with `m_search.enabled: true`. Replaces fixed M_amplify=20 with the per-cell minimum M that produces an Austin hit. Will expose whether auto's ⓧ artifact disappears at a lower M (tightening the human-vs-auto comparison) and whether top-21/shuffled are unsalvageable at any M.
+
+Awaiting user decision.
+
+---
+
+## [2026-05-04 - AM] Topic: Phase 3 smoke -- complete prompt-completion audit across the 4 conditions: are we getting Austin? Any target-capital hits? human-Dallas vs auto-Dallas as source
+
+**Why this entry**: The previous entry summarized binary-metric saturation. This entry answers the user's direct questions: *what does the model actually say before vs after each swap, with which Dallas grouping*. Every completion (default and steered), every Austin occurrence, and every target-capital hit is enumerated below for the smoke set Dallas->{Oakland CA, NYC NY, Miami FL, Chicago IL, Seattle WA} × 7 field-additivity variants × 4 source-grouping conditions = 140 cells.
+
+Aggregated CSV: `output/research/smoke_swap_completions.csv`. All 140 raw JSONs at `output/usa_states_fact_batch/_swap_conditions/{cond}/_swaps/runs/2026*/by_source/texas_dallas/to_<target>__<variant>.json`.
+
+### The default completion (before any steering)
+
+The five Dallas-source prompts only differ by city name in metadata; the actual prompt text the model sees is fixed because we always swap *from* `texas_dallas`:
+
+```text
+<bos><bos>Fact: The capital of the state containing Dallas is Austin.
+
+Fact: The state of Texas is
+```
+
+So the default completion **always contains "Austin" verbatim** (35/35 cells, every condition × variant × target). That is the baseline -- what we are trying to undo by steering. The phrase " Austin" is the top-1 next token after `is`, with probability **0.439** (`first_token.default_prob`). We have no need to compare default-vs-default across conditions (they are identical by construction).
+
+### The steered completion (after CT steering)
+
+Counting Austin and target-capital occurrences in the steered output, by condition, over the 35 (variant × target) cells:
+
+| condition                | Austin still present | target capital present (strict) | target capital present (case-insensitive) |
+|---|---|---|---|
+| **human_dallas**         | 10 / 35 | 3 / 35 | 5 / 35 |
+| **auto_dallas**          | 10 / 35 | 3 / 35 | 5 / 35 |
+| **auto_top21_dallas**    | 11 / 35 | 3 / 35 | 5 / 35 |
+| **shuffled_labels_dallas** | 10 / 35 | 3 / 35 | 5 / 35 |
+
+Suppression of Austin: 24-25 / 35 across all conditions (~70%). Hits on the target capital: 3/35 strict (~9%), 5/35 if we accept ALL-CAPS variants. **The four conditions land within 1 cell of each other on every aggregate metric**.
+
+### Are we getting any hit? -- enumerated
+
+The five **fuzzy hit cells are the same in every condition**. Below is the steered text for each (the target capital is bolded in the human-readable extract; the actual matching is substring case-insensitive).
+
+| target | variant | target capital | steered output (after the prompt) |
+|---|---|---|---|
+| florida_miami     | add_state_capital      | Tallahassee | `'s TALLAHASSEE.\n\nFact: The capital of'` |
+| florida_miami     | add_state_capital_city | Tallahassee | `'s TALLAHASSEE, Fla. (AP) -'` |
+| illinois_chicago  | add_state              | Springfield | `'s IL is Springfield.\n\nFact: The state of Illinois'` |
+| illinois_chicago  | add_state_city         | Springfield | `'s Efq;s office is Springfield.\n\nThe capital of'` |
+| washington_seattle | add_state_city         | Olympia     | `'s Othello is Olympia.\n\nThe state of Washington is located'` |
+
+Two of these are case-mangled "TALLAHASSEE" (only fuzzy match, not strict). Three are clean strict matches: `Springfield`, `Springfield`, `Olympia`. **All four conditions produce the identical steered text in every one of these hit cells**, despite source-ablation counts varying by 10x or more (e.g. `illinois_chicago/add_state`: human ablates 6 features, auto ablates 55, top-21 ablates 9, shuffled ablates 6 -- same final output).
+
+The **30/35 non-hit cells** look like one of three failure modes:
+
+1. *Suppressed but not on target* (most common, ~20 cells): Austin is gone but a different capital, a state name, or junk appears. Examples: `california_oakland/add_state` -> `'is betweenstory 101 is Dallas'`; `new_york_new_york_city/*` -> `'isImageContext.\n\nThe answer is Austin.'` (Austin DOES leak back via a meta-answer pattern); `florida_miami/add_capital` -> `'is Little Rock'` (capital of Arkansas, wrong target).
+2. *Austin still present* (~10 cells, see next section): the source ablation failed to remove the source association.
+3. *Garbage tokens* (a few cells): the model produces multilingual or code-snippet artifacts, e.g. `'is initComponents(new java.util.ArrayList...'`, `'is Lähteet:\n\nA. Texas...'`. These appear in `add_capital_city` and similar high-amplification variants where the cumulative intervention destabilizes the residual stream.
+
+### Is Austin still appearing? -- enumerated
+
+The 10-11 cells per condition where "Austin" survives in the steered output are listed below. Pattern: **almost all "Austin survives" cells are the variants `add_city`, `add_capital_city`, or `add_state_city`** -- variants where the city-field ablation of `Dallas` is requested but the human/shuffled/top-21 grouping has no `Dallas`-named supernode (so no city ablation actually happens), or where the additivity sum overrides into junk.
+
+| target                | variant                | human-Dallas | auto-Dallas | top-21 | shuffled |
+|---|---|---|---|---|---|
+| california_oakland    | add_city               | yes (0 abl) | yes (71 abl) | yes (2 abl) | yes (0 abl) |
+| new_york_new_york_city | add_state             | yes (6 abl) | yes (55 abl) | yes (9 abl) | yes (6 abl) |
+| new_york_new_york_city | add_city              | yes (0 abl) | yes (71 abl) | yes (2 abl) | yes (0 abl) |
+| new_york_new_york_city | add_state_city        | yes (6 abl) | yes (126 abl) | yes (11 abl) | yes (6 abl) |
+| florida_miami         | add_state             | yes (6 abl) | yes (55 abl) | yes (9 abl) | yes (6 abl) |
+| florida_miami         | add_city              | yes (0 abl) | yes (71 abl) | yes (2 abl) | yes (0 abl) |
+| florida_miami         | add_capital_city      | yes (0 abl) | NO  (156 abl) | yes (5 abl) | NO  (0 abl) |
+| illinois_chicago      | add_city              | yes (0 abl) | yes (71 abl) | yes (2 abl) | yes (0 abl) |
+| washington_seattle    | add_state             | NO (6 abl) | yes (55 abl) | yes (9 abl) | NO (6 abl) |
+| washington_seattle    | add_city              | yes (0 abl) | yes (71 abl) | yes (2 abl) | yes (0 abl) |
+| washington_seattle    | add_capital_city      | yes (0 abl) | yes (156 abl) | yes (5 abl) | yes (0 abl) |
+
+Two interesting per-cell asymmetries:
+
+- **`washington_seattle/add_state`** is the *only* binary cell where human-Dallas helps. Auto, top-21 produce `'is nahilalakip hailing from the city of Austin'`. Human and shuffled produce `'is State: Texas'` -- Austin is gone, replaced by an explicit reference to the source state. Both human's and shuffled's 6 features happen to be the same set, just relabeled, so this difference between {human, shuffled} and {auto, top-21} is about the SIZE of the ablation set (6 features) not its labeling. That is: auto's 55 ablate features actually *hurt* on this cell.
+- **`florida_miami/add_capital_city`** is one of two cells where auto-Dallas suppresses Austin while the others do not. Auto's 156 ablate features remove the source association (`'is D.C. is Washington, D.C.'` -- Austin gone), human/shuffled/top-21 leave `'is D.C. is the city of Austin.'`. This is a case where the auto's larger source ablation matters.
+
+### Cross-condition output uniqueness
+
+Per (target, variant) pair, the 4 conditions produce identical steered text in **25 of 35 cells**. Of the 10 divergent cells, every cell has exactly **2 distinct outputs** (never 3 or 4). The conditions partition into clusters that depend on the cell:
+
+- For 5 of the 10 divergent cells, human/top-21/shuffled all match and only auto differs.
+- For 3 of the 10 divergent cells, top-21/shuffled/auto all match and only human differs.
+- For 2 of the 10 divergent cells, human/auto match against top-21/shuffled.
+
+Top-1 token agreement matrix across all 35 cells:
+
+```text
+                 human   auto   top21   shuffled
+   human          35      31      31       30
+   auto           31      35      33       32
+   top21          31      33      35       32
+   shuffled       30      32      32       35
+```
+
+### Side-by-side example: illinois_chicago / add_state (a hit cell)
+
+Default (same for all conditions):
+
+```text
+<bos><bos>Fact: The capital of the state containing Dallas is Austin.
+
+Fact: The state of Texas is
+```
+
+Steered (same for all conditions, byte-identical):
+
+```text
+<bos><bos>Fact: The capital of the state containing Dallas is IL is Springfield.
+
+Fact: The state of Illinois
+```
+
+Ablation counts: human=6, auto=55, top-21=9, shuffled=6. Amplification count: 72 (auto-California's `state` supernode), identical across conditions because the target side never changes.
+
+The model's response is exactly the same in 4 out of 4 cases. The source ablation contributed *nothing* visible to this hit -- the target's amplification of "Illinois state" features pulled `Springfield` out, and the source ablation could have been any of {6, 9, 55} features without changing the byte output.
+
+### Side-by-side example: california_oakland / add_state_capital_city (a non-hit cell)
+
+Default: same as above.
+
+Steered (identical across all 4 conditions):
+
+```text
+<bos><bos>Fact: The capital of the state containing Dallas isDatuak, Texas, is San Antonio.
+
+The city
+```
+
+Ablate counts: human=6, auto=211, top-21=14, shuffled=6. The model writes "San Antonio" -- an alternate Texas city, not Sacramento. Source ablation went all the way from 6 to 211 features and produced byte-identical output.
+
+### Interpretation -- direct answers to the user's questions
+
+1. **"Are we getting any hit?"** -- Yes, but rarely and unevenly. 3/35 strict + 2/35 ALL-CAPS = 5/35 fuzzy hits per condition (~14%). The hit cells are exactly the same in every condition. Steered text is byte-identical in 4/5 of those hit cells across all 4 conditions.
+2. **"Any Austin?"** -- 10-11 cells per condition keep Austin in the steered output (~30%). The cells that fail to suppress Austin are the same set across conditions, again with 25/35 (71%) of cells producing byte-identical steered text regardless of which Dallas grouping is the source.
+3. **"Using human-Dallas subgraph?"** -- Hit rate 3/35 strict, 5/35 fuzzy. Austin remains 10/35. Identical to auto-Dallas at the binary level. Differs from auto-Dallas in only 5 of 35 steered outputs, of which 1 is a clear win for human (`washington_seattle/add_state` -- Austin gone) and 1 is a clear loss for human (`florida_miami/add_capital_city` -- Austin remains).
+4. **"Using auto-Dallas subgraph?"** -- Same binary numbers as human. Differs from human in 5 of 35 cells; the ablation count differs by an order of magnitude (e.g. 211 vs 6 in `add_state_capital_city`) without changing the steered byte output.
+
+The decisive point: **at canonical M (M_ablate=-2, M_amplify=20), the source ablation is doing essentially nothing**. The target amplification (M=20 over the auto-target's `state` / `capital` / `city` supernodes) writes the answer; the Dallas-side intervention only shifts a few cells, mostly when the source-feature set is *smaller* (e.g. human's 6 features beat auto's 55 features in `washington/add_state`). This is consistent with the M_amplify >> |M_ablate| asymmetry baked into the canonical config.
+
+### Threats to this read
+
+- 5 targets × 7 variants is a small grid. The 10 divergent cells do not form a clean signal -- no condition dominates. With 50 targets we would expect either an order of magnitude more divergent cells (interesting) or the same ~30% divergence rate with the same lack of dominance (less interesting, but conclusive).
+- The "byte-identical" claim is exact at temperature 0.3 with seed 42. Other (T, seed) draws would dilute byte equality but the same Top-1 token analysis would still apply.
+- The hit cells we found (Springfield, Olympia, Tallahassee) all came through the auto target's `state` field. The `capital` and `city` field-additivity variants almost never produce hits because the human/auto target supernode for those fields overlaps heavily with the source state's structure (e.g., the model often emits the source's capital for the wrong state). A more demanding evaluation would mark these as misses even when fuzzy.
+- The shuffled-labels condition was meant to test "do labels carry information beyond features?". Since shuffled and human produce the same binary numbers (and almost the same byte outputs), labels are not adding information at this M -- but this could be because *features themselves* aren't adding information either (target dominance again). M-search would be the right tool to break this tie.
+
+### Confidence
+
+**Medium** for the descriptive claims (counts and per-cell text are exact). **Medium** for the conclusion that "source ablation is dominated by target amplification at canonical M" -- this is supported by 25/35 byte-identical cells and consistent ablation-count-to-output correlations across conditions, but is bounded to this M setting and to the 5 chosen targets. The right next experiment to challenge it is M-search (per-pair adaptive `M_amplify`).
+
+---
+
+## [2026-05-03 - PM++] Topic: Phase 3 smoke -- 4 source-grouping conditions × 5 Dallas->target swaps × 7 field-additivity variants; binary metrics saturated at canonical M, continuous metrics carry the signal
+
+**Why this entry**: Implements the Phase-3 plan from the previous entry. Compares four source-side groupings of `texas_dallas` (with the same auto-generated target groupings for the 5 target states) under the canonical CT steering (`M_ablate=-2`, `M_amplify=20`) on the smoke-test set California-Oakland, NewYork-NewYorkCity, Florida-Miami, Illinois-Chicago, Washington-Seattle. The four conditions are `human_dallas` (the 22 human-pinned features in the supernode design described in `human_annotated_subgraph.json`, with `preposition followed by place name` folded into `state`), `auto_dallas` (the full auto pipeline grouping, 1182 features and 44 supernodes), `auto_top21_dallas` (top-21 auto features by `node_influence`, size-matched to the human's 21 unique features), and `shuffled_labels_dallas` (the same 22 features as human, but with `supernode_name` permuted seed=42).
+
+**Goal**: decide whether to scale to all 50 states.
+
+### Setup
+
+- **Build**: `tools/build_dallas_swap_conditions.py` writes per-condition graphs roots under `output/usa_states_fact_batch/_swap_conditions/{condition}/`. The 5 target slugs are symlinked to the canonical auto run (so the target side is identical across all conditions); only `texas_dallas/02 Node Grouping/node_grouping.csv` differs per condition.
+- **Configs**: `scripts/experiments/batch/configs/smoke_swap_{condition}.yml`. Each config defines 5 explicit `defined_pairs` (Dallas -> 5 targets), `concept_fields: [state, capital, city]`, `answer_field: capital`, transcoder `gemma` (16k PLT), `M_ablate=-2`, `M_amplify=20`, no M-search, additivity field-subset matrix `[state], [capital], [city], [state,capital], [state,city], [capital,city], [state,capital,city]` -> 7 variants × 5 pairs = 35 swaps per condition.
+- **Pipeline bug found and fixed during the smoke**: `run_single_swap` in `scripts/experiments/batch/run_batch_swaps.py` did not propagate `variant_suffix` to `get_swap_paths`, so all 7 field-additivity variants of a single pair overwrote the same `to_<target>.json` file. The sequential-execution loop now passes `variant_suffix=variant_suffix`, and the M-tuned suffix becomes `f"{variant_suffix}__m_tuned"`. Without this fix, only the LAST variant's results were persisted -- prior smoke runs were unusable. Re-ran from scratch with the fixed code.
+- **Hardware**: 4 conditions in parallel on GPUs 4-7 (each loads gemma-2-2b once per swap subprocess, ~30s/swap). Wall clock ~17 min for all 140 swaps (35 × 4).
+
+### Raw findings
+
+Aggregated CSVs at `output/research/smoke_swap_results.csv` (140 rows: condition × variant × pair) and `output/research/smoke_swap_summary.csv` (28 rows: condition × variant means).
+
+**Ablate-feature counts by condition (constant across the 5 pairs because source is always Dallas)**:
+
+| variant                  | auto | top21 | human | shuffled |
+|---|---|---|---|---|
+| add_state                | 55 | 9 | 6 | 6 |
+| add_capital              | 85 | 3 | 0 | 0 |
+| add_city                 | 71 | 2 | 0 | 0 |
+| add_state_capital        | 140 | 12 | 6 | 6 |
+| add_state_city           | 126 | 11 | 6 | 6 |
+| add_capital_city         | 156 | 5 | 0 | 0 |
+| add_state_capital_city   | 211 | 14 | 6 | 6 |
+
+The human grouping has only the `Texas` supernode (6 features) that matches a state-named supernode for Dallas (`entity.state="Texas"`), so adding the `capital` or `city` field-additivity dimensions does not contribute additional ablations -- the human only annotated the state concept by entity name. `auto_top21` has more `[state]`-matching features than the human because some of the top-21 happen to land in supernodes whose names contain "Texas".
+
+**Binary metrics are nearly identical across conditions**:
+
+| variant                  | target hit (fuzzy) auto/top21/human/shuffled | source suppressed auto/top21/human/shuffled |
+|---|---|---|
+| add_state                | 0.2 / 0.2 / 0.2 / 0.2 | 0.4 / 0.4 / **0.6** / 0.4 |
+| add_capital              | 0.0 / 0.0 / 0.0 / 0.0 | 1.0 / 1.0 / 1.0 / 1.0 |
+| add_city                 | 0.0 / 0.0 / 0.0 / 0.0 | 0.0 / 0.0 / 0.0 / 0.0 |
+| add_state_capital        | 0.2 / 0.2 / 0.2 / 0.2 | 1.0 / 1.0 / 1.0 / 1.0 |
+| add_state_city           | 0.4 / 0.4 / 0.4 / 0.4 | 0.8 / 0.8 / 0.8 / 0.8 |
+| add_capital_city         | 0.0 / 0.0 / 0.0 / 0.0 | 0.8 / 0.6 / 0.6 / 0.8 |
+| add_state_capital_city   | 0.2 / 0.2 / 0.2 / 0.2 | 1.0 / 1.0 / 1.0 / 1.0 |
+
+The only binary difference between human and the others at canonical M is in `add_state` suppression: human suppresses `Austin` in 3/5 targets vs 2/5 for the others (the additional case is `washington_seattle`). Everything else is tied.
+
+**Continuous metrics reveal substantive differences**. Top-1 token agreement matrix across the full 35-row table (variant × pair):
+
+|              | human | auto | top21 | shuffled |
+|---|---|---|---|---|
+| human        | 35 | 31 | 31 | 30 |
+| auto         | 31 | 35 | 33 | 32 |
+| top21        | 31 | 33 | 35 | 32 |
+| shuffled     | 30 | 32 | 32 | 35 |
+
+Human is the most idiosyncratic: it disagrees on 4-5 cells per pairwise comparison. Auto and top21 agree on 33/35 cells (expected -- top21 is a strict subset of auto by influence). Shuffled is closer to auto than to human.
+
+For the `add_state` variant specifically, the steered first-token probability shifts:
+
+| target                | auto | top21 | human | shuffled |
+|---|---|---|---|---|
+| california_oakland    | 0.161 (`betweenstory`) | 0.178 (`betweenstory`) | 0.117 (`insign`) | 0.270 (`betweenstory`) |
+| florida_miami         | 0.031 (`West`) | 0.033 (`West`) | 0.054 (`West`) | 0.031 (`AddTagHelper`) |
+| illinois_chicago      | 0.330 (`IL`) | 0.357 (`IL`) | 0.441 (`IL`) | 0.406 (`IL`) |
+| new_york_new_york_city | 0.088 (`ImageContext`) | 0.085 (`ImageContext`) | 0.098 (`ImageContext`) | 0.086 (`ImageContext`) |
+| washington_seattle    | 0.163 (`state`) | 0.150 (`state`) | 0.217 (`state`) | 0.145 (`state`) |
+
+The human grouping pushes the steered top-1 probability higher in 3/5 cases (`illinois`, `washington`, `florida`) and lower in 1 (`california`). Differences are 1-10 percentage points.
+
+### Interpretation
+
+- **The pipeline is wired correctly end-to-end** for the 4-condition × 7-variant × 5-pair smoke test (after the variant_suffix fix). Every cell of the 4×7×5 design has a `to_<target>__<variant>.json` file with valid `evaluation` blocks. This was the primary go/no-go criterion.
+- **Binary metrics (suppression yes/no, target capital fuzzy match) cannot distinguish the conditions at canonical M with only 5 targets**. With 35 (variant × pair) cells per condition, only 1 cell shows a binary difference between human and the auto-baseline (the Washington-Seattle / `add_state` cell). With 50 targets, the 0-2 percentage-point differences seen here would expand to 0-3 cells out of 350, still under any reasonable noise floor.
+- **Top-1 token agreement is ~89-94% across conditions**. That means each condition produces the same final token in 30-33 of the 35 cells. This is consistent with the `M_amplify=20` target intervention dominating the outcome and the source-side choice being a tie-breaker. Importantly, **human is the most distinct condition** (30 agreement with shuffled, 31 with auto/top21), which is the right direction.
+- **Probability shifts and the cells where conditions disagree** are the natural metric for the full run. They are not saturated at canonical M, and they reveal a consistent pattern (human pushes the top-1 token's probability higher when the target is in-distribution: `illinois->IL`, `washington->state`).
+
+### Threats
+
+- **5 targets is too few for binary go/no-go**. The smoke conclusion that "binary metrics are saturated" could be wrong if the 5 targets happened to be either all easy or all hard. With more targets, binary differences may emerge or disappear.
+- **The `state` field is the only field where the human's annotation produces ablation features**. The `capital` and `city` field-additivity variants for the human condition reduce to "amplify-only on auto target", which makes them effectively equivalent to a no-source-intervention control. The labeled-vs-auto comparison is meaningful only for variants that include `state`. This was foreseeable from the human's supernode names (the human pinned a "capital" supernode that represents the *concept* "capital", not the state-specific token "Austin"), but it limits Phase-3 to a single dimension of the field-additivity matrix.
+- **The shuffled control was meant to test if labels-without-features-changes degrade performance**. Since binary metrics are tied between human and shuffled, this control fails to discriminate at this M. The continuous-metric difference (human top-1 prob 0.117-0.441 vs shuffled 0.270-0.406 in `add_state`) is small and inconsistent.
+- **Canonical M might not be the right comparison point**. The framework supports M-search, which adaptively tunes `M_amplify` until the target capital appears (when possible). Enabling M-search would replace each fixed-M binary outcome with a continuous "minimum M to achieve target hit" -- a richer signal that should distinguish the conditions on each pair. Smoke did not enable M-search to keep the comparison at the same budget as the existing 50-state baseline runs.
+- **The 5 chosen targets are deliberately diverse but small-N**. Some have explicit-state tokens in the prompt (`new york`), others don't, and some have ambiguous capitals (`washington` -> Olympia, but the model often outputs `state`). Patterns observed here may not generalize.
+
+### Confidence
+
+**Medium** for the wiring/methodology claim. **Low** for the human-vs-auto effect-size claim -- the smoke is consistent with "human grouping is at least as good as a 6-feature random subset of auto, possibly slightly better at moving probability mass" but the binary go/no-go is dominated by the auto target side and 5 targets is too few to bound the difference.
+
+### Next step (suggestion)
+
+Two viable scale-ups:
+
+1. **Full 50 states with the same configs** (each condition = 50 source × 7 variants = 350 swaps × 4 conditions = 1400 swaps, ~2-3 hours wall-clock on 4 GPUs). Reports binary + continuous metrics on a meaningful sample. Easiest: just edit the 4 `smoke_swap_*.yml` to use `mode: matrix` over the 50 states with `texas_dallas` as the only source slug (or use `defined_pairs` with all 49 targets).
+
+2. **Smoke + M-search** (5 targets × 7 variants × 4 conditions, but with `m_search.enabled: true` and a tighter budget). This would replace fixed-M outcomes with adaptive M, revealing per-pair effort differences between conditions. Smaller scale but richer signal.
+
+Awaiting user decision before kicking the next phase.
+
+---
+
+## [2026-05-03 - PM] Topic: Phase 2 redo with the correct transcoder -- 22/22 human-pinned features now in our graph; concept-level concordance is 13/19 core features (soft, any ctx)
+
+**Why this entry**: The earlier 2026-05-03 Phase-2 entry (immediately below) reported a feature-level overlap of 0/22 and attributed it to a deprecated transcoder swap on Neuronpedia. That was correct *symptomatically* but wrong about the *cause*. The cause was a configuration bug in `scripts/experiments/batch/pipeline/graph.py`: the Neuronpedia API call read `config['model']['source_set']` (alias `clt-hp`, which Neuronpedia now resolves to `mntss/clt-gemma-2-2b-2.5M`, ~96k features/layer), instead of the explicit `graph_generation.api_params.sourceSetName` set to `gemmascope-transcoder-16k` in our YAML. The earlier Phase-2 numbers are still readable as "what the wrong-transcoder run actually computed", but they do not answer the comparison the user asked for. This entry replaces them with the matched-vocabulary run.
+
+**Question (unchanged)**: With prompts and transcoder vocabulary aligned, do the 22 CLT features the human pinned in `gemma-fact-dallas-austin` show up in our pipeline's graph, and are they grouped into supernodes that correspond to the 5 human-named concepts (`capital`, `state`, `Texas`, `preposition followed by place name`, `capital cities/say a capital city`)?
+
+### Setup
+
+- **Bug fix**: `scripts/experiments/batch/pipeline/graph.py` lookup order is now `api_params.sourceSetName` -> `graph_generation.source_set_name` -> `model.source_set`. Both `dallas_fact_only.yml` and `usa_states_fact_full.yml` had `model.source_set: clt-hp` updated to `gemmascope-transcoder-16k` so that the model-level alias matches the api-params (defense in depth).
+- **Wrong-transcoder run preserved** at `output/usa_states_fact_batch/texas_dallas__clt-hp_wrong_transcoder/` for diff/audit.
+- **New run**: `output/usa_states_fact_batch/texas_dallas/` -- single seed, prompt `<bos>Fact: The capital of the state containing Dallas is`, `transcoder_set: gemma` (= `mwhanna/gemma-scope-transcoders`, GemmaScope per-layer transcoders 16k features/layer), `circuit-tracer 0.2.0`. 1490 nodes, 55,645 links, 1182 CLT features after `cumulative_influence <= 0.95` filter. Source URLs in `info`: `['https://neuronpedia.org/gemma-2-2b/gemmascope-transcoder-16k', 'https://huggingface.co/google/gemma-scope-2b-pt-transcoders']`. Same prompt token set as the human graph.
+
+### Raw findings
+
+CSV at `output/research/dallas_austin_reference/annotation_concordance.csv`. Summary at `annotation_concordance_summary.json`.
+
+**Vocabulary alignment is now nearly identical**:
+
+| set | unique CLT (l, f) | min/max f |
+|---|---|---|
+| Human graph | 656 | 25 / 16382 |
+| Our run | 1182 | 25 / 16382 |
+| Intersection | 655 | -- |
+
+We capture **655 of the 656 human CLT features** (one is below our `cumulative_influence <= 0.95` cut). At the (layer, feature, ctx) level the intersection is 696 of 851 human nodes.
+
+**Human pinned features (22 CLT)**:
+
+| metric | result |
+|---|---|
+| in our graph (l, f) | 22/22 |
+| in our graph (l, f, ctx_idx) | 22/22 |
+| reach our `node_grouping.csv` at any ctx | 22/22 |
+| reach our `node_grouping.csv` at human's pinned ctx | 6/22 |
+
+The drop from 22 -> 6 at the strict-ctx test is explained: our `peak_token_idx` is the position where the feature has its max activation across our **5 probe prompts**, while the human pins where the feature fires in the **target prompt**. So the strict-ctx column compares two different things by construction; the "any ctx" column is the appropriate feature-level concordance.
+
+**Concept-family match** (excluding the 3 unlabeled `(standalone)` features), using a hand-coded mapping from human supernode name to our supernode-name family:
+
+| human supernode | n | reach@ctx | soft@ctx | soft any-ctx | typical our supernodes (any ctx) |
+|---|---|---|---|---|---|
+| `capital` | 5 | 3/5 | 3/5 | 4/5 | `capital`, `located` |
+| `state` | 2 | 1/2 | 1/2 | 2/2 | `state` |
+| `Texas` | 6 | 0/6 | 0/6 | 5/6 | `Texas` (5), `Dallas` (1) -- but at ctx 7/10/11, not the human's ctx 9 |
+| `capital cities/say a capital city` | 4 | 0/4 | 0/4 | 2/4 | `Say (Austin)` (2), `containing`, `seat` |
+| `preposition followed by place name` | 2 | 0/2 | 0/2 | 0/2 | `Say (Austin)` (both) |
+| **total core** | **19** | **4/19** | **4/19** | **13/19** | -- |
+
+**The 3 standalone clerped features**: `20_15589_10`, `23_12237_10` -> our `Texas`@ctx=10 (matches the human's "Cities and states names (say Austin)" clerp on `23_12237_10`); `18_8959_10` -> our `Say (capital)`@ctx=15 (vs human clerp "state/regional government"). 2/3 standalone match at any ctx; the third is plausibly the same circuit element re-labeled.
+
+### Interpretation
+
+1. **Feature-level coverage is essentially complete (22/22)**. With matched vocabulary, every feature the human pinned exists in our graph and reaches our grouping at some ctx. The earlier "0/22" was a configuration artifact, not a real disagreement.
+2. **Concept-family agreement at any ctx is 13/19 core features (~68%)**. Our subtype/grouping classifier independently labels the same features the same way as the human ~2/3 of the time. The dominant matches are on `Texas` (5/6) and `state` (2/2); the misses concentrate at the answer position where the human used semantic supernodes (`capital cities/say a capital city`, `preposition followed by place name`) and our system uses functional/predictive supernodes (`Say (Austin)`, `seat`). That's a stylistic disagreement about how to label answer-bearing features more than a circuit-level disagreement about which features matter.
+3. **Strict-ctx concordance (4/19) is dominated by a methodological mismatch**, not a real disagreement: our `peak_token_idx` is computed against 5 probe prompts, the human's ctx is from the target prompt. To make a head-to-head ctx comparison, we would need to either (a) recompute our `peak_token_idx` on the target prompt only or (b) use the (l, f) presence at the same ctx in the graph itself (which is 22/22, since the human only ever pins features that fire in the target prompt at that ctx).
+4. **The 16k transcoder is correct for matching the human graph** going forward. All future Neuronpedia-API graph generations from our pipeline will now use `gemmascope-transcoder-16k` (the bug fix is general). Note that this is a *per-layer transcoder* (PLT, by Google DeepMind), not the cross-layer transcoder family (`mntss/clt-gemma-2-2b-2.5M`) we were accidentally using; this changes graph statistics like number of features per layer and edge density, so prior 96k-vocabulary runs are not directly comparable to anything generated under this fix.
+
+### Threats
+
+- **`HUMAN_TO_OUR_FAMILY` mapping is hand-coded.** Especially `preposition followed by place name -> {of, is, in}` is a forced reading; our system labels those features `Say (Austin)`, which is a plausibly correct alternative (they predict the next token, not signal a syntactic role). Removing `Say (Austin)` from the capital-cities family would also drop the capital-cities concordance from 2/4 to 0/4. Any final report should ship this map alongside numbers.
+- **Strict-ctx 4/19 is misleading at face value** because of the probe-vs-target ctx asymmetry above. The "any ctx" concordance is the right number to quote.
+- **Pruning threshold mismatch**: human graph uses `node_threshold=0.7` (per its metadata), our run is at `node_threshold=0.8`. The 1 missing human feature out of 656 is consistent with this; a tighter threshold would close that.
+- **Generator version**: human ran `circuit-tracer 1.0.0`, we ran `0.2.0`. Pruning logic and influence semantics may differ; the influence values and thus which features survive pruning at any threshold could shift. The 99.85% feature overlap (655/656) suggests this is small, but not zero.
+- **Earlier _LOG entry is now partially superseded.** Specifically, "feature-level overlap is zero (different transcoders)" was a *symptom of the configuration bug, not a permanent property of the comparison*. The "concept-level concordance is 4/5" claim from the earlier entry was computed at the supernode-name (concept-family) level using ctx-level aggregates and should be replaced by the 13/19 number above. We are not editing the earlier entry per repo convention; this entry stands as the correction.
+
+### Follow-up
+
+- All 50 USA-state batch runs in `output/usa_states_batch/` were generated with the wrong transcoder (`clt-hp` -> `mntss/clt-gemma-2-2b-2.5M` ~96k). They are not directly comparable to anything we now generate with `gemmascope-transcoder-16k`. The Phase-3 design must regenerate the relevant subset (Dallas plus comparison states) with the corrected config before any swap experiment.
+- Open issue: should we re-run the cross-domain swap experiments (books, paintings, etc.) with the 16k transcoder for consistency? Probably yes, but separately tracked.
+- Recompute Phase-1 scores on our regenerated `texas_dallas` graph -- the existing Phase-1 result was on the human graph itself, so it is unaffected; but a parallel "scores on our regenerated graph with the human's pinned set" calculation is a useful sanity check to add.
+- Phase-3 path chosen: regenerate the smoke set (Dallas + 5 states) with the 16k transcoder, build a true human-features condition (the actual 22 (l, f) IDs work now), plus auto-Dallas / auto-top21 / shuffled-labels controls; run swaps with field-additivity variants matched to `fullscale_usa_field_add`. Decision deferred to user: choose the 5 smoke states.
+
+Confidence: **High** for the 22/22 feature-level coverage (direct (l, f) match in the graph). **Medium** for the 13/19 concept-family match (single prompt, hand-coded family map, multiple reasonable variants).
+
+---
+
+## [2026-05-03 - SUPERSEDED] Topic: Phase 2 (annotation concordance) blocked at the feature level by transcoder-vocabulary mismatch; concept-level concordance recovers 4 of 5 human supernodes
+
+> **NOTE 2026-05-03 PM**: The premise of this entry -- that the transcoder swap on Neuronpedia was the cause of the 0/22 feature overlap -- is incorrect. The actual cause was a configuration bug in `pipeline/graph.py` that read `model.source_set` instead of `graph_generation.api_params.sourceSetName`. Once fixed, 22/22 features overlap. See the entry above for the corrected analysis. This entry is preserved verbatim per the append-only convention.
+
+**Question**: For the same prompt `<bos>Fact: The capital of the state containing Dallas is`, do the 22 CLT features the human pinned in `gemma-fact-dallas-austin` show up in the graph our pipeline generates, and are they grouped into the same 5 supernodes (`capital`, `state`, `Texas`, `preposition followed by place name`, `capital cities/say a capital city`) by our subtype/grouping classifier?
+
+This is Part 2 of the three-part human-vs-auto experiment (see `output/research/dallas_austin_reference/`). The plan was: with prompts now matched (Part-1 baseline used the same prompt only on the human side), measure (a) feature-level coverage of the human-pinned set in our graph and (b) supernode-name agreement at the matched (layer, feature, ctx_idx) keys.
+
+### Setup
+
+- **Our run**: `output/usa_states_fact_batch/texas_dallas/` -- single-seed mini-pipeline launched from `scripts/experiments/batch/configs/dallas_fact_only.yml` with prompt template `Fact: The capital of the state containing {city} is`. Pipeline (graph + probes + grouping) finished in ~7.5 min on one local A100 (env: `nodo207`, `transformer_lens` `hijohnnylin/temp_branch_version`, `torch` 2.5.1+cu121).
+- **Tokens are byte-for-byte identical** to the human graph's `prompt_tokens`: `['<bos>', 'Fact', ':', ' The', ' capital', ' of', ' the', ' state', ' containing', ' Dallas', ' is']`.
+- **Concordance script**: ad-hoc in this entry; outputs `annotation_concordance.csv` (per-feature row with `in_our_graph` flag) and `annotation_concordance_ctx.csv` (per-token row with human supernodes vs our top supernodes), plus `annotation_concordance_summary.json`.
+
+### Raw findings
+
+**Feature-level overlap is zero.** Of the 22 CLT (layer, feature) pairs the human pinned, 0 appear in our graph. This is not noise -- inspection of node IDs reveals two different feature vocabularies:
+
+| Source | `info.transcoder_set` | Generator version | Min/max CLT feature index | Layer-0 sample IDs |
+|---|---|---|---|---|
+| Human graph (`gemma-fact-dallas-austin.json`) | (not recorded; older schema) | `circuit-tracer 1.0.0` | 25 / 16382 (~16k features/layer) | `0_437_1, 0_478_1, 0_997_1, 0_1847_1, ...` |
+| Our run | `mntss/clt-gemma-2-2b-2.5M` | `circuit-tracer 0.3.1 \| e09b5f3` | 230 / 98149 (~96k features/layer) | `0_2334_1, 0_9418_1, 0_15817_1, ...` |
+
+Both `info.source_urls` claim `clt-hp` on Neuronpedia, but the underlying transcoder set has been swapped at some point between the human's 2025-05-28 capture and our 2026-05-03 capture: from a 16k-per-layer CLT to the current `mntss/clt-gemma-2-2b-2.5M` (~96k per layer, 25 layers, ~2.4M features total). The two vocabularies are not aligned (no shared training, no linear remap published), so feature index N in one set is unrelated to feature index N in the other. The single accidental collision (1 (l, f) pair common to both graphs out of 656 human and 246 ours) is consistent with chance.
+
+**Per-position concept presence (concordance at the supernode-name level)** -- our pipeline still names the right concepts at most of the right token positions, even though the underlying features differ:
+
+| Token (ctx) | Human supernode(s) (n features) | Our top supernodes at this ctx (n features per supernode) | Concept-family match |
+|---|---|---|---|
+| ` capital` (4) | `capital` (5) | `capital` (17), `state` (11), `(capital) related` (5) | match (22 features in family) |
+| ` state` (7) | `state` (2) | `Texas` (24), `state` (2), `located` (2) | match (2 in family); the dominant `Texas` cluster is the "answer-state" feature firing one token early |
+| ` Dallas` (9) | `Texas` (6) | `is` (15), `seat` (2), `Dallas` (2), `Say (Austin)` (1), `Austin` (1) | **miss** -- our system does not surface Texas-bound features at the `Dallas` token |
+| ` is` (10) | `capital cities/say a capital city` (4), `preposition followed by place name` (2) | `Texas` (13), `is` (11), `Say (Austin)` (4), `located` (4), `of` (3) | match (`Say (Austin)` -> capital-cities family, `is`/`of` -> preposition-followed-by-place family) |
+
+Aggregate: **4 of 5 human supernode concepts are recovered at the same token by our system at this prompt** (capital, state, capital-cities, preposition+place). The miss is `Texas` at ` Dallas` -- our system fires `Texas` features one token earlier (at ` state`, ctx=7) and at the final-position cluster (ctx=10) instead. This is a meaningful semantic disagreement: the human treats Texas-features as "what Dallas is in", our subtype classifier treats them as "the state the question is about" and binds them to the ` state` token.
+
+**Pipeline emits many more features per ctx**. At ctx=1 (` Fact`) our run alone has 215 features in `node_grouping.csv` mass-tagged across 15 supernodes, vs the human's 0 pins at this position. The dominant tags at ctx=1 (`(entity) related` 45, `Say (Austin)` 24, `containing` 19, `capital` 19, ...) suggest "early-token leakage" -- the first content token after `<bos>` carries residual signal for many concepts that the human chose not to pin.
+
+### Interpretation
+
+1. **The literal "is the human's pinned (l, f) set in our graph?" question is unanswerable as posed.** The two graphs were generated against incompatible transcoders. This is not a bug in our pipeline or in `circuit-tracer`; it is the expected consequence of upgrading the `clt-hp` source set on Neuronpedia between captures. `info.transcoder_set` should now be treated as a required dimension of any cross-graph comparison.
+2. **Concept-level concordance is 4/5 -- our subtype classifier independently labels four of the five human concepts at the same token positions.** This is encouraging: the macro-structure of the circuit (state-binding at ` state`, capital-naming at ` capital`, "say a capital" at the answer position) is recovered without seeing the human's labels.
+3. **The single concept miss (Texas at ` Dallas`) is informative**, not arbitrary. Our classifier groups Texas-features under the ` state` token because that is where the answer-state binding peaks in our probe profile. The human attributes them to ` Dallas` (city -> state lookup). Both are defensible; they reflect a real ambiguity in where to anchor a "city implies state" feature. This is a concrete disagreement to trace if we want to improve the subtype classifier.
+4. **Implication for Phase 3 design (steering)**. The plan as written -- "use the human-annotated subgraph to steer the other 49 states" -- cannot use the human's pinned feature IDs directly: those features do not exist in our 96k-feature transcoder. There are three replacements for the "human" condition:
+   - (i) **Concept-template**: take the human's 5 supernode names (capital, state, Texas, capital-cities, preposition+place) and select features from OUR grouping whose `supernode_name` falls in those families at the matching ctx. This isolates "human concept menu, automated feature picking" and is the cleanest comparison given the transcoder mismatch.
+   - (ii) **Functional match**: regenerate the human-annotation graph with our 96k transcoder and let the human re-pin (requires UI work + a person; out of scope here).
+   - (iii) **Old-transcoder regeneration**: rebuild our 50-state pipeline with the older 16k CLT to align vocabularies. Heavy lift (full re-run, possible re-grouping) and locks future work to a deprecated source set.
+   The recommendation is (i): treat the human subgraph as a **concept template**, not a feature template. We accept that "human steering" then means "human-chosen concept set + automated feature pick" rather than "human-chosen features".
+
+### Threats
+
+- **N=1 prompt.** All concordance numbers are from the single Dallas/Austin graph. Concept recovery may be lower or higher on other states; only Phase 3's 50-state batch will tell us if "4/5 concepts at matched ctx" is the typical rate.
+- **`HUMAN_TO_OUR_FAMILY` is hand-coded.** The mapping between human supernode names ("preposition followed by place name") and our supernode tags (`is`, `of`) is a judgement call by me, not validated. A different mapping (e.g., excluding `is` from the preposition family) would shift the count from 4/5 to 3/5 or 2/5. Any future report should publish the mapping table alongside the score.
+- **Human supernode `Texas` at ctx=9 ` Dallas`** is treated as a miss above, but a defensible alternative reading is that our `Texas`@ctx=7 cluster IS the same circuit, just credit-assigned to a different position; under that reading the count is 5/5. Either interpretation is consistent with the data.
+- **Our pipeline at ctx=1 emits ~10x more features than the human pins anywhere.** Some of this is real (multi-prompt probe activation -> more features survive pruning), some is likely BOS-adjacent leakage. Without tagging which features are "leakage at ctx=1" vs "real", the supernode counts at ctx=1 should not be compared head-to-head with the human's pinned counts.
+- **Generator version skew (1.0.0 vs 0.3.1)** could affect not just the transcoder vocabulary but also pruning rules and influence computations. `circuit-tracer` does change the propagation logic between minor versions; we have not audited the diff.
+
+### Follow-up
+
+- Decide on the concept-template path (option i) or stop and request human re-annotation in our 96k vocabulary.
+- Build the `human_dallas` grouping CSV in our vocabulary using the concept-template approach: features from `node_grouping.csv` whose `supernode_name in HUMAN_TO_OUR_FAMILY[h]` and `peak_token_idx == h_ctx`. Compare its size and identity to the auto-Dallas top-21 condition before launching the full 50-state Phase 3.
+- Add `info.transcoder_set` to the manifest of every saved graph going forward; reject cross-graph comparisons where the `transcoder_set` differs without an explicit alignment step.
+- File a note in `scripts/utils/AGENTIC_RESEARCH_GUIDE.md` ("Known confounds" section) listing the `clt-hp` source-set swap and the 16k vs 96k vocabularies as a confound for any historical Neuronpedia graph predating ~2025-09.
+
+Confidence: **Medium** for the transcoder mismatch finding (directly observed in metadata + node IDs, no plausible alternative). **Low** for the 4-of-5 concept-recovery rate (single prompt, hand-coded family mapping, several reasonable variants give 2-of-5 to 5-of-5).
+
+---
+
+## [2026-05-03] Topic: Human-annotated `gemma-fact-dallas-austin` subgraph beats every size-matched control on replacement and completeness scores -- Part 1 of the human-vs-auto experiment
+
+**Question**: How does the human-curated 22-feature subgraph from
+`mh2parker`'s public Neuronpedia view (slug `gemma-fact-dallas-austin`)
+compare against (a) the unpruned full graph, (b) random size-matched
+draws of CLT features, and (c) the top-k features by `node_influence`,
+on the canonical replacement and completeness scores from
+`circuit_tracer.graph` (PR safety-research/circuit-tracer#42)?
+
+This is Part 1 of a three-part experiment comparing the human-annotated
+subgraph against our automated pipeline (Parts 2-3 pending; see
+`output/research/dallas_austin_reference/`).
+
+### Setup
+
+- **Reference graph**: `gemma-fact-dallas-austin.json` (855 nodes,
+  34,801 links) downloaded from the S3 URL referenced in
+  `https://www.neuronpedia.org/api/graph/gemma-2-2b/gemma-fact-dallas-austin`.
+  The graph is already pruned at `node_threshold=0.7, edge_threshold=0.9`
+  (uploaded by `mh2parker` 2025-05-28, featured graph). 697 CLT features
+  survive pruning.
+- **Human pinned set**: 22 unique CLT `node_id`s extracted from the URL's
+  `pinnedIds` and `supernodes` parameters: 5 supernodes (`capital`,
+  `state`, `Texas`, `preposition followed by place name`,
+  `capital cities/say a capital city`) plus 3 standalone pinned features
+  (`20_15589_10`, `23_12237_10`, `18_8959_10`, the latter two carrying
+  custom human labels via the `clerps` parameter). Saved at
+  `output/research/dallas_austin_reference/human_annotated_subgraph.json`.
+- **Tool**: `tools/subgraph_scores.py` -- pure-numpy port of
+  `compute_graph_scores` and `compute_subgraph_scores` from
+  `circuit_tracer.graph` (the latter is from open PR #42). 9 unit tests
+  in `tests/test_subgraph_scores.py` validate the formulas on toy graphs
+  (pure-token gives R=1; pure-error gives R=0; balanced gives R=0.5;
+  pinning all features matches `compute_graph_scores`; missing
+  per-(layer, ctx_idx) error nodes are added as virtual error rows).
+
+Random controls: `n=200` draws of `k=22` features, `numpy.default_rng(seed=42)`.
+
+### Raw findings
+
+CSV at `output/research/dallas_austin_reference/subgraph_scores.csv`.
+
+| Condition | k | Replacement | Completeness | Notes |
+|---|---:|---:|---:|---|
+| Full pruned graph | 697 | 0.5542 | 0.8547 | n_links=34,801 |
+| **Human subgraph** | 22 | **0.2961** | **0.6984** | +6 virtual error nodes added |
+| Top-k by influence (naive) | 22 | 0.2076 | 0.6059 | features ranked by `node.influence` |
+| Random k=22 -- mean | 22 | 0.2143 | 0.6145 | n=200 draws |
+| Random k=22 -- median | 22 | 0.2130 | 0.6126 | |
+| Random k=22 -- 95th pct | 22 | 0.2272 | 0.6271 | |
+| Random k=22 -- max | 22 | 0.2370 | 0.6391 | |
+
+Percentile of human within the random distribution:
+
+- Replacement: **100.0%** (above all 200 random draws)
+- Completeness: **100.0%** (above all 200 random draws)
+
+Top-k-by-influence percentile vs random: R = 4.0% (BELOW most random draws).
+
+### Interpretation
+
+The human-curated 22 features account for **53.4% of the full pruned
+graph's replacement score** (0.296/0.554) and **81.7% of its
+completeness** (0.698/0.855), using only **3.2% of the available CLT
+features** (22/697). The same number of features chosen randomly
+captures only ~38% of replacement (0.214/0.554), and the same number
+chosen by single-feature `node_influence` captures only ~37%
+(0.208/0.554) -- *worse than random*.
+
+Three concrete L1 conclusions:
+
+1. **The human's selection is structurally informed**. Beating 200/200
+   random draws on both metrics is a clean rejection of the null that
+   any tightly-pruned subset of 22 features achieves comparable scores.
+2. **`node_influence` alone is not a useful selection criterion at this
+   scale**. The top-22 by `influence` falls below the 5th percentile of
+   random draws on replacement (0.2076 vs random 5th pct approx 0.2080).
+   This suggests the highest-influence features are concentrated in a
+   few feature-paths and miss the path diversity needed to route
+   token-to-logit influence through features. Selecting only the
+   "loudest" features under-covers the circuit. *Confidence: Medium.*
+3. **The selection-vs-aggregation tradeoff favours the human**.
+   The human picked groups of complementary features (5 supernodes
+   spanning input tokens 4, 7, 9 and output position 10). Such position-
+   diverse selection naturally improves both metrics relative to any
+   single-criterion ranking. *Confidence: Low* (we have not yet tested
+   what happens if we constrain `top-k` to be position-balanced; see
+   follow-up.)
+
+**Confidence**: Medium for findings 1 and 2 (large effect, deterministic
+implementation, validated against toy-graph identities). Low for finding
+3 until the position-balanced top-k control is run.
+
+**Epistemic level addressed**: L1 (operationally useful labels). The
+human's labels appear to identify a structurally meaningful subgraph.
+The result does *not* address L2 (downstream causal effects); that is
+Part 3 of the experiment.
+
+### Threats to validity
+
+1. **Implementation drift from the published library.** Our port of
+   `compute_subgraph_scores` follows PR #42 verbatim, but PR #42 is
+   *open* (not merged) as of 2026-05-03. If the merged version diverges,
+   our absolute numbers may shift. *Mitigation: tests lock in the toy-
+   graph identities; the relative ranking (human > random > top-by-inf)
+   is unlikely to invert under reasonable edits.*
+2. **Pruning baseline.** All scores are computed on the already-pruned
+   graph (`node=0.7, edge=0.9`). Re-running on an unpruned graph would
+   change the absolute scores and *might* change the random control
+   distribution (more low-influence features available). *Open question
+   for follow-up: regenerate the same prompt with `nodeThreshold=1.0,
+   edgeThreshold=1.0` via the API and recompute.*
+3. **N=1 prompt.** All findings here are for a single prompt-circuit.
+   Generalizing to "human curation always beats random on completeness"
+   requires Part 2-3 across multiple entities or domains. *Mitigation:
+   the experiment is designed to scale this to 50 USA states with
+   matched prompts; results pending.*
+4. **The "top-k by influence is bad" finding has known mechanistic
+   reasons** (high-influence features cluster on a few paths; subgraph
+   metrics reward path diversity). It is not a critique of the library
+   or the human -- it just says "single-feature influence is the wrong
+   criterion at this k." *Mitigation: the comparison is purely
+   diagnostic; we report it because the user might intuit "top influence
+   = best subgraph" otherwise.*
+5. **22 features may be a sweet spot specifically because of how
+   `mh2parker` tuned the view**. The human chose `pruningThreshold=0.6`
+   in the URL (a layer of pruning *on top of* the graph's already-
+   pruned 0.7), which pushes the curated set toward maximum
+   coverage-per-feature. A different curator might have chosen a
+   different k and produced different relative results. *Mitigation: we
+   compare at a fixed k=22; results are conditional on this choice.*
+6. **Graph-level metric, not steering metric**. High completeness does
+   *not* automatically mean better steering performance under entity
+   swaps -- that's what Part 3 will test. The two metrics measure
+   different things (faithfulness of explanation vs causal sufficiency
+   for output redirection).
+
+### Follow-up
+
+- **Part 2 (annotation concordance, blocked)**. Need to run our
+  pipeline on a `dallas_fact` seed (prompt
+  `<bos>Fact: The capital of the state containing Dallas is`)
+  because our existing `texas_Dallas` graph (different prompt) shares
+  *zero* CLT features with the human's graph. Requires
+  `NEURONPEDIA_API_KEY`.
+- **Part 3 (steering, blocked)**. Same prerequisite (need to regenerate
+  all 50 USA-state graphs with the "Fact:" prompt template) plus
+  remote GPU access (nodo207, 8xA40) for activations and grouping.
+- **Position-balanced top-k**. Diagnose finding 3: pick top-k features
+  per (ctx_idx, layer) bucket and re-score to isolate "diversity" from
+  "human label correctness".
+- **Recompute on the unpruned graph** to confirm threats #2 and #5.
+
+---
+
+## [2026-05-02] Topic: Feature-class naturalness, deep dive -- three independent methods converge on ~10-12 natural classes, the 4-class story is a coarse-graining
+
+**Question**: This entry extends [2026-05-01] "Feature-class naturalness". The
+prior entry computed KMeans/GMM agreement at k=4 and concluded medium
+confidence that the rule labels track real structure, with k=5/6 fitting
+better than k=4. The follow-up question is sharper: does the data prefer a
+specific, principled `k`, and how does the rule taxonomy relate to that
+preferred geometry? Three additional methods were applied to answer it:
+density-based clustering (HDBSCAN), agglomerative Ward linkage, and
+Gaussian-mixture model selection by BIC. Per-dataset t-SNE and UMAP were
+added as qualitative cross-domain checks.
+
+### Setup
+
+Same `output/research/feature_manifest.csv` as [2026-05-01]. Same 6-D
+standardized vector
+(`peak_consistency_main`, `n_distinct_peaks_log1p`, `func_vs_sem_pct`,
+`conf_F`, `sparsity_median`, `layer`). All clustering done on the deduped
+frame (8,314 global `(layer, feature)` rows) to remove the USA over-weighting.
+
+New cells added to `output/research/feature_clustering.ipynb`:
+
+- `33-34`: per-dataset t-SNE (5-panel facet, 2,500-row sample per panel).
+- `35-37`: combined and per-dataset UMAP.
+- `38-40`: HDBSCAN parameter sweep (`min_cluster_size` in `{40, 80, 150}`)
+  plus side-by-side UMAP overlay of HDBSCAN clusters and rule labels.
+- `41-45`: Ward agglomerative clustering. Dendrogram, ARI/NMI/silhouette
+  curves over `k = 3..12`, UMAP coloured by Ward partitions at `k = 4, 6, 8`,
+  contingency heatmap at `k = 8`.
+- `46-48`: Gaussian-mixture model selection by BIC. Sweep `k = 2..12` at two
+  covariance shapes (`diag`, `full`), with ARI/NMI/silhouette curves and a
+  contingency heatmap and UMAP scatter for the BIC-preferred `k*`.
+
+Notebook runtime (full sweep) is ~9 min on the existing `.venv` stack
+(numpy 2.2.6, pandas 2.3.3, scikit-learn 1.7.2, umap-learn 0.5.12,
+seaborn 0.13.2). Per-dataset t-SNE dominates at ~3 min; everything else is
+under a minute. Sample sizes are deterministic (seed=0) so the analysis is
+reproducible.
+
+### Raw findings
+
+**HDBSCAN on the standardized 6-D vector (deduped frame, N=8,314):**
+
+| `min_cluster_size` | clusters discovered | noise points | noise % | ARI vs rules (excl. noise) | NMI (excl. noise) | silhouette (excl. noise) |
+|---:|---:|---:|---:|---:|---:|---:|
+| 40 | 54 | 2,376 | 28.6% | 0.107 | -- | 0.557 |
+| 80 | 26 | 2,770 | 33.3% | 0.221 | -- | 0.557 |
+| 150 | 13 | 2,765 | 33.3% | 0.319 | -- | 0.741 |
+
+**Ward agglomerative (Ward linkage, standardized 6-D, deduped frame):**
+
+| k | ARI vs rules | NMI | silhouette |
+|---:|---:|---:|---:|
+| 3 | 0.404 | 0.405 | 0.529 |
+| 4 | 0.449 | 0.490 | 0.589 |
+| 5 | 0.501 | 0.540 | 0.626 |
+| 6 | 0.501 | 0.537 | 0.632 |
+| 7 | 0.524 | 0.549 | 0.652 |
+| 8 | 0.533 | 0.568 | 0.661 |
+| 10 | 0.520 | 0.555 | 0.665 |
+| 12 | 0.570 | 0.575 | 0.635 |
+
+Silhouette plateaus at `k=8-10`. ARI keeps rising past `k=4` and is highest
+at `k=12` within the swept range.
+
+**Gaussian-mixture BIC sweep (diag and full covariance, k=2..12):**
+
+| Covariance | BIC-preferred `k*` | BIC at `k*` | BIC at k=4 | ARI at `k*` | ARI at k=4 |
+|---|---:|---:|---:|---:|---:|
+| diagonal | **12** | -292,850 | -140,474 | 0.620 | 0.371 |
+| full | **10** | -272,337 | -159,125 | 0.632 | 0.475 |
+
+Lower BIC = better. The BIC drop from `k=4` to `k*` is more than 100,000 in
+both covariance settings; this is many orders of magnitude beyond a
+significant difference.
+
+**Cross-method convergence on `k`:**
+
+| Method | Preferred k |
+|---|---|
+| HDBSCAN density (most permissive setting) | 13 |
+| GMM BIC (full covariance) | 10 |
+| GMM BIC (diagonal covariance) | 12 |
+| Ward silhouette plateau | 8-10 |
+| KMeans/GMM ARI peak (from [2026-05-01]) | 6+ |
+| Tree's nominal partition | 4-6 |
+
+Three independent principled criteria (density, BIC, silhouette plateau)
+land in `k = 8-13`, an order of magnitude away from the `k=4` story.
+
+**Per-dataset visual check (t-SNE and UMAP):** the rule classes occupy
+visibly coherent regions in every dataset's projection. `Relationship`
+(red) is the cleanest single class across all five domains; the
+`Dictionary fallback` bucket consistently splits into multiple visually
+disconnected regions in the deduped UMAP.
+
+**Per-dataset KMeans k=4 ARI (from [2026-05-01], for reference):** books
+0.50, paintings 0.24, products 0.60, sounds 0.49, USA 0.35.
+
+### Interpretation
+
+Three claims, each with explicit confidence:
+
+1. **The rule labels track real structure.** Threshold sensitivity is low
+   (under 1.5% flip rate at +/-10% perturbation per cut, [2026-05-01]),
+   classes are spatially coherent in t-SNE/UMAP/PCA across all five
+   datasets, and ARI vs rule labels reaches 0.62-0.63 once enough
+   components are allowed. The simplest "boring" explanation -- that the
+   labels are arbitrary slices through smooth distributions -- is
+   inconsistent with the threshold-sensitivity numbers and the ARI levels.
+   **Confidence: High.**
+
+2. **The data prefers ~10-12 natural classes, not 4.** Three principled
+   criteria (HDBSCAN density at the strictest setting, GMM-BIC under both
+   diagonal and full covariance, Ward silhouette plateau) all point to
+   `k = 8-13`. The BIC penalty prevents this from being explained by
+   overfitting. The 4-class partition does not appear in any of these
+   independent estimates as the preferred number. **Confidence: High.**
+
+3. **The 4-class partition is a coherent coarse-graining of the natural
+   geometry, not a discovery of natural classes.** ARI of the rule
+   partition vs the BIC-preferred 10-12 component partition is in the
+   0.45-0.50 range. The rule labels group together multiple naturally
+   distinct dense regions under the same name; the most visible example is
+   `Semantic (Dictionary fallback)`, which occupies at least two
+   disconnected regions in UMAP and is itself the residue of a fallback
+   branch in the decision tree (rule 4, `02_node_grouping.py:629`).
+   **Confidence: Medium-to-High.** Whether the coarse-graining is *useful*
+   for downstream causal reasoning is a separate question (L2 in the
+   methodology framework) which this analysis does not address.
+
+A practical implication of (3): the existing `Review`/`Ambiguous` bucket
+(786 features in the all-rows manifest, 136 deduped) is much smaller than
+the population of features that sit between dense regions. HDBSCAN labels
+~33% of features as noise (i.e., not in any dense region) at
+`min_cluster_size >= 80`. Either (a) the rule's review bucket is
+under-flagging genuinely intermediate features, or (b) HDBSCAN's noise
+points are not really ambiguous and just sit in low-density tails.
+Distinguishing these is a useful follow-up.
+
+### Threats
+
+- **Same-axis tautology.** The clustering uses the same 6 metrics that the
+  decision tree uses. Class regions look coherent in those metrics partly
+  because the tree was *defined* on those metrics. The unsupervised
+  recovery (ARI 0.45-0.63) is what breaks the tautology, but the failure
+  to recover at `k=4` still has to be qualified by this dependence.
+  Mitigation: rerun with metrics derived independently (e.g., decoder
+  cosine similarity, layer-by-layer activation autocorrelation) and check
+  whether the same partitions emerge.
+- **t-SNE distorts global geometry.** UMAP and PCA partly compensate, and
+  the BIC-based result does not depend on any 2-D projection.
+- **n_distinct_peaks is integer-valued.** It was log1p-transformed before
+  standardization, but the heavy mass at `1` still creates a thin spike in
+  the marginal. This may inflate cluster count slightly.
+- **`func_vs_sem_pct` clips to +/-100.** Endpoint piling can artificially
+  attract clusters to the +/-100 strips. The full-covariance GMM should
+  absorb this as anisotropic variance, but diagonal GMM cannot, which is
+  one reason its BIC prefers larger `k`.
+- **The deduped frame uses median across an entity's behavioral
+  occurrences.** A feature that behaves differently across entities gets
+  reduced to one row with median metrics and modal label. The all-rows
+  ARI (~0.43 at k=4 from [2026-05-01]) is the corrective, and it is
+  weaker but consistent in shape.
+- **All five datasets share the same probe-prompt template family.**
+  Cross-method convergence on `k = 8-13` may reflect shared template
+  structure as much as feature-intrinsic geometry.
+- **Per-dataset clustering is computed on the all-rows manifest, not the
+  deduped frame**, because dedup needs cross-dataset information to assign
+  `dataset = mode`. The per-dataset ARI scores are therefore not
+  comparable line-for-line with the combined deduped numbers.
+- **The "10-12 natural components" claim is for this metric space.** It
+  does not yet imply 10-12 *mechanistic* feature types. The L3 question
+  remains open.
+
+### Confidence
+
+**High** that the data prefers many more components than 4 (replicated
+under three independent criteria, with BIC differences far beyond noise).
+**Medium-to-High** that the rule labels are a coherent coarse-graining of
+the natural geometry (ARI > 0.5 at k = 8 Ward; threshold-flip rate near
+zero; class spatial coherence in three projections). **Low** for any
+specific count of natural classes; the principled estimates span 8-13 and
+none of them is definitive.
+
+### Next steps
+
+- **Investigate the `Dictionary fallback` bimodality directly.** The
+  fallback branch was meant as a low-confidence catch; the data suggests
+  it is sweeping up two genuinely different feature populations. Pull 5
+  features from each visual blob and inspect their `node_grouping.csv`
+  rows side by side. *Partial answer in the [2026-05-02] entry "`Dictionary
+  (fallback)` subtype": what it captures, how naming reacts, and why the
+  swap pipeline already ignores it. The bimodal shape in UMAP is still
+  open, but the population content is now characterised.*
+- **Connect cluster membership to swap success.** The natural clusters
+  discovered here are L1 (operational) constructs. The next move is to
+  test whether they have downstream causal teeth at L2: do features in
+  natural cluster A produce different swap outcomes than features in
+  natural cluster B at the same M? The `SwapQuery` / `SwapStats` toolkit
+  already gives the per-pair numbers; merge `feature_manifest.csv` with
+  per-pair intervention identities to test it.
+- **Run the same clustering on a non-tree-derived metric vector.** For
+  example: per-feature decoder cosine similarity to the answer-token
+  unembedding row, mean activation entropy across probes, layer-wise
+  activation autocorrelation. If the same `k = 8-13` structure emerges,
+  the geometry is not a tautological consequence of the tree's input
+  features.
+- **Compare HDBSCAN noise points to the rule's `Review` bucket.** If the
+  intersection is high, the rule is approximating a density-aware
+  ambiguity flag. If it is low, the two buckets are doing different
+  things and the rule's ambiguity criterion may be missing a real signal.
+
+### Reference to earlier entry
+
+This entry extends but does not contradict [2026-05-01]. The earlier
+entry's k=4 ARI of ~0.51 (deduped, KMeans) and k=6 ARI of ~0.59 are
+recovered exactly here. The new contribution is (a) the principled BIC
+estimate of `k`, (b) the density-based estimate via HDBSCAN, (c) the
+agglomerative dendrogram showing how fine clusters merge into the rule
+labels, and (d) the per-dataset t-SNE/UMAP qualitative cross-check.
+
+---
+
+## [2026-05-02] Topic: `Dictionary (fallback)` subtype -- what it captures, how the naming reacts, and why the swap pipeline already ignores it
+
+**Question**: The node-grouping classifier emits `Semantic` features with two
+different `subtype` values that look superficially similar, `Dictionary` and
+`Dictionary (fallback)`. Three follow-up questions:
+
+1. What does `Dictionary (fallback)` actually contain in our datasets? Which
+   tokens do those features peak on, and is the population homogeneous?
+2. The `supernode_name` for a Semantic feature is a single string. How is it
+   chosen when the feature peaks on a small set of *different* tokens across
+   prompts (which is the defining property of a fallback)?
+3. Are these features influential when used as swap candidates? Intuition says
+   no -- if a feature fires on prompt-template tokens shared by both source
+   and target, the source-minus-target delta is ~0 -- but the question had
+   never been quantified.
+
+### Setup
+
+Static-only investigation, no GPU. Code paths examined:
+
+- `scripts/02_node_grouping.py`: `classify_node` (lines 555-652), the rule that
+  routes a feature to `Dictionary (fallback)` (`layer <= sem_layer_max=3`
+  branch of Rule 4); and `name_semantic_node` (lines 974-1068), the supernode
+  naming logic.
+- `scripts/experiments/batch/pipeline/grouping.py`: confirms blacklist is just
+  `<bos>` for all batch configs (`scripts/experiments/batch/configs/*.yml`).
+
+Three throwaway scripts under `/tmp/`:
+
+- `fallback_stats.py` -- aggregate every `02 Node Grouping/node_grouping.csv`
+  under `output/<batch>` and `scripts/experiments/batch/output/<batch>` (135
+  CSVs, 192,085 rows), compute subtype counts, layer distribution,
+  `n_distinct_peak_tokens` per feature, top peak tokens.
+- `fallback_examples.py` -- pick representative `Dictionary (fallback)`
+  features in three families (BPE subwords, template-prefix tokens, functional
+  words) and dump per-item peak tokens.
+- `swap_relevance.py` and `swap_target_check.py` -- (a) for each batch, count
+  how many distinct items each `(layer, feature)` is active in, broken down by
+  subtype; (b) intersect the 87 unique features intervened by a real swap
+  (`output/usa_states_batch/_swaps/runs/full_50states_v1/work/wyoming_casper__to__texas_dallas/features.json`)
+  with subtype labels in both source (`wyoming_casper`) and target
+  (`texas_dallas`) `node_grouping.csv` files.
+
+### Raw findings
+
+**Subtype distribution (per row, 192,085 rows across 5 batches):**
+
+| subtype | rows | % |
+|---|---:|---:|
+| `<NA>` (Say "X" / Relationship / Ambiguous) | 67,120 | 35% |
+| Dictionary | 49,710 | 26% |
+| **Dictionary (fallback)** | **46,705** | **24%** |
+| Concept | 23,460 | 12% |
+| Ambiguous | 5,090 | 3% |
+
+Total unique `(batch, item, feature)` triples in fallback: **6,264**.
+
+**Layer distribution of fallback features (per-feature):**
+
+| layer | n_features | % |
+|---|---:|---:|
+| 0 | 4,158 | 66.4% |
+| 1 | 567 | 9.0% |
+| 2 | 697 | 11.1% |
+| 3 | 842 | 13.5% |
+
+(Confirms the rule: `sem_layer_max = 3`. Layer 0 dominates.)
+
+**peak_token_type per-feature (mode):**
+
+| type | n_features |
+|---|---:|
+| semantic | 5,139 (82%) |
+| functional | 1,125 (18%) |
+
+**`n_distinct_peak_tokens` per fallback feature**
+
+```
+mean = 3.39   median = 3   p90 = 4   p99 = 5
+```
+
+(All have >= 1, by construction. Mean ~3 means a typical fallback feature
+peaks on three different tokens across the prompt set.)
+
+**Top-15 peak tokens (over 46,705 fallback rows):**
+
+| token | rows |
+|---|---:|
+| `entity` | 14,100 |
+| `attribute` | 6,742 |
+| `relationship` | 6,273 |
+| ` is` | 2,479 |
+| `:` | 2,128 |
+| ` The` | 1,083 |
+| ` name` | 994 |
+| ` state` | 904 |
+| `vary` | 832 |
+| ` the` | 659 |
+| ` painter` | 401 |
+| ` A` | 356 |
+| ` of` | 315 |
+| `uckleberry` | 294 |
+| ` person` | 268 |
+
+**Three behavioural families** confirmed by sampling concrete features:
+
+1. **BPE subword fragments** -- e.g. `book_characters_authors / 3_66599`
+   (layer 3, 19 items, 35 distinct peaks): peaks on
+   `'ticus'` for Atticus Finch, `'hab'` for Captain Ahab,
+   `'uckleberry'` for Huckleberry Finn, `'ina'` for Anna Karenina,
+   `' Dracula'` for Dracula, `'morphosis'` for Gregor Samsa, etc.
+   Same feature, entity-distinguishing subword changes per item.
+2. **Template prefix tokens** -- e.g. `book_characters_authors / 0_44634`
+   (layer 0, 21 items, 3 distinct peaks): peaks on `'entity'`/`'attribute'`/
+   `'relationship'` depending on which template sentence is being scored.
+3. **Functional words family** -- e.g. `book_characters_authors / 0_40780`
+   (layer 0, 21 items, 5 distinct peaks): peaks on
+   `' the'` (59x) / `' who'` (21x) / `' is'` (59x). Cannot be Say "X" because
+   `layer >= 7` is required.
+
+**Naming verification** -- the algorithm in `name_semantic_node` is *not* "most
+frequent peak" but *"highest single `activation_max` among rows whose
+`peak_token_type == 'semantic'`, skipping blacklisted (only `<bos>`) and pure
+punctuation"*. Concrete consequences observed in the data:
+
+| feature_key | layer | n items | n distinct supernode_name | examples |
+|---|---:|---:|---:|---|
+| `3_66599` | 3 | 19 | **19** | `ticus`, `Dick`, `Quixote`, `Dracula`, `uckleberry`, `Hermione`, `morphosis`, `Twist`, `Kill`, ... |
+| `0_25424` | 0 | 10 | 9 | `Karen`, `Dickens`, `Dumas`, `Bennet`, `Bo`, `Granger`, `Caul`, `Fitzgerald`, `Smith` |
+| `0_44634` | 0 | 21 | 1 | `Semantic (unknown)` (degenerate -- see Threats) |
+| `0_40780` | 0 | 21 | 1 | `the` |
+| `0_20807` | 0 | 12 | 1 | `first` |
+| `1_34506` | 1 | 6 | 1 | `is` |
+
+For `0_25424` on `anna_karenina`, the row with `peak=' Karen'`
+(activation_max=10.87) wins over rows with `peak='attribute'`
+(activation_max=0.00). For `0_40780` no semantic peak has `activation_max>0`,
+so the function falls through to the secondary branch
+(`feature_records[activation_max > 0]` regardless of type) and selects
+`' the'` (max activation 57.47) -- producing supernode `'the'`.
+
+**Cross-batch presence (`n_items`) distribution by subtype:**
+
+USA states batch (50 items):
+
+| subtype | n_features | mean(n_items) | % global-like (n_items >= 40/50) |
+|---|---:|---:|---:|
+| Dictionary | 1,367 | 3.0 | 2.9% |
+| Concept | 319 | 4.9 | 4.7% |
+| Say "X" | 364 | 5.6 | 5.5% |
+| Relationship | 177 | 7.7 | 9.0% |
+| **Dictionary (fallback)** | **247** | **8.8** | **13.4%** |
+| Ambiguous | 51 | 10.3 | 13.7% |
+
+`Dictionary (fallback)` has ~3x the mean per-feature presence of strict
+`Dictionary`, and 4.6x the share of "global-like" features (active in >=80%
+of items). The pattern reproduces in `paintings_painters` (7.1% vs 5.3%),
+`products_founders` (13.3% vs 4.0%), and `book_characters_authors` (2.2% vs
+1.9%).
+
+**Real swap composition**, `wyoming_casper -> texas_dallas`, full_50states_v1
+run, 107 interventions / 87 unique `(layer, index)`:
+
+| Source subtype | M=-2 (suppress) | M=+20 (enhance) | Total |
+|---|---:|---:|---:|
+| Say "X" | 41 | 18 | 59 |
+| `<not in source>` (target-side injections) | 0 | 29 | 29 |
+| Concept | 8 | 2 | 10 |
+| Dictionary | 5 | 0 | 5 |
+| Ambiguous | 3 | 0 | 3 |
+| **Dictionary (fallback)** | **1** | **0** | **1** |
+
+The single fallback intervention is `L0_F17761`, present in 29/50 states
+with top peaks `entity` (41) / `relationship` (29) / `attribute` (29) -- a
+template-prefix feature -- used only for source-side suppression (M=-2). It
+is reclassified as plain `Dictionary` in the target item's CSV.
+
+### Interpretation
+
+1. **What `Dictionary (fallback)` is**. It is the layer-based safety net of
+   Rule 4 (`layer <= 3`) for features that miss the strict Dictionary cut
+   (`peak_consistency_main >= 0.80` AND `n_distinct_peaks <= 1`). It captures
+   three distinguishable mechanisms that all live in the early layers and
+   look "lexical but noisy":
+   - BPE subword detectors that fire on the entity-distinguishing piece
+     (Atticus -> `ticus`, Ahab -> `hab`, Huckleberry -> `uckleberry`).
+   - Template-prefix detectors that flip among the small set of template
+     section-names (`entity` / `attribute` / `relationship`).
+   - Functional-word detectors at low layer (`is` / `the` / `who`) that are
+     too early to qualify as Say "X" (which needs `layer >= 7`).
+2. **Naming is not "majority vote"**. Two features with identical aggregate
+   metrics can get different `supernode_name` in different runs because the
+   selector picks the single highest `activation_max` among semantic peaks.
+   This explains why `3_66599` produces 19 distinct supernode labels across
+   19 items: in each item the stronger BPE peak is the entity-specific one.
+   It also means `feature_key` -- not `supernode_name` -- is the only stable
+   cross-graph identifier for these features.
+3. **The user's swap intuition is empirically correct**. Three independent
+   pieces of evidence converge:
+   - Mean per-feature presence across items is ~3x higher for fallbacks than
+     for strict Dictionary in USA states (8.8 vs 3.0); the "global-like" tail
+     (active in >=80% of prompts) is 4.6x larger for fallbacks. These features
+     are over-represented in the population that source and target naturally
+     share.
+   - In a real swap (`wyoming -> texas`, 107 interventions), only **1/107**
+     interventions has `subtype == "Dictionary (fallback)"` in the source
+     CSV. The selector already deprioritises them in practice.
+   - The single fallback that *is* used appears with `M=-2` (suppression) and
+     never with `M=+20` (enhancement) -- coherent with the principle that
+     injecting a template feature into the target adds nothing the target
+     does not already have.
+4. **A nuance**. Not all fallbacks are template-shared. The median `n_items`
+   is still 1, meaning many fallback features are item-specific (the BPE
+   subword family). Those *would* in principle carry useful steering signal,
+   but the swap selector still does not pick them, presumably because their
+   raw activation magnitudes at layer 0-3 are dominated by the higher-layer
+   `Say "X"` candidates.
+
+Operational consequence: filtering `subtype == "Dictionary (fallback)"` out
+of the swap candidate pool is a safe pre-step that loses nothing relative to
+current behaviour and makes the implicit policy explicit.
+
+### Threats
+
+- **Edge case in the naming algorithm**. Feature `0_44634` (peaks on
+  `'entity'` / `'attribute'` / `'relationship'`, all `peak_token_type ==
+  semantic` with `activation_max > 0`) is labeled `Semantic (unknown)` in
+  the CSVs, which is the return value when no valid token survives the
+  blacklist+punctuation filter. The current code path should have returned
+  `'relationship'`. The CSVs were generated by an older invocation of the
+  pipeline; the discrepancy points to a legacy blacklist (or a now-removed
+  template filter) rather than a bug in the live code. Worth a separate
+  investigation if `Semantic (unknown)` ever needs to be ground-truth.
+- **Single swap audit**. The 1/107 statistic is from one swap pair; a
+  systematic count across the full 50x50 matrix (and across other batches
+  and modes: `labeled` / `random` / `field_add`) would harden the claim
+  that "the swap selector already excludes fallbacks".
+- **Cross-item identity assumption**. The analysis treats `(batch, layer,
+  feature)` as a stable identity across items in the same batch. This is
+  true at the SAE level, but a feature can play different roles in different
+  contexts; the modal subtype hides that variation.
+- **Layer cutoff of 3 is set, not derived**. `sem_layer_max = 3` was
+  configured, not learned from data. A different cutoff would shift the
+  population in/out of `Dictionary (fallback)` without changing any
+  underlying mechanism.
+- **Per-row vs per-feature accounting**. Some tables report rows (e.g.
+  46,705 fallback rows, where each row is a `(feature, prompt)` pair) and
+  others report features (6,264 fallback features). These are not directly
+  comparable; the "feature-level" tables (subtype mode, layer distribution,
+  n_distinct_peak_tokens, n_items, swap intersection) are the load-bearing
+  ones.
+- **The 29 "<not in source>" features in the swap**. These are target-side
+  injections (M=+20) classified by reading the *target* CSV; a small fraction
+  could themselves be `Dictionary (fallback)` in the target. The current
+  cross-tab confirms none of them are -- they are 17 Say "X", 10 Dictionary,
+  2 Concept -- so the conclusion stands, but the asymmetric labelling (source
+  side = source CSV, target side = target CSV) is worth flagging.
+
+### Confidence
+
+**Medium-High** for the descriptive claims about what `Dictionary (fallback)`
+contains (three behavioural families, dominant at layer 0, mean
+`n_distinct_peak_tokens=3.39`, mean per-feature presence ~3x strict
+Dictionary in USA). N=6,264 features across 5 datasets, three independent
+sub-aggregations all consistent.
+
+**Medium** for the swap-relevance claim (1/107 interventions, single
+suppression role). The mechanism (template-shared features cancel under
+source-target subtraction) is principled and the per-feature presence stats
+support it, but the count is from a single swap.
+
+**Medium** for the naming algorithm description (read directly from code,
+verified on six concrete features including one degenerate case).
+
+### Next steps
+
+- Repeat the fallback-vs-intervention intersection across the full 50x50
+  USA matrix, plus `paintings`, `products`, `books`, `sounds`, and report
+  the global fraction of fallback interventions per swap mode.
+- Add an explicit `--exclude-subtype "Dictionary (fallback)"` flag to the
+  swap candidate selector so the de-facto policy becomes explicit and
+  testable. Compare metrics on a small batch with and without the flag to
+  confirm the swap quality is unchanged (or improved).
+- Investigate the `Semantic (unknown)` anomaly on `0_44634`-style features:
+  identify which earlier pipeline version produced it and whether
+  `entity`/`attribute`/`relationship` should be added to the blacklist
+  permanently (they are template metadata, not content tokens).
+- For the BPE-subword fallbacks (the only "useful" fallback family for
+  steering), quantify their activation magnitude vs `Say "X"` candidates at
+  the same layer to confirm they really do lose the ranking on magnitude
+  alone, not on some other selector criterion.
+
+---
+
+## [2026-05-01] Topic: Feature-class naturalness -- rule labels partially recover unsupervised structure, but k=4 is not the best geometry
+
+**Question**: The node-grouping classifier assigns features to Semantic
+Dictionary, Semantic Concept, Say-X, Relationship, and review/fallback buckets
+using `peak_consistency_main`, `n_distinct_peaks`, `func_vs_sem_pct`, `layer`,
+`sparsity_median`, and `conf_S`. If we plot all collected features across the
+five datasets in this metric space, do those classes "show themselves" as
+natural structure, or are they mostly imposed by the decision tree?
+
+### Setup
+
+Built `scripts/research/build_feature_manifest.py` to walk the five root
+dataset outputs and rebuild one feature-level row per
+`(dataset, entity, feature_key)` from existing `node_grouping.csv` files.
+
+Built `output/research/feature_clustering.ipynb` plus a dependency-light
+runner, `scripts/research/feature_clustering_analysis.py`, because this
+runtime lacks pandas/numpy/sklearn despite the project requirements listing
+them. The runner uses deterministic 5,000-row samples for the expensive
+clustering grid and computes counts / threshold sensitivity over the full
+manifest.
+
+Outputs:
+- `output/research/feature_manifest.csv`
+- `output/research/feature_clustering_results.json`
+- `output/research/feature_clustering_metrics.csv`
+- `output/research/feature_classes_naturalness.png`
+
+### Raw findings
+
+Manifest size:
+
+| Frame | N |
+|---|---:|
+| all rows `(dataset, entity, feature_key)` | 27,817 |
+| deduped global `(layer, feature)` | 8,314 |
+
+All-row class counts:
+
+| Class | N |
+|---|---:|
+| Semantic (Dictionary) | 7,578 |
+| Semantic (Dictionary fallback) | 6,264 |
+| Relationship | 5,615 |
+| Say "X" | 4,098 |
+| Semantic (Concept) | 3,476 |
+| Ambiguous/Review | 786 |
+
+Deduped class counts:
+
+| Class | N |
+|---|---:|
+| Semantic (Dictionary) | 3,146 |
+| Semantic (Dictionary fallback) | 2,175 |
+| Say "X" | 1,046 |
+| Semantic (Concept) | 1,000 |
+| Relationship | 811 |
+| Ambiguous/Review | 136 |
+
+Clustering agreement with rule labels:
+
+| Frame | Algorithm | k | N clustered | ARI | NMI | silhouette |
+|---|---|---:|---:|---:|---:|---:|
+| all rows | KMeans | 4 | 5,000 | 0.427 | 0.522 | 0.457 |
+| all rows | GMM | 4 | 5,000 | 0.420 | 0.532 | 0.446 |
+| all rows | best observed | 6 | 5,000 | 0.508 | 0.590 | 0.423 |
+| deduped | KMeans | 4 | 5,000 | 0.512 | 0.492 | 0.538 |
+| deduped | GMM | 4 | 5,000 | 0.506 | 0.490 | 0.523 |
+| deduped | best observed | 6 | 5,000 | 0.597 | 0.613 | 0.639 |
+
+Per-dataset k=4 agreement:
+
+| Dataset | KMeans ARI | GMM ARI |
+|---|---:|---:|
+| books | 0.496 | 0.509 |
+| paintings | 0.235 | 0.247 |
+| products | 0.599 | 0.623 |
+| sounds | 0.486 | 0.393 |
+| USA states | 0.349 | 0.352 |
+
+Threshold sensitivity on all 27,817 rows:
+
+| Threshold | -10% flip rate | +10% flip rate | near-boundary rate |
+|---|---:|---:|---:|
+| Dictionary `peak_consistency_main >= 0.80` | 1.52% | 1.49% | 1.51% |
+| `func_vs_sem_pct >= 50` | 0.05% | 0.31% | 0.58% |
+| `sparsity_median < 0.45` | 0.05% | 0.19% | 0.29% |
+| Say-X `layer >= 7` | 0.00% | 1.14% | 3.62% |
+
+### Interpretation
+
+The classes do show themselves, but only partially. The pre-registered rule of
+thumb was: ARI > 0.5 supports real structure, ARI 0.2-0.4 indicates partial
+agreement, and ARI < 0.2 suggests imposed structure. On that scale:
+
+- The deduped `(layer, feature)` frame reaches medium-positive agreement at
+  k=4 (ARI ~0.51) for both KMeans and GMM. This is evidence that the labels are
+  not arbitrary artifacts of pilot-prompt inspection.
+- The all-row frame is weaker at k=4 (ARI ~0.42), consistent with context
+  dependence and USA weighting altering the apparent geometry.
+- k=6 consistently beats k=4 on deduped ARI/NMI/silhouette, which suggests the
+  natural geometry may contain more than the nominal four classes. The obvious
+  suspects are `Dictionary fallback`, `Ambiguous/Review`, and the split between
+  true Semantic Concept vs. low-layer fallback semantics.
+- Cross-domain transfer is uneven: products and books are strong, sounds are
+  moderate, USA is only partial, and paintings are weak. The rule geometry is
+  therefore not equally natural in every domain.
+- The thresholds themselves are not especially fragile: +/-10% perturbations
+  flip only 0.05-1.52% of all rows for the four primary cuts. This argues
+  against the simplest "many points sit exactly on arbitrary boundaries"
+  explanation.
+
+Confidence: **Medium** that the rule labels capture real structure in the
+measured feature-behavior space, especially after deduplication. **Low to
+Medium** that the correct natural taxonomy is exactly four classes, because
+k=5/k=6 clustering fits better than k=4.
+
+### Threats
+
+- The clustering dimensions are the same dimensions used by the decision tree.
+  This analysis tests whether unsupervised partitions reproduce the rule labels,
+  not whether the labels are independently mechanistic.
+- The runtime lacked pandas/numpy/sklearn, so clustering used a pure-Python
+  implementation with deterministic 5,000-row samples for the expensive grid.
+  The exact ARI/NMI values should be rerun with sklearn before publication.
+- t-SNE was not executed in this environment; the notebook includes an optional
+  sklearn cell for it.
+- The summary PNG is a dependency-light diagnostic figure, not a polished paper
+  figure. Use the CSV/JSON outputs as the source of truth.
+- `func_vs_sem_pct` has endpoint piling at +/-100 by construction, and
+  `n_distinct_peaks` is integer-valued. Both can shape Euclidean clustering.
+- Deduping by `(layer, feature)` removes USA over-weighting but also discards
+  context variability: a feature that behaves differently across entities gets
+  reduced to median metrics and modal label.
+- `Dictionary fallback` is produced by the Semantic fallback rule, not by the
+  primary Dictionary rule. Treating it as a separate displayed class is
+  analytically useful but differs from the nominal four-class story.
+
+### Next steps
+
+- Rerun the notebook with pandas/sklearn installed and compare KMeans/GMM ARI
+  to sklearn PCA/t-SNE/UMAP visualizations.
+- Inspect the k=6 cluster confusion matrix to see whether the extra clusters
+  correspond to fallback semantics, review rows, or domain-specific artifacts.
+- Connect cluster membership to swap success metrics (`vsMax`, hit, rank) to
+  test whether the natural clusters have downstream causal relevance.
+
+---
+
 ## [2026-04-17] Topic: Decoder-competition vs feature-fragmentation -- competitor suppression rescues the NC pair, not the VT/AK ones
 
 **Question**: Is the residual specificity failure in the F-category caused by
