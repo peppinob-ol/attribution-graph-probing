@@ -1,0 +1,105 @@
+version: 0.1
+experiment_name: smoke_fact_6states
+
+# Phase-3 smoke test (6 states, Fact: prompt, gemmascope-transcoder-16k).
+#
+# Source state: texas_dallas (matches the human-annotated graph
+# `gemma-fact-dallas-austin` so the human's 22 pinned features are valid in
+# this 16k vocabulary). Target states: 5 geographically/structurally diverse
+# state/city/capital triples used as swap targets in the human-vs-auto
+# steering experiment.
+#
+# The dallas_fact_only.yml run already produced texas_dallas with this same
+# prompt + transcoder; this config additionally regenerates the 5 targets so
+# the entire smoke set lives under output/usa_states_fact_batch/.
+
+paths:
+  outputs_root: /home/giuseppe/attribution-graph-probing/output/usa_states_fact_batch
+
+model:
+  id: gemma-2-2b
+  source_set: gemmascope-transcoder-16k
+
+features:
+  selection: cumulative_influence
+  threshold: 0.95
+  post_filter:
+    node_threshold: 95
+
+probes:
+  mode: templated
+  templated:
+    templates:
+      - id: probe_city
+        text: "entity: A major city in {state}, USA is {city}"
+      - id: probe_capital
+        text: "entity: The capital city of {state} is {capital}"
+      - id: probe_state
+        text: "entity: A state in the United States is {state}"
+      - id: probe_capital_concept
+        text: "attribute: The primary city serving as the seat of government for a state is the capital city"
+      - id: probe_relationship
+        text: "relationship: the state in which a city is located is the state containing"
+
+get_activations:
+  backend: local
+  local:
+    chunk_by_layer: true
+    include_zero: false
+    gpus: [0]
+
+compute:
+  remote:
+    enabled: false
+
+grouping:
+  enabled: true
+  window: 7
+  blacklist: ""
+  blacklist_tokens:
+    - "<bos>"
+  thresholds:
+    dict_peak_consistency_min: 0.8
+    dict_n_distinct_peaks_max: 1
+    sayx_func_vs_sem_min: 50.0
+    sayx_layer_min: 7
+    rel_sparsity_max: 0.45
+    sem_layer_max: 3
+    sem_conf_s_min: 0.50
+    sem_func_vs_sem_max: 50.0
+  upload:
+    enabled: false
+
+steps:
+  graph_generation: true
+  feature_export: true
+  probe_prompts: true
+  activations: true
+  grouping: true
+  upload_subgraph: false
+  dry_run: false
+  force: false
+
+graph_generation:
+  enabled: true
+  seeds_mode: templated
+  api_key_env: NEURONPEDIA_API_KEY
+  api_params:
+    modelId: gemma-2-2b
+    sourceSetName: gemmascope-transcoder-16k
+    maxNLogits: 10
+    desiredLogitProb: 0.95
+    nodeThreshold: 0.80
+    edgeThreshold: 0.85
+    maxFeatureNodes: 5000
+  templated:
+    seed_prompt: "Fact: The capital of the state containing {city} is"
+    slug_template: "{slug}"
+    entities:
+      items:
+        - { slug: "texas_dallas", city: "Dallas", state: "Texas", capital: "Austin" }
+        - { slug: "california_oakland", city: "Oakland", state: "California", capital: "Sacramento" }
+        - { slug: "new_york_new_york_city", city: "New York City", state: "New York", capital: "Albany" }
+        - { slug: "florida_miami", city: "Miami", state: "Florida", capital: "Tallahassee" }
+        - { slug: "illinois_chicago", city: "Chicago", state: "Illinois", capital: "Springfield" }
+        - { slug: "washington_seattle", city: "Seattle", state: "Washington", capital: "Olympia" }

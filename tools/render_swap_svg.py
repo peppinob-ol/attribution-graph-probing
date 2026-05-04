@@ -433,6 +433,17 @@ def render_swap_intervention(
             output_svg_path=output_svg_path,
         )
 
+    if layout == "strip":
+        return _render_strip(
+            result=result,
+            ablated_concept=ablated_concept,
+            ablated_say=ablated_say,
+            amplified=amplified,
+            M_ablate=M_ablate,
+            M_amplify=M_amplify,
+            output_svg_path=output_svg_path,
+        )
+
     return render_offline(
         graph_path=src_dir / "00 Graph Generation" / "graph.json",
         supernodes=specs,
@@ -442,6 +453,166 @@ def render_swap_intervention(
         prompt_override=title_prompt,
         compact=compact,
     )
+
+
+def _render_strip(
+    *,
+    result: dict,
+    ablated_concept: list[_SupernodeData],
+    ablated_say: list[_SupernodeData],
+    amplified: dict[str, _SupernodeData],
+    M_ablate: int,
+    M_amplify: int,
+    output_svg_path: str | Path | None,
+) -> str:
+    """Render the horizontal strip layout: cards + outputs + features + position plot."""
+    from circuit_svg_strip import (
+        EntityCard,
+        SupernodeRow,
+        TrajectoryPlot,
+        create_strip_visualization,
+    )
+
+    src_meta = result.get("source") or {}
+    tgt_meta = result.get("target") or {}
+    src_capital = src_meta.get("capital", "")
+    tgt_capital = tgt_meta.get("capital", "")
+
+    src_card = EntityCard(
+        role="Source",
+        headline=src_capital,
+        fields=[
+            ("state", src_meta.get("state", "")),
+            ("city", src_meta.get("city", "")),
+        ],
+    )
+    tgt_card = EntityCard(
+        role="Target",
+        headline=tgt_capital,
+        fields=[
+            ("state", tgt_meta.get("state", "")),
+            ("city", tgt_meta.get("city", "")),
+        ],
+    )
+
+    raw = (result.get("evaluation") or {}).get("raw", {})
+    default_text = raw.get("default_output", "") or ""
+    steered_text = raw.get("steered_output", "") or ""
+
+    ablated_rows = [
+        SupernodeRow(name=s.name, feature_count=len(s.triples))
+        for s in (*ablated_concept, *ablated_say)
+    ]
+    amplified_rows = [
+        SupernodeRow(name=s.name, feature_count=len(s.triples))
+        for s in sorted(amplified.values(), key=lambda x: -len(x.triples))
+    ]
+    # Totals reflect every ablated/amplified feature applied in the run, not
+    # just the (up to 2 + 2) groupings rendered in the panels.
+    interventions = result.get("interventions") or {}
+    ablate_total = int(interventions.get("ablate_count") or 0)
+    amplify_total = int(interventions.get("amplify_count") or 0)
+
+    traj_root = (result.get("evaluation") or {}).get("logit_trajectory", {}) or {}
+    target_block = (traj_root.get("trajectories") or {}).get("target", {})
+    source_block = (traj_root.get("trajectories") or {}).get("source", {})
+    target_traj = target_block.get("trajectory") or {}
+    source_traj = source_block.get("trajectory") or {}
+    positions = list(target_traj.get("positions") or source_traj.get("positions") or [])
+    target_probs = list(target_traj.get("probs") or [])
+    source_probs = list(source_traj.get("probs") or [])
+    generated_tokens = list(traj_root.get("generated_tokens") or [])
+    target_token = target_block.get("token") or tgt_capital
+    source_token = source_block.get("token") or src_capital
+
+    def _normalise_probs(seq: list, length: int) -> list[float | None]:
+        out: list[float | None] = []
+        for i in range(length):
+            if i < len(seq) and seq[i] is not None:
+                try:
+                    out.append(float(seq[i]))
+                except (TypeError, ValueError):
+                    out.append(None)
+            else:
+                out.append(None)
+        return out
+
+    n = len(positions)
+    if not positions and generated_tokens:
+        positions = list(range(len(generated_tokens)))
+        n = len(positions)
+    target_probs_n = _normalise_probs(target_probs, n)
+    source_probs_n = _normalise_probs(source_probs, n)
+    if len(generated_tokens) < n:
+        generated_tokens = generated_tokens + [""] * (n - len(generated_tokens))
+    else:
+        generated_tokens = generated_tokens[:n]
+
+    # Prepend an [unsteered] baseline column at position 0 so the chart shows
+    # the natural M=0 starting point next to the steered trajectory.
+    def _topk_lookup(topk: list, token: str) -> float | None:
+        if not token:
+            return None
+        for entry in topk or []:
+            if entry.get("token") == token:
+                try:
+                    return float(entry.get("prob", 0.0))
+                except (TypeError, ValueError):
+                    return None
+        return None
+
+    default_topk = raw.get("default_topk") or []
+    target_in_topk = (result.get("evaluation") or {}).get("target_in_topk") or {}
+    src_base = _topk_lookup(default_topk, source_token)
+    if src_base is None:
+        src_base = target_in_topk.get("from_capital_in_default_topk")
+    tgt_base = _topk_lookup(default_topk, target_token)
+    if tgt_base is None:
+        tgt_base = target_in_topk.get("to_capital_in_default_topk")
+    # Tokens that fall outside default top-k still have a (very small) prob;
+    # rendering them as 0.0 keeps the curves connected at the [unsteered]
+    # column instead of breaking into separate dashed segments.
+    src_base = float(src_base) if src_base is not None else 0.0
+    tgt_base = float(tgt_base) if tgt_base is not None else 0.0
+
+    positions = [-1, *positions]
+    generated_tokens = ["[unsteered]", *generated_tokens]
+    source_probs_n = [src_base, *source_probs_n]
+    target_probs_n = [tgt_base, *target_probs_n]
+
+    trajectory = TrajectoryPlot(
+        positions=positions,
+        generated_tokens=generated_tokens,
+        source_token=source_token,
+        target_token=target_token,
+        probs_source=source_probs_n,
+        probs_target=target_probs_n,
+        primary_position=1,
+    )
+
+    svg_str = create_strip_visualization(
+        source_card=src_card,
+        target_card=tgt_card,
+        default_output=default_text,
+        steered_output=steered_text,
+        source_word=src_capital,
+        target_word=tgt_capital,
+        ablated=ablated_rows,
+        amplified=amplified_rows,
+        ablate_total_features=ablate_total,
+        amplify_total_features=amplify_total,
+        ablate_title="Ablated",
+        amplify_title="Amplified",
+        ablate_badge=f"{M_ablate:+d}x",
+        amplify_badge=f"+{M_amplify}x" if M_amplify > 0 else f"{M_amplify}x",
+        trajectory=trajectory,
+    )
+
+    if output_svg_path is not None:
+        out = Path(output_svg_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(svg_str, encoding="utf-8")
+    return svg_str
 
 
 def _render_v2(
@@ -519,9 +690,13 @@ def _cli(argv: list[str]) -> int:
     )
     parser.add_argument(
         "--layout",
-        choices=("compact", "v2"),
+        choices=("compact", "v2", "strip"),
         default="compact",
-        help="'compact' = single graph (default); 'v2' = prompt + before/after + sweep plot.",
+        help=(
+            "'compact' = single graph (default); 'v2' = prompt + before/after + "
+            "sweep plot; 'strip' = horizontal cards + outputs + features + "
+            "position-axis trajectory plot."
+        ),
     )
     parser.set_defaults(compact=True)
     args = parser.parse_args(argv)
@@ -530,7 +705,10 @@ def _cli(argv: list[str]) -> int:
     out = args.output
     if out is None:
         src_slug, _, tgt_slug = args.swap_id.partition("__to__")
-        suffix = "_circuit_v2.svg" if args.layout == "v2" else "_circuit.svg"
+        suffix = {
+            "v2": "_circuit_v2.svg",
+            "strip": "_circuit_strip.svg",
+        }.get(args.layout, "_circuit.svg")
         out = swap_run_dir / "by_source" / src_slug / f"to_{tgt_slug}{suffix}"
     out_path = Path(out)
     svg = render_swap_intervention(

@@ -382,10 +382,9 @@ def fig_gmm_bic(dedup: pd.DataFrame) -> Path:
     )
     contingency_norm = contingency.div(contingency.sum(axis=1), axis=0)
 
-    fig_height = max(4.4, 0.30 * k_star + 1.8)
     fig, axes = plt.subplots(
-        1, 2, figsize=(11.0, fig_height),
-        gridspec_kw={"width_ratios": [1.25, 1.0], "wspace": 0.32},
+        1, 2, figsize=(11.0, 3.2),
+        gridspec_kw={"width_ratios": [1.35, 1.0], "wspace": 0.28},
     )
 
     sns.heatmap(
@@ -393,27 +392,29 @@ def fig_gmm_bic(dedup: pd.DataFrame) -> Path:
         annot=contingency.values,
         fmt="d",
         cmap="Greens",
-        cbar_kws={"label": "row-normalized share", "shrink": 0.85, "pad": 0.02},
+        cbar_kws={"shrink": 0.82, "pad": 0.015, "aspect": 18},
         ax=axes[0],
-        annot_kws={"size": 7.0},
-        linewidths=0.3,
+        annot_kws={"size": 6.0},
+        linewidths=0.25,
         linecolor="white",
     )
-    axes[0].set_xlabel("rule label", fontsize=9)
-    axes[0].set_ylabel(f"GMM full-cov component (k*={k_star})", fontsize=9)
+    axes[0].set_xlabel("rule label", fontsize=8.5)
+    axes[0].set_ylabel(f"GMM component (k*={k_star})", fontsize=8.5)
     axes[0].set_title(
         f"GMM components vs rule labels  (ARI={ari:.3f})",
-        fontsize=9.5,
-        pad=6,
+        fontsize=9.0,
+        pad=4,
     )
     axes[0].set_xticklabels(
-        axes[0].get_xticklabels(), rotation=30, ha="right", fontsize=7.8
+        axes[0].get_xticklabels(), rotation=30, ha="right", fontsize=7.0
     )
-    axes[0].set_yticklabels(axes[0].get_yticklabels(), fontsize=7.8)
+    axes[0].set_yticklabels(
+        axes[0].get_yticklabels(), rotation=0, fontsize=6.5
+    )
     cbar = axes[0].collections[0].colorbar
     if cbar is not None:
-        cbar.ax.tick_params(labelsize=7.5)
-        cbar.set_label("row-normalized share", fontsize=8)
+        cbar.ax.tick_params(labelsize=6.5)
+        cbar.set_label("row-normalized share", fontsize=7.5)
 
     palette_components = sns.color_palette("tab20", n_colors=k_star)
     scatter_df = dedup.copy()
@@ -434,10 +435,10 @@ def fig_gmm_bic(dedup: pd.DataFrame) -> Path:
             color=palette_components[comp_idx],
             label=f"c{comp_idx}",
         )
-    axes[1].set_xlabel("UMAP-1", fontsize=9)
-    axes[1].set_ylabel("UMAP-2", fontsize=9)
+    axes[1].set_xlabel("UMAP-1", fontsize=8.5)
+    axes[1].set_ylabel("UMAP-2", fontsize=8.5)
     axes[1].set_title(
-        f"GMM components (k*={k_star}) on UMAP", fontsize=9.5, pad=6
+        f"GMM components (k*={k_star}) on UMAP", fontsize=9.0, pad=4
     )
     axes[1].tick_params(axis="both", which="both", labelsize=7.0)
     axes[1].grid(True, linewidth=0.4, alpha=0.6)
@@ -446,11 +447,11 @@ def fig_gmm_bic(dedup: pd.DataFrame) -> Path:
     axes[1].margins(x=0.02, y=0.02)
 
     fig.suptitle(
-        "BIC-preferred Gaussian mixture (sounds excluded)",
-        fontsize=10,
+        "BIC-preferred Gaussian mixture",
+        fontsize=9.5,
         y=1.0,
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.96))
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
 
     out = FIGDIR / "fig_gmm_bic.pdf"
     save_fig(fig, out)

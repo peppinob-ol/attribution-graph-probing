@@ -1,0 +1,107 @@
+compute:
+  remote:
+    enabled: false
+experiment_name: phase3_graphs_shard0
+features:
+  post_filter:
+    node_threshold: 95
+  selection: cumulative_influence
+  threshold: 0.95
+get_activations:
+  backend: local
+  local:
+    chunk_by_layer: true
+    gpus:
+    - 0
+    include_zero: false
+graph_generation:
+  api_key_env: NEURONPEDIA_API_KEY
+  api_params:
+    desiredLogitProb: 0.95
+    edgeThreshold: 0.85
+    maxFeatureNodes: 5000
+    maxNLogits: 10
+    modelId: gemma-2-2b
+    nodeThreshold: 0.8
+    sourceSetName: gemmascope-transcoder-16k
+  enabled: true
+  seeds_mode: templated
+  templated:
+    entities:
+      items:
+      - slug: alabama_birmingham
+        city: Birmingham
+        state: Alabama
+        capital: Montgomery
+      - slug: hawaii_hilo
+        city: Hilo
+        state: Hawaii
+        capital: Honolulu
+      - slug: maryland_baltimore
+        city: Baltimore
+        state: Maryland
+        capital: Annapolis
+      - slug: nevada_las_vegas
+        city: Las Vegas
+        state: Nevada
+        capital: Carson City
+      - slug: oregon_portland
+        city: Portland
+        state: Oregon
+        capital: Salem
+      - slug: virginia_virginia_beach
+        city: Virginia Beach
+        state: Virginia
+        capital: Richmond
+    seed_prompt: 'Fact: The capital of the state containing {city} is'
+    slug_template: '{slug}'
+grouping:
+  blacklist: ''
+  blacklist_tokens:
+  - <bos>
+  enabled: true
+  thresholds:
+    dict_n_distinct_peaks_max: 1
+    dict_peak_consistency_min: 0.8
+    rel_sparsity_max: 0.45
+    sayx_func_vs_sem_min: 50.0
+    sayx_layer_min: 7
+    sem_conf_s_min: 0.5
+    sem_func_vs_sem_max: 50.0
+    sem_layer_max: 3
+  upload:
+    api_key_env: NEURONPEDIA_API_KEY
+    display_name_template: '{slug} (auto-grouped)'
+    enabled: false
+    overwrite_id: ''
+  window: 7
+model:
+  id: gemma-2-2b
+  source_set: gemmascope-transcoder-16k
+paths:
+  outputs_root: /home/giuseppe/attribution-graph-probing/output/usa_states_fact_batch
+probes:
+  mode: templated
+  templated:
+    templates:
+    - id: probe_city
+      text: 'entity: A major city in {state}, USA is {city}'
+    - id: probe_capital
+      text: 'entity: The capital city of {state} is {capital}'
+    - id: probe_state
+      text: 'entity: A state in the United States is {state}'
+    - id: probe_capital_concept
+      text: 'attribute: The primary city serving as the seat of government for a state
+        is the capital city'
+    - id: probe_relationship
+      text: 'relationship: the state in which a city is located is the state containing'
+steps:
+  activations: true
+  dry_run: false
+  feature_export: true
+  force: false
+  graph_generation: true
+  grouping: true
+  probe_prompts: true
+  upload_subgraph: false
+version: 0.1

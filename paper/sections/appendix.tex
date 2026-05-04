@@ -5,7 +5,7 @@
 \section*{Appendix}
 \addcontentsline{toc}{section}{Appendix: How to Read}
 
-The appendix is organized to track the main paper: \S\ref{appx:pipeline}--\S\ref{appx:funcvocab} give a detailed reference for the pipeline and its inputs; \S\ref{appx:specificity}--\S\ref{appx:fieldadd} back up the results of \S\ref{sec:results:primary} with per-domain numbers; \S\ref{appx:msearch}--\S\ref{appx:kl} back up the $M$-search and steering-strength discussion of \S\ref{sec:results:diagnostic:msearch}; \S\ref{appx:crossprompt}--\S\ref{appx:scaffold} back up the cross-prompt and scaffold analyses of \S\ref{sec:results:diagnostic:layers} and \S\ref{sec:results:diagnostic:scaffold}; \S\ref{appx:regime} gives the logit-shift regime taxonomy used throughout; \S\ref{appx:case} contains worked case studies; \S\ref{appx:negative} discusses the weakest of our four domains (Paintings); \S\ref{appx:repro} is the reproducibility manifest; \S\ref{appx:glossary} is the glossary. Every appendix section is self-contained and cross-referenced from the main text.
+The appendix is organized to track the main paper: \S\ref{appx:pipeline}--\S\ref{appx:funcvocab} give a detailed reference for the pipeline and its inputs; \S\ref{appx:clustering} validates the four-role partition against the natural cluster geometry of the CPAS metric space; \S\ref{appx:specificity}--\S\ref{appx:fieldadd} back up the results of \S\ref{sec:results:primary} with per-domain numbers; \S\ref{appx:msearch}--\S\ref{appx:kl} back up the $M$-search and steering-strength discussion of \S\ref{sec:results:diagnostic:msearch}; \S\ref{appx:crossprompt}--\S\ref{appx:scaffold} back up the cross-prompt and scaffold analyses of \S\ref{sec:results:diagnostic:layers} and \S\ref{sec:results:diagnostic:scaffold}; \S\ref{appx:regime} gives the logit-shift regime taxonomy used throughout; \S\ref{appx:case} contains worked case studies; \S\ref{appx:negative} discusses the weakest of our four domains (Paintings); \S\ref{appx:repro} is the reproducibility manifest; \S\ref{appx:glossary} is the glossary. Every appendix section is self-contained and cross-referenced from the main text.
 
 % --------------------------------------------------------------------
 \section{Pipeline Reference}
@@ -117,6 +117,64 @@ When a feature peaks on a functional token, we search the probe for the nearest 
 
 \paragraph{Cross-lingual behavior and a documented failure mode.}
 We observed one clean cross-lingual failure during development, on a French version of the antonym seed ``le contraire de `petit' est''. Running the English pipeline on a French prompt produced incoherent cross-prompt activations: functional tokens were often peaked on the English contraction \texttt{'s} or on French tokens (\texttt{de}, \texttt{est}) that were not in our vocabulary, so the Say-X rule either never fired or fired on the wrong side. Adding a small French functional vocabulary and expanding the blacklist (bridging tokens that appear in both languages) restored reliable grouping. We flag this as a concrete instance of the cross-architecture-and-language limitation discussed in \S\ref{sec:limitations}.
+
+% --------------------------------------------------------------------
+\section{Natural Cluster Geometry of CPAS Metrics}
+\label{appx:clustering}
+
+The decision tree of \cref{tab:decision-thresholds} carves the per-feature CPAS metric space (\texttt{peak\_consistency\_main}, \texttt{n\_distinct\_peaks}, \texttt{func\_vs\_sem\_pct}, \texttt{conf\_F}, \texttt{sparsity\_median}, layer) with a small number of axis-aligned thresholds and produces four functional roles. A natural concern is whether those four labels reflect dense regions of the underlying metric space or impose arbitrary cuts. We tested it directly by re-aggregating the per-feature metrics across all four datasets into a manifest of $\approx 8{,}000$ deduplicated $(\text{layer}, \text{feature})$ rows and running unsupervised clustering with several methods.
+
+\paragraph{Threshold sensitivity.}
+Each of the four primary cuts was perturbed by $\pm 10\%$ on the manifest. Per-cut flip rates ranged from $0.05\%$ to $1.5\%$, and within tight neighborhoods of each threshold the local flip rate stayed below $4\%$. The simplest ``many points sit on arbitrary boundaries'' reading is therefore inconsistent with the data.
+
+\paragraph{Visual structure.}
+We standardized the six metrics and projected them with PCA (\cref{fig:pca-per-dataset}) and t-SNE (\cref{fig:tsne-per-dataset}) per dataset. Across all four domains the four rule labels occupy spatially coherent regions: \textsc{Relationship} forms a single low-sparsity arc, \textsc{Say-X} a tight late-layer cluster, and \textsc{Sem-Conc} occupies the layer-shallow midband. The \textsc{Sem-Dict} bucket consistently splits into two visually disconnected regions, an early hint that the rule's semantic-fallback branch sweeps up two genuinely different feature populations.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig_pca_per_dataset.pdf}
+  \caption{Per-dataset PCA of the standardized 6-metric CPAS vector. Points are coloured by rule label. The four rule classes form spatially coherent regions in every domain; the bimodality of \textsc{Sem-Dict} is visible in USA and Books.}
+  \label{fig:pca-per-dataset}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig_tsne_per_dataset.pdf}
+  \caption{Per-dataset t-SNE of the same 6-metric CPAS vector. The qualitative geometry is consistent with the linear PCA view: \textsc{Relationship} and \textsc{Say-X} are tight; \textsc{Sem-Dict} is multi-modal.}
+  \label{fig:tsne-per-dataset}
+\end{figure}
+
+\paragraph{Natural number of components.}
+Three principled criteria for the natural number of clusters disagree with the rule's $k{=}4$. Density-based clustering (HDBSCAN, \texttt{min\_cluster\_size}$=150$) settles at $13$ components after excluding noise; Ward agglomerative silhouette plateaus at $k{=}8$; and Gaussian-mixture BIC monotonically prefers $k{=}10$ (full covariance) with a BIC drop of $1.13\times 10^5$ nats from $k{=}4$, far beyond any plausible noise level. \cref{fig:gmm-bic} shows the BIC curve and a per-dataset UMAP overlay of the BIC-preferred clusters.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig_gmm_bic.pdf}
+  \caption{Left: Gaussian-mixture BIC as a function of the number of components for full and diagonal covariance, on the deduplicated manifest. Both curves prefer $k\in\{10,12\}$. Right: per-dataset UMAP coloured by the BIC-preferred GMM partition; the rule labels (overlaid markers) are consistent with the natural geometry but coarser than it.}
+  \label{fig:gmm-bic}
+\end{figure}
+
+\paragraph{Coarse-grained recovery.}
+Despite the $k{>}4$ preference, the rule labels are an Adjusted-Rand-Index--coherent coarse-graining of the natural geometry: KMeans-$k{=}4$ yields ARI $\approx 0.51$ against the rules, and the BIC-preferred $k{\approx}10$ yields ARI $\approx 0.62$. Per-dataset transfer of the rule geometry varies (\cref{tab:cluster-ari}): the rule partition transfers cleanly to Products and Books, weakly to Paintings, and only partially to USA, consistent with USA's heavier mix of \textsc{Sem-Dict}-fallback features and Paintings' smaller, lower-quality circuit population (\cref{appx:negative}).
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lrr}
+\toprule
+Dataset & KMeans $k{=}4$ ARI & GMM diag $k{=}4$ ARI \\
+\midrule
+USA       & 0.35 & 0.35 \\
+Books     & 0.50 & 0.51 \\
+Products  & 0.60 & 0.62 \\
+Paintings & 0.24 & 0.25 \\
+\bottomrule
+\end{tabular}
+\caption{Per-dataset Adjusted Rand Index between rule labels and unsupervised $k{=}4$ partitions of the standardized 6-metric vector.}
+\label{tab:cluster-ari}
+\end{table}
+
+\paragraph{Take-away.}
+The four-role partition is best understood as a deliberately coarse-grained labeling of a finer natural manifold. The rule labels are spatially coherent, threshold-stable, and ARI-coherent at $k{=}4$, but the data has more structure than four classes: the \textsc{Sem-Dict} fallback in particular is bimodal and is a natural target for a refined taxonomy in future work (\cref{sec:discussion}).
 
 % --------------------------------------------------------------------
 \section{Per-Domain Full-Scale Labeled vs Random}

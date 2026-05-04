@@ -1,0 +1,115 @@
+version: 0.1
+experiment_name: full_swap_auto_top100_target_dallas
+display_demo: false
+
+# Phase-3 smoke condition: AUTO-TOP21 as TARGET subgraph (size-matched control).
+# Direction reversed: every pair has Dallas as the *target*. The customized
+# texas_dallas grouping is the top 100 features from auto-dallas by
+# node_influence (matched-budget control (K=100)), with the
+# original auto supernode labels preserved.
+# Tests whether the human's *feature selection* is doing the work as a
+# target subgraph, vs simply picking high-influence features.
+inputs:
+  source_config: usa_states_fact_full.yml
+  graphs_root: output/usa_states_fact_batch/_swap_conditions/auto_top100_dallas
+
+swap:
+  mode: defined_pairs
+  pairs:
+    - [alabama_birmingham, texas_dallas]
+    - [alaska_anchorage, texas_dallas]
+    - [arizona_tucson, texas_dallas]
+    - [arkansas_fayetteville, texas_dallas]
+    - [california_oakland, texas_dallas]
+    - [colorado_colorado_springs, texas_dallas]
+    - [connecticut_bridgeport, texas_dallas]
+    - [delaware_wilmington, texas_dallas]
+    - [florida_miami, texas_dallas]
+    - [georgia_savannah, texas_dallas]
+    - [hawaii_hilo, texas_dallas]
+    - [idaho_idaho_falls, texas_dallas]
+    - [illinois_chicago, texas_dallas]
+    - [indiana_fort_wayne, texas_dallas]
+    - [iowa_cedar_rapids, texas_dallas]
+    - [kansas_wichita, texas_dallas]
+    - [kentucky_louisville, texas_dallas]
+    - [louisiana_new_orleans, texas_dallas]
+    - [maine_portland, texas_dallas]
+    - [maryland_baltimore, texas_dallas]
+    - [massachusetts_worcester, texas_dallas]
+    - [michigan_detroit, texas_dallas]
+    - [minnesota_minneapolis, texas_dallas]
+    - [mississippi_gulfport, texas_dallas]
+    - [missouri_kansas_city, texas_dallas]
+    - [montana_billings, texas_dallas]
+    - [nebraska_omaha, texas_dallas]
+    - [nevada_las_vegas, texas_dallas]
+    - [new_hampshire_manchester, texas_dallas]
+    - [new_jersey_newark, texas_dallas]
+    - [new_mexico_albuquerque, texas_dallas]
+    - [new_york_new_york_city, texas_dallas]
+    - [north_carolina_charlotte, texas_dallas]
+    - [north_dakota_fargo, texas_dallas]
+    - [ohio_cleveland, texas_dallas]
+    - [oklahoma_tulsa, texas_dallas]
+    - [oregon_portland, texas_dallas]
+    - [pennsylvania_philadelphia, texas_dallas]
+    - [rhode_island_warwick, texas_dallas]
+    - [south_carolina_charleston, texas_dallas]
+    - [south_dakota_sioux_falls, texas_dallas]
+    - [tennessee_memphis, texas_dallas]
+    - [utah_provo, texas_dallas]
+    - [vermont_burlington, texas_dallas]
+    - [virginia_virginia_beach, texas_dallas]
+    - [washington_seattle, texas_dallas]
+    - [west_virginia_huntington, texas_dallas]
+    - [wisconsin_milwaukee, texas_dallas]
+    - [wyoming_casper, texas_dallas]
+  concept_fields: &concept_fields
+    - state
+    - capital
+    - city
+  answer_field: capital
+
+ct_steering:
+  model_id: google/gemma-2-2b
+  transcoder_set: gemma
+  M_ablate: -2
+  M_amplify: 20
+  temperature: 0.3
+  n_tokens: 10
+  freq_penalty: 2.0
+  seed: 42
+  top_k: 5
+  freeze_attention: false
+  track_trajectory: true
+
+compute:
+  inherit_from_source: false
+  remote:
+    enabled: false
+
+steps:
+  validate_inputs: true
+  prepare_features: true
+  run_steering: true
+  aggregate_results: true
+
+control:
+  mode: additivity
+  runs:
+    - fields: [state]
+    - fields: [capital]
+    - fields: [city]
+    - fields: [state, capital]
+    - fields: [state, city]
+    - fields: [capital, city]
+    - fields: *concept_fields
+
+m_search:
+  enabled: true
+  m_min: 0.1
+  n_coarse_probes: 6
+  n_fine_steps: 6
+  log_tolerance: 0.1
+  min_kl_drop: 1.0

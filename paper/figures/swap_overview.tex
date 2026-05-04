@@ -1,37 +1,30 @@
-% Two-column figure: 50x50 swap outcome matrix (left) +
-% four representative entity-swap interventions (right).
-% Requires \usepackage{subcaption} (already in main.tex) and
-% \usepackage{graphicx}.
-\begin{figure*}[t]
+% Two single-column floats: matrix at top of the left column,
+% 2x2 grid of representative interventions at top of the right column.
+% Both [!t] and declared back-to-back so LaTeX fills the two top-of-column
+% slots on the same page.
+
+\begin{figure}[!t]
   \centering
-  \begin{subfigure}[c]{0.46\textwidth}
-    \centering
-    \includegraphics[width=\linewidth]{figures/swap_matrix.pdf}
-    \caption{Source $\to$ target swap matrix on the 50-state USA panel
-      ($n{=}2{,}450$ pairs, hit-rate $69.8$\%). Per-cell winner is taken
-      across two labeled-feature runs (canonical and field-additivity),
-      mirroring the demo's ``best across runs'' aggregation. Orange:
-      tier-5 hit (steered top-1 redirects to the target capital); grey:
-      miss; dark: diagonal / not run.}
-    \label{fig:swap-matrix}
-  \end{subfigure}\hfill
-  \begin{subfigure}[c]{0.52\textwidth}
-    \centering
-    \includegraphics[width=0.49\linewidth]{figures/swap_v2_wa_ca.pdf}\hfill
-    \includegraphics[width=0.49\linewidth]{figures/swap_v2_ak_wa.pdf}\\[2pt]
-    \includegraphics[width=0.49\linewidth]{figures/swap_v2_id_mt.pdf}\hfill
-    \includegraphics[width=0.49\linewidth]{figures/swap_v2_md_mo.pdf}
-    \caption{Four representative interventions: Washington$\to$California,
-      Alaska$\to$Washington, Idaho$\to$Montana, Maryland$\to$Missouri.
-      Each panel shows the prompt and pre/post-intervention prediction
-      (top), the labeled supernodes with ablation (grey, $-2\times$) and
-      amplification (orange, $+20\times$) replacements (middle), and the
-      next-token probability sweep at $M{=}0$ vs.\ $M{=}20$ (bottom).}
-    \label{fig:swap-examples}
-  \end{subfigure}
-  \caption{Concept-aligned supernode swaps redirect the predicted capital
-    to the target state. The matrix in (a) summarizes outcomes across all
-    50 source states for each target capital, and (b) shows the underlying
-    intervention structure for four representative pairs.}
-  \label{fig:swap-overview}
-\end{figure*}
+  \includegraphics[width=\linewidth]{figures/swap_matrix.pdf}
+  \caption{Source $\to$ target swap matrix on the 50-state USA panel
+    ($n{=}2{,}450$ pairs, hit-rate $69.8$\%). Per-cell winner is taken across
+    two labeled-feature runs (canonical and field-additivity), mirroring the
+    demo's ``best across runs'' aggregation. Orange: tier-5 hit (steered top-1
+    redirects to the target capital); grey: miss; dark: diagonal / not run.}
+  \label{fig:swap-matrix}
+\end{figure}
+
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=0.49\linewidth]{figures/swap_v2_wa_ca.pdf}\hfill
+  \includegraphics[width=0.49\linewidth]{figures/swap_v2_ak_wa.pdf}\\[2pt]
+  \includegraphics[width=0.49\linewidth]{figures/swap_v2_id_mt.pdf}\hfill
+  \includegraphics[width=0.49\linewidth]{figures/swap_v2_md_mo.pdf}
+  \caption{Four representative entity-swap interventions on the USA panel:
+    Washington$\to$California, Alaska$\to$Washington, Idaho$\to$Montana,
+    Maryland$\to$Missouri. Each panel shows the prompt and pre/post-intervention
+    prediction (top), the labeled supernodes with ablation ($-2\times$) and
+    amplification ($+20\times$) replacements (middle), and the next-token
+    probability sweep at $M{=}0$ vs.\ $M{=}20$ (bottom).}
+  \label{fig:swap-examples}
+\end{figure}

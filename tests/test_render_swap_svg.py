@@ -124,3 +124,42 @@ def test_render_v2_layout_with_sweep(tmp_path: Path):
     # End-of-curve labels include "(original)" and "(after intervention)" markers
     assert "(original)" in svg
     assert "(after intervention)" in svg
+
+
+@pytest.mark.skipif(
+    not (SWAP_RUN / "work" / "indiana_fort_wayne__to__minnesota_minneapolis").exists(),
+    reason="indiana->minnesota pair not present; skipping",
+)
+def test_render_strip_layout_with_position_plot(tmp_path: Path):
+    """Strip layout: horizontal cards + outputs + features + per-position trajectory."""
+    out = tmp_path / "strip.svg"
+    svg = render_swap_intervention(
+        SWAP_RUN,
+        "indiana_fort_wayne__to__minnesota_minneapolis",
+        output_svg_path=out,
+        max_per_row=2,
+        layout="strip",
+    )
+
+    assert out.is_file()
+    # Landscape canvas (wider than tall) for the horizontal strip layout.
+    assert 'width="1000"' in svg and 'height="220"' in svg
+    # Panel headers
+    assert "SOURCE" in svg and "TARGET" in svg
+    assert "DEFAULT OUTPUT" in svg and "STEERED OUTPUT" in svg
+    assert "ABLATED" in svg and "AMPLIFIED" in svg
+    assert "TARGET TRAJECTORY" in svg
+    # Source / target capitals appear as headlines
+    assert "Indianapolis" in svg
+    assert "Saint Paul" in svg
+    # Intervention badges
+    assert "-2x" in svg
+    assert "+20x" in svg
+    # Trajectory x-axis caption + at least one of the steered-generated tokens
+    assert "Generated token position" in svg
+    assert "Saint" in svg
+    assert "Minnesota" in svg
+    # The padded [unsteered] baseline column sits left of the steered tokens
+    # and is annotated above the plot rather than as a tick label.
+    assert "unsteered" in svg
+    assert "steered" in svg

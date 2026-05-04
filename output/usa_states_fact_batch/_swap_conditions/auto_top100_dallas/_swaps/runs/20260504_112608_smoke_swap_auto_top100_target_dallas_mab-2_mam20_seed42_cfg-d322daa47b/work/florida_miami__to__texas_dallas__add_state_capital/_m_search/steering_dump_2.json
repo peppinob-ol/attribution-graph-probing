@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Miami is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Miami is not Miami.\n\nFact: The city of Chicago has",
+      "default": "<bos><bos>Fact: The capital of the state containing Miami is Tallahassee.\n\nFact: The state of Florida is",
+      "steered_topk": [
+        {
+          "token": " not",
+          "prob": 0.2333984375
+        },
+        {
+          "token": " also",
+          "prob": 0.1416015625
+        },
+        {
+          "token": " a",
+          "prob": 0.09765625
+        },
+        {
+          "token": " the",
+          "prob": 0.0859375
+        },
+        {
+          "token": " located",
+          "prob": 0.04052734375
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Tallahassee",
+          "prob": 0.40625
+        },
+        {
+          "token": " the",
+          "prob": 0.04296875
+        },
+        {
+          "token": " Miami",
+          "prob": 0.037841796875
+        },
+        {
+          "token": " Jacksonville",
+          "prob": 0.029541015625
+        },
+        {
+          "token": " not",
+          "prob": 0.0260009765625
+        }
+      ],
+      "intervention_count": 197,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 3.3131,
+        "steered_entropy": 3.2783,
+        "entropy_delta": -0.0348,
+        "kl_baseline_to_steered": 8.2446
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

@@ -23,6 +23,15 @@ Given a prompt used to generate the attribution graph $p$ (e.g., ``the capital o
 \label{sec:method:cpas}
 For each (feature, probe prompt) pair we record a small set of per-probe measures: which token position receives the feature's peak activation, how sparsely the feature fires across the probe set, and a robust $z$-score and cosine similarity of the feature's activations relative to the seed prompt. Aggregating across probes yields a compact per-feature signature (the CPAS): a handful of summary numbers capturing how consistent the peak token is across probes, how many distinct tokens the feature peaks on, and the feature's confidence in its dominant role. Formal definitions and raw-measure specifications are in \cref{appx:pipeline}.
 
+A peak on a single prompt is ambiguous: a feature that activates on \texttt{is} in the seed could be a dictionary detector for the copula, a context-specific feature, or a procedural feature that promotes whatever output the model is about to emit. The CPAS resolves the ambiguity by aggregating peaks across deliberately varied probes (\cref{fig:cpas-say-capital}).
+
+\begin{figure*}[!b]
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig_cpas_say_capital.png}
+  \caption{Feature \texttt{20-clt-hp:74108} (Say ``capital''). Activations on the seed prompt and five concept-targeted probes; peak intensity is shaded in green. On the seed alone the feature looks like a peak on the copula \texttt{is}. Across probes it instead peaks on a variety of functional tokens (\texttt{is}, \texttt{the}, \texttt{as}) whose only consistent property is that they sit immediately before the semantic target \emph{capital}; the maximum activation ($63.31$) lands on the \texttt{the} preceding ``capital'' in probe~4. The cross-prompt pattern identifies this feature as a procedural output-promotion (\textsc{Say-X}) feature for \emph{capital}, not a semantic detector for \texttt{is}.}
+  \label{fig:cpas-say-capital}
+\end{figure*}
+
 \subsection{Functional vs.\ semantic tokens; target-token mapping}
 \label{sec:method:funcsem}
 Tokens are labeled \emph{functional} (eg. copulas, articles, prepositions) or \emph{semantic} (content-bearing). When a feature peaks on a functional token, a $\pm 7$-token directional search identifies the nearest semantic peak (e.g., forward for articles; backward for the possessive \texttt{’s} ). 
@@ -38,7 +47,7 @@ Each feature is assigned one of four functional roles. The four-role vocabulary 
 \item \textbf{Say-X (\textsc{Say-X}).} The feature peaks on functional tokens (e.g., \texttt{is}, \texttt{the}) in predictable positions relative to a semantic target, and sits in the later half of the network. After the $\pm 7$-token directional search (\cref{sec:method:funcsem}), the feature is named by the \emph{target} semantic token that follows or precedes the functional peak.
 \end{itemize}
 
-The exact thresholds and priority ordering are in \cref{appx:pipeline}.
+The exact thresholds and priority ordering are in \cref{appx:pipeline}. A post-hoc clustering analysis of the per-feature CPAS metrics confirms that the four-role partition is best read as a deliberate \emph{coarse-graining} of a finer natural geometry: density (HDBSCAN), Gaussian-mixture BIC, and silhouette saturation independently prefer roughly $10$ components, but the rule labels recover the natural geometry coherently at $k{=}4$ (Adjusted Rand Index $\approx 0.51$, rising to $\approx 0.62$ at the BIC-preferred $k$); details in \cref{appx:clustering}.
 
 \subsection{Supernode formation and naming}
 \label{sec:method:supernodes}
@@ -52,7 +61,14 @@ Same-role same-name features form a supernode. Naming is role-specific.
 
 \subsection{Pipeline output}
 \label{sec:method:compression}
-The pipeline output is a property of the method. Concept-aligned subgraphs compress 600$+$ raw features into 30--50 named supernodes per circuit while preserving Neuronpedia \emph{Completeness} (fraction of incoming edges to all nodes that originate from grouped features, weighted by influence on output; mean $0.89$ over 88 entities across 4 datasets)  \emph{Replacement} (fraction of end-to-end influence from input tokens to output logits that flows through grouped features; mean $0.69$).  The unit of analysis in \cref{sec:results} is the supernode.
+The pipeline output is a property of the method. Concept-aligned subgraphs (\cref{fig:circuit-texas}) compress 600$+$ raw features into 30--50 named supernodes per circuit while preserving Neuronpedia \emph{Completeness} (fraction of incoming edges to all nodes that originate from grouped features, weighted by influence on output; mean $0.89$ over 88 entities across 4 datasets)  \emph{Replacement} (fraction of end-to-end influence from input tokens to output logits that flows through grouped features; mean $0.69$).  The unit of analysis in \cref{sec:results} is the supernode.
+
+\begin{figure}[b]
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig_circuit_texas.png}
+  \caption{Concept-aligned subgraph for the seed ``the capital of the state containing Dallas is''. Token embeddings (\texttt{Emb}) are at the bottom; the model's predicted continuation (\emph{Austin}, $p{=}0.301$) is at the top. Each supernode (rounded box) groups same-role same-name features and is named by its role: semantic (\emph{capital}, \emph{Texas}, \emph{Dallas}, \emph{Austin}), relationship (\emph{(capital) related}), or output-promoter (\emph{Say (capital)}, \emph{Say (Texas)}, \emph{Say (Austin)}). Edge thickness is proportional to influence on the output.}
+  \label{fig:circuit-texas}
+\end{figure}
 
 \subsection{Causal-validation harness}
 \label{sec:method:harness}
