@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Newark is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Newark is-and-Newark, New Jersey is Trenton.\n\n",
+      "default": "<bos><bos>Fact: The capital of the state containing Newark is Trenton.\n\nFact: The state of New Jersey",
+      "steered_topk": [
+        {
+          "token": " is",
+          "prob": 0.337890625
+        },
+        {
+          "token": "-",
+          "prob": 0.263671875
+        },
+        {
+          "token": ",",
+          "prob": 0.03564453125
+        },
+        {
+          "token": " has",
+          "prob": 0.03564453125
+        },
+        {
+          "token": " not",
+          "prob": 0.031494140625
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Trenton",
+          "prob": 0.328125
+        },
+        {
+          "token": " New",
+          "prob": 0.064453125
+        },
+        {
+          "token": " the",
+          "prob": 0.05029296875
+        },
+        {
+          "token": " Harrisburg",
+          "prob": 0.039306640625
+        },
+        {
+          "token": " Newark",
+          "prob": 0.039306640625
+        }
+      ],
+      "intervention_count": 324,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 3.4461,
+        "steered_entropy": 2.8151,
+        "entropy_delta": -0.631,
+        "kl_baseline_to_steered": 13.8104
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

@@ -44,7 +44,7 @@ Output: concept-aligned supernodes {S_i}, swap harness I
 
 \emph{Step 4--5 (activation measurement and CPAS).} Each feature in $V_\tau$ is re-run on each probe and its activation measured with the Neuronpedia API. The per-(feature, probe) record stores the peak token, the peak position in the probe, the activation density, a sparsity ratio, a robust $z$-score, and a cosine similarity to the seed activation. These raw measures are then aggregated across probes into a compact per-feature signature (the CPAS).
 
-\emph{Step 6 (classification and naming).} A strict-priority decision tree (\S\ref{sec:method:rules}; thresholds in \Cref{tab:decision-thresholds}) assigns each feature one of four functional roles (Semantic-Dictionary, Semantic-Concept, Relationship, Say-X) or a fifth \textsc{Review} bucket that is excluded from downstream analysis. Naming is role-specific (\S\ref{sec:method:supernodes}).
+\emph{Step 6 (classification and naming).} A strict-priority decision tree (\S\ref{sec:method:rules}; thresholds in \Cref{tab:decision-thresholds}) assigns each feature one of four functional roles (Semantic-Dictionary, Semantic-Concept, Relationship, Say-X) or a fifth \textsc{Review} bucket that is excluded from downstream analysis. Naming is role-specific (\S\ref{sec:method:supernodes}); the \texttt{blacklist} and \texttt{target\_token\_rules} arguments to \texttt{assign\_name} are the functional-vocabulary list and the $\pm 7$-token semantic-target search detailed in \S\ref{appx:funcvocab}.
 
 \emph{Step 7 (supernode formation).} Same-role same-name features are merged into a supernode; features whose role or name is inconsistent across probes ($<60\%$ probe-level stability) are marked \emph{ungrouped} and excluded.
 
@@ -94,6 +94,9 @@ Priority & Role & Rule \\
 
 The layer-based asymmetry (Say-X requires layer $\geq 7$, Sem-Conc accepts layer $\leq 3$) encodes a rough prior observed in Gemma-2-2B-it: early layers are overwhelmingly semantic-content features; the "Say X" behavior of functional-token features promoting a specific answer is observed only in the later half of the network.
 
+\paragraph{Dictionary subtype: strict and fallback.}
+The semantic role is split internally into three \emph{subtypes} that determine downstream naming. Rule~1 (\texttt{peak\_consistency\_main} $\geq 0.80$ and \texttt{n\_distinct\_peaks} $\leq 1$) produces the strict \emph{Dictionary} subtype: stable single-token detectors. Rule~4 produces either \emph{Concept} (the \texttt{conf\_S} or \texttt{func\_vs\_sem\_pct} branch) or, when fired through its low-layer branch (\texttt{layer} $\leq 3$), the \emph{Dictionary (fallback)} subtype: early-layer semantic features whose peak token is not stable enough to satisfy Rule~1 but whose layer prior pulls them into a dictionary-like reading as the safest default. The two dictionary subtypes are reported together as \textsc{Sem-Dict} in every per-domain table; only the cluster-geometry analysis (\S\ref{appx:clustering}) keeps them separate, which is where the \emph{Dictionary (fallback)} bucket reveals additional internal structure.
+
 % --------------------------------------------------------------------
 \section{Functional Vocabulary and Target-Token Mapping}
 \label{appx:funcvocab}
@@ -119,6 +122,47 @@ When a feature peaks on a functional token, we search the probe for the nearest 
 We observed one clean cross-lingual failure during development, on a French version of the antonym seed ``le contraire de `petit' est''. Running the English pipeline on a French prompt produced incoherent cross-prompt activations: functional tokens were often peaked on the English contraction \texttt{'s} or on French tokens (\texttt{de}, \texttt{est}) that were not in our vocabulary, so the Say-X rule either never fired or fired on the wrong side. Adding a small French functional vocabulary and expanding the blacklist (bridging tokens that appear in both languages) restored reliable grouping. We flag this as a concrete instance of the cross-architecture-and-language limitation discussed in \S\ref{sec:limitations}.
 
 % --------------------------------------------------------------------
+\section{Feature examples per Functional Role}
+\label{appx:emblematic}
+
+To make the four functional roles of \S\ref{appx:pipeline} concrete, we hand-pick one canonical feature per role---five panels, since \textsc{Sem-Dict} is shown both in its strict and fallback subtype. Each panel stacks the seed prompt (top, bordered) with the five probe prompts of the entity's CPAS dump; cell shading is the per-token activation normalized by the feature's global maximum across all probes, numbers are the raw activations, and values below the visibility threshold are left blank. Candidates were selected programmatically from the cross-dataset feature manifest using a per-role emblematic-ness score (sweet-spot $\mathrm{peak\_consistency}$, content vs.\ functional peak token, layer band, multi-prompt coverage) and inspected manually; the metrics quoted in each caption are the raw values that placed the feature inside its branch of the decision tree of \cref{tab:decision-thresholds}.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.95\linewidth]{figures/feature_examples/feat_semdict_strict_iphone.png}
+  \caption{\textsc{Sem-Dict} (strict) --- \emph{iPhone} entity, products domain, layer-0 feature 1285. The feature lights up on the literal token \texttt{iphone} in every probe and is silent everywhere else: the same surface token, every time, with no spread to morphological variants or related concepts. This is the canonical single-token detector that sits at the strict end of the dictionary branch of the decision tree.}
+  \label{fig:emblematic-semdict-strict}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.95\linewidth]{figures/feature_examples/feat_semdict_fallback_rhode_island.png}
+  \caption{\textsc{Sem-Dict} (fallback) --- \emph{Rhode Island / Warwick} entity, U.S.\ states domain, layer-3 feature 81381. The feature fires on every probe and behaves like a Rhode-Island detector, but its activation does not collapse onto a single surface token: it lights up both subwords of the multi-token state name (\texttt{rhode}, \texttt{island}) and re-fires on the bare \texttt{island} elsewhere in the batch. The fallback rule of \S\ref{appx:pipeline} is meant to capture exactly this regime---dictionary-like specificity at a layer too shallow for the strict criterion, with a peak that drifts across morphologically related tokens before the network has had room to collapse them onto a single representative.}
+  \label{fig:emblematic-semdict-fallback}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.95\linewidth]{figures/feature_examples/feat_semconc_nighthawks.png}
+  \caption{\textsc{Sem-Conc} --- \emph{Nighthawks} entity, paintings domain, layer-4 feature 47039. The same feature fires on \emph{Edward}, \emph{Hopper} and on the painting tokens (\emph{Nighthawks}) across all five probes, distributing its activation across several distinct semantic peaks anchored on a single coherent concept (the artist Edward Hopper). Multi-peak coverage of a concept, rather than of a single surface token, is the visual signature that distinguishes \textsc{Sem-Conc} from the strict-dictionary case above.}
+  \label{fig:emblematic-semconc}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.95\linewidth]{figures/feature_examples/feat_relationship_delaware.png}
+  \caption{\textsc{Relationship} --- \emph{Delaware / Wilmington} entity, U.S.\ states domain, layer-7 feature 66851. Rather than concentrating on one token, the feature is active on a substantial fraction of every probe: a diffuse green band runs across each row, with several peaks spread between functional and semantic positions and no single token dominating the activation budget. This combination---low sparsity, no clear peak target---is the visual signature of \textsc{Relationship} features.}
+  \label{fig:emblematic-relationship}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.95\linewidth]{figures/feature_examples/feat_sayx_oracle.png}
+  \caption{\textsc{Say-X} --- \emph{Oracle DB} entity, products domain, layer-11 feature 9574. A late-layer feature whose only strongly-active position in each probe is the copula \texttt{is} immediately preceding the next-token prediction. Because every active position is a functional token, the $\pm 7$-token search of \S\ref{appx:funcvocab} resolves the actual semantic target by looking forward from the copula---in this case, into the answer slot.}
+  \label{fig:emblematic-sayx}
+\end{figure}
+
+% --------------------------------------------------------------------
 \section{Natural Cluster Geometry of CPAS Metrics}
 \label{appx:clustering}
 
@@ -128,19 +172,12 @@ The decision tree of \cref{tab:decision-thresholds} carves the per-feature CPAS 
 Each of the four primary cuts was perturbed by $\pm 10\%$ on the manifest. Per-cut flip rates ranged from $0.05\%$ to $1.5\%$, and within tight neighborhoods of each threshold the local flip rate stayed below $4\%$. The simplest ``many points sit on arbitrary boundaries'' reading is therefore inconsistent with the data.
 
 \paragraph{Visual structure.}
-We standardized the six metrics and projected them with PCA (\cref{fig:pca-per-dataset}) and t-SNE (\cref{fig:tsne-per-dataset}) per dataset. Across all four domains the four rule labels occupy spatially coherent regions: \textsc{Relationship} forms a single low-sparsity arc, \textsc{Say-X} a tight late-layer cluster, and \textsc{Sem-Conc} occupies the layer-shallow midband. The \textsc{Sem-Dict} bucket consistently splits into two visually disconnected regions, an early hint that the rule's semantic-fallback branch sweeps up two genuinely different feature populations.
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=\textwidth]{figures/fig_pca_per_dataset.pdf}
-  \caption{Per-dataset PCA of the standardized 6-metric CPAS vector. Points are coloured by rule label. The four rule classes form spatially coherent regions in every domain; the bimodality of \textsc{Sem-Dict} is visible in USA and Books.}
-  \label{fig:pca-per-dataset}
-\end{figure}
+We standardized the six metrics and projected them with t-SNE per dataset (\cref{fig:tsne-per-dataset}), colouring each feature by its subtype rather than its top-level role---so that \textsc{Sem-Dict} is split into the strict \emph{Dictionary} and \emph{Dictionary (fallback)} buckets defined in \S\ref{appx:pipeline}. Across all four domains the categories occupy spatially coherent regions: \textsc{Relationship} forms a single low-sparsity arc, \textsc{Say-X} a tight late-layer cluster, and \textsc{Sem-Conc} occupies the layer-shallow midband. The \emph{Dictionary (fallback)} bucket consistently appears in multiple visually disconnected regions, an early hint that this branch of the decision tree sweeps up two or more genuinely different feature populations.
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=\textwidth]{figures/fig_tsne_per_dataset.pdf}
-  \caption{Per-dataset t-SNE of the same 6-metric CPAS vector. The qualitative geometry is consistent with the linear PCA view: \textsc{Relationship} and \textsc{Say-X} are tight; \textsc{Sem-Dict} is multi-modal.}
+  \caption{Per-dataset t-SNE of the standardized 6-metric CPAS vector. Points are coloured by feature subtype (strict \emph{Dictionary}, \emph{Dictionary (fallback)}, \emph{Concept}, \emph{Relationship}, \emph{Say-X}; see \S\ref{appx:pipeline}). \textsc{Relationship} and \textsc{Say-X} form tight clusters; the \emph{Dictionary (fallback)} bucket appears in multiple disconnected regions in every domain.}
   \label{fig:tsne-per-dataset}
 \end{figure}
 
@@ -155,7 +192,7 @@ Three principled criteria for the natural number of clusters disagree with the r
 \end{figure}
 
 \paragraph{Coarse-grained recovery.}
-Despite the $k{>}4$ preference, the rule labels are an Adjusted-Rand-Index--coherent coarse-graining of the natural geometry: KMeans-$k{=}4$ yields ARI $\approx 0.51$ against the rules, and the BIC-preferred $k{\approx}10$ yields ARI $\approx 0.62$. Per-dataset transfer of the rule geometry varies (\cref{tab:cluster-ari}): the rule partition transfers cleanly to Products and Books, weakly to Paintings, and only partially to USA, consistent with USA's heavier mix of \textsc{Sem-Dict}-fallback features and Paintings' smaller, lower-quality circuit population (\cref{appx:negative}).
+Despite the $k{>}4$ preference, the rule labels are an Adjusted-Rand-Index--coherent coarse-graining of the natural geometry: KMeans-$k{=}4$ yields ARI $\approx 0.51$ against the rules, and the BIC-preferred $k{\approx}10$ yields ARI $\approx 0.62$. Per-dataset transfer of the rule geometry varies (\cref{tab:cluster-ari}): the rule partition transfers cleanly to Products and Books, weakly to Paintings, and only partially to USA, consistent with USA's heavier mix of \emph{Dictionary (fallback)} features and Paintings' smaller, lower-quality circuit population (\cref{appx:negative}).
 
 \begin{table}[h]
 \centering\small
@@ -173,8 +210,7 @@ Paintings & 0.24 & 0.25 \\
 \label{tab:cluster-ari}
 \end{table}
 
-\paragraph{Take-away.}
-The four-role partition is best understood as a deliberately coarse-grained labeling of a finer natural manifold. The rule labels are spatially coherent, threshold-stable, and ARI-coherent at $k{=}4$, but the data has more structure than four classes: the \textsc{Sem-Dict} fallback in particular is bimodal and is a natural target for a refined taxonomy in future work (\cref{sec:discussion}).
+The four-role partition is best understood as a deliberately coarse-grained labeling of a finer natural manifold. The rule labels are spatially coherent, threshold-stable, and ARI-coherent at $k{=}4$, but the data has more structure than four classes: the \emph{Dictionary (fallback)} subtype in particular is multi-modal and is a natural target for a refined taxonomy in future work (\cref{sec:discussion}).
 
 % --------------------------------------------------------------------
 \section{Per-Domain Full-Scale Labeled vs Random}
@@ -633,40 +669,84 @@ This section collects worked case studies that would be too discursive for the m
 
 \subsection{Five success cases}
 
-\paragraph{USA: Colorado Springs $\to$ Detroit.}
-Source prompt: ``The capital of the state containing Colorado Springs is''; target entity: Detroit (Michigan, capital Lansing). Best variant: \texttt{state+capital}. vsMax $+17.5$, target logit rank moves from 342 to 1. Generated continuation: ``\ldots~Lansing, the capital of Michigan\ldots''. Textbook regime~A: target UP, source DOWN, clean flip, on-topic continuation.
+\begin{figure*}[!htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/case_studies/strip_colorado_colorado_springs__to__michigan_detroit.pdf}
+  \caption{Colorado Springs $\to$ Detroit (\texttt{state+capital} variant). Steered ``Lansing'' wins at trajectory positions 4 and 6 (peak $\sim$25\%) while the default ``Denver'' attractor is fully suppressed; the supporting Michigan and Say(Lansing) supernodes lift the answer without disturbing the prompt-anchor token. vsMax $+17.5$, target logit rank $342 \to 1$. Textbook regime~A (target UP, source DOWN), clean flip, on-topic continuation.}
+  \label{fig:case-colorado-detroit}
+\end{figure*}
 
-\paragraph{Books: Holden Caulfield $\to$ Katniss Everdeen.}
-Source prompt: ``The author of the book featuring Holden Caulfield is''; target entity: Katniss Everdeen (The Hunger Games, author Suzanne Collins). Best variant: \texttt{book+author}, $11$ ablate features and $63$ amplify features. vsMax $+21.79$, the largest single-pair vsMax in our dataset. Generated continuation: ``\ldots~Suzanne Collins, who wrote The Hunger Games\ldots''. This pair illustrates how small a correct amplify set can be and still dominate a $50\times$-larger graph.
+\begin{figure*}[!htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/case_studies/strip_holden_caulfield__to__katniss_everdeen.pdf}
+  \caption{Holden Caulfield $\to$ Katniss Everdeen (\texttt{book+author} variant). Eleven ablated features remove ``J.D.''; 63 amplified features push ``Suzanne'' to $p \approx 0.95$ at position~0, and the steered continuation also recovers the correct book title (``The Hunger Games''). The amplify panel is dominated by Say(Suzanne) and a Hunger-Games scaffold of $\sim 16$+$4$ features. vsMax $+21.79$, the largest single-pair vsMax in our dataset; illustrates how a small but correctly-targeted amplify set can dominate a graph $\sim 50\times$ its size.}
+  \label{fig:case-holden-katniss}
+\end{figure*}
 
-\paragraph{Products: Nike $\to$ Tesla.}
-Source prompt: ``The founder of the company that makes Nike sneakers is''; target: Tesla (Elon Musk). Best variant: \texttt{company+founder}. vsMax $+12.25$, target rank $5{,}933 \to 1$. Generated continuation: ``Elon Musk is the founder\ldots'', with the steered first-token probability $p{=}0.82$. The baseline (un-steered) output is ``Phil Knight\ldots''; the redirection is complete at position~0.
+\begin{figure*}[!htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/case_studies/strip_nike_shoes__to__model_s.pdf}
+  \caption{Nike $\to$ Tesla (\texttt{company+founder} variant). The orange ``Elon'' curve spikes to $\sim 85\%$ at position~0 and the grey ``Phil'' source vanishes immediately; the steered continuation also produces the correct company token ``Tesla''. The 91 ablated features are dominated by a single Nike supernode (40 features). vsMax $+12.25$, target rank $5{,}933 \to 1$, steered first-token probability $p{=}0.82$. Redirection is complete at position~0.}
+  \label{fig:case-nike-tesla}
+\end{figure*}
 
-\paragraph{Paintings: La Grande Jatte $\to$ Water Lilies.}
-Source: ``The painter of La Grande Jatte is''; target: Water Lilies (Monet). Best variant: \texttt{painter+first\_name}. vsMax $+9.375$. This is the only Hit in the full Paintings batch ($1/90$ pairs). The target's baseline rank for ``Claude'' was already $3$, and the intervention converts this into a first-position hit. We include this pair to illustrate that Paintings can be redirected, but only when baseline conditions are already favorable.
+\begin{figure*}[!htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/case_studies/strip_grande_jatte__to__water_lilies.pdf}
+  \caption{La Grande Jatte $\to$ Water Lilies (\texttt{painter+first\_name} variant). The orange ``Claude'' curve barely peaks at $\sim 6\%$; ``Georges'' still dominates the trajectory and the steered continuation actually re-emits ``Georges Seurat''. A Hit in name only -- the position-0 logit prefers Claude but the autoregressive decoder reverts to the source painter. vsMax $+9.375$; the only Hit in the full Paintings batch ($1/90$ pairs), and the baseline rank of ``Claude'' was already~$3$. Illustrates that Paintings can be redirected only when baseline conditions are already favourable.}
+  \label{fig:case-jatte-lilies}
+\end{figure*}
 
-\paragraph{USA with all three fields: Minnesota $\to$ Florida.}
-Source: ``\ldots~Minnesota''; target: Florida (Tallahassee). With all three fields and $M{=}20$: vsMax $+16.06$ but flip@0 is \texttt{False}, and the control-stability measure reaches $16.89$ (very high collateral disruption). The target logit does recover along the trajectory, but the initial disruption is severe and the generation starts with an incoherent token. This is a clear illustration of the all-fields cost: the intervention has a large vsMax yet no Hit, because the position-0 disruption dominates the first generated token.
+\begin{figure*}[!htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/case_studies/strip_minnesota_minneapolis__to__florida_miami.pdf}
+  \caption{Minnesota $\to$ Florida (all-three-fields variant, \texttt{state+capital+city}, $M{=}20$). Position~0 emits the incoherent token ``Beach''; ``Tallahassee'' only spikes to $\sim 30\%$ at position~3, after the autoregressive decoder has already committed to a derailed continuation. The grey source curve never disappears, signalling residual leakage from the un-ablated source scaffold. vsMax $+16.06$ but flip@0 is \texttt{False}, and control-stability reaches $16.89$ (very high collateral disruption). Clear illustration of the all-fields cost: position-0 disruption corrupts the first generated token even though the target logit eventually wins later.}
+  \label{fig:case-minnesota-florida}
+\end{figure*}
 
 \subsection{Six failure cases covering four of the five failure modes}
 
-\paragraph{Kansas/Wichita $\to$ New Hampshire/Manchester (total failure, feature specificity).}
-vsMax $-6.875$, target rank $5{,}816$, first token ``Oklahoma'' and continuation ``\ldots~Oklahoma City, which is the capital\ldots''. The Kansas source features are successfully suppressed, but the amplified New Hampshire features do not encode Manchester-capital circuitry strongly enough to dominate the output. Failure mode: feature specificity.
+\begin{figure*}[!htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/case_studies/strip_kansas_wichita__to__new_hampshire_manchester.pdf}
+  \caption{Kansas/Wichita $\to$ New Hampshire/Manchester (total failure). The amplified target features fail to lift ``Concord'' over the dominant ``Oklahoma'' attractor; the steered continuation collapses into a different neighbouring-state capital (``Oklahoma City\ldots Tulsa''). Trajectory shows neither curve ever crosses $\sim 10\%$ -- a complete failure to retarget. vsMax $-6.875$, target rank $5{,}816$. Kansas source features are successfully suppressed, but the amplified New Hampshire features do not encode Manchester-capital circuitry strongly enough. Failure mode: feature specificity.}
+  \label{fig:case-kansas-nh}
+\end{figure*}
 
-\paragraph{Utah/Provo $\to$ Iowa/Cedar Rapids (rank-hit misalignment).}
-vsMax $+14.0$, RkGrp $1$, but the generated continuation is garbled (not a clean Des Moines production). The target logit wins at position~0 but the subsequent tokens are disrupted enough that the Hit criterion (target token anywhere in continuation) fails. Failure mode: feature-interaction noise.
+\begin{figure*}[!htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/case_studies/strip_utah_provo__to__iowa_cedar_rapids.pdf}
+  \caption{Utah/Provo $\to$ Iowa/Cedar Rapids (rank-hit misalignment). Textbook RkGrp-without-Hit case: the trajectory shows the target winning at position~0, but the steered output reverts to a Utah-themed ramble rather than naming Des Moines anywhere. vsMax $+14.0$, RkGrp $1$; the target logit wins at position~0 but subsequent tokens are disrupted enough that the Hit criterion (target token anywhere in continuation) fails. Failure mode: feature-interaction noise.}
+  \label{fig:case-utah-iowa}
+\end{figure*}
 
-\paragraph{Ohio/Cleveland $\to$ Oklahoma/Tulsa (regime D).}
-vsMax $+13.31$ but flip@0 is \texttt{False}. The target logit rises sharply along the trajectory but never overtakes the source at position~0, and the autoregressive decoder never recovers. At $M{=}5$ this same pair becomes a Hit. Failure mode: severe overshoot, rescuable by $M$-reduction.
+\begin{figure*}[!htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/case_studies/strip_ohio_cleveland__to__oklahoma_tulsa.pdf}
+  \caption{Ohio/Cleveland $\to$ Oklahoma/Tulsa (regime~D). Position~0 emits ``AddTagHelper'' (a corrupted code-token), poisoning the autoregressive decoder; the orange ``Tulsa'' curve does rise later but never overtakes the grey source, so by the Hit criterion the intervention fails despite a positive vsMax. vsMax $+13.31$ but flip@0 is \texttt{False}; at $M{=}5$ this same pair becomes a Hit. Failure mode: severe overshoot, rescuable by $M$-reduction.}
+  \label{fig:case-ohio-oklahoma}
+\end{figure*}
 
-\paragraph{Scout Finch $\to$ Huckleberry Finn (field interference / substring confound).}
-176 amplify features (the highest count in Books), and a substring confound between the two targets' names (\texttt{Finn} is a common suffix). Generated continuation is garbled. The pair is rescuable at the \texttt{book+author} variant but not at the all-three-fields baseline. Failure mode: field interference.
+\begin{figure*}[!htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/case_studies/strip_scout_finch__to__huckleberry_finn.pdf}
+  \caption{Scout Finch $\to$ Huckleberry Finn (\texttt{book+author} variant; field interference / substring confound). The amplified ``Finn'' supernode (64 features) and ``uckleberry'' (65 features) interfere with each other; the steered output produces neither ``Mark Twain'' nor a coherent book title, but a possessive fragment (``'s first novel''). The orange ``Mark'' peak at $\sim 8\%$ is dwarfed by the noise on adjacent positions. 176 amplify features (the highest count in Books), with a substring confound (\texttt{Finn} is a common suffix). Rescuable at the \texttt{book+author} variant but not at the all-three-fields baseline. Failure mode: field interference.}
+  \label{fig:case-scout-huck}
+\end{figure*}
 
-\paragraph{Windows $\to$ Oculus (product-identity collapse).}
-The source (Windows/Microsoft) is successfully suppressed but the generated output is ``Rift'' (the Oculus product) rather than ``Palmer Luckey'' (the founder, our target). The ``company'' supernodes in the Products domain encode product identity, not founder identity, and amplifying them therefore promotes the product name rather than its founder. Failure mode: feature specificity---a case where even a perfectly-executed intervention targets the wrong entity because the label's extension does not match the target concept.
+\begin{figure*}[!htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/case_studies/strip_windows__to__oculus.pdf}
+  \caption{Windows $\to$ Oculus (\texttt{company}-only variant; product-identity collapse). With only 16 ablate / 42 amplify features, the trajectory shows ``Rift'' at $\sim 55\%$ at position~0; the orange ``Palmer'' curve never lifts off zero. The steered continuation reads as a product description rather than a founder attribution. The source (Windows/Microsoft) is suppressed cleanly but the ``company'' supernodes in the Products domain encode product identity, not founder identity; amplifying them therefore promotes the product name. Failure mode: feature specificity---a perfectly-executed intervention that targets the wrong entity because the label's extension does not match the target concept.}
+  \label{fig:case-windows-oculus}
+\end{figure*}
 
-\paragraph{Girl with a Pearl Earring $\to$ Guernica (cross-concept collapse).}
-195 amplify and 88 ablate features fail to dislodge Vermeer (the source's painter) in the continuation; the target ``Pablo'' ends up at rank $1{,}382$ at position~0. This is a case where the source entity's circuit is deeply entrenched (Vermeer features are shared across the painting and its description) and the target entity is coarse (Picasso has many broader associations). Failure mode: feature specificity combined with low scaffold compatibility.
+\begin{figure*}[!htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/case_studies/strip_girl_pearl_earring__to__guernica.pdf}
+  \caption{Girl with a Pearl Earring $\to$ Guernica (\texttt{painter+first\_name} variant; cross-concept collapse). Even at 195 amplified features the orange ``Pablo'' curve never crosses $\sim 5\%$; the grey ``Johannes'' source still spikes to $\sim 50\%$ at position~2 and to $\sim 13\%$ at position~5, confirming the Vermeer circuit re-emerges in the steered continuation despite source ablation. 195 amplify and 88 ablate features fail to dislodge the source painter; ``Pablo'' ends up at rank $1{,}382$ at position~0. The source circuit is deeply entrenched (Vermeer features are shared across the painting and its description) and the target is coarse (Picasso has many broader associations). Failure mode: feature specificity combined with low scaffold compatibility.}
+  \label{fig:case-girl-guernica}
+\end{figure*}
 
 \subsection{Suppression-only zone}
 A large fraction of swaps---the single largest outcome category in every domain---are suppressed without successful retargeting: the source is absent from the output but the target is not present either. These are USA $59.2\%$, Books $48.3\%$, Products $46.2\%$, Paintings $68.9\%$. This is the main-paper observation that \emph{suppression is generic; targeting requires specific features}.
@@ -742,6 +822,12 @@ The pipeline is fully deterministic. Matched-random controls are sha256-seeded f
 
 \begin{description}
 \item[CLT] Cross-Layer Transcoder~\cite{ameisen2025circuittracing}.
+\item[Influence] The (signed) contribution of a feature node to the target output logit via linearized paths through the replacement model, as computed by the attribution-graph procedure of~\cite{ameisen2025circuittracing}. Used both per-node (a feature's importance for the prediction) and aggregated over node sets (e.g.\ the share of total graph influence carried by a population of features).
+\item[Cumulative influence] The running sum of per-node $|\text{influence}|$ taken over features ranked by descending influence and normalized by the total. Step~1 of the pipeline retains the smallest feature set $V_\tau$ whose cumulative influence reaches $\tau$ (\S\ref{appx:pipeline}); typical reduction is from 600--5{,}000 raw features to 200--700.
+\item[Supernode] A group of same-role same-name features merged into a single node of the concept-aligned subgraph (\S\ref{sec:method:supernodes}). The unit of analysis throughout the paper.
+\item[Subgraph (concept-aligned)] The compressed circuit produced by the pipeline: the attribution graph restricted to the cumulative-influence selection $V_\tau$ and re-expressed with each grouped feature replaced by its supernode (\cref{fig:circuit-texas}). Typically 30--50 named supernodes per circuit.
+\item[Completeness (Neuronpedia)] Fraction of incoming edges to all nodes of the subgraph that originate from \emph{grouped} features, weighted by influence on the output. Pipeline mean $0.89$ over $88$ entities across $4$ domains (\S\ref{sec:method:compression}).
+\item[Replacement (Neuronpedia)] Fraction of end-to-end influence from input tokens to output logits that flows through grouped features. Pipeline mean $0.69$ (\S\ref{sec:method:compression}).
 \item[CPAS] Cross-Prompt Activation Signature (\Cref{tab:cpas-metrics}).
 \item[$\tau$] Cumulative-influence threshold for feature selection (default $0.95$).
 \item[$M_{\mathrm{ablate}}, M_{\mathrm{amplify}}$] Multipliers for source and target feature decoders (defaults $-2$, $20$).
@@ -749,9 +835,11 @@ The pipeline is fully deterministic. Matched-random controls are sha256-seeded f
 \item[Hit] The first-subword token of the target's answer appears in the generated continuation.
 \item[RkGrp] Best target rank within the domain answer set, minimized over trajectory positions.
 \item[Target Recovery] Binary indicator: the target's logit exceeds its own unsteered baseline at some trajectory position.
+\item[Position~0] The first generated token's logits, i.e.\ the model's output distribution immediately after consuming the prompt, before any autoregressive sampling. The default position at which regimes (\S\ref{appx:regime}) and KL are evaluated; complementary to the best-over-trajectory variant of vsMax (\S\ref{appx:pos0}).
 \item[Regime A/C/D/E] Position-0 logit-shift regimes (\S\ref{appx:regime}).
 \item[Scaffold] Features that appear in two entity graphs with identical supernode assignment.
 \item[Scaffold influence] Fraction of total graph influence carried by scaffold features.
 \item[Field-additivity (FA)] The $7$-variant ablation of single-field, two-field, and three-field intervention subsets.
+\item[Matched-random control] Random feature set with the same feature count and per-layer histogram as the labeled intervention, drawn from \emph{outside} every concept-aligned supernode in the domain so that the only property that varies between labeled and control is concept alignment (\S\ref{sec:method:harness}).
 \item[KL] KL$(\mathrm{baseline} \parallel \mathrm{steered})$ at position~0, unless otherwise stated.
 \end{description}

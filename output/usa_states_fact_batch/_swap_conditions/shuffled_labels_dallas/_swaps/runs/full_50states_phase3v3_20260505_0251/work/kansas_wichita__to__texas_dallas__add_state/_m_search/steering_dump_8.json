@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Wichita is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Wichita is <<<<<<<<<<<<<<<\n\nThe answer is <strong>Kansas</strong>.",
+      "default": "<bos><bos>Fact: The capital of the state containing Wichita is Topeka.\n\nFact: The state of Kansas is",
+      "steered_topk": [
+        {
+          "token": " <<<<<<<<<<<<<<",
+          "prob": 0.2392578125
+        },
+        {
+          "token": " be",
+          "prob": 0.087890625
+        },
+        {
+          "token": " and",
+          "prob": 0.087890625
+        },
+        {
+          "token": ",",
+          "prob": 0.07763671875
+        },
+        {
+          "token": " absolutely",
+          "prob": 0.03662109375
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Topeka",
+          "prob": 0.267578125
+        },
+        {
+          "token": " Wichita",
+          "prob": 0.09814453125
+        },
+        {
+          "token": " Kansas",
+          "prob": 0.09814453125
+        },
+        {
+          "token": " the",
+          "prob": 0.0869140625
+        },
+        {
+          "token": " Oklahoma",
+          "prob": 0.041015625
+        }
+      ],
+      "intervention_count": 67,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 3.3823,
+        "steered_entropy": 3.8847,
+        "entropy_delta": 0.5024,
+        "kl_baseline_to_steered": 12.1023
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

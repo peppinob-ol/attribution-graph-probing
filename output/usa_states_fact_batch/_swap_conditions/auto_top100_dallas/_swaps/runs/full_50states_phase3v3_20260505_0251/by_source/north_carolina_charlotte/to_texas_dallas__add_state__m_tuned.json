@@ -1,0 +1,181 @@
+{
+  "swap_id": "north_carolina_charlotte__to__texas_dallas",
+  "source": {
+    "slug": "north_carolina_charlotte",
+    "city": "Charlotte",
+    "state": "North Carolina",
+    "capital": "Raleigh",
+    "prompt": "<bos>Fact: The capital of the state containing Charlotte is",
+    "concept": "north carolina"
+  },
+  "target": {
+    "slug": "texas_dallas",
+    "city": "Dallas",
+    "state": "Texas",
+    "capital": "Austin",
+    "concept": "texas"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 101,
+    "total_count": 101
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Charlotte",
+      "state": "North Carolina",
+      "capital": "Raleigh"
+    },
+    "ground_truth_to": {
+      "city": "Dallas",
+      "state": "Texas",
+      "capital": "Austin"
+    },
+    "answer_field": "capital",
+    "from_answer": "Raleigh",
+    "to_answer": "Austin",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Raleigh",
+      "default_prob": 0.33203125,
+      "steered": " San",
+      "steered_prob": 0.515625
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": 0.33203125,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.33203125,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>Fact: The capital of the state containing Charlotte is Raleigh.\n\nFact: The state of North Carolina",
+      "steered_output": "<bos><bos>Fact: The capital of the state containing Charlotte is San Antonio.\n\nFact: The city of Austin has",
+      "default_topk": [
+        {
+          "token": " Raleigh",
+          "prob": 0.33203125
+        },
+        {
+          "token": " Charlotte",
+          "prob": 0.0654296875
+        },
+        {
+          "token": " the",
+          "prob": 0.057861328125
+        },
+        {
+          "token": " North",
+          "prob": 0.039794921875
+        },
+        {
+          "token": " Richmond",
+          "prob": 0.03515625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " San",
+          "prob": 0.515625
+        },
+        {
+          "token": " El",
+          "prob": 0.1474609375
+        },
+        {
+          "token": " and",
+          "prob": 0.0791015625
+        },
+        {
+          "token": ",",
+          "prob": 0.04248046875
+        },
+        {
+          "token": "/",
+          "prob": 0.02001953125
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 3.4569,
+      "steered_entropy": 2.2442,
+      "entropy_delta": -1.2127,
+      "kl_baseline_to_steered": 13.2976
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 11.774080006522805,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-05-05T03:24:59.648530",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 11.77408,
+    "phase": 2,
+    "total_steps": 7,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 3.1209
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 3.0922
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 3.323
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 5.3293
+      },
+      {
+        "m": 6.931448,
+        "hit": false,
+        "kl": 8.817
+      },
+      {
+        "m": 20.0,
+        "hit": false,
+        "kl": 14.4135
+      }
+    ],
+    "phase2_steps": [
+      {
+        "m": 11.77408,
+        "hit": true,
+        "kl": 13.2976
+      }
+    ],
+    "kl_transition": {
+      "m_lo": 6.931448,
+      "m_hi": 20.0,
+      "kl_drop": 5.5965
+    }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Baltimore is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Baltimore is not Baltimore.\n\nFact: The city of Baltimore has",
+      "default": "<bos><bos>Fact: The capital of the state containing Baltimore is Annapolis.\n\nFact: The state of Maryland is",
+      "steered_topk": [
+        {
+          "token": " not",
+          "prob": 0.625
+        },
+        {
+          "token": " ",
+          "prob": 0.05810546875
+        },
+        {
+          "token": " also",
+          "prob": 0.03515625
+        },
+        {
+          "token": " is",
+          "prob": 0.031005859375
+        },
+        {
+          "token": " the",
+          "prob": 0.0213623046875
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Annapolis",
+          "prob": 0.37109375
+        },
+        {
+          "token": " Baltimore",
+          "prob": 0.0830078125
+        },
+        {
+          "token": " Maryland",
+          "prob": 0.056884765625
+        },
+        {
+          "token": " Washington",
+          "prob": 0.056884765625
+        },
+        {
+          "token": " not",
+          "prob": 0.05029296875
+        }
+      ],
+      "intervention_count": 108,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 3.0733,
+        "steered_entropy": 2.1666,
+        "entropy_delta": -0.9066,
+        "kl_baseline_to_steered": 12.6632
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

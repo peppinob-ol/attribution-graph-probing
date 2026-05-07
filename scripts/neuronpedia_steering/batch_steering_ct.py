@@ -1098,6 +1098,111 @@ def run_ct_generation(
 # --------------------------------------------------------------------------------------
 
 
+def run_steering_session_inprocess(
+    model,
+    prompts_path: str,
+    features_path: str,
+    output_path: str,
+    *,
+    seed: int = 42,
+    temperature: float = 0.3,
+    freq_penalty: float = 2.0,
+    max_new_tokens: int = 6,
+    freeze_attention: bool = False,
+    top_k: int = 5,
+    track_trajectory: bool = False,
+    target_token: Optional[str] = None,
+    source_token: Optional[str] = None,
+    control_tokens: Optional[List[str]] = None,
+    model_id: str = "google/gemma-2-2b",
+    transcoder_set: str = "mntss/clt-gemma-2-2b-2.5M",
+) -> None:
+    """In-process equivalent of ``main()`` that re-uses a pre-loaded model.
+
+    The subprocess entry point loads the ``ReplacementModel`` on every call,
+    which dominates per-probe latency (~30 s of model load vs ~3 s of
+    compute). For batch experiments that issue many steering calls per
+    process, callers can load the model once and dispatch through this
+    function instead.
+
+    Side effect: writes the steering payload to ``output_path``.
+    """
+    if not os.path.exists(prompts_path):
+        raise FileNotFoundError(f"Prompts file not found: {prompts_path}")
+    if not os.path.exists(features_path):
+        raise FileNotFoundError(f"Features file not found: {features_path}")
+
+    prompts = load_prompts(prompts_path)
+    global_features, per_prompt = load_ct_features(features_path)
+
+    results = []
+    for item in prompts:
+        prompt_id = item["id"]
+        text = item["text"]
+
+        item_target = item.get("target_token", target_token)
+        item_source = item.get("source_token", source_token)
+        item_contrast = item.get("contrast_tokens")
+
+        feats = list(global_features)
+        feats.extend(per_prompt.get(prompt_id, []))
+
+        raw = run_ct_generation(
+            text,
+            feats,
+            model,
+            seed=seed,
+            temperature=temperature,
+            freq_penalty=freq_penalty,
+            max_new_tokens=max_new_tokens,
+            freeze_attention=freeze_attention,
+            top_k=top_k,
+            track_trajectory=track_trajectory,
+            target_token=item_target,
+            source_token=item_source,
+            control_tokens=control_tokens,
+            contrast_tokens=item_contrast,
+        )
+
+        result_entry = {
+            "probe_id": prompt_id,
+            "prompt": text,
+            "steered": raw["steered"],
+            "default": raw["default"],
+            "steered_topk": raw["steered_topk"],
+            "default_topk": raw["default_topk"],
+            "intervention_count": raw["intervention_count"],
+        }
+        for opt_key in (
+            "logit_trajectory",
+            "baseline_logits",
+            "position_0_comparison",
+            "position_0_distribution_metrics",
+        ):
+            if opt_key in raw:
+                result_entry[opt_key] = raw[opt_key]
+        results.append(result_entry)
+
+    payload = {
+        "model": model_id,
+        "transcoder_set": transcoder_set,
+        "n_prompts": len(results),
+        "results": results,
+        "config": {
+            "temperature": temperature,
+            "n_tokens": max_new_tokens,
+            "freq_penalty": freq_penalty,
+            "seed": seed,
+            "freeze_attention": freeze_attention,
+            "top_k": top_k,
+        },
+    }
+
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+
+
 def main() -> None:
     args = parse_args()
 

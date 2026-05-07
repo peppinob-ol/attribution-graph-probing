@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Cleveland is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Cleveland isCloseOperation.\n\nThe answer to this question is not Ohio",
+      "default": "<bos><bos>Fact: The capital of the state containing Cleveland is Columbus.\n\nFact: The state of Ohio is",
+      "steered_topk": [
+        {
+          "token": "CloseOperation",
+          "prob": 0.283203125
+        },
+        {
+          "token": "BeginContext",
+          "prob": 0.283203125
+        },
+        {
+          "token": "WarningLevel",
+          "prob": 0.25
+        },
+        {
+          "token": "ModelAdmin",
+          "prob": 0.0556640625
+        },
+        {
+          "token": "LookAnd",
+          "prob": 0.01806640625
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Columbus",
+          "prob": 0.275390625
+        },
+        {
+          "token": " Cleveland",
+          "prob": 0.08935546875
+        },
+        {
+          "token": " the",
+          "prob": 0.0693359375
+        },
+        {
+          "token": " not",
+          "prob": 0.0419921875
+        },
+        {
+          "token": " Ohio",
+          "prob": 0.037109375
+        }
+      ],
+      "intervention_count": 110,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 3.7013,
+        "steered_entropy": 2.1424,
+        "entropy_delta": -1.5589,
+        "kl_baseline_to_steered": 18.3741
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

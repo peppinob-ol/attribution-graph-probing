@@ -1,0 +1,186 @@
+{
+  "swap_id": "indiana_fort_wayne__to__texas_dallas",
+  "source": {
+    "slug": "indiana_fort_wayne",
+    "city": "Fort Wayne",
+    "state": "Indiana",
+    "capital": "Indianapolis",
+    "prompt": "<bos>Fact: The capital of the state containing Fort Wayne is",
+    "concept": "indiana"
+  },
+  "target": {
+    "slug": "texas_dallas",
+    "city": "Dallas",
+    "state": "Texas",
+    "capital": "Austin",
+    "concept": "texas"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 356,
+    "total_count": 356
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Fort Wayne",
+      "state": "Indiana",
+      "capital": "Indianapolis"
+    },
+    "ground_truth_to": {
+      "city": "Dallas",
+      "state": "Texas",
+      "capital": "Austin"
+    },
+    "answer_field": "capital",
+    "from_answer": "Indianapolis",
+    "to_answer": "Austin",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Indianapolis",
+      "default_prob": 0.43359375,
+      "steered": " College",
+      "steered_prob": 0.263671875
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": 0.125,
+      "from_answer_in_default_topk": 0.43359375,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": 0.125,
+      "from_capital_in_default_topk": 0.43359375,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>Fact: The capital of the state containing Fort Wayne is Indianapolis.\n\nFact: The state of Indiana is",
+      "steered_output": "<bos><bos>Fact: The capital of the state containing Fort Wayne is College Station.\n\nFact: The city of Austin,",
+      "default_topk": [
+        {
+          "token": " Indianapolis",
+          "prob": 0.43359375
+        },
+        {
+          "token": " Indiana",
+          "prob": 0.058837890625
+        },
+        {
+          "token": " not",
+          "prob": 0.0517578125
+        },
+        {
+          "token": " the",
+          "prob": 0.0517578125
+        },
+        {
+          "token": " Fort",
+          "prob": 0.03564453125
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " College",
+          "prob": 0.263671875
+        },
+        {
+          "token": " the",
+          "prob": 0.181640625
+        },
+        {
+          "token": " Austin",
+          "prob": 0.125
+        },
+        {
+          "token": ",",
+          "prob": 0.06689453125
+        },
+        {
+          "token": " San",
+          "prob": 0.05908203125
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 3.0391,
+      "steered_entropy": 2.9757,
+      "entropy_delta": -0.0634,
+      "kl_baseline_to_steered": 8.428
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 5.318295721686118,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-05-05T03:00:58.356357",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 5.318296,
+    "phase": 2,
+    "total_steps": 8,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 2.0133
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 1.824
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 2.0972
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 2.7999
+      },
+      {
+        "m": 6.931448,
+        "hit": false,
+        "kl": 10.5735
+      },
+      {
+        "m": 20.0,
+        "hit": false,
+        "kl": 15.4889
+      }
+    ],
+    "phase2_steps": [
+      {
+        "m": 4.080572,
+        "hit": false,
+        "kl": 5.9306
+      },
+      {
+        "m": 5.318296,
+        "hit": true,
+        "kl": 8.428
+      }
+    ],
+    "kl_transition": {
+      "m_lo": 2.402249,
+      "m_hi": 6.931448,
+      "kl_drop": 7.7736
+    }
+  }
+}

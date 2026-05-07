@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Sioux Falls is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Sioux Falls is not Sioux Falls.\n\nThe city of Sioux Falls,",
+      "default": "<bos><bos>Fact: The capital of the state containing Sioux Falls is Pierre.\n\nFact: The state of South Dakota",
+      "steered_topk": [
+        {
+          "token": " not",
+          "prob": 0.388671875
+        },
+        {
+          "token": " an",
+          "prob": 0.1259765625
+        },
+        {
+          "token": " a",
+          "prob": 0.0595703125
+        },
+        {
+          "token": " ",
+          "prob": 0.04638671875
+        },
+        {
+          "token": " the",
+          "prob": 0.04638671875
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Pierre",
+          "prob": 0.251953125
+        },
+        {
+          "token": " Sioux",
+          "prob": 0.22265625
+        },
+        {
+          "token": " South",
+          "prob": 0.0927734375
+        },
+        {
+          "token": " the",
+          "prob": 0.056396484375
+        },
+        {
+          "token": " Lincoln",
+          "prob": 0.0439453125
+        }
+      ],
+      "intervention_count": 329,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 3.0975,
+        "steered_entropy": 2.8474,
+        "entropy_delta": -0.2501,
+        "kl_baseline_to_steered": 15.0383
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

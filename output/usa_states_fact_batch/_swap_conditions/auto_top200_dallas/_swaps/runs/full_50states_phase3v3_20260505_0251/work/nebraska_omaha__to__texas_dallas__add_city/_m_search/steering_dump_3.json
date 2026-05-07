@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Omaha is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Omaha is not Nebraska.\n\nFact: The city of Omaha,",
+      "default": "<bos><bos>Fact: The capital of the state containing Omaha is Lincoln.\n\nFact: The state of Nebraska is",
+      "steered_topk": [
+        {
+          "token": " Nebraska",
+          "prob": 0.197265625
+        },
+        {
+          "token": " not",
+          "prob": 0.1357421875
+        },
+        {
+          "token": " called",
+          "prob": 0.0927734375
+        },
+        {
+          "token": " the",
+          "prob": 0.08203125
+        },
+        {
+          "token": " Omaha",
+          "prob": 0.072265625
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Lincoln",
+          "prob": 0.408203125
+        },
+        {
+          "token": " Nebraska",
+          "prob": 0.1171875
+        },
+        {
+          "token": " Omaha",
+          "prob": 0.08056640625
+        },
+        {
+          "token": " the",
+          "prob": 0.08056640625
+        },
+        {
+          "token": " ",
+          "prob": 0.026123046875
+        }
+      ],
+      "intervention_count": 82,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 2.7689,
+        "steered_entropy": 3.3361,
+        "entropy_delta": 0.5672,
+        "kl_baseline_to_steered": 1.4241
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

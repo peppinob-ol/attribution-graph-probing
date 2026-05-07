@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Charlotte is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Charlotte is <<<<<<<<<<<<<<\nA. North Carolina\nB. South Carolina",
+      "default": "<bos><bos>Fact: The capital of the state containing Charlotte is Raleigh.\n\nFact: The state of North Carolina",
+      "steered_topk": [
+        {
+          "token": " <<<<<<<<<<<<<<",
+          "prob": 0.53125
+        },
+        {
+          "token": " absolutely",
+          "prob": 0.0264892578125
+        },
+        {
+          "token": " state",
+          "prob": 0.0234375
+        },
+        {
+          "token": " be",
+          "prob": 0.0206298828125
+        },
+        {
+          "token": " and",
+          "prob": 0.0206298828125
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Raleigh",
+          "prob": 0.33203125
+        },
+        {
+          "token": " Charlotte",
+          "prob": 0.0654296875
+        },
+        {
+          "token": " the",
+          "prob": 0.057861328125
+        },
+        {
+          "token": " North",
+          "prob": 0.039794921875
+        },
+        {
+          "token": " Richmond",
+          "prob": 0.03515625
+        }
+      ],
+      "intervention_count": 265,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 3.4569,
+        "steered_entropy": 3.2029,
+        "entropy_delta": -0.254,
+        "kl_baseline_to_steered": 15.4154
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

@@ -1,0 +1,161 @@
+{
+  "swap_id": "south_carolina_charleston__to__texas_dallas",
+  "source": {
+    "slug": "south_carolina_charleston",
+    "city": "Charleston",
+    "state": "South Carolina",
+    "capital": "Columbia",
+    "prompt": "<bos>Fact: The capital of the state containing Charleston is",
+    "concept": "south carolina"
+  },
+  "target": {
+    "slug": "texas_dallas",
+    "city": "Dallas",
+    "state": "Texas",
+    "capital": "Austin",
+    "concept": "texas"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 125,
+    "total_count": 125
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Charleston",
+      "state": "South Carolina",
+      "capital": "Columbia"
+    },
+    "ground_truth_to": {
+      "city": "Dallas",
+      "state": "Texas",
+      "capital": "Austin"
+    },
+    "answer_field": "capital",
+    "from_answer": "Columbia",
+    "to_answer": "Austin",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Columbia",
+      "default_prob": 0.1552734375,
+      "steered": " the",
+      "steered_prob": 0.1826171875
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": 0.1552734375,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.1552734375,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>Fact: The capital of the state containing Charleston is Columbia.\n\nFact: The state of South Carolina",
+      "steered_output": "<bos><bos>Fact: The capital of the state containing Charleston is not Austin.\n\nFact: The city of Austin has",
+      "default_topk": [
+        {
+          "token": " Columbia",
+          "prob": 0.1552734375
+        },
+        {
+          "token": " Charleston",
+          "prob": 0.13671875
+        },
+        {
+          "token": " the",
+          "prob": 0.09423828125
+        },
+        {
+          "token": " Raleigh",
+          "prob": 0.0830078125
+        },
+        {
+          "token": " South",
+          "prob": 0.0306396484375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " the",
+          "prob": 0.1826171875
+        },
+        {
+          "token": " not",
+          "prob": 0.1611328125
+        },
+        {
+          "token": " in",
+          "prob": 0.09765625
+        },
+        {
+          "token": " a",
+          "prob": 0.059326171875
+        },
+        {
+          "token": " ",
+          "prob": 0.046142578125
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 3.8863,
+      "steered_entropy": 3.6706,
+      "entropy_delta": -0.2156,
+      "kl_baseline_to_steered": 7.0551
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 2.4022488679628626,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-05-05T03:23:27.429173",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 2.402249,
+    "phase": 1,
+    "total_steps": 4,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 3.9677
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 3.9585
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 4.212
+      },
+      {
+        "m": 2.402249,
+        "hit": true,
+        "kl": 7.0551
+      }
+    ],
+    "phase2_steps": [],
+    "kl_transition": null
+  }
+}

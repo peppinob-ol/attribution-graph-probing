@@ -74,6 +74,54 @@ from pipeline.controls import create_intervention_builder
 from pipeline.m_search import search_optimal_m, build_steer_fn
 
 
+# ---------------------------------------------------------------------------
+# In-process CT model cache
+# ---------------------------------------------------------------------------
+# When --in-process is enabled we keep ONE ReplacementModel resident in this
+# Python process and dispatch every steering call (including every M-search
+# probe) through ``run_steering_session_inprocess``. The subprocess fallback
+# below re-loads the model every call (~30 s on A40), which dominated wall
+# clock on the original Phase B run.
+_INPROCESS_CT_ENABLED = False
+_INPROCESS_CT_MODEL = None
+_INPROCESS_CT_KEY: Optional[Tuple[str, str]] = None
+
+
+def _enable_inprocess_ct_steering(enabled: bool) -> None:
+    global _INPROCESS_CT_ENABLED
+    _INPROCESS_CT_ENABLED = bool(enabled)
+
+
+def _get_or_load_inprocess_ct_model(model_id: str, transcoder_set: str):
+    """Lazy-load a single ReplacementModel for the lifetime of this process."""
+    global _INPROCESS_CT_MODEL, _INPROCESS_CT_KEY
+    key = (model_id, transcoder_set)
+    if _INPROCESS_CT_MODEL is not None and _INPROCESS_CT_KEY == key:
+        return _INPROCESS_CT_MODEL
+
+    if _INPROCESS_CT_MODEL is not None:
+        raise RuntimeError(
+            "In-process CT model already loaded with a different "
+            f"(model_id, transcoder_set) {_INPROCESS_CT_KEY}; cannot switch "
+            f"to {key} mid-run."
+        )
+
+    sys.path.insert(0, str(SCRIPTS_DIR / "neuronpedia_steering"))
+    from batch_steering_ct import (  # type: ignore
+        load_replacement_model,
+        get_device,
+        get_dtype,
+    )
+
+    device = get_device(None)
+    dtype = get_dtype("bfloat16")
+    print(f"  [in-process] Loading ReplacementModel {model_id} on {device}...")
+    _INPROCESS_CT_MODEL = load_replacement_model(model_id, transcoder_set, device, dtype)
+    _INPROCESS_CT_KEY = key
+    print(f"  [in-process] Model ready; subsequent steering calls re-use it.")
+    return _INPROCESS_CT_MODEL
+
+
 def _load_ct_steering_module():
     """Load 03_ct_steering.py module dynamically."""
     steering_path = SCRIPTS_DIR / "03_ct_steering.py"
@@ -120,6 +168,58 @@ def prepare_swap_features(
     return result.features, result.ablate_count, result.amplify_count, result.to_metadata()
 
 
+def _run_local_ct_steering_inprocess(
+    ct_config: Dict[str, Any],
+    steering_cfg: Dict[str, Any],
+    prompts_path: Path,
+    features_path: Path,
+    output_path: Path,
+    verbose: bool = True,
+) -> bool:
+    """In-process CT steering: re-uses a single cached ReplacementModel.
+
+    The first call loads the model (~30 s); every subsequent call only pays
+    forward-pass + tokenization cost (~3 s for 5 prompts × 6 tokens).
+    """
+    sys.path.insert(0, str(SCRIPTS_DIR / "neuronpedia_steering"))
+    from batch_steering_ct import run_steering_session_inprocess  # type: ignore
+
+    model_id = ct_config.get('model_id', 'google/gemma-2-2b')
+    transcoder_set = steering_cfg.get('transcoder_set', 'mntss/clt-gemma-2-2b-2.5M')
+
+    try:
+        model = _get_or_load_inprocess_ct_model(model_id, transcoder_set)
+    except Exception as exc:
+        print(f"  ERROR: failed to load in-process ReplacementModel: {exc}")
+        return False
+
+    try:
+        run_steering_session_inprocess(
+            model,
+            str(prompts_path),
+            str(features_path),
+            str(output_path),
+            seed=int(steering_cfg.get('seed', 42)),
+            temperature=float(steering_cfg.get('temperature', 0.3)),
+            freq_penalty=float(steering_cfg.get('freq_penalty', 2.0)),
+            max_new_tokens=int(steering_cfg.get('n_tokens', 6)),
+            freeze_attention=bool(steering_cfg.get('freeze_attention', False)),
+            top_k=int(steering_cfg.get('top_k', 5)),
+            track_trajectory=bool(steering_cfg.get('track_trajectory', False)),
+            target_token=steering_cfg.get('target_token'),
+            source_token=steering_cfg.get('source_token'),
+            control_tokens=steering_cfg.get('control_tokens'),
+            model_id=model_id,
+            transcoder_set=transcoder_set,
+        )
+        return True
+    except Exception as exc:
+        print(f"  ERROR: in-process CT steering failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def _run_local_ct_steering(
     ct_config: Dict[str, Any],
     steering_cfg: Dict[str, Any],
@@ -130,7 +230,22 @@ def _run_local_ct_steering(
     verbose: bool = True,
     timeout: int = 600,
 ) -> bool:
-    """Run batch_steering_ct.py as a local subprocess."""
+    """Run a CT steering call locally.
+
+    Two backends are supported and selected via ``--in-process``:
+
+    * **subprocess (default)**: forks ``batch_steering_ct.py`` per call. Robust
+      but reloads ``ReplacementModel`` (~30 s) on every probe.
+    * **in-process**: re-uses a single ``ReplacementModel`` cached in this
+      Python process via ``_get_or_load_inprocess_ct_model``. Per-probe
+      latency drops to compute-only (~3 s).
+    """
+    if _INPROCESS_CT_ENABLED:
+        return _run_local_ct_steering_inprocess(
+            ct_config, steering_cfg, prompts_path, features_path, output_path,
+            verbose=verbose,
+        )
+
     script_path = SCRIPTS_DIR / 'neuronpedia_steering' / 'batch_steering_ct.py'
     if not script_path.exists():
         print(f"  ERROR: batch_steering_ct.py not found at {script_path}")
@@ -686,6 +801,9 @@ def run_single_swap(
         print(f"  Steered: {raw_result.get('steered', '')[:50]}...")
         print(f"  Suppressed: {exact['from_suppressed']}, Target hit: {exact['steered_has_to_answer']}")
 
+    # Hit at the default M (before M-search) -> propagate to caller.
+    result['_hit_found'] = bool(evaluation['exact_match'].get('steered_has_to_answer'))
+
     # --- M-search post-hook: adaptive M for missed pairs ---
     m_search_cfg = config.get("m_search", {})
     if m_search_cfg.get("enabled") and not evaluation['exact_match'].get('steered_has_to_answer'):
@@ -713,6 +831,7 @@ def run_single_swap(
             min_kl_drop=m_search_cfg.get("min_kl_drop", 1.0),
         )
         if tuned:
+            result['_hit_found'] = True
             tuned_suffix = f"{variant_suffix}__m_tuned" if variant_suffix else "m_tuned"
             tuned_path = get_swap_output_path(config, pair, variant_suffix=tuned_suffix)
             tuned_path.parent.mkdir(parents=True, exist_ok=True)
@@ -861,10 +980,12 @@ def run_batch_swaps(
     max_workers: int = 8,
     run_id: Optional[str] = None,
     gpu_ids: Optional[List[int]] = None,
+    source_slice: Optional[str] = None,
+    source_stop_on_hit: bool = False,
 ):
     """
     Run batch swap experiments.
-    
+
     Args:
         config_path: Path to swap config YAML
         dry_run: If True, only validate and show plan
@@ -874,6 +995,8 @@ def run_batch_swaps(
         parallel: If True, run swaps in parallel (uses multiple GPUs)
         max_workers: Maximum parallel workers when parallel=True (default: 8)
         gpu_ids: Explicit list of GPU IDs to use (default: 0..max_workers-1)
+        source_slice: 'N/M' to shard sources across processes
+        source_stop_on_hit: If True, skip remaining variants once any hit
     """
     print_banner("Batch Swap Runner")
     print(f"Config: {config_path}")
@@ -925,7 +1048,23 @@ def run_batch_swaps(
             print(f"ERROR: Pair not found: {single_pair}")
             return False
         print(f"  Filtered to single pair: {single_pair}")
-    
+
+    # Source-slice sharding: split pairs across processes.
+    if source_slice:
+        try:
+            n_str, m_str = source_slice.split('/')
+            shard_idx = int(n_str)
+            n_shards = int(m_str)
+        except Exception:
+            print(f"ERROR: --source-slice expected 'N/M', got: {source_slice}")
+            return False
+        if not (0 <= shard_idx < n_shards):
+            print(f"ERROR: invalid --source-slice {source_slice}; need 0 <= N < M")
+            return False
+        before = len(all_pairs)
+        all_pairs = [p for i, p in enumerate(all_pairs) if i % n_shards == shard_idx]
+        print(f"  Shard {shard_idx}/{n_shards}: kept {len(all_pairs)} of {before} pairs")
+
     # Validate inputs
     print_banner("Validating Inputs")
     errors = validate_swap_inputs(config, all_pairs)
@@ -1118,10 +1257,16 @@ def run_batch_swaps(
         results = []
         failed = []
         variants = _expand_control_variants(config)
+        n_pairs = len(pending_pairs)
+        skipped_after_hit = 0
 
         for i, pair in enumerate(pending_pairs, 1):
+            source_already_hit = False
             for variant_config, variant_suffix in variants:
-                label = f"\n[{i}/{len(pending_pairs)}]"
+                if source_stop_on_hit and source_already_hit:
+                    skipped_after_hit += 1
+                    continue
+                label = f"\n[{i}/{n_pairs}]"
                 if variant_suffix:
                     label += f" ({variant_suffix})"
                 print(label, end="")
@@ -1133,11 +1278,20 @@ def run_batch_swaps(
                     )
                     if result:
                         results.append(result)
+                        if source_stop_on_hit and result.get('_hit_found'):
+                            source_already_hit = True
+                            print(f"  [SOURCE-HIT] {pair.from_slug} hit on "
+                                  f"variant '{variant_suffix or 'default'}'; "
+                                  f"skipping remaining variants for this source.")
                     else:
                         failed.append(pair)
                 except Exception as e:
                     print(f"  ERROR: Exception during swap: {e}")
                     failed.append(pair)
+
+        if source_stop_on_hit and skipped_after_hit:
+            print(f"\n[SOURCE-HIT] Skipped {skipped_after_hit} variant(s) "
+                  f"after first hit per source.")
     
     # Aggregate results
     print_banner("Aggregating Results")
@@ -1311,9 +1465,51 @@ Examples:
             "Use the same --run-id to resume a partial run without overwriting other runs."
         ),
     )
-    
+
+    parser.add_argument(
+        '--in-process',
+        action='store_true',
+        help=(
+            "Load ReplacementModel ONCE in this process and re-use it across "
+            "every M-search probe. ~10x faster than the default subprocess "
+            "backend (which reloads the model on every steering call). "
+            "Incompatible with --parallel (each parallel worker would also "
+            "need its own model in this same process)."
+        ),
+    )
+
+    parser.add_argument(
+        '--source-slice',
+        type=str,
+        default=None,
+        help=(
+            "Process only a subset of source pairs, format 'N/M' (zero-indexed). "
+            "E.g. '0/2' = first half, '1/2' = second half, '2/4' = third quarter. "
+            "Used to shard a single condition across multiple GPUs."
+        ),
+    )
+
+    parser.add_argument(
+        '--source-stop-on-hit',
+        action='store_true',
+        help=(
+            "Skip remaining variants for a source as soon as ANY variant hits "
+            "(at default M or via M-search). Changes the unit of analysis from "
+            "cell to source: 'N sources hit out of total' instead of "
+            "'N cells hit out of total*variants'."
+        ),
+    )
+
     args = parser.parse_args()
-    
+
+    if args.in_process and args.parallel:
+        print("ERROR: --in-process is incompatible with --parallel "
+              "(only one model can be loaded per process).")
+        sys.exit(2)
+
+    if args.in_process:
+        _enable_inprocess_ct_steering(True)
+
     parsed_gpus = None
     if args.gpus:
         parsed_gpus = [int(g.strip()) for g in args.gpus.split(',')]
@@ -1328,6 +1524,8 @@ Examples:
         max_workers=args.workers,
         run_id=args.run_id,
         gpu_ids=parsed_gpus,
+        source_slice=args.source_slice,
+        source_stop_on_hit=args.source_stop_on_hit,
     )
     
     sys.exit(0 if success else 1)

@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Cedar Rapids is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Cedar Rapids is <<<<<<<<<<<<<<\nA. Des Moines\nB. Ames\n",
+      "default": "<bos><bos>Fact: The capital of the state containing Cedar Rapids is Des Moines.\n\nFact: The city of Cedar",
+      "steered_topk": [
+        {
+          "token": " <<<<<<<<<<<<<<",
+          "prob": 0.71875
+        },
+        {
+          "token": " state",
+          "prob": 0.0279541015625
+        },
+        {
+          "token": " absolutely",
+          "prob": 0.0169677734375
+        },
+        {
+          "token": " be",
+          "prob": 0.01495361328125
+        },
+        {
+          "token": " and",
+          "prob": 0.01495361328125
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Des",
+          "prob": 0.26953125
+        },
+        {
+          "token": " Iowa",
+          "prob": 0.2373046875
+        },
+        {
+          "token": " Cedar",
+          "prob": 0.0986328125
+        },
+        {
+          "token": " the",
+          "prob": 0.052978515625
+        },
+        {
+          "token": " Waterloo",
+          "prob": 0.036376953125
+        }
+      ],
+      "intervention_count": 454,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 2.9189,
+        "steered_entropy": 2.0635,
+        "entropy_delta": -0.8554,
+        "kl_baseline_to_steered": 15.8004
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

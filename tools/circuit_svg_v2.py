@@ -1,18 +1,17 @@
 """
 Layout v2: prompt + before/after prediction strip on top, smaller graph in
-the middle, and an intervention-strength sweep plot at the bottom.
+the middle, and a per-position trajectory plot at the bottom.
 
 Mirrors the published Anthropic layout that puts ``PROMPT |
 ORIGINAL PREDICTION | AFTER INTERVENTION`` headers above the boxes-and-arrows
-diagram and a probability-vs-M curve below it. Only static data already on
-disk is required.
+diagram. The bottom plot reuses the position-axis trajectory panel from
+``circuit_svg_strip`` so both layouts share the exact same curve renderer
+(source/target probability per generated token, with an ``unsteered <-> steered``
+divider) -- only the surrounding chrome differs.
 
 Reuses the graph-area layout from ``circuit_svg_compact`` (positions, label
-wrapping, layered z-order) and adds:
-- top header strip with three fields,
-- compact ``GRAPH & INTERVENTIONS`` section title,
-- sweep line chart with two probability curves and an intervention-strength
-  highlight tick.
+wrapping, layered z-order) and the trajectory plot from
+``circuit_svg_strip``.
 """
 
 from __future__ import annotations
@@ -33,11 +32,13 @@ from circuit_svg_compact import (  # noqa: E402  (sys.path manipulation above)
     _build_connections,
     _connection_svg,
     _node_box_svg_layered,
-    _wrap_label,
+)
+from circuit_svg_strip import (  # noqa: E402
+    TrajectoryPlot,
+    _plot_panel_svg,
 )
 from graph_visualization import InterventionGraph  # noqa: E402  (vendored)
 from IPython.display import SVG  # noqa: E402
-from sweep_loader import SweepData  # noqa: E402
 
 
 # --------------------------------------------------------------------------- #
@@ -48,9 +49,6 @@ from sweep_loader import SweepData  # noqa: E402
 CANVAS_W = 480
 CANVAS_H = 820
 PAD = 20
-
-# Sweep plot widths (forward-declared so the y-axis title can be placed at PAD).
-PLOT_LEFT_LABEL_W = 36   # room for "Next Token Probability" rotated + tick labels
 
 # Top header strip (PROMPT | ORIGINAL PRED | AFTER INTERVENTION)
 HEADER_TOP = 24
@@ -64,16 +62,10 @@ GRAPH_TOP = HEADER_TOP + HEADER_H + 8
 GRAPH_H = 400
 GRAPH_TOP_ROW_OFFSET = 96  # top_y = GRAPH_TOP + GRAPH_TOP_ROW_OFFSET
 
-# Sweep plot region
+# Trajectory plot region (rendered via circuit_svg_strip._plot_panel_svg).
 PLOT_TOP = GRAPH_TOP + GRAPH_H + 16
 PLOT_H = 240
-PLOT_LEFT = PAD + PLOT_LEFT_LABEL_W   # space for vertical y-title + % labels
-PLOT_RIGHT = CANVAS_W - PAD - 14
-PLOT_INNER_TOP = PLOT_TOP + 50  # leave space for end-of-curve labels at top
-PLOT_INNER_BOTTOM = PLOT_TOP + PLOT_H - 40  # leave space for x-axis labels
 
-LINE_DECAY = "#9a9a9a"   # grey -- "original prediction" curve
-LINE_GROW = "#D2691E"    # orange -- "after intervention" curve
 ACCENT = "#D2691E"
 
 
@@ -243,210 +235,6 @@ def _graph_section_svg(intervention_graph: InterventionGraph) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# Sweep plot                                                                  #
-# --------------------------------------------------------------------------- #
-
-
-def _plot_section_svg(sweep: SweepData) -> str:
-    parts: list[str] = []
-
-    # Region divider above the plot.
-    parts.append(
-        f'<line x1="{PAD}" y1="{PLOT_TOP - 6}" x2="{CANVAS_W - PAD}" y2="{PLOT_TOP - 6}" '
-        f'stroke="#e0e0e0" stroke-width="1"/>'
-    )
-
-    n = len(sweep.points)
-    if n == 0:
-        parts.append(
-            f'<text x="{PAD + 6}" y="{PLOT_TOP + 20}" fill="#aaa" '
-            f'font-family="Arial, sans-serif" font-size="11">no sweep data available</text>'
-        )
-        return "\n".join(parts)
-
-    # Y range: max non-null prob, padded to next 5%.
-    all_probs = [
-        p for p in (*sweep.auto_decay_curve, *sweep.auto_grow_curve) if p is not None
-    ]
-    y_max_data = max(all_probs) if all_probs else 0.5
-    y_max = max(0.1, _ceil_to_step(y_max_data, 0.05))
-
-    # X positions: equally spaced by index of M_amplify points.
-    plot_w = PLOT_RIGHT - PLOT_LEFT
-    if n > 1:
-        x_positions = [PLOT_LEFT + i * plot_w / (n - 1) for i in range(n)]
-    else:
-        x_positions = [PLOT_LEFT + plot_w / 2]
-
-    # Background grid + y-axis tick labels at 0/25/50/75/100% of y_max.
-    for frac in (0.0, 0.25, 0.5, 0.75, 1.0):
-        gy = PLOT_INNER_BOTTOM - frac * (PLOT_INNER_BOTTOM - PLOT_INNER_TOP)
-        if frac > 0:
-            parts.append(
-                f'<line x1="{PLOT_LEFT}" y1="{gy:.1f}" x2="{PLOT_RIGHT}" y2="{gy:.1f}" '
-                f'stroke="#eee" stroke-width="1"/>'
-            )
-        pct_label = f"{round(frac * y_max * 100)}%"
-        parts.append(
-            f'<text x="{PLOT_LEFT - 4:.1f}" y="{gy + 3:.1f}" text-anchor="end" '
-            f'fill="#888" font-family="Arial, sans-serif" font-size="9">{pct_label}</text>'
-        )
-
-    # Y-axis line.
-    parts.append(
-        f'<line x1="{PLOT_LEFT}" y1="{PLOT_INNER_TOP}" x2="{PLOT_LEFT}" y2="{PLOT_INNER_BOTTOM}" '
-        f'stroke="#888" stroke-width="1"/>'
-    )
-
-    # Y-axis title, rotated -90 degrees and centred along the inner plot height.
-    title_cy = (PLOT_INNER_TOP + PLOT_INNER_BOTTOM) / 2
-    title_x = PAD + 8
-    parts.append(
-        f'<text x="{title_x}" y="{title_cy}" fill="#666" '
-        f'font-family="Arial, sans-serif" font-size="10" text-anchor="middle" '
-        f'transform="rotate(-90 {title_x} {title_cy})">Next Token Probability</text>'
-    )
-
-    # Curves: when AFTER == ORIGINAL (same token kept on top), draw a single
-    # orange curve labeled with the unified "(original = after)" annotation.
-    same_token = sweep.auto_grow_token is None and sweep.auto_decay_token is not None
-    decay_color = LINE_GROW if same_token else LINE_DECAY
-    parts.append(_curve_svg(x_positions, sweep.auto_decay_curve, y_max, color=decay_color))
-    if not same_token:
-        parts.append(_curve_svg(x_positions, sweep.auto_grow_curve, y_max, color=LINE_GROW))
-
-    # End-point labels.
-    if sweep.auto_decay_token:
-        decay_label_color = LINE_GROW if same_token else "#666"
-        annot = "(original = after)" if same_token else "(original)"
-        parts.append(
-            f'<text x="{PLOT_LEFT + 4}" y="{PLOT_TOP + 16}" fill="{decay_label_color}" '
-            f'font-family="Menlo, Consolas, monospace" font-size="12" font-weight="bold">'
-            f'{html.escape(sweep.auto_decay_token.strip())}</text>'
-        )
-        parts.append(
-            f'<text x="{PLOT_LEFT + 4 + 8 * (len(sweep.auto_decay_token.strip()) + 1)}" '
-            f'y="{PLOT_TOP + 16}" fill="#aaa" font-family="Arial, sans-serif" font-size="10">'
-            f'{annot}</text>'
-        )
-    if sweep.auto_grow_token:
-        parts.append(
-            f'<text x="{PLOT_RIGHT - 4}" y="{PLOT_TOP + 16}" text-anchor="end" '
-            f'fill="{LINE_GROW}" font-family="Menlo, Consolas, monospace" '
-            f'font-size="12" font-weight="bold">'
-            f'{html.escape(sweep.auto_grow_token.strip())}</text>'
-        )
-        parts.append(
-            f'<text x="{PLOT_RIGHT - 4}" y="{PLOT_TOP + 30}" text-anchor="end" '
-            f'fill="#aaa" font-family="Arial, sans-serif" font-size="10">(after intervention)</text>'
-        )
-
-    # X axis with tick labels = M values.
-    parts.append(
-        f'<line x1="{PLOT_LEFT}" y1="{PLOT_INNER_BOTTOM}" x2="{PLOT_RIGHT}" '
-        f'y2="{PLOT_INNER_BOTTOM}" stroke="#888" stroke-width="1"/>'
-    )
-    primary_idx: int | None = None
-    for i, p in enumerate(sweep.points):
-        x = x_positions[i]
-        parts.append(
-            f'<line x1="{x:.1f}" y1="{PLOT_INNER_BOTTOM}" x2="{x:.1f}" '
-            f'y2="{PLOT_INNER_BOTTOM + 4}" stroke="#888" stroke-width="1"/>'
-        )
-        is_primary = p.M_amplify == sweep.primary_M
-        if is_primary:
-            primary_idx = i
-        label_color = ACCENT if is_primary else "#666"
-        weight = "bold" if is_primary else "normal"
-        parts.append(
-            f'<text x="{x:.1f}" y="{PLOT_INNER_BOTTOM + 18}" text-anchor="middle" '
-            f'fill="{label_color}" font-family="Arial, sans-serif" font-size="11" '
-            f'font-weight="{weight}">{p.M_amplify}x</text>'
-        )
-
-    # X axis title.
-    parts.append(
-        f'<text x="{PLOT_LEFT}" y="{PLOT_INNER_BOTTOM + 34}" fill="#888" '
-        f'font-family="Arial, sans-serif" font-size="10">Intervention Strength</text>'
-    )
-
-    # Highlight the primary M with a vertical dashed guide + filled badge.
-    if primary_idx is not None:
-        hx = x_positions[primary_idx]
-        parts.append(
-            f'<line x1="{hx:.1f}" y1="{PLOT_INNER_TOP - 4}" x2="{hx:.1f}" '
-            f'y2="{PLOT_INNER_BOTTOM}" stroke="{ACCENT}" stroke-width="1" '
-            f'stroke-dasharray="3 3" opacity="0.6"/>'
-        )
-        # Pill badge on the x-axis at primary M.
-        badge_w = 36
-        bx = hx - badge_w / 2
-        by = PLOT_INNER_BOTTOM + 22
-        parts.append(
-            f'<rect x="{bx:.1f}" y="{by:.1f}" width="{badge_w}" height="14" '
-            f'fill="{ACCENT}" rx="7"/>'
-        )
-        parts.append(
-            f'<text x="{hx:.1f}" y="{by + 10:.1f}" text-anchor="middle" '
-            f'fill="white" font-family="Arial, sans-serif" font-size="10" '
-            f'font-weight="bold">{sweep.primary_M}x</text>'
-        )
-
-    return "\n".join(parts)
-
-
-def _curve_svg(x_positions: list[float], curve: list[float | None], y_max: float, *,
-               color: str) -> str:
-    """Render a polyline curve. Missing points (None) -> dashed segments."""
-    if not curve:
-        return ""
-    h = PLOT_INNER_BOTTOM - PLOT_INNER_TOP
-
-    def _y_for(prob: float) -> float:
-        return PLOT_INNER_BOTTOM - (prob / y_max) * h
-
-    parts: list[str] = []
-    # Build segments: solid where both endpoints are non-null, dashed where
-    # at least one is null (linearly interpolated to 0).
-    last_x: float | None = None
-    last_y: float | None = None
-    last_solid = False
-    for x, prob in zip(x_positions, curve):
-        if prob is None:
-            cur_y = _y_for(0.0)
-            cur_solid = False
-        else:
-            cur_y = _y_for(prob)
-            cur_solid = True
-        if last_x is not None and last_y is not None:
-            seg_solid = last_solid and cur_solid
-            dash = "" if seg_solid else 'stroke-dasharray="3 3" opacity="0.55"'
-            parts.append(
-                f'<line x1="{last_x:.1f}" y1="{last_y:.1f}" x2="{x:.1f}" y2="{cur_y:.1f}" '
-                f'stroke="{color}" stroke-width="2" stroke-linecap="round" {dash}/>'
-            )
-        last_x, last_y, last_solid = x, cur_y, cur_solid
-    # Dot markers on real points.
-    for x, prob in zip(x_positions, curve):
-        if prob is None:
-            continue
-        y = _y_for(prob)
-        parts.append(
-            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" fill="{color}" '
-            f'stroke="white" stroke-width="1"/>'
-        )
-    return "\n".join(parts)
-
-
-def _ceil_to_step(value: float, step: float) -> float:
-    """Round ``value`` up to the nearest multiple of ``step``."""
-    if step <= 0:
-        return value
-    import math
-    return math.ceil(value / step) * step
-
-
-# --------------------------------------------------------------------------- #
 # Public API                                                                  #
 # --------------------------------------------------------------------------- #
 
@@ -457,11 +245,17 @@ def create_v2_visualization(
     prompt: str,
     original_pred: tuple[str, float],
     after_pred: tuple[str, float],
-    sweep: SweepData,
+    trajectory: TrajectoryPlot,
 ) -> SVG:
     top = _top_strip_svg(prompt, original_pred, after_pred)
     graph = _graph_section_svg(intervention_graph)
-    plot = _plot_section_svg(sweep)
+    plot = _plot_panel_svg(
+        trajectory,
+        x=PAD,
+        y=PLOT_TOP,
+        w=CANVAS_W - 2 * PAD,
+        h=PLOT_H,
+    )
 
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{CANVAS_W}" height="{CANVAS_H}" viewBox="0 0 {CANVAS_W} {CANVAS_H}">
   <rect width="{CANVAS_W}" height="{CANVAS_H}" fill="#f7f7f7"/>

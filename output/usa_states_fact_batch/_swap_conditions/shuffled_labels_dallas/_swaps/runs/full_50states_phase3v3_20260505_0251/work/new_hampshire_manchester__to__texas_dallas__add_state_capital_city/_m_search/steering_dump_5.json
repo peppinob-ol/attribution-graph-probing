@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Manchester is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Manchester is <<<<<<<<<<<<<<\nA. New Hampshire\nB. New York",
+      "default": "<bos><bos>Fact: The capital of the state containing Manchester is Manchester.\n\nFact: The state of New Hampshire",
+      "steered_topk": [
+        {
+          "token": " <<<<<<<<<<<<<<",
+          "prob": 0.2216796875
+        },
+        {
+          "token": " and",
+          "prob": 0.0634765625
+        },
+        {
+          "token": " absolutely",
+          "prob": 0.05615234375
+        },
+        {
+          "token": " will",
+          "prob": 0.03857421875
+        },
+        {
+          "token": " (",
+          "prob": 0.03857421875
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Manchester",
+          "prob": 0.119140625
+        },
+        {
+          "token": " Hartford",
+          "prob": 0.072265625
+        },
+        {
+          "token": " the",
+          "prob": 0.049560546875
+        },
+        {
+          "token": " Harrisburg",
+          "prob": 0.03857421875
+        },
+        {
+          "token": " not",
+          "prob": 0.03857421875
+        }
+      ],
+      "intervention_count": 198,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 4.4047,
+        "steered_entropy": 4.6145,
+        "entropy_delta": 0.2098,
+        "kl_baseline_to_steered": 14.2017
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

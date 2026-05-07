@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Savannah is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Savannah is not Savannah.\n\nFact: The city of Savannah,",
+      "default": "<bos><bos>Fact: The capital of the state containing Savannah is Atlanta.\n\nFact: The state of Georgia is",
+      "steered_topk": [
+        {
+          "token": " is",
+          "prob": 0.17578125
+        },
+        {
+          "token": " not",
+          "prob": 0.09423828125
+        },
+        {
+          "token": " in",
+          "prob": 0.06494140625
+        },
+        {
+          "token": " the",
+          "prob": 0.06494140625
+        },
+        {
+          "token": " a",
+          "prob": 0.06494140625
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Atlanta",
+          "prob": 0.22265625
+        },
+        {
+          "token": " Augusta",
+          "prob": 0.10546875
+        },
+        {
+          "token": " Savannah",
+          "prob": 0.072265625
+        },
+        {
+          "token": " the",
+          "prob": 0.06396484375
+        },
+        {
+          "token": " Columbia",
+          "prob": 0.0439453125
+        }
+      ],
+      "intervention_count": 240,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 3.4975,
+        "steered_entropy": 3.849,
+        "entropy_delta": 0.3515,
+        "kl_baseline_to_steered": 9.2778
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

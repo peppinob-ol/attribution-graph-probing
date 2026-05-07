@@ -1,0 +1,166 @@
+{
+  "swap_id": "montana_billings__to__texas_dallas",
+  "source": {
+    "slug": "montana_billings",
+    "city": "Billings",
+    "state": "Montana",
+    "capital": "Helena",
+    "prompt": "<bos>Fact: The capital of the state containing Billings is",
+    "concept": "montana"
+  },
+  "target": {
+    "slug": "texas_dallas",
+    "city": "Dallas",
+    "state": "Texas",
+    "capital": "Austin",
+    "concept": "texas"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 63,
+    "total_count": 63
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Billings",
+      "state": "Montana",
+      "capital": "Helena"
+    },
+    "ground_truth_to": {
+      "city": "Dallas",
+      "state": "Texas",
+      "capital": "Austin"
+    },
+    "answer_field": "capital",
+    "from_answer": "Helena",
+    "to_answer": "Austin",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Helena",
+      "default_prob": 0.30859375,
+      "steered": " San",
+      "steered_prob": 0.205078125
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": 0.30859375,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.30859375,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>Fact: The capital of the state containing Billings is Helena.\n\nFact: The state of Montana is",
+      "steered_output": "<bos><bos>Fact: The capital of the state containing Billings is <strong>Austin</strong>.\n\nThe city of Austin,",
+      "default_topk": [
+        {
+          "token": " Helena",
+          "prob": 0.30859375
+        },
+        {
+          "token": " the",
+          "prob": 0.11376953125
+        },
+        {
+          "token": " Cheyenne",
+          "prob": 0.06103515625
+        },
+        {
+          "token": " Billings",
+          "prob": 0.0419921875
+        },
+        {
+          "token": " ",
+          "prob": 0.036865234375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " San",
+          "prob": 0.205078125
+        },
+        {
+          "token": " ",
+          "prob": 0.1806640625
+        },
+        {
+          "token": " worth",
+          "prob": 0.0966796875
+        },
+        {
+          "token": " the",
+          "prob": 0.045654296875
+        },
+        {
+          "token": " and",
+          "prob": 0.0277099609375
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 3.4058,
+      "steered_entropy": 3.5244,
+      "entropy_delta": 0.1186,
+      "kl_baseline_to_steered": 10.9473
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 6.931448431551464,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-05-05T03:27:01.771612",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 6.931448,
+    "phase": 1,
+    "total_steps": 5,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 4.9478
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 4.9775
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 5.1344
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 7.1726
+      },
+      {
+        "m": 6.931448,
+        "hit": true,
+        "kl": 10.9473
+      }
+    ],
+    "phase2_steps": [],
+    "kl_transition": null
+  }
+}

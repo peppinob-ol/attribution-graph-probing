@@ -1,0 +1,181 @@
+{
+  "swap_id": "south_carolina_charleston__to__texas_dallas",
+  "source": {
+    "slug": "south_carolina_charleston",
+    "city": "Charleston",
+    "state": "South Carolina",
+    "capital": "Columbia",
+    "prompt": "<bos>Fact: The capital of the state containing Charleston is",
+    "concept": "south carolina"
+  },
+  "target": {
+    "slug": "texas_dallas",
+    "city": "Dallas",
+    "state": "Texas",
+    "capital": "Austin",
+    "concept": "texas"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 86,
+    "total_count": 86
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Charleston",
+      "state": "South Carolina",
+      "capital": "Columbia"
+    },
+    "ground_truth_to": {
+      "city": "Dallas",
+      "state": "Texas",
+      "capital": "Austin"
+    },
+    "answer_field": "capital",
+    "from_answer": "Columbia",
+    "to_answer": "Austin",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Columbia",
+      "default_prob": 0.1552734375,
+      "steered": " San",
+      "steered_prob": 0.43359375
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": 0.1552734375,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.1552734375,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>Fact: The capital of the state containing Charleston is Columbia.\n\nFact: The state of South Carolina",
+      "steered_output": "<bos><bos>Fact: The capital of the state containing Charleston is San Antonio.\n\nFact: The city of Austin has",
+      "default_topk": [
+        {
+          "token": " Columbia",
+          "prob": 0.1552734375
+        },
+        {
+          "token": " Charleston",
+          "prob": 0.13671875
+        },
+        {
+          "token": " the",
+          "prob": 0.09423828125
+        },
+        {
+          "token": " Raleigh",
+          "prob": 0.0830078125
+        },
+        {
+          "token": " South",
+          "prob": 0.0306396484375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " San",
+          "prob": 0.43359375
+        },
+        {
+          "token": " and",
+          "prob": 0.10986328125
+        },
+        {
+          "token": " El",
+          "prob": 0.0966796875
+        },
+        {
+          "token": "/",
+          "prob": 0.07568359375
+        },
+        {
+          "token": ",",
+          "prob": 0.07568359375
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 3.8863,
+      "steered_entropy": 2.4767,
+      "entropy_delta": -1.4095,
+      "kl_baseline_to_steered": 13.0682
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 11.774080006522805,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-05-05T03:33:30.021414",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 11.77408,
+    "phase": 2,
+    "total_steps": 7,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 5.0432
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 5.0003
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 4.9731
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 6.6533
+      },
+      {
+        "m": 6.931448,
+        "hit": false,
+        "kl": 9.7105
+      },
+      {
+        "m": 20.0,
+        "hit": false,
+        "kl": 14.1751
+      }
+    ],
+    "phase2_steps": [
+      {
+        "m": 11.77408,
+        "hit": true,
+        "kl": 13.0682
+      }
+    ],
+    "kl_transition": {
+      "m_lo": 6.931448,
+      "m_hi": 20.0,
+      "kl_drop": 4.4646
+    }
+  }
+}

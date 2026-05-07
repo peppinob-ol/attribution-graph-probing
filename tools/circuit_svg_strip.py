@@ -165,7 +165,57 @@ def _ceil_to_step(x: float, step: float) -> float:
     return (n + 1) * step
 
 
+_ENTITY_HEADLINE_FONT_SIZE = 12
+_ENTITY_HEADLINE_LINE_H = 12  # tight stacking when the answer wraps
+_ENTITY_VALUE_FONT_SIZE = 9
+_ENTITY_LABEL_FONT_SIZE = 9
+_ENTITY_LINE_H = 10
+
+# Approximate per-character width (px) at the corresponding font sizes. Used
+# only for soft word-wrapping inside the narrow entity cards: cairosvg renders
+# the actual glyph widths in the output, but we still need a budget to avoid
+# the text being clipped by the card border (the issue the user flagged
+# happens when long values like "The Catcher in the Rye" silently overflow).
+_HEADLINE_CHAR_W = 6.8   # Menlo bold @ 12
+_VALUE_CHAR_W = 5.5      # Menlo regular @ 9
+_LABEL_CHAR_W = 4.6      # Arial regular @ 9
+
+
+def _wrap_to_width(text: str, max_chars: int) -> list[str]:
+    """Greedy word-wrap; falls back to character-chunking for tokens longer
+    than ``max_chars`` so the panel never lets a single long word escape its
+    border."""
+    if not text:
+        return []
+    words = text.split(" ")
+    lines: list[str] = []
+    cur = ""
+    for w in words:
+        if len(w) > max_chars:
+            if cur:
+                lines.append(cur)
+                cur = ""
+            for j in range(0, len(w), max_chars):
+                lines.append(w[j : j + max_chars])
+            continue
+        candidate = f"{cur} {w}".strip()
+        if len(candidate) <= max_chars or not cur:
+            cur = candidate
+        else:
+            lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+    return lines
+
+
 def _entity_card_svg(card: EntityCard, x: int, y: int, w: int, h: int) -> str:
+    """Render one source / target entity card.
+
+    Field values longer than the card width are word-wrapped onto continuation
+    lines (with a hanging indent) so domains like Books -- where ``book``
+    holds a full title -- don't silently clip text against the card border.
+    """
     accent = TARGET_ACCENT if card.role.lower() == "target" else SOURCE_ACCENT
     parts: list[str] = []
     parts.append(
@@ -177,22 +227,119 @@ def _entity_card_svg(card: EntityCard, x: int, y: int, w: int, h: int) -> str:
         f'font-family="Arial, sans-serif" font-size="9" font-weight="bold" '
         f'letter-spacing="1.1px">{card.role.upper()}</text>'
     )
-    parts.append(
-        f'<text x="{x + 10}" y="{y + 33}" fill="{accent}" '
-        f'font-family="Menlo, Consolas, monospace" font-size="13" '
-        f'font-weight="bold">{html.escape(card.headline)}</text>'
-    )
-    yy = y + 50
+
+    inner_w = w - 20  # 10 px padding on each side
+    headline_max_chars = max(4, int(inner_w / _HEADLINE_CHAR_W))
+    headline_lines = _wrap_to_width(card.headline, headline_max_chars)[:2]
+    if not headline_lines:
+        headline_lines = [card.headline]
+    headline_y = y + 30
+    for line in headline_lines:
+        parts.append(
+            f'<text x="{x + 10}" y="{headline_y}" fill="{accent}" '
+            f'font-family="Menlo, Consolas, monospace" '
+            f'font-size="{_ENTITY_HEADLINE_FONT_SIZE}" '
+            f'font-weight="bold">{html.escape(line)}</text>'
+        )
+        headline_y += _ENTITY_HEADLINE_LINE_H
+    yy = headline_y + 2
+    bottom_limit = y + h - 4
     for field_name, value in card.fields[:3]:
+        # Budget for first line: deduct width of "<field_name>: " (Arial 9)
+        # so the value can start inline next to the label without spilling.
+        prefix_chars = len(field_name) + 2
+        prefix_w = prefix_chars * _LABEL_CHAR_W
+        first_line_max = max(2, int((inner_w - prefix_w) / _VALUE_CHAR_W))
+        cont_max = max(2, int(inner_w / _VALUE_CHAR_W))
+
+        # If even a single word can't fit on the inline first line next to
+        # the field label (e.g. "character: Huckleberry" only has room for
+        # ~7 chars after the label, but "Huckleberry" is 11), push the value
+        # to its own continuation line with the full inner width. This avoids
+        # the ugly mid-word break "Huckleb / erry" the user saw.
+        words = (value or "").split(" ")
+        first_word_len = len(words[0]) if words else 0
+        if first_word_len > first_line_max and first_word_len <= cont_max:
+            lines: list[str] = [""]
+            budget = cont_max
+        else:
+            lines = []
+            budget = first_line_max
+        cur = ""
+        for w_token in words:
+            if len(w_token) > budget and cur:
+                lines.append(cur)
+                cur = ""
+                budget = cont_max
+            if len(w_token) > budget:
+                # value still longer than even a fresh continuation line
+                for j in range(0, len(w_token), budget):
+                    lines.append(w_token[j : j + budget])
+                continue
+            candidate = f"{cur} {w_token}".strip() if cur else w_token
+            if len(candidate) <= budget:
+                cur = candidate
+            else:
+                lines.append(cur)
+                cur = w_token
+                budget = cont_max
+        if cur:
+            lines.append(cur)
+        if not lines:
+            lines = [""]
+
+        # Line 1: "<field_name>: <value>" inline, sharing one <text>.
+        if yy > bottom_limit:
+            break
         parts.append(
             f'<text x="{x + 10}" y="{yy}" fill="{LABEL_COLOR}" '
-            f'font-family="Arial, sans-serif" font-size="9">'
+            f'font-family="Arial, sans-serif" font-size="{_ENTITY_LABEL_FONT_SIZE}">'
             f'{html.escape(field_name)}: '
             f'<tspan fill="{TEXT_COLOR}" font-family="Menlo, Consolas, monospace" '
-            f'font-size="10">{html.escape(value)}</tspan></text>'
+            f'font-size="{_ENTITY_VALUE_FONT_SIZE}">{html.escape(lines[0])}</tspan>'
+            f'</text>'
         )
-        yy += 13
+        yy += _ENTITY_LINE_H
+        for cont in lines[1:]:
+            if yy > bottom_limit:
+                break
+            parts.append(
+                f'<text x="{x + 10}" y="{yy}" fill="{TEXT_COLOR}" '
+                f'font-family="Menlo, Consolas, monospace" '
+                f'font-size="{_ENTITY_VALUE_FONT_SIZE}">'
+                f'{html.escape(cont)}</text>'
+            )
+            yy += _ENTITY_LINE_H
     return "\n".join(parts)
+
+
+def _split_line_into_spans(
+    line: str,
+    line_start_global: int,
+    spans: list[tuple[str, str | None]],
+) -> list[tuple[str, str | None]]:
+    """Project the global ``spans`` partition onto a single wrapped line.
+
+    Returns ``[(chunk, color_or_None), ...]`` in line order so the caller
+    can emit one ``<tspan>`` per chunk inside a single ``<text>`` element
+    -- letting the SVG renderer flow them inline with their actual glyph
+    widths instead of relying on a (lossy) per-character estimate.
+    """
+    out: list[tuple[str, str | None]] = []
+    if not line:
+        return out
+    line_end_global = line_start_global + len(line)
+    running = 0
+    for seg, color in spans:
+        seg_start = running
+        seg_end = running + len(seg)
+        running = seg_end
+        if seg_end <= line_start_global or seg_start >= line_end_global:
+            continue
+        clip_start = max(seg_start, line_start_global)
+        clip_end = min(seg_end, line_end_global)
+        out.append((seg[clip_start - seg_start : clip_end - seg_start], color))
+    return out
 
 
 def _output_panel_svg(
@@ -205,6 +352,14 @@ def _output_panel_svg(
     w: int,
     h: int,
 ) -> str:
+    """Render one of the DEFAULT / STEERED OUTPUT panels.
+
+    Each wrapped line lives in a single ``<text>`` element with one
+    ``<tspan>`` per highlighted segment; this lets the SVG renderer flow
+    bold-coloured chunks (the source / target tokens) at their true glyph
+    widths instead of needing manual ``x`` placement, which was producing
+    the small leftward gap and trailing overlap that the user reported.
+    """
     parts: list[str] = []
     parts.append(
         f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{CARD_RADIUS}" '
@@ -231,40 +386,35 @@ def _output_panel_svg(
     yy = y + 34
     rendered_lines = lines_plain[:4]
     cursor = 0
+    text_x = x + 10
     for line in rendered_lines:
         line_start = plain.find(line, cursor)
         if line_start < 0:
             line_start = cursor
-        line_end = line_start + len(line)
-        x_cursor = x + 10
-        i = line_start
-        while i < line_end:
-            color: str | None = None
-            seg_end = line_end
-            running = 0
-            for seg, col in spans:
-                seg_start_global = running
-                seg_end_global = running + len(seg)
-                running = seg_end_global
-                if seg_end_global <= i or seg_start_global >= line_end:
-                    continue
-                if seg_start_global <= i < seg_end_global:
-                    color = col
-                    seg_end = min(line_end, seg_end_global)
-                    break
-            chunk = plain[i:seg_end]
-            if not chunk:
-                break
+        line_chunks = _split_line_into_spans(line, line_start, spans)
+        if not line_chunks:
+            cursor = line_start + len(line)
+            yy += line_h
+            continue
+        tspans: list[str] = []
+        for chunk, color in line_chunks:
             tspan_color = color or TEXT_COLOR
             weight = "bold" if color else "normal"
-            parts.append(
-                f'<text x="{x_cursor}" y="{yy}" fill="{tspan_color}" '
-                f'font-family="Menlo, Consolas, monospace" font-size="12" '
-                f'font-weight="{weight}">{html.escape(chunk)}</text>'
+            # ``xml:space="preserve"`` keeps interior whitespace intact so the
+            # word-spacing around bold-coloured chunks matches the surrounding
+            # plain text (otherwise the SVG renderer collapses leading /
+            # trailing spaces inside a tspan and the highlight visually drifts).
+            tspans.append(
+                f'<tspan fill="{tspan_color}" font-weight="{weight}" '
+                f'xml:space="preserve">{html.escape(chunk)}</tspan>'
             )
-            x_cursor += int(len(chunk) * 7.1)
-            i = seg_end
-        cursor = line_end
+        parts.append(
+            f'<text x="{text_x}" y="{yy}" fill="{TEXT_COLOR}" '
+            f'font-family="Menlo, Consolas, monospace" font-size="12">'
+            + "".join(tspans)
+            + "</text>"
+        )
+        cursor = line_start + len(line)
         yy += line_h
     return "\n".join(parts)
 
@@ -458,9 +608,22 @@ def _plot_panel_svg(
         f'stroke="{PLOT_DECAY}" stroke-width="2"/>'
     )
 
+    # Tick density: pick a step that guarantees a minimum horizontal gap
+    # between adjacent rendered labels so they never visually collide. We
+    # estimate label width from the truncation cap (8 chars + ellipsis) and
+    # the per-character width of font-size 8 monospace (~5 px).
     label_y = inner_bottom + 10
     n_labels = len(plot.generated_tokens)
-    step = max(1, (n_labels - 1) // 8)
+    max_label_chars = 7
+    label_char_w = 5.0
+    min_label_gap = 6.0
+    label_width_px = max_label_chars * label_char_w + min_label_gap
+    if n_labels > 1:
+        spacing_per_pos = plot_w / (n_labels - 1)
+        step = max(1, math.ceil(label_width_px / max(spacing_per_pos, 1.0)))
+    else:
+        step = 1
+    last_label_x: float | None = None
     for i, tok in enumerate(plot.generated_tokens):
         is_unsteered = tok.strip().startswith("[")
         if is_unsteered:
@@ -469,17 +632,27 @@ def _plot_panel_svg(
         if not is_primary and i % step != 0 and i != n_labels - 1:
             continue
         cx = x_positions[i] if i < len(x_positions) else inner_right
+        # Belt-and-braces: even after the step filter, drop a label if the
+        # primary tick has already pushed it too close to its neighbour
+        # (keeps "Suzanne" / "Collins" from sitting on top of each other).
+        if (
+            not is_primary
+            and last_label_x is not None
+            and cx - last_label_x < label_width_px
+        ):
+            continue
         color = PLOT_GROW if is_primary else MUTED_TEXT
         weight = "bold" if is_primary else "normal"
         label = tok.strip() or "·"
-        if len(label) > 9:
-            label = label[:8] + "…"
+        if len(label) > max_label_chars + 1:
+            label = label[:max_label_chars] + "…"
         parts.append(
             f'<text x="{cx:.1f}" y="{label_y}" fill="{color}" '
             f'font-family="Menlo, Consolas, monospace" font-size="8" '
             f'font-weight="{weight}" text-anchor="middle">'
             f'{html.escape(label)}</text>'
         )
+        last_label_x = cx
 
     # Separator between [unsteered] (index 0) and the steered run (index >= 1)
     # plus a "unsteered <-> steered" annotation above the plot. The arrow is

@@ -90,13 +90,15 @@ def test_render_texas_to_california_swap(tmp_path: Path):
 
 
 @pytest.mark.skipif(
-    not (SWAP_RUN / "work" / "indiana_fort_wayne__to__minnesota_minneapolis").exists()
-    or not (SWAP_RUN.parent / "entropy_study_m5" / "by_source" / "indiana_fort_wayne"
-            / "to_minnesota_minneapolis.json").exists(),
-    reason="indiana->minnesota pair or its sweep runs not present; skipping",
+    not (SWAP_RUN / "work" / "indiana_fort_wayne__to__minnesota_minneapolis").exists(),
+    reason="indiana->minnesota pair not present; skipping",
 )
-def test_render_v2_layout_with_sweep(tmp_path: Path):
-    """v2 layout: top strip, smaller header, graph, intervention-strength curve."""
+def test_render_v2_layout_with_position_plot(tmp_path: Path):
+    """v2 layout: top strip, smaller header, graph, position-axis trajectory plot.
+
+    Shares the same plot panel as the strip layout, so the assertions mirror
+    those of ``test_render_strip_layout_with_position_plot``.
+    """
     out = tmp_path / "v2.svg"
     svg = render_swap_intervention(
         SWAP_RUN,
@@ -115,15 +117,15 @@ def test_render_v2_layout_with_sweep(tmp_path: Path):
     assert "AFTER" in svg and "INTERVENTION" in svg
     # Smaller graph header still present
     assert "GRAPH &amp; INTERVENTIONS" in svg
-    # Sweep plot artefacts: at least one M-tick label and the highlight badge
-    assert "Intervention Strength" in svg
-    assert "0x" in svg and "20x" in svg
-    # The auto-picked tokens should appear; for this pair we expect Indianapolis decay
-    # and "St" growth.
-    assert "Indianapolis" in svg
-    # End-of-curve labels include "(original)" and "(after intervention)" markers
-    assert "(original)" in svg
-    assert "(after intervention)" in svg
+    # Trajectory plot artefacts (shared with the strip layout):
+    # title, y-axis caption, x-axis caption, and the unsteered<->steered annotation.
+    assert "TARGET TRAJECTORY" in svg
+    assert "Next Token Probability" in svg
+    assert "Generated token position" in svg
+    assert "unsteered" in svg
+    assert "steered" in svg
+    # At least one of the steered-generated tokens should appear as a tick label.
+    assert "Saint" in svg or "Minnesota" in svg
 
 
 @pytest.mark.skipif(
@@ -163,3 +165,38 @@ def test_render_strip_layout_with_position_plot(tmp_path: Path):
     # and is annotated above the plot rather than as a tick label.
     assert "unsteered" in svg
     assert "steered" in svg
+
+
+PRODUCTS_RUN = REPO_ROOT / "output" / "products_founders_batch" / "_swaps" / "runs" / "fullscale_products_labeled"
+
+
+@pytest.mark.skipif(
+    not (PRODUCTS_RUN / "work" / "nike_shoes__to__model_s").exists(),
+    reason="Products nike->model_s pair not present; skipping",
+)
+def test_render_strip_layout_for_products_domain(tmp_path: Path):
+    """Strip renderer must adapt the entity-card schema for non-USA domains.
+
+    Products meta uses ``product``/``company``/``founder`` (not
+    ``state``/``capital``/``city``); the headline should be the founder
+    (the answer the steered model is supposed to produce) and the body
+    should show the company and product fields.
+    """
+    out = tmp_path / "products_strip.svg"
+    svg = render_swap_intervention(
+        PRODUCTS_RUN,
+        "nike_shoes__to__model_s",
+        output_svg_path=out,
+        max_per_row=2,
+        layout="strip",
+    )
+
+    assert out.is_file()
+    # Source / target headlines = answer fields (founder names)
+    assert "Phil Knight" in svg
+    assert "Elon Musk" in svg
+    # Body fields render the domain's two non-answer slots
+    assert "company" in svg and "product" in svg
+    # Source/target accent words appear in the highlighted output text
+    assert "Nike" in svg
+    assert "Tesla" in svg or "Model" in svg

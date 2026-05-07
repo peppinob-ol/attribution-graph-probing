@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Kansas City is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Kansas City is <strong>Kansas</strong>.\n\nThe city of Kansas City",
+      "default": "<bos><bos>Fact: The capital of the state containing Kansas City is Topeka.\n\nFact: The state of Kansas is",
+      "steered_topk": [
+        {
+          "token": " Kansas",
+          "prob": 0.25
+        },
+        {
+          "token": " ",
+          "prob": 0.1943359375
+        },
+        {
+          "token": " Oklahoma",
+          "prob": 0.1943359375
+        },
+        {
+          "token": " Des",
+          "prob": 0.0810546875
+        },
+        {
+          "token": " Washington",
+          "prob": 0.038330078125
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Topeka",
+          "prob": 0.32421875
+        },
+        {
+          "token": " Kansas",
+          "prob": 0.1357421875
+        },
+        {
+          "token": " the",
+          "prob": 0.0498046875
+        },
+        {
+          "token": " not",
+          "prob": 0.038818359375
+        },
+        {
+          "token": " Jefferson",
+          "prob": 0.0341796875
+        }
+      ],
+      "intervention_count": 100,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 3.251,
+        "steered_entropy": 2.7115,
+        "entropy_delta": -0.5395,
+        "kl_baseline_to_steered": 4.637
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

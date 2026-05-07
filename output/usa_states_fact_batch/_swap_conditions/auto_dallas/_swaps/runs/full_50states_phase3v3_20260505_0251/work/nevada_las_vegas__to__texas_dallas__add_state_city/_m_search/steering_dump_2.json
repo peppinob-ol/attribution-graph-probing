@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Las Vegas is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Las Vegas is not Nevada.\n\nFact: The capital of the state",
+      "default": "<bos><bos>Fact: The capital of the state containing Las Vegas is Carson City.\n\nFact: The city of Reno",
+      "steered_topk": [
+        {
+          "token": " Nevada",
+          "prob": 0.1689453125
+        },
+        {
+          "token": " Las",
+          "prob": 0.1318359375
+        },
+        {
+          "token": " not",
+          "prob": 0.1318359375
+        },
+        {
+          "token": " the",
+          "prob": 0.06201171875
+        },
+        {
+          "token": " in",
+          "prob": 0.042724609375
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Reno",
+          "prob": 0.1787109375
+        },
+        {
+          "token": " Carson",
+          "prob": 0.158203125
+        },
+        {
+          "token": " Sacramento",
+          "prob": 0.1396484375
+        },
+        {
+          "token": " Las",
+          "prob": 0.06591796875
+        },
+        {
+          "token": " not",
+          "prob": 0.05126953125
+        }
+      ],
+      "intervention_count": 318,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 3.333,
+        "steered_entropy": 3.6097,
+        "entropy_delta": 0.2767,
+        "kl_baseline_to_steered": 2.6339
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

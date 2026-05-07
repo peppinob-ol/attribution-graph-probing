@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Detroit is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Detroit is not Detroit.\n\nFact: The city of Chicago has",
+      "default": "<bos><bos>Fact: The capital of the state containing Detroit is Lansing.\n\nFact: The state of Michigan is",
+      "steered_topk": [
+        {
+          "token": " not",
+          "prob": 0.1357421875
+        },
+        {
+          "token": " the",
+          "prob": 0.1357421875
+        },
+        {
+          "token": " called",
+          "prob": 0.08251953125
+        },
+        {
+          "token": " ",
+          "prob": 0.07275390625
+        },
+        {
+          "token": " Lansing",
+          "prob": 0.07275390625
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Lansing",
+          "prob": 0.515625
+        },
+        {
+          "token": " Michigan",
+          "prob": 0.048095703125
+        },
+        {
+          "token": " the",
+          "prob": 0.048095703125
+        },
+        {
+          "token": " not",
+          "prob": 0.048095703125
+        },
+        {
+          "token": " Detroit",
+          "prob": 0.0257568359375
+        }
+      ],
+      "intervention_count": 62,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 2.711,
+        "steered_entropy": 3.836,
+        "entropy_delta": 1.125,
+        "kl_baseline_to_steered": 0.9605
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

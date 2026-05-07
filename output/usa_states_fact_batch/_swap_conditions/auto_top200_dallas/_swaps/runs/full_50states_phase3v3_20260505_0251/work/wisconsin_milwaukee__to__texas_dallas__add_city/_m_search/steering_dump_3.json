@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Milwaukee is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Milwaukee is not Milwaukee.\n\nFact: The city of Milwaukee has",
+      "default": "<bos><bos>Fact: The capital of the state containing Milwaukee is Madison.\n\nFact: The state of Wisconsin is",
+      "steered_topk": [
+        {
+          "token": " not",
+          "prob": 0.1611328125
+        },
+        {
+          "token": " the",
+          "prob": 0.11083984375
+        },
+        {
+          "token": " called",
+          "prob": 0.09765625
+        },
+        {
+          "token": " ",
+          "prob": 0.06689453125
+        },
+        {
+          "token": " Milwaukee",
+          "prob": 0.06689453125
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Madison",
+          "prob": 0.337890625
+        },
+        {
+          "token": " Milwaukee",
+          "prob": 0.12451171875
+        },
+        {
+          "token": " Wisconsin",
+          "prob": 0.08544921875
+        },
+        {
+          "token": " the",
+          "prob": 0.07568359375
+        },
+        {
+          "token": " called",
+          "prob": 0.04052734375
+        }
+      ],
+      "intervention_count": 85,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 3.0804,
+        "steered_entropy": 3.7082,
+        "entropy_delta": 0.6278,
+        "kl_baseline_to_steered": 2.3075
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

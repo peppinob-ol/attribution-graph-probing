@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Fargo is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Fargo is not North Dakota.\n\nFact: The capital of the",
+      "default": "<bos><bos>Fact: The capital of the state containing Fargo is Bismarck.\n\nFact: The state of North Dakota",
+      "steered_topk": [
+        {
+          "token": " is",
+          "prob": 0.2451171875
+        },
+        {
+          "token": " not",
+          "prob": 0.08984375
+        },
+        {
+          "token": " a",
+          "prob": 0.061767578125
+        },
+        {
+          "token": " in",
+          "prob": 0.0546875
+        },
+        {
+          "token": ",",
+          "prob": 0.048095703125
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Bismarck",
+          "prob": 0.259765625
+        },
+        {
+          "token": " Fargo",
+          "prob": 0.2294921875
+        },
+        {
+          "token": " North",
+          "prob": 0.1083984375
+        },
+        {
+          "token": " the",
+          "prob": 0.08447265625
+        },
+        {
+          "token": " not",
+          "prob": 0.0274658203125
+        }
+      ],
+      "intervention_count": 207,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 2.9056,
+        "steered_entropy": 3.622,
+        "entropy_delta": 0.7164,
+        "kl_baseline_to_steered": 14.3631
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

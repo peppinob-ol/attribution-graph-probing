@@ -1,0 +1,161 @@
+{
+  "swap_id": "west_virginia_huntington__to__texas_dallas",
+  "source": {
+    "slug": "west_virginia_huntington",
+    "city": "Huntington",
+    "state": "West Virginia",
+    "capital": "Charleston",
+    "prompt": "<bos>Fact: The capital of the state containing Huntington is",
+    "concept": "west virginia"
+  },
+  "target": {
+    "slug": "texas_dallas",
+    "city": "Dallas",
+    "state": "Texas",
+    "capital": "Austin",
+    "concept": "texas"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 130,
+    "total_count": 130
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Huntington",
+      "state": "West Virginia",
+      "capital": "Charleston"
+    },
+    "ground_truth_to": {
+      "city": "Dallas",
+      "state": "Texas",
+      "capital": "Austin"
+    },
+    "answer_field": "capital",
+    "from_answer": "Charleston",
+    "to_answer": "Austin",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Charleston",
+      "default_prob": 0.1416015625,
+      "steered": " the",
+      "steered_prob": 0.380859375
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": 0.1416015625,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.1416015625,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>Fact: The capital of the state containing Huntington is Charleston.\n\nThe capital of the state containing Huntington",
+      "steered_output": "<bos><bos>Fact: The capital of the state containing Huntington is the same as the capital of the state containing Austin.",
+      "default_topk": [
+        {
+          "token": " Charleston",
+          "prob": 0.1416015625
+        },
+        {
+          "token": " Huntington",
+          "prob": 0.07568359375
+        },
+        {
+          "token": " the",
+          "prob": 0.07568359375
+        },
+        {
+          "token": " Indianapolis",
+          "prob": 0.04052734375
+        },
+        {
+          "token": " Raleigh",
+          "prob": 0.031494140625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " the",
+          "prob": 0.380859375
+        },
+        {
+          "token": " not",
+          "prob": 0.0849609375
+        },
+        {
+          "token": " in",
+          "prob": 0.0751953125
+        },
+        {
+          "token": " a",
+          "prob": 0.051513671875
+        },
+        {
+          "token": " ",
+          "prob": 0.035400390625
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 4.4008,
+      "steered_entropy": 3.2616,
+      "entropy_delta": -1.1392,
+      "kl_baseline_to_steered": 6.989
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 2.4022488679628626,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-05-05T03:10:34.673828",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 2.402249,
+    "phase": 1,
+    "total_steps": 4,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 3.216
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 3.211
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 3.8263
+      },
+      {
+        "m": 2.402249,
+        "hit": true,
+        "kl": 6.989
+      }
+    ],
+    "phase2_steps": [],
+    "kl_transition": null
+  }
+}

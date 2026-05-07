@@ -192,7 +192,18 @@ def process_activations_batch_local(
         env['SEEDS_MANIFEST_PATH'] = str(manifest_path)
         env['PERSIST_SAE_CACHE'] = 'true'
         force_cpu = local_cfg.get('force_cpu', False)
-        if gpus and not force_cpu:
+        # If the parent process already pinned CUDA_VISIBLE_DEVICES (e.g. via
+        # a shell launcher running multiple shards in parallel), respect it
+        # instead of overwriting with the YAML's gpus[0]. Inside such a child
+        # process, "logical GPU 0" already maps to the parent-selected
+        # physical GPU. Without this guard, every shard ends up on physical
+        # GPU 0 and causes OOM.
+        parent_cvd = os.environ.get('CUDA_VISIBLE_DEVICES')
+        if force_cpu:
+            env['CUDA_VISIBLE_DEVICES'] = ''
+        elif parent_cvd is not None and parent_cvd != '':
+            env['CUDA_VISIBLE_DEVICES'] = parent_cvd
+        elif gpus:
             env['CUDA_VISIBLE_DEVICES'] = str(gpus[0])
         manifest = []
         for state in seed_states:

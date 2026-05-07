@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Fayetteville is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Fayetteville is not Fayetteville.\n\nFact: The city of Fayetteville has",
+      "default": "<bos><bos>Fact: The capital of the state containing Fayetteville is Raleigh.\n\nFact: The state of North Carolina",
+      "steered_topk": [
+        {
+          "token": " not",
+          "prob": 0.1796875
+        },
+        {
+          "token": " the",
+          "prob": 0.109375
+        },
+        {
+          "token": " ",
+          "prob": 0.0751953125
+        },
+        {
+          "token": " located",
+          "prob": 0.06640625
+        },
+        {
+          "token": " also",
+          "prob": 0.051513671875
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Raleigh",
+          "prob": 0.2197265625
+        },
+        {
+          "token": " the",
+          "prob": 0.0810546875
+        },
+        {
+          "token": " Little",
+          "prob": 0.06298828125
+        },
+        {
+          "token": " Fayetteville",
+          "prob": 0.03369140625
+        },
+        {
+          "token": " Harrisburg",
+          "prob": 0.03369140625
+        }
+      ],
+      "intervention_count": 204,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 3.9783,
+        "steered_entropy": 3.8668,
+        "entropy_delta": -0.1115,
+        "kl_baseline_to_steered": 9.6316
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

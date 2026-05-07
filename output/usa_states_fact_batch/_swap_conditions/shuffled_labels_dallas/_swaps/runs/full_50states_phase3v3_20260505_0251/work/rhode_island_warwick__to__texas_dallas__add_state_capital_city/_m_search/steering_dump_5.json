@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Warwick is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Warwick is <<<<<<<<<<<<<<\nA: Rhode Island\nB: Connecticut\n",
+      "default": "<bos><bos>Fact: The capital of the state containing Warwick is Harrisburg.\n\nFact: The state of Pennsylvania is",
+      "steered_topk": [
+        {
+          "token": " <<<<<<<<<<<<<<",
+          "prob": 0.25390625
+        },
+        {
+          "token": " and",
+          "prob": 0.07275390625
+        },
+        {
+          "token": ",",
+          "prob": 0.06396484375
+        },
+        {
+          "token": " be",
+          "prob": 0.06396484375
+        },
+        {
+          "token": " state",
+          "prob": 0.056396484375
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " the",
+          "prob": 0.083984375
+        },
+        {
+          "token": " Harrisburg",
+          "prob": 0.0654296875
+        },
+        {
+          "token": " Hartford",
+          "prob": 0.044921875
+        },
+        {
+          "token": " Springfield",
+          "prob": 0.044921875
+        },
+        {
+          "token": " Albany",
+          "prob": 0.039794921875
+        }
+      ],
+      "intervention_count": 231,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 4.5825,
+        "steered_entropy": 3.9356,
+        "entropy_delta": -0.6469,
+        "kl_baseline_to_steered": 13.4409
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

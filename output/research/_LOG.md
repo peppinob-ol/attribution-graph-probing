@@ -7,6 +7,265 @@ Do not edit past entries; if a finding is wrong, add a new entry that references
 
 ---
 
+## 2026-05-05 -- Phase B v3 pipeline: in-process model + early-stop + 8-GPU split (~25x faster than v2)
+
+**Status**: Running (started 02:51 UTC May 5, ETA ~04:33 UTC)
+**Confidence**: High for speedup, results pending
+**Claim tested**: Can the full 6-condition × 49-source × 7-variant matrix (2058 cells)
+finish in single-digit hours on the 8-GPU box?
+
+### Question
+
+The first attempt at Phase B was tracking ~35 h wall-clock (rate ~46 cells/h
+across 6 GPUs), dominated by the per-call ReplacementModel reload inside
+`_run_local_ct_steering` that spawns `batch_steering_ct.py` as a fresh
+Python subprocess on every M-search probe. Each probe paid ~30 s of model
+load for ~3 s of actual compute.
+
+Two changes were stacked:
+
+1. **In-process steering backend.** Added
+   `run_steering_session_inprocess()` to `batch_steering_ct.py` and a
+   `--in-process` CLI flag to `run_batch_swaps.py` that loads ONE
+   `ReplacementModel` at process start and reuses it across every probe in
+   that worker.
+2. **Stop at first hit per source.** New `--source-stop-on-hit` flag.
+   `run_single_swap` attaches `_hit_found` (default-M hit OR M-search hit);
+   the variant loop breaks out for a source once any variant hits. Changes
+   the unit of analysis from cell to source.
+
+8-GPU layout: 6 conditions but 8 GPUs. Two of the conditions
+(`human_dallas`, `auto_dallas`) are split with `--source-slice 0/2` and
+`1/2` so all 8 GPUs run a full worker process.
+
+### Method
+
+Smoke validation (1 source x 7 variants on `human_dallas`,
+`smoke_inprocess_0245`) before launching:
+
+| metric              | old subprocess backend | new in-process |
+|---------------------|------------------------|----------------|
+| time per probe      | ~50 s                  | ~3.3 s         |
+| time per cell       | ~5 min                 | ~25 s          |
+| 7-cell smoke total  | ~35 min (extrapolated) | ~3 min         |
+
+Then launched the full 8-worker run via `tools/launch_phase3_swaps.sh`
+(updated to use `--in-process --source-stop-on-hit` and the source-slice
+split for the two heaviest conditions).
+
+### Raw findings (interim, 19 min into the run)
+
+* 387 / 2058 cells complete (18.8 %)
+* Aggregate rate **1200 cells/h** (vs ~46 cells/h on v2: ~26 x)
+* All 8 GPUs at 100 % util, 24.6 GiB each
+* Hits so far: human 27, auto 34, top21 9, top100 17, top200 21,
+  shuffled 0
+* Early-stop already kicked: 14 source-hits in `human_dallas` slice 0/2,
+  23 in `auto_dallas` slice 0/2 (each saves ~5-6 variants)
+
+### Interpretation (preliminary)
+
+* The dominant cost on v2 was model load, not compute. Removing it gives
+  a ~12-15 x speedup at the per-probe level; the rest of the gain over
+  the v2 *aggregate* rate comes from also using all 8 GPUs.
+* `shuffled_labels_dallas` still at 0 / 35 hits at this checkpoint --
+  consistent with it being a clean negative control under M-search.
+
+### Threats to validity
+
+* Numbers above are interim; need to revisit after the run completes.
+* The two split conditions (`human`, `auto`) experience the same
+  per-process model load cost as unsplit ones, so they each cost ~30 s
+  more startup than they would unsplit. Negligible at 2 h scale.
+
+### Final results (run finished 05:23 UTC, 2 h 32 m wall-clock)
+
+| condition       | sources hit / 49 | cells run | cell hit-rate | mean M_tuned (median) |
+|-----------------|-----------------:|----------:|--------------:|----------------------:|
+| probe-prompting |             40   |       133 |        30.1 % |                  4.08 |
+| top-200         |             40   |       149 |        26.9 % |                  2.40 |
+| human           |             38   |       145 |        26.2 % |                  2.00 |
+| top-100         |             34   |       151 |        22.5 % |                  6.93 |
+| top-21          |             31   |       171 |        18.1 % |                  2.40 |
+| shuffled-labels |              0   |       343 |         0.0 % |                  --   |
+
+### Follow-up
+
+* Add the per-source heatmap and the M_tuned distribution as
+  supplementary figures: they reveal that human is the *most natural*
+  condition (M_median = 2.0, almost always default-M), while
+  probe-prompting is the most *consistent* (M_IQR tight, no outliers).
+* If 8-GPU still feels under-used, a cross-condition dispatcher would
+  push wall-clock toward ~67 min.
+
+---
+
+## 2026-05-05 -- Source coverage rewrites the headline: probe-prompting ties top-200, human is most natural
+
+**Status**: Concluded
+**Confidence**: High (N = 49 sources x 7 field-additivity variants per
+condition, M-search enabled, full 50-state graph batch)
+**Claim tested**: Does the cell-level top-K saturation story (5-source
+M-search smoke) survive at the 49-source scale?
+
+### Question
+
+The paper figure baseline (`fig_topk_saturation.pdf`, generated from
+`smoke_msearch_main_table_v2.csv` with N = 5 sources x 7 variants = 35
+cells per condition) showed:
+* probe-prompting 14 / 35 hits, mean amplified influence = 0.067 per
+  call -- strict winner;
+* top-K family saturated near 9-10 / 35 regardless of K (K=21..200);
+* human at the bottom (5 / 35) despite its tiny 4-feature footprint.
+
+The 5-source slice was small enough that the *source-level* coverage
+question was indistinguishable from the cell-level question. Phase B v3
+ran the same six conditions on every one of the 49 non-Dallas USA
+sources, with M-search and seven field-additivity variants per source.
+That gives us, for the first time, two complementary pictures: per-cell
+efficiency and per-source coverage.
+
+### Method
+
+1. Phase A regenerated the full 50-state graph batch with the
+   `gemmascope-transcoder-16k` set (matches the human-annotated
+   `texas_dallas` graph). Done already in earlier Phase A entry.
+2. Phase B v3 (this entry's predecessor) ran 6 conditions x 49 sources
+   x 7 variants = 2058 cell-attempts maximum, with
+   `--source-stop-on-hit` early-stopping the variant loop on the first
+   hit per source. M-search remained on (coarse 6 probes, fine 6 steps,
+   M_min = 0.1, M_max = 20).
+3. Aggregator: `scripts/research/phase3v3_aggregate.py` walks every
+   `by_source/<source>/to_<target>__<variant>.json` plus its
+   `__m_tuned.json` sibling and emits two CSVs in `output/research/`:
+   `phase3v3_cells.csv` (one row per attempted cell) and
+   `phase3v3_conditions.csv` (per-condition aggregate).
+
+### Raw findings
+
+Per-condition aggregate (full table also in `phase3v3_conditions.csv`):
+
+| condition       | sources hit / 49 | cells run | cell hit-rate | mean amplified feat / call | M_median |
+|-----------------|-----------------:|----------:|--------------:|---------------------------:|---------:|
+| probe-prompting |             40   |       133 |        30.1 % |                       96.5 |     4.08 |
+| top-200         |             40   |       149 |        26.9 % |                       30.7 |     2.40 |
+| human           |             38   |       145 |        26.2 % |                        4.0 |     2.00 |
+| top-100         |             34   |       151 |        22.5 % |                       19.7 |     6.93 |
+| top-21          |             31   |       171 |        18.1 % |                        8.1 |     2.40 |
+| shuffled-labels |              0   |       343 |         0.0 % |                        3.4 |     --   |
+
+Shuffled-labels still zero hits across all 343 cells -- the negative
+control survives the scale-up cleanly.
+
+Three findings worth highlighting:
+
+1. **Source coverage**: at the source level, probe-prompting and
+   top-200 are tied (40 / 49 = 82 %) and human is one source behind
+   (38 / 49 = 78 %). Top-21 (31 / 49) is genuinely worse. The
+   per-source heatmap (`fig_per_source_heatmap.pdf`) shows there's a
+   small "universally hard" set (idaho_idaho_falls, several smaller
+   cities) that no method touches.
+
+2. **Cell-level efficiency** still favours probe-prompting: 30.1 %
+   cell hit-rate vs 26.9 % (top-200) vs 26.2 % (human) vs 18-22 %
+   (top-21, top-100). Same general shape as the 5-source figure, but
+   the gap is smaller and human is now slightly above the top-K
+   saturation, not below it.
+
+3. **Naturalness via M_tuned**: when human hits, it does so with a
+   tiny perturbation (M_median = 2.0, IQR collapsed at default M).
+   probe-prompting is the most *consistent* (M_median = 4.1, tight
+   IQR, no outliers above ~7); top-100 has a bimodal distribution
+   with several hits requiring M = 12+; top-200 mixes easy and hard
+   transfers.
+
+### Interpretation
+
+The full 50-state evidence makes the story more nuanced than the
+5-source paper figure suggested:
+
+* **probe-prompting** is the *best general-purpose* method: highest
+  cell hit-rate, ties the best on source coverage, and never demands
+  >7x amplification.
+* **human curation** is the *most natural*: when it works, it works at
+  default M, with only 4 features per call. The cost is that it
+  generalises slightly less broadly (38 vs 40 sources hit).
+* **top-K-by-influence** with K=200 catches up at the source level by
+  brute-forcing 30+ features per call, but pays a higher cell-level
+  cost and a much higher M variance.
+* **shuffled-labels** still 0 / 49: the labels-as-information story
+  stands.
+
+The right framing for the paper is probably "two pictures, two
+metrics": cell efficiency = probe-prompting wins; source coverage =
+probe-prompting ties top-200; M-naturalness = human wins. All three are
+captured in the new figures.
+
+### Method/source agreement (49 sources, 5 real methods)
+
+Looking only at the 5 non-shuffled methods, the 49 sources break down as:
+
+* **22 / 49 universally easy** -- hit by all 5 methods (alaska, arizona,
+  california oakland, delaware, florida, georgia, hawaii, iowa, kentucky,
+  louisiana, maine, massachusetts, minnesota, montana, nevada, new
+  hampshire, new mexico, ohio, oregon, rhode island, tennessee, vermont).
+* **1 / 49 universally hard** -- `idaho_idaho_falls` is missed by every
+  method. Worth auditing the Phase A graph and node grouping for this
+  source: the "Idaho" supernode may be poorly localised in the graph.
+* **26 / 49 disagreement** -- methods are non-redundant. Three highlights:
+  * `missouri_kansas_city` and `north_dakota_fargo` are hit *only* by
+    **human**. No auto method (probe-prompting, top-21, top-100, top-200)
+    succeeds on them. The human-curated 22-feature "Texas" subgraph
+    captures something the auto pipeline doesn't on these two states.
+  * `colorado_colorado_springs` is hit *only* by **probe-prompting**.
+    None of human, top-21, top-100, top-200 succeed. The probe-prompting
+    label-driven supernode composition captures something even top-200
+    misses with its 30+ features.
+  * `oklahoma_tulsa` is hit *only* by **top-200** -- a pure influence
+    win where the volume of features carries the day.
+
+This complementarity is the strongest argument against treating these
+methods as "good vs better": at the source level, human curation,
+probe-prompting, and top-K each pick up sources that the others miss.
+The right framing for the paper is that these methods are partially
+*orthogonal*, not strictly ordered.
+
+### Threats to validity
+
+* "Source coverage" depends on how generous one is with variants. With
+  7 field-additivity variants per source and M-search, top-200 catches
+  up. If the variant set were smaller, top-200 would underperform
+  probe-prompting more visibly.
+* `cells_run` differs across conditions because of `--source-stop-on-hit`.
+  Cell hit-rate is therefore "hit rate among run cells", not "hit rate
+  among 343 fixed cells". This is the right metric for ranking by
+  efficiency, but it does mean the denominator is not constant.
+* `idaho_idaho_falls` may have Phase A graph-quality issues we have not
+  audited.
+
+### Outputs
+
+* `output/research/phase3v3_cells.csv` -- 1092 cell-attempt rows
+* `output/research/phase3v3_conditions.csv` -- 6 condition rows
+* `paper/figures/fig_topk_saturation_full50.{pdf,png}` -- two-panel
+  full-50-state version of the paper figure (per-cell efficiency +
+  source-level coverage)
+* `paper/figures/fig_per_source_heatmap.{pdf,png}` -- 49 x 6 grid of
+  hit / no-hit / M-at-hit per (source, condition)
+* `paper/figures/fig_mtuned_distribution.{pdf,png}` -- log-scale
+  per-condition M_tuned strip plot showing human-as-most-natural
+
+### Follow-up
+
+* Decide whether to keep both `fig_topk_saturation.pdf` (5-source) and
+  the new `fig_topk_saturation_full50.pdf` in the paper or replace the
+  former. Replacing is cleaner; the supplementary heatmap covers the
+  evidence we'd lose.
+* Audit the 6 "universally hard" sources to check for Phase A graph
+  defects.
+
+---
+
 ## 2026-05-04 -- Top-K-by-influence saturates at K=21..200 for Dallas-target swaps; auto wins on labels, not on influence budget
 
 **Status**: Concluded

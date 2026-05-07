@@ -420,11 +420,15 @@ class ActivationHeatmapVisualizer:
 
         # Reserve a left margin for per-row labels ("seed", "probe N").
         left_label_pad = 0.95
+        # Small bleed beyond the cell extents so the bottom-most and right-most
+        # cell borders aren't clipped at the axis edge (matplotlib clips patches
+        # to the axes box, which would hide half a linewidth).
+        edge_bleed = 0.04
         fig, ax = plt.subplots(
             figsize=(fig_width + left_label_pad * cell_width_in, fig_height)
         )
-        ax.set_xlim(-left_label_pad, n_cols)
-        ax.set_ylim(0, n_probes + 0.05)
+        ax.set_xlim(-left_label_pad, n_cols + edge_bleed)
+        ax.set_ylim(-edge_bleed, n_probes + 0.05)
         ax.axis('off')
 
         # Number probes sequentially, leaving the seed (if present) at index 0.
@@ -459,9 +463,10 @@ class ActivationHeatmapVisualizer:
                 # Get background color using global max
                 bg_color = self.get_background_color(value, global_max)
 
-                # Seed row uses a darker/thicker border to set it apart visually.
-                edge = '#5a6268' if is_seed else 'lightgray'
-                ew = 1.0 if is_seed else 0.5
+                # Seed row uses a darker/thicker border to set it apart visually;
+                # probe rows still get a clearly visible (but lighter, thinner) border.
+                edge = '#5a6268' if is_seed else '#bdbdbd'
+                ew = 1.6 if is_seed else 1.0
 
                 # Draw background rectangle
                 rect = patches.Rectangle(
@@ -485,13 +490,11 @@ class ActivationHeatmapVisualizer:
                        zorder=2,
                        fontweight='bold')
                 
-                # Show value if significant, with a contrasting halo for legibility.
-                # On the seed row we surface even small activations so the seed
-                # prompt's signal is visible relative to the probe activations.
-                value_visibility_floor = self.MINIMUM_THRESHOLD if is_seed else max(
-                    self.MINIMUM_THRESHOLD, global_max * 0.1
-                )
-                if self.show_values and value > value_visibility_floor:
+                # Show the activation value whenever the cell is visibly colored,
+                # i.e. whenever the value clears MINIMUM_THRESHOLD. The cell's
+                # background opacity has a 0.05 floor for any non-zero value, so
+                # if the user can see green we should also show the number.
+                if self.show_values and value > self.MINIMUM_THRESHOLD:
                     halo_color = 'white' if text_color == 'black' else 'black'
                     ax.text(col + 0.5, row + 0.02,
                            f"{value:.1f}",

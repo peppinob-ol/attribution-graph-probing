@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Tulsa is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Tulsa is not Tulsa.\n\nFact: The city of Tulsa has",
+      "default": "<bos><bos>Fact: The capital of the state containing Tulsa is Oklahoma City.\n\nFact: The city of Tulsa",
+      "steered_topk": [
+        {
+          "token": " not",
+          "prob": 0.1435546875
+        },
+        {
+          "token": " a",
+          "prob": 0.111328125
+        },
+        {
+          "token": " the",
+          "prob": 0.0869140625
+        },
+        {
+          "token": " Oklahoma",
+          "prob": 0.07666015625
+        },
+        {
+          "token": " located",
+          "prob": 0.041015625
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Oklahoma",
+          "prob": 0.46875
+        },
+        {
+          "token": " Tulsa",
+          "prob": 0.1044921875
+        },
+        {
+          "token": " the",
+          "prob": 0.07177734375
+        },
+        {
+          "token": " not",
+          "prob": 0.038330078125
+        },
+        {
+          "token": " OK",
+          "prob": 0.033935546875
+        }
+      ],
+      "intervention_count": 176,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 2.73,
+        "steered_entropy": 3.729,
+        "entropy_delta": 0.999,
+        "kl_baseline_to_steered": 3.4944
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

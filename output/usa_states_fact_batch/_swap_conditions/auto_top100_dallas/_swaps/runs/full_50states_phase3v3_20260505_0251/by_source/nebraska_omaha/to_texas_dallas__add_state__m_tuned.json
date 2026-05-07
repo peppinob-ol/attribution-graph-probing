@@ -1,0 +1,186 @@
+{
+  "swap_id": "nebraska_omaha__to__texas_dallas",
+  "source": {
+    "slug": "nebraska_omaha",
+    "city": "Omaha",
+    "state": "Nebraska",
+    "capital": "Lincoln",
+    "prompt": "<bos>Fact: The capital of the state containing Omaha is",
+    "concept": "nebraska"
+  },
+  "target": {
+    "slug": "texas_dallas",
+    "city": "Dallas",
+    "state": "Texas",
+    "capital": "Austin",
+    "concept": "texas"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 82,
+    "total_count": 82
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Omaha",
+      "state": "Nebraska",
+      "capital": "Lincoln"
+    },
+    "ground_truth_to": {
+      "city": "Dallas",
+      "state": "Texas",
+      "capital": "Austin"
+    },
+    "answer_field": "capital",
+    "from_answer": "Lincoln",
+    "to_answer": "Austin",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Lincoln",
+      "default_prob": 0.408203125,
+      "steered": " San",
+      "steered_prob": 0.349609375
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": 0.408203125,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": 0.408203125,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>Fact: The capital of the state containing Omaha is Lincoln.\n\nFact: The state of Nebraska is",
+      "steered_output": "<bos><bos>Fact: The capital of the state containing Omaha is San Antonio is the city of Austin.\n\nThe city",
+      "default_topk": [
+        {
+          "token": " Lincoln",
+          "prob": 0.408203125
+        },
+        {
+          "token": " Nebraska",
+          "prob": 0.1171875
+        },
+        {
+          "token": " Omaha",
+          "prob": 0.08056640625
+        },
+        {
+          "token": " the",
+          "prob": 0.08056640625
+        },
+        {
+          "token": " ",
+          "prob": 0.026123046875
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " San",
+          "prob": 0.349609375
+        },
+        {
+          "token": " El",
+          "prob": 0.2392578125
+        },
+        {
+          "token": "ModelAdmin",
+          "prob": 0.1650390625
+        },
+        {
+          "token": " amarillo",
+          "prob": 0.041748046875
+        },
+        {
+          "token": " Mc",
+          "prob": 0.032470703125
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 2.7689,
+      "steered_entropy": 2.3113,
+      "entropy_delta": -0.4575,
+      "kl_baseline_to_steered": 17.407
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 15.34540974136749,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-05-05T03:20:45.292002",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 15.34541,
+    "phase": 2,
+    "total_steps": 8,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 1.7699
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 1.773
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 1.8789
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 2.5459
+      },
+      {
+        "m": 6.931448,
+        "hit": false,
+        "kl": 9.8645
+      },
+      {
+        "m": 20.0,
+        "hit": false,
+        "kl": 17.9961
+      }
+    ],
+    "phase2_steps": [
+      {
+        "m": 11.77408,
+        "hit": false,
+        "kl": 16.4993
+      },
+      {
+        "m": 15.34541,
+        "hit": true,
+        "kl": 17.407
+      }
+    ],
+    "kl_transition": {
+      "m_lo": 6.931448,
+      "m_hi": 20.0,
+      "kl_drop": 8.1316
+    }
+  }
+}
