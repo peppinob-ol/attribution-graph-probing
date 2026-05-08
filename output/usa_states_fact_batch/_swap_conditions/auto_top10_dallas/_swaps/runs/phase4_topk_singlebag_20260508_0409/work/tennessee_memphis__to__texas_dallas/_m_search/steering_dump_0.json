@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Memphis is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Memphis is is Nashville.\n\nFact: The city of Memphis has",
+      "default": "<bos><bos>Fact: The capital of the state containing Memphis is Nashville.\n\nFact: The state of Tennessee is",
+      "steered_topk": [
+        {
+          "token": " is",
+          "prob": 0.5
+        },
+        {
+          "token": ".",
+          "prob": 0.1435546875
+        },
+        {
+          "token": ",",
+          "prob": 0.11181640625
+        },
+        {
+          "token": ".,",
+          "prob": 0.0220947265625
+        },
+        {
+          "token": " and",
+          "prob": 0.01336669921875
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Nashville",
+          "prob": 0.19140625
+        },
+        {
+          "token": " the",
+          "prob": 0.09033203125
+        },
+        {
+          "token": " Tennessee",
+          "prob": 0.07958984375
+        },
+        {
+          "token": " Jackson",
+          "prob": 0.0703125
+        },
+        {
+          "token": " Memphis",
+          "prob": 0.06201171875
+        }
+      ],
+      "intervention_count": 1268,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 3.759,
+        "steered_entropy": 2.3685,
+        "entropy_delta": -1.3906,
+        "kl_baseline_to_steered": 14.7883
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

@@ -1,0 +1,161 @@
+{
+  "swap_id": "montana_billings__to__wisconsin_milwaukee",
+  "source": {
+    "slug": "montana_billings",
+    "city": "Billings",
+    "state": "Montana",
+    "capital": "Helena",
+    "prompt": "<bos>The capital of the state containing Billings is",
+    "concept": "montana"
+  },
+  "target": {
+    "slug": "wisconsin_milwaukee",
+    "city": "Milwaukee",
+    "state": "Wisconsin",
+    "capital": "Madison",
+    "concept": "wisconsin"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 7,
+    "total_count": 7
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Billings",
+      "state": "Montana",
+      "capital": "Helena"
+    },
+    "ground_truth_to": {
+      "city": "Milwaukee",
+      "state": "Wisconsin",
+      "capital": "Madison"
+    },
+    "answer_field": "capital",
+    "from_answer": "Helena",
+    "to_answer": "Madison",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Helena",
+      "default_prob": 0.2451171875,
+      "steered": " ",
+      "steered_prob": 0.265625
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": 0.1259765625,
+      "from_answer_in_default_topk": 0.2451171875,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": 0.1259765625,
+      "from_capital_in_default_topk": 0.2451171875,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Billings is Helena.\n\nThe state's nickname is Treasure",
+      "steered_output": "<bos><bos>The capital of the state containing Billings is <strong>Madison</strong>.\n\n<h3>What is a state",
+      "default_topk": [
+        {
+          "token": " Helena",
+          "prob": 0.2451171875
+        },
+        {
+          "token": " the",
+          "prob": 0.1484375
+        },
+        {
+          "token": " ",
+          "prob": 0.10205078125
+        },
+        {
+          "token": ":",
+          "prob": 0.0703125
+        },
+        {
+          "token": "\n\n",
+          "prob": 0.042724609375
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " ",
+          "prob": 0.265625
+        },
+        {
+          "token": " named",
+          "prob": 0.1826171875
+        },
+        {
+          "token": " Madison",
+          "prob": 0.1259765625
+        },
+        {
+          "token": "...",
+          "prob": 0.0673828125
+        },
+        {
+          "token": " called",
+          "prob": 0.05224609375
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 3.3175,
+      "steered_entropy": 2.9691,
+      "entropy_delta": -0.3484,
+      "kl_baseline_to_steered": 4.0084
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 2.4022488679628626,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-05-07T21:31:02.001644",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 2.402249,
+    "phase": 1,
+    "total_steps": 4,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 19.057
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 18.7574
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 16.249
+      },
+      {
+        "m": 2.402249,
+        "hit": true,
+        "kl": 4.0084
+      }
+    ],
+    "phase2_steps": [],
+    "kl_transition": null
+  }
+}

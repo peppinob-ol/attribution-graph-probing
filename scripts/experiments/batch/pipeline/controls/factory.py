@@ -16,6 +16,7 @@ from .random_template_matched import RandomTemplateMatchedBuilder
 from .low_specificity_groupings import LowSpecificityGroupingsBuilder
 from .additivity import AdditivityBuilder
 from .topk_influence_matched import TopKInfluenceMatchedBuilder
+from .single_bag_grouping import SingleBagGroupingBuilder
 
 _REGISTRY: Dict[str, type] = {
     "labeled": LabeledInterventionBuilder,
@@ -24,6 +25,7 @@ _REGISTRY: Dict[str, type] = {
     "low_specificity_groupings": LowSpecificityGroupingsBuilder,
     "additivity": AdditivityBuilder,
     "topk_influence_matched": TopKInfluenceMatchedBuilder,
+    "single_bag_grouping": SingleBagGroupingBuilder,
 }
 
 

@@ -1,0 +1,186 @@
+{
+  "swap_id": "wisconsin_milwaukee__to__montana_billings",
+  "source": {
+    "slug": "wisconsin_milwaukee",
+    "city": "Milwaukee",
+    "state": "Wisconsin",
+    "capital": "Madison",
+    "prompt": "<bos>The capital of the state containing Milwaukee is",
+    "concept": "wisconsin"
+  },
+  "target": {
+    "slug": "montana_billings",
+    "city": "Billings",
+    "state": "Montana",
+    "capital": "Helena",
+    "concept": "montana"
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 25,
+    "total_count": 25
+  },
+  "evaluation": {
+    "ground_truth": {
+      "city": "Milwaukee",
+      "state": "Wisconsin",
+      "capital": "Madison"
+    },
+    "ground_truth_to": {
+      "city": "Billings",
+      "state": "Montana",
+      "capital": "Helena"
+    },
+    "answer_field": "capital",
+    "from_answer": "Madison",
+    "to_answer": "Helena",
+    "exact_match": {
+      "default_has_from_answer": false,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": false,
+      "default_has_from_capital": false,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Madison",
+      "default_prob": 0.216796875,
+      "steered": " Anaconda",
+      "steered_prob": 0.053466796875
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": 0.0135498046875,
+      "from_answer_in_default_topk": 0.216796875,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": 0.0135498046875,
+      "from_capital_in_default_topk": 0.216796875,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The capital of the state containing Milwaukee is Milwaukee.\n\nThe capital of the state containing Milwaukee",
+      "steered_output": "<bos><bos>The capital of the state containing Milwaukee is Anaconda, Butte, and Helena.\n\nThe capital of",
+      "default_topk": [
+        {
+          "token": " Madison",
+          "prob": 0.216796875
+        },
+        {
+          "token": " Milwaukee",
+          "prob": 0.1494140625
+        },
+        {
+          "token": " Wisconsin",
+          "prob": 0.09033203125
+        },
+        {
+          "token": " the",
+          "prob": 0.09033203125
+        },
+        {
+          "token": " ",
+          "prob": 0.054931640625
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Anaconda",
+          "prob": 0.053466796875
+        },
+        {
+          "token": " the",
+          "prob": 0.0196533203125
+        },
+        {
+          "token": " GLC",
+          "prob": 0.017333984375
+        },
+        {
+          "token": " Helena",
+          "prob": 0.0135498046875
+        },
+        {
+          "token": " Great",
+          "prob": 0.007232666015625
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 3.2307,
+      "steered_entropy": 7.8816,
+      "entropy_delta": 4.6509,
+      "kl_baseline_to_steered": 5.3258
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 5.318295721686118,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-05-07T22:20:26.578721",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 5.318296,
+    "phase": 2,
+    "total_steps": 8,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 15.2804
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 11.0291
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 5.8873
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 3.3903
+      },
+      {
+        "m": 6.931448,
+        "hit": false,
+        "kl": 9.6038
+      },
+      {
+        "m": 20.0,
+        "hit": false,
+        "kl": 14.7479
+      }
+    ],
+    "phase2_steps": [
+      {
+        "m": 4.080572,
+        "hit": false,
+        "kl": 3.9028
+      },
+      {
+        "m": 5.318296,
+        "hit": true,
+        "kl": 5.3258
+      }
+    ],
+    "kl_transition": {
+      "m_lo": 2.402249,
+      "m_hi": 6.931448,
+      "kl_drop": 6.2135
+    }
+  }
+}

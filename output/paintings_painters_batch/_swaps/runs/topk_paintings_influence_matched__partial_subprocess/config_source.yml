@@ -1,0 +1,113 @@
+version: 0.1
+experiment_name: paintings_painters_batch
+paths:
+  outputs_root: output/paintings_painters_batch
+model:
+  id: gemma-2-2b
+  source_set: clt-hp
+features:
+  selection: cumulative_influence
+  threshold: 0.95
+  post_filter:
+    node_threshold: 95
+probes:
+  mode: templated
+  templated:
+    templates:
+    - id: probe_painting
+      text: 'entity: A famous painting is {painting}'
+    - id: probe_painter
+      text: 'entity: A famous painter is {painter}'
+    - id: probe_first_name
+      text: 'entity: The first name of {painter} is {first_name}'
+    - id: probe_painter_concept
+      text: 'attribute: A person who creates paintings and artworks is called a painter'
+    - id: probe_relationship
+      text: 'relationship: the given name of a painter is their first name'
+get_activations:
+  backend: local
+  local:
+    chunk_by_layer: true
+    include_zero: false
+    gpus: [0, 1, 2, 3, 4, 5, 6, 7]
+    batch_size: 1
+
+grouping:
+  enabled: true
+  window: 7
+  blacklist_tokens:
+    - "<bos>"
+    - "entity"
+    - "attribute"
+    - "relationship"
+  thresholds:
+    dict_peak_consistency_min: 0.8
+    dict_n_distinct_peaks_max: 1
+    sayx_func_vs_sem_min: 50.0
+    sayx_layer_min: 7
+    rel_sparsity_max: 0.45
+    sem_layer_max: 3
+    sem_conf_s_min: 0.50
+    sem_func_vs_sem_max: 50.0
+  upload:
+    enabled: true
+    api_key_env: NEURONPEDIA_API_KEY
+    display_name_template: "{slug} (auto-grouped)"
+    overwrite_id: ""
+
+steps:
+  graph_generation: true
+  feature_export: true
+  probe_prompts: true
+  activations: true
+  grouping: true
+  upload_subgraph: true
+
+graph_generation:
+  enabled: true
+  seeds_mode: templated
+  templated:
+    seed_prompt: The first name of the painter of {painting} is
+    slug_template: '{slug}'
+    entities:
+      items:
+      - slug: water_lilies
+        painting: Water Lilies
+        painter: Claude Monet
+        first_name: Claude
+      - slug: starry_night
+        painting: The Starry Night
+        painter: Vincent van Gogh
+        first_name: Vincent
+      - slug: persistence_of_memory
+        painting: The Persistence of Memory
+        painter: Salvador Dali
+        first_name: Salvador
+      - slug: campbells_soup
+        painting: Campbell's Soup Cans
+        painter: Andy Warhol
+        first_name: Andy
+      - slug: guernica
+        painting: Guernica
+        painter: Pablo Picasso
+        first_name: Pablo
+      - slug: american_gothic
+        painting: American Gothic
+        painter: Grant Wood
+        first_name: Grant
+      - slug: girl_pearl_earring
+        painting: Girl with a Pearl Earring
+        painter: Johannes Vermeer
+        first_name: Johannes
+      - slug: birth_of_venus
+        painting: The Birth of Venus
+        painter: Sandro Botticelli
+        first_name: Sandro
+      - slug: blue_boy
+        painting: The Blue Boy
+        painter: Thomas Gainsborough
+        first_name: Thomas
+      - slug: nighthawks
+        painting: Nighthawks
+        painter: Edward Hopper
+        first_name: Edward

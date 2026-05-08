@@ -1,0 +1,555 @@
+{
+  "version": 0.1,
+  "experiment_name": "phase4_topk_10_target_dallas_singlebag",
+  "display_demo": false,
+  "inputs": {
+    "source_config": "usa_states_fact_full.yml",
+    "graphs_root": "/home/giuseppe/attribution-graph-probing/output/usa_states_fact_batch/_swap_conditions/auto_top10_dallas"
+  },
+  "swap": {
+    "mode": "defined_pairs",
+    "pairs": [
+      [
+        "alabama_birmingham",
+        "texas_dallas"
+      ],
+      [
+        "alaska_anchorage",
+        "texas_dallas"
+      ],
+      [
+        "arizona_tucson",
+        "texas_dallas"
+      ],
+      [
+        "arkansas_fayetteville",
+        "texas_dallas"
+      ],
+      [
+        "california_oakland",
+        "texas_dallas"
+      ],
+      [
+        "colorado_colorado_springs",
+        "texas_dallas"
+      ],
+      [
+        "connecticut_bridgeport",
+        "texas_dallas"
+      ],
+      [
+        "delaware_wilmington",
+        "texas_dallas"
+      ],
+      [
+        "florida_miami",
+        "texas_dallas"
+      ],
+      [
+        "georgia_savannah",
+        "texas_dallas"
+      ],
+      [
+        "hawaii_hilo",
+        "texas_dallas"
+      ],
+      [
+        "idaho_idaho_falls",
+        "texas_dallas"
+      ],
+      [
+        "illinois_chicago",
+        "texas_dallas"
+      ],
+      [
+        "indiana_fort_wayne",
+        "texas_dallas"
+      ],
+      [
+        "iowa_cedar_rapids",
+        "texas_dallas"
+      ],
+      [
+        "kansas_wichita",
+        "texas_dallas"
+      ],
+      [
+        "kentucky_louisville",
+        "texas_dallas"
+      ],
+      [
+        "louisiana_new_orleans",
+        "texas_dallas"
+      ],
+      [
+        "maine_portland",
+        "texas_dallas"
+      ],
+      [
+        "maryland_baltimore",
+        "texas_dallas"
+      ],
+      [
+        "massachusetts_worcester",
+        "texas_dallas"
+      ],
+      [
+        "michigan_detroit",
+        "texas_dallas"
+      ],
+      [
+        "minnesota_minneapolis",
+        "texas_dallas"
+      ],
+      [
+        "mississippi_gulfport",
+        "texas_dallas"
+      ],
+      [
+        "missouri_kansas_city",
+        "texas_dallas"
+      ],
+      [
+        "montana_billings",
+        "texas_dallas"
+      ],
+      [
+        "nebraska_omaha",
+        "texas_dallas"
+      ],
+      [
+        "nevada_las_vegas",
+        "texas_dallas"
+      ],
+      [
+        "new_hampshire_manchester",
+        "texas_dallas"
+      ],
+      [
+        "new_jersey_newark",
+        "texas_dallas"
+      ],
+      [
+        "new_mexico_albuquerque",
+        "texas_dallas"
+      ],
+      [
+        "new_york_new_york_city",
+        "texas_dallas"
+      ],
+      [
+        "north_carolina_charlotte",
+        "texas_dallas"
+      ],
+      [
+        "north_dakota_fargo",
+        "texas_dallas"
+      ],
+      [
+        "ohio_cleveland",
+        "texas_dallas"
+      ],
+      [
+        "oklahoma_tulsa",
+        "texas_dallas"
+      ],
+      [
+        "oregon_portland",
+        "texas_dallas"
+      ],
+      [
+        "pennsylvania_philadelphia",
+        "texas_dallas"
+      ],
+      [
+        "rhode_island_warwick",
+        "texas_dallas"
+      ],
+      [
+        "south_carolina_charleston",
+        "texas_dallas"
+      ],
+      [
+        "south_dakota_sioux_falls",
+        "texas_dallas"
+      ],
+      [
+        "tennessee_memphis",
+        "texas_dallas"
+      ],
+      [
+        "utah_provo",
+        "texas_dallas"
+      ],
+      [
+        "vermont_burlington",
+        "texas_dallas"
+      ],
+      [
+        "virginia_virginia_beach",
+        "texas_dallas"
+      ],
+      [
+        "washington_seattle",
+        "texas_dallas"
+      ],
+      [
+        "west_virginia_huntington",
+        "texas_dallas"
+      ],
+      [
+        "wisconsin_milwaukee",
+        "texas_dallas"
+      ],
+      [
+        "wyoming_casper",
+        "texas_dallas"
+      ]
+    ],
+    "concept_fields": [
+      "state",
+      "capital",
+      "city"
+    ],
+    "answer_field": "capital"
+  },
+  "ct_steering": {
+    "model_id": "google/gemma-2-2b",
+    "transcoder_set": "gemma",
+    "M_ablate": -2,
+    "M_amplify": 20,
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "top_k": 5,
+    "freeze_attention": false,
+    "track_trajectory": true
+  },
+  "compute": {
+    "inherit_from_source": false,
+    "remote": {
+      "enabled": false
+    }
+  },
+  "steps": {
+    "validate_inputs": true,
+    "prepare_features": true,
+    "run_steering": true,
+    "aggregate_results": true
+  },
+  "control": {
+    "mode": "single_bag_grouping"
+  },
+  "m_search": {
+    "enabled": true,
+    "m_min": 0.1,
+    "n_coarse_probes": 6,
+    "n_fine_steps": 6,
+    "log_tolerance": 0.1,
+    "min_kl_drop": 1.0
+  },
+  "_entities": [
+    {
+      "slug": "alabama_birmingham",
+      "city": "Birmingham",
+      "state": "Alabama",
+      "capital": "Montgomery"
+    },
+    {
+      "slug": "alaska_anchorage",
+      "city": "Anchorage",
+      "state": "Alaska",
+      "capital": "Juneau"
+    },
+    {
+      "slug": "arizona_tucson",
+      "city": "Tucson",
+      "state": "Arizona",
+      "capital": "Phoenix"
+    },
+    {
+      "slug": "arkansas_fayetteville",
+      "city": "Fayetteville",
+      "state": "Arkansas",
+      "capital": "Little Rock"
+    },
+    {
+      "slug": "california_oakland",
+      "city": "Oakland",
+      "state": "California",
+      "capital": "Sacramento"
+    },
+    {
+      "slug": "colorado_colorado_springs",
+      "city": "Colorado Springs",
+      "state": "Colorado",
+      "capital": "Denver"
+    },
+    {
+      "slug": "connecticut_bridgeport",
+      "city": "Bridgeport",
+      "state": "Connecticut",
+      "capital": "Hartford"
+    },
+    {
+      "slug": "delaware_wilmington",
+      "city": "Wilmington",
+      "state": "Delaware",
+      "capital": "Dover"
+    },
+    {
+      "slug": "florida_miami",
+      "city": "Miami",
+      "state": "Florida",
+      "capital": "Tallahassee"
+    },
+    {
+      "slug": "georgia_savannah",
+      "city": "Savannah",
+      "state": "Georgia",
+      "capital": "Atlanta"
+    },
+    {
+      "slug": "hawaii_hilo",
+      "city": "Hilo",
+      "state": "Hawaii",
+      "capital": "Honolulu"
+    },
+    {
+      "slug": "idaho_idaho_falls",
+      "city": "Idaho Falls",
+      "state": "Idaho",
+      "capital": "Boise"
+    },
+    {
+      "slug": "illinois_chicago",
+      "city": "Chicago",
+      "state": "Illinois",
+      "capital": "Springfield"
+    },
+    {
+      "slug": "indiana_fort_wayne",
+      "city": "Fort Wayne",
+      "state": "Indiana",
+      "capital": "Indianapolis"
+    },
+    {
+      "slug": "iowa_cedar_rapids",
+      "city": "Cedar Rapids",
+      "state": "Iowa",
+      "capital": "Des Moines"
+    },
+    {
+      "slug": "kansas_wichita",
+      "city": "Wichita",
+      "state": "Kansas",
+      "capital": "Topeka"
+    },
+    {
+      "slug": "kentucky_louisville",
+      "city": "Louisville",
+      "state": "Kentucky",
+      "capital": "Frankfort"
+    },
+    {
+      "slug": "louisiana_new_orleans",
+      "city": "New Orleans",
+      "state": "Louisiana",
+      "capital": "Baton Rouge"
+    },
+    {
+      "slug": "maine_portland",
+      "city": "Portland",
+      "state": "Maine",
+      "capital": "Augusta"
+    },
+    {
+      "slug": "maryland_baltimore",
+      "city": "Baltimore",
+      "state": "Maryland",
+      "capital": "Annapolis"
+    },
+    {
+      "slug": "massachusetts_worcester",
+      "city": "Worcester",
+      "state": "Massachusetts",
+      "capital": "Boston"
+    },
+    {
+      "slug": "michigan_detroit",
+      "city": "Detroit",
+      "state": "Michigan",
+      "capital": "Lansing"
+    },
+    {
+      "slug": "minnesota_minneapolis",
+      "city": "Minneapolis",
+      "state": "Minnesota",
+      "capital": "Saint Paul"
+    },
+    {
+      "slug": "mississippi_gulfport",
+      "city": "Gulfport",
+      "state": "Mississippi",
+      "capital": "Jackson"
+    },
+    {
+      "slug": "missouri_kansas_city",
+      "city": "Kansas City",
+      "state": "Missouri",
+      "capital": "Jefferson City"
+    },
+    {
+      "slug": "montana_billings",
+      "city": "Billings",
+      "state": "Montana",
+      "capital": "Helena"
+    },
+    {
+      "slug": "nebraska_omaha",
+      "city": "Omaha",
+      "state": "Nebraska",
+      "capital": "Lincoln"
+    },
+    {
+      "slug": "nevada_las_vegas",
+      "city": "Las Vegas",
+      "state": "Nevada",
+      "capital": "Carson City"
+    },
+    {
+      "slug": "new_hampshire_manchester",
+      "city": "Manchester",
+      "state": "New Hampshire",
+      "capital": "Concord"
+    },
+    {
+      "slug": "new_jersey_newark",
+      "city": "Newark",
+      "state": "New Jersey",
+      "capital": "Trenton"
+    },
+    {
+      "slug": "new_mexico_albuquerque",
+      "city": "Albuquerque",
+      "state": "New Mexico",
+      "capital": "Santa Fe"
+    },
+    {
+      "slug": "new_york_new_york_city",
+      "city": "New York City",
+      "state": "New York",
+      "capital": "Albany"
+    },
+    {
+      "slug": "north_carolina_charlotte",
+      "city": "Charlotte",
+      "state": "North Carolina",
+      "capital": "Raleigh"
+    },
+    {
+      "slug": "north_dakota_fargo",
+      "city": "Fargo",
+      "state": "North Dakota",
+      "capital": "Bismarck"
+    },
+    {
+      "slug": "ohio_cleveland",
+      "city": "Cleveland",
+      "state": "Ohio",
+      "capital": "Columbus"
+    },
+    {
+      "slug": "oklahoma_tulsa",
+      "city": "Tulsa",
+      "state": "Oklahoma",
+      "capital": "Oklahoma City"
+    },
+    {
+      "slug": "oregon_portland",
+      "city": "Portland",
+      "state": "Oregon",
+      "capital": "Salem"
+    },
+    {
+      "slug": "pennsylvania_philadelphia",
+      "city": "Philadelphia",
+      "state": "Pennsylvania",
+      "capital": "Harrisburg"
+    },
+    {
+      "slug": "rhode_island_warwick",
+      "city": "Warwick",
+      "state": "Rhode Island",
+      "capital": "Providence"
+    },
+    {
+      "slug": "south_carolina_charleston",
+      "city": "Charleston",
+      "state": "South Carolina",
+      "capital": "Columbia"
+    },
+    {
+      "slug": "south_dakota_sioux_falls",
+      "city": "Sioux Falls",
+      "state": "South Dakota",
+      "capital": "Pierre"
+    },
+    {
+      "slug": "tennessee_memphis",
+      "city": "Memphis",
+      "state": "Tennessee",
+      "capital": "Nashville"
+    },
+    {
+      "slug": "texas_dallas",
+      "city": "Dallas",
+      "state": "Texas",
+      "capital": "Austin"
+    },
+    {
+      "slug": "utah_provo",
+      "city": "Provo",
+      "state": "Utah",
+      "capital": "Salt Lake City"
+    },
+    {
+      "slug": "vermont_burlington",
+      "city": "Burlington",
+      "state": "Vermont",
+      "capital": "Montpelier"
+    },
+    {
+      "slug": "virginia_virginia_beach",
+      "city": "Virginia Beach",
+      "state": "Virginia",
+      "capital": "Richmond"
+    },
+    {
+      "slug": "washington_seattle",
+      "city": "Seattle",
+      "state": "Washington",
+      "capital": "Olympia"
+    },
+    {
+      "slug": "west_virginia_huntington",
+      "city": "Huntington",
+      "state": "West Virginia",
+      "capital": "Charleston"
+    },
+    {
+      "slug": "wisconsin_milwaukee",
+      "city": "Milwaukee",
+      "state": "Wisconsin",
+      "capital": "Madison"
+    },
+    {
+      "slug": "wyoming_casper",
+      "city": "Casper",
+      "state": "Wyoming",
+      "capital": "Cheyenne"
+    }
+  ],
+  "_swaps_dir": "/home/giuseppe/attribution-graph-probing/output/usa_states_fact_batch/_swap_conditions/auto_top10_dallas/_swaps/runs/phase4_topk_singlebag_20260508_0409"
+}

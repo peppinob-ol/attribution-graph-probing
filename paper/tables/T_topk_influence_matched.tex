@@ -1,0 +1,18 @@
+\begin{table}[h]
+\centering
+\small
+\caption{\textbf{Per-pair influence-matched top-K-by-influence vs labeled best-of (4 in-scope domains).} For every swap pair the top-K-by-node-influence baseline is matched per side to the labeled best-of-(field-additivity $\times$ \{default, $M$-search\}) winner: $K_{\mathrm{src}}$ and $K_{\mathrm{tgt}}$ are the smallest top-K prefixes whose cumulative \texttt{node\_influence} reaches the labeled reference budget on the source and target side respectively. Top-K is run as a single bag (no field-add variants), with the same outer $M$-search sweep enabled. Hit\% counts pairs whose steered output exact-matches the target answer, taking the max over default and $M$-tuned. The $\Delta$ column is the labeled minus top-K Hit\% gap in percentage points, computed on the matched per-pair subset. The McNemar column reports an exact / continuity-corrected paired sign test on the contingency $(b={}$labeled-only$, c={}$top-K-only$)$. Top-K uses substantially fewer features than the labeled bag at the same per-pair influence budget; the residual Hit\% gap is therefore not explained by the size of the influence budget steered. Sounds is intentionally excluded (smallest $N$, weakest signal, structural confounds). Full per-pair join in \texttt{output/research/topk\_im\_pairs\_<domain>.csv}.}
+\label{tab:topk-im}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+& & \multicolumn{2}{c}{Hit\%} & & \multicolumn{1}{c}{top-K} & \multicolumn{1}{c}{Lab.} & \multicolumn{1}{c}{lbl/topk} & \\
+\cmidrule(lr){3-4}
+Domain & $N$ & top-K & Lab.\ & $\Delta$ pp & $K_{\mathrm{tgt}}$ & $n_{\mathrm{amp}}$ & only-wins & McNemar $p$ \\
+\midrule
+Paintings &   100 &   6.0 &  28.0 & $+22.0$ &  44.5 & 119.7 & 25/3 & $7.2\!\times\!10^{-5}$ \\
+Products  &   144 &   4.2 &  36.8 & $+32.6$ &  22.8 &  86.0 & 47/0 & $1.9\!\times\!10^{-11}$ \\
+Books     &   225 &   4.4 &  65.8 & $+61.3$ &  29.7 &  77.3 & 139/1 & $5.3\!\times\!10^{-31}$ \\
+USA       &  2500 &   2.3 &  67.8 & $+65.6$ &  12.4 &  51.9 & 1642/3 & $<\!10^{-30}$ \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "gemma",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>Fact: The capital of the state containing Chicago is",
+      "steered": "<bos><bos>Fact: The capital of the state containing Chicago is eyes is not Chicago.\n\nThe city of Springfield,",
+      "default": "<bos><bos>Fact: The capital of the state containing Chicago is Springfield.\n\nFact: The state of Illinois is",
+      "steered_topk": [
+        {
+          "token": " eyes",
+          "prob": 0.1572265625
+        },
+        {
+          "token": " cities",
+          "prob": 0.1083984375
+        },
+        {
+          "token": " San",
+          "prob": 0.054443359375
+        },
+        {
+          "token": " hails",
+          "prob": 0.05126953125
+        },
+        {
+          "token": " is",
+          "prob": 0.0291748046875
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Springfield",
+          "prob": 0.2412109375
+        },
+        {
+          "token": " Illinois",
+          "prob": 0.12890625
+        },
+        {
+          "token": " the",
+          "prob": 0.08837890625
+        },
+        {
+          "token": " not",
+          "prob": 0.06884765625
+        },
+        {
+          "token": " called",
+          "prob": 0.032470703125
+        }
+      ],
+      "intervention_count": 1288,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 3.5012,
+        "steered_entropy": 4.6618,
+        "entropy_delta": 1.1606,
+        "kl_baseline_to_steered": 14.9295
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}

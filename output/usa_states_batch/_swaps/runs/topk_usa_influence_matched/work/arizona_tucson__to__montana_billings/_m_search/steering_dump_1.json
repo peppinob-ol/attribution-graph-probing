@@ -1,0 +1,72 @@
+{
+  "model": "google/gemma-2-2b",
+  "transcoder_set": "mntss/clt-gemma-2-2b-2.5M",
+  "n_prompts": 1,
+  "results": [
+    {
+      "probe_id": "m_search_prompt",
+      "prompt": "<bos>The capital of the state containing Tucson is",
+      "steered": "<bos><bos>The capital of the state containing Tucson is <strong>Arizona</strong>.\n\n<h3>What is Arizona?",
+      "default": "<bos><bos>The capital of the state containing Tucson is Phoenix.\n\nThe capital of Arizona is Phoenix.",
+      "steered_topk": [
+        {
+          "token": ":",
+          "prob": 0.40234375
+        },
+        {
+          "token": " ",
+          "prob": 0.3125
+        },
+        {
+          "token": "\n\n",
+          "prob": 0.048095703125
+        },
+        {
+          "token": " Arizona",
+          "prob": 0.0177001953125
+        },
+        {
+          "token": "…",
+          "prob": 0.01556396484375
+        }
+      ],
+      "default_topk": [
+        {
+          "token": " Phoenix",
+          "prob": 0.3203125
+        },
+        {
+          "token": " Tucson",
+          "prob": 0.10400390625
+        },
+        {
+          "token": " the",
+          "prob": 0.091796875
+        },
+        {
+          "token": " ",
+          "prob": 0.0810546875
+        },
+        {
+          "token": "\n\n",
+          "prob": 0.0556640625
+        }
+      ],
+      "intervention_count": 22,
+      "position_0_distribution_metrics": {
+        "baseline_entropy": 2.9884,
+        "steered_entropy": 2.5539,
+        "entropy_delta": -0.4344,
+        "kl_baseline_to_steered": 4.3796
+      }
+    }
+  ],
+  "config": {
+    "temperature": 0.3,
+    "n_tokens": 10,
+    "freq_penalty": 2.0,
+    "seed": 42,
+    "freeze_attention": false,
+    "top_k": 5
+  }
+}
