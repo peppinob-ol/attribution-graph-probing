@@ -15,7 +15,7 @@
 #
 # Usage:
 #   bash run_all_m_search_random.sh            # all datasets
-#   bash run_all_m_search_random.sh sounds     # single dataset (prefix match)
+#   bash run_all_m_search_random.sh books      # single dataset (prefix match)
 #
 set -euo pipefail
 
@@ -31,8 +31,7 @@ DATASETS[paintings_painters_batch]=fullscale_paintings_random
 DATASETS[products_founders_batch]=fullscale_products_random
 DATASETS[usa_states_batch]=fullscale_usa_random
 
-# Sounds is excluded from T2_headline so we skip it here. Order is
-# smallest-first for fast feedback; USA dominates the wall-clock.
+# Order is smallest-first for fast feedback; USA dominates the wall-clock.
 ORDER=(
     book_characters_authors_batch
     paintings_painters_batch

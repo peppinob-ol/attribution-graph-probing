@@ -22,7 +22,6 @@ GPU_IDS="0 1 2 3 4 5 6 7"
 
 # dataset -> field_add run mapping
 declare -A DATASETS
-DATASETS[sounds_colors_batch]=fullscale_sounds_field_add
 DATASETS[book_characters_authors_batch]=fullscale_books_field_add
 DATASETS[paintings_painters_batch]=fullscale_paintings_field_add
 DATASETS[products_founders_batch]=fullscale_products_field_add
@@ -30,7 +29,6 @@ DATASETS[usa_states_batch]=fullscale_usa_field_add
 
 # Process order: smallest first for fast feedback
 ORDER=(
-    sounds_colors_batch
     book_characters_authors_batch
     paintings_painters_batch
     products_founders_batch

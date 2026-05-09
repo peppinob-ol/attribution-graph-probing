@@ -30,7 +30,6 @@ DATASETS = (
     "book_characters_authors_batch",
     "products_founders_batch",
     "paintings_painters_batch",
-    "sounds_colors_batch",
 )
 
 # Tokens we deprioritize as "uninterpretable" peaks for SemDict / SemConc roles.

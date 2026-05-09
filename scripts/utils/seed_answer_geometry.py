@@ -227,7 +227,6 @@ def main() -> list[GroupStats]:
     )
     model.eval()
 
-    sc = json.loads((DATASETS_ROOT / "sounds_colors_v2.json").read_text())
     books = json.loads((DATASETS_ROOT / "book_characters_authors.json").read_text())
     usa_path = (
         Path(__file__).resolve().parents[2]
@@ -242,10 +241,6 @@ def main() -> list[GroupStats]:
         raise FileNotFoundError(f"Missing USA config: {usa_path}")
     cfg = json.loads(usa_path.read_text())
 
-    tpl_sound = sc["seed_prompt_template"]
-    prompts_sound = [tpl_sound.replace("{sound}", e["sound"]) for e in sc["entities"]]
-    colors = sorted({e["color"] for e in sc["entities"]})
-
     tpl_usa = "The capital of the state containing {city} is"
     prompts_usa = [tpl_usa.replace("{city}", e["city"]) for e in cfg["_entities"]]
     capitals = [e["capital"] for e in cfg["_entities"]]
@@ -255,16 +250,6 @@ def main() -> list[GroupStats]:
     authors = sorted({e["author"] for e in books["entities"]})
 
     stats: list[GroupStats] = []
-    stats.append(
-        analyze_group(
-            "sounds_colors_v2 (answers=colors)",
-            prompts_sound,
-            colors,
-            model,
-            tokenizer,
-            device,
-        )
-    )
     stats.append(
         analyze_group(
             "usa_states (answers=capitals, highm_usa_m100 entities)",

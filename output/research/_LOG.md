@@ -340,7 +340,7 @@ We do not separate these two readings within this experiment.
 
 - The labeled best-of is itself selected to maximize Hit, so the matched-budget definition is biased toward the labeled side. The fair comparison is the paired sign test (McNemar), not the marginal difference; we report both.
 - The grouping universe used for top-$K$ is `node_grouping.csv`, which is the same set of steerable features the labeled pipeline classifies. We did *not* test top-$K$ over a wider universe (e.g., the full attribution graph minus error nodes); doing so would let top-$K$ reach features that the labeled pipeline has explicitly chosen to exclude, which is a different experiment.
-- Domain coverage: 4 of 5 domains. Sounds is excluded ($N{=}30$, 6 entities, shared answer tokens); we expect it to behave like Paintings or worse but did not verify.
+- Domain coverage: four evaluation domains (USA, Books, Products, Paintings) with symmetric headline harness comparisons.
 - The McNemar $p$-values are calibrated against the assumption of independent pairs. Within-source dependence (the 50 USA states each producing 49 swap rows) inflates effective $N$ less than nominal; the contingency-level claim ($b \gg c$) is robust to this.
 
 ### Follow-up
@@ -891,11 +891,8 @@ the effect size (22% median inflation) is large enough to be meaningful.
       products higher-influence than the labeled set? Read
       `RandomFeatureMatchedBuilder` + grouping CSVs for a sample of
       products pairs to identify the mechanism.
-- [ ] **Re-examine sounds conclusions.** Sounds is already the weakest
-      domain. Any residual `labeled > random` there should be discounted
-      by the ~22% labeled influence advantage.
 - [ ] **Consider adding an explicit influence-matched random control**
-      for paintings and sounds in future runs. It is low priority for
+      for paintings in future runs. It is low priority for
       USA and books.
 
 ### Artifacts

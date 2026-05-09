@@ -58,7 +58,6 @@ DATASET_RUNS: Dict[str, Tuple[str, str]] = {
     "book_characters_authors_batch": ("fullscale_books_labeled", "fullscale_books_field_add"),
     "products_founders_batch":       ("fullscale_products_labeled", "fullscale_products_field_add"),
     "paintings_painters_batch":      ("fullscale_paintings_labeled", "fullscale_paintings_field_add"),
-    "sounds_colors_batch":           ("fullscale_sounds_labeled", "fullscale_sounds_field_add"),
 }
 
 # Variants we always probe regardless of vsmax ordering, when present.

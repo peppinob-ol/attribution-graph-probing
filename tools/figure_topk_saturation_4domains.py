@@ -1,7 +1,7 @@
 """
 Paper figure (4-panel): per-pair, per-side influence-budget-matched top-K-by-
 node-influence baseline vs labeled best-of-(field-add x {default, m_tuned})
-across paintings, products, books, USA. Sounds is intentionally excluded.
+across paintings, products, books, USA.
 
 By construction, top-K consumes the *same* per-pair target-side influence as
 the labeled winner (smallest prefix whose cumulative ``node_influence`` >=

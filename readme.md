@@ -13,14 +13,14 @@ The core idea is to treat attribution graphs as objects that can be experimental
 The project has three layers:
 
 1. **Interpretation pipeline** (Stages 0-2): graph generation, probe prompting, and supernode construction.
-2. **Causal testing framework** (Stage 3): feature swapping with labeled, random, and field-additivity controls across 5 domains and 33,387 steering runs.
+2. **Causal testing framework** (Stage 3): feature swapping with labeled, matched-random, field-additivity, and adaptive M-search across 4 domains and 41,784 swap runs.
 3. **Research toolkit**: programmatic query, aggregation, statistical comparison, and pipeline tracing for qualitative and quantitative analysis of swap results.
 
 ### Key results
 
-- **Labeled supernodes outperform random controls** in 4 of 5 domains (Cohen's d = 1.97 for vsMax in USA states)
-- **Intermediate + answer fields** consistently outperform the full 3-field intervention ("less is more" effect: +14pp USA, +33pp books)
-- **Suppression is generic; targeting is specific** -- random controls achieve equal suppression (83%) but near-zero hit rate (0.1%) vs labeled (24.7%)
+- **Labeled supernodes outperform matched random controls** under the symmetric per-pair harness in all 4 evaluation domains (Hit% vs vsMax gaps align with the headline tables in the paper)
+- **Intermediate + answer fields** consistently outperform the full 3-field intervention ("less is more" effect: +14pp USA, +33pp books at M=20)
+- **Suppression is generic; targeting is specific** -- matched random controls concentrate in generic-disruption regimes while labeled interventions concentrate in clean-redirection regimes at comparable suppression rates
 
 ---
 
@@ -99,10 +99,9 @@ attribution-graph-probing/
 │
 ├── output/                                 # Experiment data (per-domain)
 │   ├── usa_states_batch/                   # 50 entities, 2450 pairs
-│   ├── book_characters_authors_batch/      # 16 entities, 240 pairs
+│   ├── book_characters_authors_batch/      # 10 entities, 90 pairs (demo intersection)
 │   ├── products_founders_batch/            # 12 entities, 132 pairs
-│   ├── paintings_painters_batch/           # 10 entities, 90 pairs
-│   └── sounds_colors_batch/                # 6 entities, 30 pairs
+│   └── paintings_painters_batch/           # 10 entities, 90 pairs
 │
 ├── tests/                                  # Test suite
 ├── requirements.txt
@@ -161,10 +160,9 @@ For a swap from entity A to entity B: ablate A's supernodes (M=-2) and amplify B
 | Dataset | Template | Fields | Entities | Pairs |
 |---------|----------|--------|----------|-------|
 | USA States | "The capital of the state containing {city} is" | state, capital, city | 50 | 2,450 |
-| Books | "The book featuring {character} was written by" | book, author, character | 16 | 240 |
+| Books | "The book featuring {character} was written by" | book, author, character | 10 | 90 |
 | Products | "The company that makes {product} was founded by" | company, founder, product | 12 | 132 |
 | Paintings | "The first name of the painter of {painting} is" | painting, painter, first_name | 10 | 90 |
-| Sounds | "The most common color of the animal that goes '{sound}' is" | sound, animal, color | 6 | 30 |
 
 ### Evaluation Metrics
 

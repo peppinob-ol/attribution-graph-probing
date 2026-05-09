@@ -202,7 +202,6 @@ for dataset in (
     "book_characters_authors_batch",
     "paintings_painters_batch",
     "products_founders_batch",
-    "sounds_colors_batch",
     "usa_states_batch",
 ):
     shutil.copytree(output_root / dataset, data_target / dataset)

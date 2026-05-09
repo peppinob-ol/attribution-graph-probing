@@ -20,7 +20,6 @@ Usage:
     python -m scripts.research.graph_subgraph_scores \
         --datasets usa_states_batch book_characters_authors_batch \
                    products_founders_batch paintings_painters_batch \
-                   sounds_colors_batch \
         --out output/research/graph_subgraph_scores.csv
 """
 

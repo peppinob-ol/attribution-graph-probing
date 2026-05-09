@@ -19,10 +19,9 @@ Interactive visualization of circuit steering experiments across 5 knowledge dom
 | Domain | Entities | Prompt pattern | Runs |
 |--------|----------|----------------|------|
 | **USA States** | 50 states | "The capital of the state containing [City] is..." | 4 |
-| **Book Characters & Authors** | 16 characters | "The author of [Character] is..." | 4 |
-| **Paintings & Painters** | 10 paintings | "The painter of [Painting] is..." | 4 |
-| **Products & Founders** | 12 products | "The founder of [Product] is..." | 4 |
-| **Sounds & Colors** | 6 synesthetic pairs | "The color of the sound of a [Sound] is..." | 4 |
+| **Book Characters & Authors** | 10 characters | "The book featuring [Character] was written by..." | 4 |
+| **Paintings & Painters** | 10 paintings | "The first name of the painter of [Painting] is..." | 4 |
+| **Products & Founders** | 12 products | "The company that makes [Product] was founded by..." | 4 |
 
 Use the **Run** dropdown in the header to switch between domains and experiment types (labeled swaps, random-feature controls, field-add controls).
 

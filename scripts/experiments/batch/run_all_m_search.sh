@@ -20,7 +20,6 @@ GPU_IDS="0 1 2 3 4 5 6 7"
 
 # dataset -> baseline run mapping
 declare -A DATASETS
-DATASETS[sounds_colors_batch]=fullscale_sounds_labeled
 DATASETS[book_characters_authors_batch]=fullscale_books_labeled
 DATASETS[paintings_painters_batch]=fullscale_paintings_labeled
 DATASETS[products_founders_batch]=fullscale_products_labeled
@@ -28,7 +27,6 @@ DATASETS[usa_states_batch]=fullscale_usa_labeled
 
 # Process order: smallest first for fast feedback
 ORDER=(
-    sounds_colors_batch
     book_characters_authors_batch
     paintings_painters_batch
     products_founders_batch

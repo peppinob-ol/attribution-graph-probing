@@ -109,16 +109,6 @@ TEST_PAIRS = {
             ("nighthawks", "the_scream"),
         ],
     },
-    "sounds_colors_batch": {
-        "run": "fullscale_sounds_labeled",
-        "pairs": [
-            ("whinny", "hiss"),
-            ("bark", "hiss"),
-            ("meow", "hiss"),
-            ("meow", "whinny"),
-            ("buzz", "hiss"),
-        ],
-    },
     "book_characters_authors_batch": {
         "run": "fullscale_books_labeled",
         "pairs": [

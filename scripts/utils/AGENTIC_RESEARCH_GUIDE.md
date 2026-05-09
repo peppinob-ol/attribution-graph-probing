@@ -57,7 +57,6 @@ All experiment data lives under `output/<dataset>_batch/`.
 | Books | `book_characters_authors_batch` | 16 | 240 | character, book, author |
 | Products | `products_founders_batch` | 12 | 132 | product, company, founder |
 | Paintings | `paintings_painters_batch` | 10 | 90 | painting, painter, first_name |
-| Sounds | `sounds_colors_batch` | 6 | 30 | sound, animal, color |
 
 ### Per-entity data (upstream pipeline)
 

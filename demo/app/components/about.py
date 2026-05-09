@@ -4,10 +4,6 @@ About modal -- detailed methodology and cross-domain validation results.
 Static content derived from the paper (41,784 swap runs, 4 evaluation
 domains, four experimental conditions).  KPIs are hardcoded: they reflect
 the full-scale experiment, not the currently selected run.
-
-The demo additionally exposes an exploratory Sounds-Colors run that is
-excluded from the paper's headline because its 6-entity answer set
-(with ~40% shared answers) makes the matrix near-degenerate.
 """
 from fasthtml.common import (
     Div, H2, H3, H4, P, A, Button, Span, NotStr, Ul, Li
@@ -117,7 +113,7 @@ def _section_intro():
             P(cls="text-slate-300 text-sm leading-relaxed")(
                 Span(cls="text-slate-200 font-medium")("This demo "),
                 "visualizes pairwise steering experiments across 41,784 runs "
-                "spanning 4 evaluation domains plus an exploratory Sounds run. "
+                "spanning the four evaluation domains. "
                 "Each matrix cell represents an attempt to redirect the model "
                 "from a source entity (row) to a target entity (column), using "
                 "labeled feature swaps. Cells are colored on a tiered scale "
@@ -301,12 +297,6 @@ def _section_experimental_design():
             " variants (7 subsets of the three concept fields), and ",
             Span(cls="text-emerald-400")("adaptive M-search"),
             " (rescue passes for missed pairs). Total: 41,784 swap runs.",
-        ),
-        P(cls="text-slate-500 text-[11px] mt-1 italic")(
-            "The exploratory Sounds-Colors run (6 entities, 30 pairs) is "
-            "browseable in the demo but excluded from the paper headline because "
-            "its small answer set with ~40% shared answers makes the swap matrix "
-            "near-degenerate."
         ),
     )
 

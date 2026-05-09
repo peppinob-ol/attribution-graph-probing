@@ -38,7 +38,6 @@ DATASETS = [
     "book_characters_authors_batch",
     "products_founders_batch",
     "paintings_painters_batch",
-    "sounds_colors_batch",
 ]
 
 DOMAIN_LABELS = {
@@ -46,7 +45,6 @@ DOMAIN_LABELS = {
     "book_characters_authors_batch": "Books",
     "products_founders_batch": "Products",
     "paintings_painters_batch": "Paintings",
-    "sounds_colors_batch": "Sounds",
 }
 
 
@@ -250,7 +248,6 @@ def correlate_with_swaps(
         "book_characters_authors_batch": "fullscale_books_labeled",
         "products_founders_batch": "fullscale_products_labeled",
         "paintings_painters_batch": "fullscale_paintings_labeled",
-        "sounds_colors_batch": "fullscale_sounds_labeled",
     }
 
     for ds, results in all_results.items():

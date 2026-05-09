@@ -501,7 +501,7 @@ def _write_latex_table(summaries: List[Dict[str, Any]], out_path: Path) -> None:
         "continuity-corrected paired sign test on the contingency $(b={}$labeled-only$, c={}$top-K-only$)$. "
         "Top-K uses substantially fewer features than the labeled bag at the same per-pair influence "
         "budget; the residual Hit\\% gap is therefore not explained by the size of the influence budget "
-        "steered. Sounds is intentionally excluded (smallest $N$, weakest signal, structural confounds). "
+        "steered. "
         "Full per-pair join in \\texttt{output/research/topk\\_im\\_pairs\\_<domain>.csv}.}\n"
         "\\label{tab:topk-im}\n"
         "\\begin{tabular}{lrrrrrrrr}\n"

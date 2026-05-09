@@ -37,7 +37,6 @@ DOMAINS: Dict[str, Tuple[str, str, str]] = {
     "books":     ("book_characters_authors_batch", "fullscale_books_labeled",     "fullscale_books_random"),
     "products":  ("products_founders_batch",       "fullscale_products_labeled",  "fullscale_products_random"),
     "paintings": ("paintings_painters_batch",      "fullscale_paintings_labeled", "fullscale_paintings_random"),
-    "sounds":    ("sounds_colors_batch",           "fullscale_sounds_labeled",    "fullscale_sounds_random"),
 }
 
 M_ABLATE = -2
