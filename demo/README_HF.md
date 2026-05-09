@@ -67,9 +67,6 @@ Each domain includes multiple run types:
 
 ## Related Research
 
-- [Automated Circuit Interpretation via Probe Prompting (arXiv)](https://arxiv.org/abs/2511.07002)
-- [LessWrong discussion](https://www.lesswrong.com/posts/zQqGhKPqaCBZZDCge)
-- [GitHub repository](https://github.com/peppinob-ol/attribution-graph-probing)
 - [Circuit Tracer](https://github.com/safety-research/circuit-tracer)
 - [Attribution Graphs (Anthropic)](https://transformer-circuits.pub/2025/attribution-graphs/)
 - [Neuronpedia](https://www.neuronpedia.org)

@@ -281,7 +281,7 @@ ssh giuseppe@$ELEUTHERAI_NODE_IP 'rmdir /mnt/ssd-1/.../giuseppe/.locks/gpu0'
 Ensure you're running from repo root:
 
 ```bash
-cd /path/to/circuit_tracer-prompt_rover
+cd /path/to/attribution-graph-probing
 python scripts/experiments/batch/run_batch_from_yaml.py --config ...
 ```
 

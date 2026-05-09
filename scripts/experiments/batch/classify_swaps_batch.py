@@ -376,7 +376,7 @@ def main():
             possible_paths = [
                 Path("../../..") / "output" / "usa_states_batch" / "_swaps",
                 Path("output") / "usa_states_batch" / "_swaps",
-                Path("C:/Github/circuit_tracer-prompt_rover/output/usa_states_batch/_swaps"),
+                Path("<repo>/output/usa_states_batch/_swaps"),
             ]
             swaps_dir = None
             for p in possible_paths:

@@ -73,16 +73,6 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                                 id="about-btn",
                                 cls="text-slate-300 hover:text-white transition-colors"
                             )("About"),
-                            A(
-                                href="https://arxiv.org/abs/2511.07002",
-                                target="_blank",
-                                cls="text-slate-400 hover:text-white transition-colors hidden-mobile"
-                            )("arXiv"),
-                            A(
-                                href="https://github.com/peppinob-ol/circuit_tracer-prompt_rover",
-                                target="_blank",
-                                cls="text-slate-400 hover:text-white transition-colors hidden-mobile"
-                            )("GitHub"),
                         ),
                     ),
                 ),

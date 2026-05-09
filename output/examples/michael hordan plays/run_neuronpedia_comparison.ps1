@@ -5,7 +5,7 @@
 #   2. Run this script: .\run_neuronpedia_comparison.ps1
 
 # Change to project directory
-Set-Location "c:\Github\circuit_tracer-prompt_rover"
+Set-Location "c:\Github\attribution-graph-probing"
 
 # Check if API key is set
 if (-not $env:NEURONPEDIA_API_KEY) {

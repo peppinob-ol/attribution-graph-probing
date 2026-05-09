@@ -35,7 +35,6 @@ def about_modal(dc: dict):
                 _section_regime_taxonomy(),
                 _section_domain_gradient(),
                 _section_epistemic_status(),
-                _section_resources(),
                 _section_references(),
                 _section_footer(),
             ),
@@ -66,18 +65,7 @@ def _modal_header():
 def _section_footer():
     return Div(cls="border-t border-slate-800 pt-4 space-y-2")(
         P(cls="text-xs text-slate-500")(
-            "Built by ",
-            A(href="https://www.linkedin.com/in/giuseppe-birardi-18a7b011/",
-              target="_blank", cls="text-slate-400 hover:text-white")(
-                "Giuseppe Birardi"
-            ),
-            " | Orma Lab Srl",
-        ),
-        P(cls="text-xs text-slate-500")(
-            "Thanks to ",
-            A(href="https://www.eleuther.ai/", target="_blank",
-              cls="text-slate-400 hover:text-white")("eleuther.ai"),
-            " for infrastructure",
+            "Built by Anonymous Authors",
         ),
     )
 
@@ -112,10 +100,7 @@ def _section_intro():
                 "nodes. Manual interpretation -- inspecting activation patterns "
                 "across corpus examples to assign semantic labels -- takes ~2 hours "
                 "per prompt. This pipeline automates first-pass analysis using ",
-                A(
-                    href="https://www.lesswrong.com/posts/zQqGhKPqaCBZZDCge/automated-circuit-interpretation-via-probe-prompting",
-                    target="_blank", cls="text-cyan-400 hover:underline font-medium",
-                )("Probe Prompting"),
+                Span(cls="text-cyan-400 font-medium")("Probe Prompting"),
                 ": an instructed LLM generates semantic probes that measure each "
                 "feature's behavior under controlled semantic variation, classifies "
                 "features into functional roles using transparent rules, groups them "
@@ -732,24 +717,6 @@ def _about_link(title, desc, url, icon_type):
                 Div(cls="text-sm font-medium text-slate-200 group-hover:text-white")(title),
                 Div(cls="text-xs text-slate-500")(desc),
             ),
-        ),
-    )
-
-
-def _section_resources():
-    return Div(cls="space-y-4")(
-        H3(cls="text-sm font-semibold text-slate-400 uppercase tracking-wide")(
-            "Resources"
-        ),
-        Div(cls="grid grid-cols-2 gap-3 about-links")(
-            _about_link("arXiv Preprint", "Full paper with methods & results",
-                        "https://arxiv.org/abs/2511.07002", "paper"),
-            _about_link("LessWrong Post", "Discussion & community feedback",
-                        "https://www.lesswrong.com/posts/zQqGhKPqaCBZZDCge", "blog"),
-            _about_link("HuggingFace Demo", "Try probe-prompting yourself",
-                        "https://huggingface.co/spaces/Peppinob/concept-swap-explorer", "demo"),
-            _about_link("GitHub Repo", "Probe-prompting pipeline code",
-                        "https://github.com/peppinob-ol/attribution-graph-probing", "code"),
         ),
     )
 

@@ -18,7 +18,7 @@ cd "output/examples/michael hordan plays"
 
 **Option B - Run directly:**
 ```powershell
-cd c:\Github\circuit_tracer-prompt_rover
+cd c:\Github\attribution-graph-probing
 
 python scripts/experiments/compare_grouping_methods.py `
     --input_csv "output/examples/michael hordan plays/02 Node Grouping/node_grouping_final_20251026_153754.csv" `

@@ -4,7 +4,7 @@
 
 This repository implements an automated pipeline for interpreting attribution graphs produced by transformer models with Cross-Layer Transcoders (CLTs). It builds on Anthropic's [Circuit Tracer](https://github.com/safety-research/circuit-tracer) and is intended as a downstream analysis layer that systematizes and scales feature-level interpretation.
 
-The core idea -- developed in the [accompanying paper](https://www.lesswrong.com/posts/zQqGhKPqaCBZZDCge/automated-circuit-interpretation-via-probe-prompting) -- is to treat attribution graphs as objects that can be experimentally probed, measuring how features behave under controlled semantic variation rather than relying on decoder geometry or corpus examples alone.
+The core idea is to treat attribution graphs as objects that can be experimentally probed, measuring how features behave under controlled semantic variation rather than relying on decoder geometry or corpus examples alone.
 
 ---
 
@@ -21,8 +21,6 @@ The project has three layers:
 - **Labeled supernodes outperform random controls** in 4 of 5 domains (Cohen's d = 1.97 for vsMax in USA states)
 - **Intermediate + answer fields** consistently outperform the full 3-field intervention ("less is more" effect: +14pp USA, +33pp books)
 - **Suppression is generic; targeting is specific** -- random controls achieve equal suppression (83%) but near-zero hit rate (0.1%) vs labeled (24.7%)
-- Full methodology: `METHODOLOGY_REPORT.md`
-- Control experiment results: `output/FULLSCALE_CONTROL_REPORT.md`
 
 ---
 
@@ -104,11 +102,9 @@ attribution-graph-probing/
 │   ├── book_characters_authors_batch/      # 16 entities, 240 pairs
 │   ├── products_founders_batch/            # 12 entities, 132 pairs
 │   ├── paintings_painters_batch/           # 10 entities, 90 pairs
-│   ├── sounds_colors_batch/               # 6 entities, 30 pairs
-│   └── FULLSCALE_CONTROL_REPORT.md
+│   └── sounds_colors_batch/                # 6 entities, 30 pairs
 │
 ├── tests/                                  # Test suite
-├── METHODOLOGY_REPORT.md                   # Full methodology + epistemic status
 ├── requirements.txt
 └── readme.md                               # This file
 ```
@@ -189,7 +185,6 @@ Three modules in `scripts/utils/` enable programmatic exploration of the full ex
 ```python
 q = SwapQuery()
 
-# Search with filtering and sorting
 results = q.search(
     dataset="usa_states_batch",
     run="fullscale_usa_field_add",
@@ -198,7 +193,6 @@ results = q.search(
     top_n=5,
 )
 
-# Full detail for one sample
 detail = q.get("usa_states_batch", "fullscale_usa_field_add",
                 "mississippi_gulfport", "arizona_tucson", variant="add_state")
 q.describe(detail)
@@ -209,14 +203,12 @@ q.describe(detail)
 ```python
 s = SwapStats(q)
 
-# Labeled vs random with bootstrap CIs and Cohen's d
 comp = s.compare(
     a=dict(dataset="usa_states_batch", run="fullscale_usa_labeled", label="labeled"),
     b=dict(dataset="usa_states_batch", run="fullscale_usa_random", label="random"),
 )
 s.print_comparison(comp)
 
-# Per-entity breakdown
 rows = s.per_entity("usa_states_batch", "fullscale_usa_field_add",
                      variant="add_state", role="source")
 s.print_entity_table(rows)
@@ -227,11 +219,9 @@ s.print_entity_table(rows)
 ```python
 t = PipelineTracer()
 
-# Graph quality + supernode breakdown for one entity
 gp, grp = t.entity_profile("usa_states_batch", "mississippi_gulfport")
 t.print_entity_profile(gp, grp)
 
-# Trace concept-to-supernode matching
 trace = t.trace_swap_matching(
     "usa_states_batch", "mississippi_gulfport", "arizona_tucson",
     concept_fields=["state"],
@@ -239,14 +229,12 @@ trace = t.trace_swap_matching(
 t.print_matching_trace(trace)
 ```
 
-See `scripts/utils/AGENTIC_RESEARCH_GUIDE.md` for complete LLM agentic research guidelines.
+See `scripts/utils/AGENTIC_RESEARCH_GUIDE.md` for complete agentic research guidelines.
 
 ---
 
 ## Documentation
 
-- **Methodology**: `METHODOLOGY_REPORT.md` -- claims, evidence, epistemic status
-- **Control results**: `output/FULLSCALE_CONTROL_REPORT.md` -- 33k-run analysis
 - **Batch experiments**: `scripts/experiments/batch/README.md`
 - **Agentic research**: `scripts/utils/AGENTIC_RESEARCH_GUIDE.md`
 - **Streamlit guide**: `eda/README.md`
@@ -260,27 +248,4 @@ See `scripts/utils/AGENTIC_RESEARCH_GUIDE.md` for complete LLM agentic research 
 
 ---
 
-## Changelog
-
-### v3.0.0 (March 2026)
-- Full-scale control experiment framework (labeled, random, field-additivity)
-- 33,387 steering runs across 5 domains
-- Research toolkit: swap_query, swap_stats, pipeline_tracer
-- FastHTML Swap Explorer demo with multi-dataset support
-- Logit trajectory tracking and contrast group analysis
-- Methodology report with epistemic framing
-
-### v2.0.0 (October 2025)
-- Renewed pipeline (3 stages)
-- Neuronpedia API integration
-- Automated probe prompting and supernode classification
-- Streamlit UI
-
-### v1.x (Archived)
-- Documentation in `docs/archive_old_pipeline/`
-
----
-
-**Version**: 3.0.0
 **License**: GPL-3.0
-**Last Updated**: March 2026

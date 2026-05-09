@@ -1,7 +1,7 @@
 import pandas as pd
 
 # Load California grouping
-ca = pd.read_csv('C:/Github/circuit_tracer-prompt_rover/output/usa_states_batch/california_Oakland/02 Node Grouping/node_grouping.csv')
+ca = pd.read_csv('<repo>/output/usa_states_batch/california_Oakland/02 Node Grouping/node_grouping.csv')
 
 # Pilot's California amplify features (from the working pilot)
 pilot_ca_feats = [
@@ -43,7 +43,7 @@ print(sn_counts.head(10))
 # Check if missing features are in original graph
 import json
 print('\n=== CHECKING MISSING FEATURES IN ORIGINAL GRAPH ===')
-with open('C:/Github/circuit_tracer-prompt_rover/output/usa_states_batch/california_Oakland/00 Graph Generation/graph.json') as f:
+with open('<repo>/output/usa_states_batch/california_Oakland/00 Graph Generation/graph.json') as f:
     graph = json.load(f)
 
 # Build lookup from graph nodes
@@ -68,7 +68,7 @@ for layer, feat in missing:
 # Check the CSV metrics file for these features
 print('\n=== CHECKING METRICS CSV FOR MISSING FEATURES ===')
 try:
-    metrics = pd.read_csv('C:/Github/circuit_tracer-prompt_rover/output/usa_states_batch/california_Oakland/00 Graph Generation/graph_feature_static_metrics.csv')
+    metrics = pd.read_csv('<repo>/output/usa_states_batch/california_Oakland/00 Graph Generation/graph_feature_static_metrics.csv')
     for layer, feat in missing:
         match = metrics[(metrics['layer']==layer) & (metrics['feature']==feat)]
         if len(match) > 0:

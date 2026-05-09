@@ -591,7 +591,7 @@ Check that:
 Ensure you're running from the repo root or have the repo in PYTHONPATH:
 
 ```bash
-cd /path/to/circuit_tracer-prompt_rover
+cd /path/to/attribution-graph-probing
 python scripts/experiments/batch/run_batch_from_yaml.py --config ...
 ```
 

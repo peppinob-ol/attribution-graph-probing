@@ -480,13 +480,13 @@ Before running remote steering, ensure the node has:
 
 3. **Repository cloned** at expected path:
    ```bash
-   git clone https://github.com/your-org/circuit_tracer-prompt_rover.git
+   git clone https://github.com/your-org/attribution-graph-probing.git
    ```
 
 4. **env.sh** with correct paths:
    ```bash
    export HF_TOKEN=hf_...
-   export PYTHONPATH=/path/to/circuit_tracer-prompt_rover/scripts:$PYTHONPATH
+   export PYTHONPATH=/path/to/attribution-graph-probing/scripts:$PYTHONPATH
    ```
 
 ---
