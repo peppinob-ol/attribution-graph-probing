@@ -7,6 +7,201 @@ Do not edit past entries; if a finding is wrong, add a new entry that references
 
 ---
 
+## 2026-05-08 -- Does target-token unembedding norm predict steer-success?
+
+**Status**: Done (4 domains x labeled + fa_best; per-pair, per-target, OLS controlling for baseline)
+**Confidence**: High in Products (the user's example domain); high in USA in the OPPOSITE direction; mixed in Books / Paintings.
+**Claim tested**: User hypothesis (refined) -- "the achievable target logit margin under steering is structurally bounded by `||W_U[:, target_token]||`, so tokens with small unembedding norm (e.g. ` Jack`) are harder to steer than tokens with larger norm (e.g. ` Austin`)". Mechanism: `logit_t = RMSNorm(residual) . W_U[:, t]`, so for any fixed residual push the achievable logit increment is upper-bounded by `||residual_push|| * ||W_U[:, t]|| * cos`.
+
+### Question
+
+Headline T2 shows residual misses across all four domains. The first iteration of this entry tested two weaker proxies for "specific" (baseline target logit at source prompt; within-dataset first-token collision) and produced mixed results. The user clarified that the relevant quantity is the L2 norm of the unembedding row for the target token -- a purely geometric property of the model that bounds the dot-product between any residual direction and the target's logit channel, independent of the baseline. This re-runs the test with `||W_U[:, target_token]||` extracted from `google/gemma-2-2b` (weights tied; `embed_tokens.weight` row L2 norm).
+
+### Question
+
+Headline `T2_headline` shows steer hit-rates of 18.9 - 77.8 % across the four in-scope domains under FA+M-search. The user's intuition is that the residual misses are partly explained by the "magnitude" of the target logit -- specific tokens being easier to push to the top than generic ones. We need to know whether the data agrees, and under which definition of "specific".
+
+### Method
+
+- Four investigation scripts (kept self-contained on top of `SwapQuery` + raw JSON scans):
+  - [`scripts/research/analyze_target_logit_specificity.py`](../../scripts/research/analyze_target_logit_specificity.py) -- per-pair `baseline_logits.target.logit/prob/rank` + per-target marginal baseline logit. (First-iteration weaker proxy.)
+  - [`scripts/research/analyze_target_token_collision.py`](../../scripts/research/analyze_target_token_collision.py) -- per pair, unique- vs shared-token classification of the target's first token. (First-iteration weaker proxy.)
+  - [`scripts/research/analyze_unembedding_norm.py`](../../scripts/research/analyze_unembedding_norm.py) -- loads `google/gemma-2-2b` (weights tied; `embed_tokens.weight` row L2 norm = `||W_U[:, t]||`), maps each per-pair `target.token_id` to its unembedding norm, reports PB and per-target Spearman against hit, plus quintile hit-rates and the per-target table sorted by norm.
+  - [`scripts/research/analyze_unembed_vs_logit_margin.py`](../../scripts/research/analyze_unembed_vs_logit_margin.py) -- direct test of the geometric mechanism: per-pair Spearman/Pearson of `unembed_norm` against `vs_max`, `best_gap`, and `max_target_logit`; OLS `hit_rate ~ unembed_norm + marginal_baseline_logit` on per-target aggregates to check whether unembedding norm carries predictive power above and beyond the model's baseline propensity for the target token.
+- Conditions analysed per domain: `fullscale_<dom>_labeled` (canonical labeled, single variant per pair) and per-pair best-of variant from `fullscale_<dom>_field_add` (best == any variant whose `steered_has_to_answer` is true; tie-break on `vs_max`). The fa_best slice mirrors the FA+M-search best-of construction in T2.
+- Outputs:
+  - [`output/research/target_logit_specificity/report.json`](target_logit_specificity/report.json), [`report.txt`](target_logit_specificity/report.txt), [`collision_report.json`](target_logit_specificity/collision_report.json) -- first-iteration findings.
+  - [`output/research/target_logit_specificity/unembed_report.json`](target_logit_specificity/unembed_report.json) -- per-pair PB and per-target Spearman vs unembedding norm, plus per-domain top-50 / top-15 / top-14 / top-12 per-target rows sorted by norm.
+  - [`output/research/target_logit_specificity/unembed_vs_logit_margin.json`](target_logit_specificity/unembed_vs_logit_margin.json) -- direct mechanism check (norm vs vs_max / best_gap / max_target_logit) and OLS controlling for baseline.
+
+### Raw findings
+
+#### (1) Unembedding norm `||W_U[:, target]||` vs hit  (REFINED USER HYPOTHESIS)
+
+Vocab-wide reference: 256,000 tokens, d_model=2304, embedding-row L2 norm distribution: min 1.073, p25 1.624, median 1.759, p75 1.903, max 4.871; final-RMSNorm gamma mean-abs 2.45 (shared across tokens, monotone factor only).
+
+Per-pair point-biserial PB(`unembed_norm`, `hit`) and per-target Spearman:
+
+| Domain | Condition | N | PB(norm, hit) | Spearman_per_target |
+|---|---|---:|---:|---:|
+| usa                | labeled | 2,450 | -0.081 | -0.162 |
+| usa                | fa_best | 2,450 | -0.165 | -0.191 |
+| books              | labeled |   210 | +0.171 | +0.284 |
+| books              | fa_best |   210 | -0.143 | -0.250 |
+| **products**       | labeled |   174 | **+0.627** | **+0.640** |
+| **products**       | fa_best |   174 | **+0.460** | **+0.442** |
+| paintings          | labeled |   124 | -0.031 | -0.113 |
+| paintings          | fa_best |   124 | -0.082 | +0.058 |
+
+Products quintiles by `unembed_norm` (labeled / fa_best):
+
+| Q | norm range | mean | hit% labeled | hit% fa_best |
+|---:|---|---:|---:|---:|
+| 1 | 1.487-1.521 | 1.507 |  0.0 | 28.2 |
+| 2 | 1.521-1.573 | 1.546 |  0.0 |  0.0 |
+| 3 | 1.573-1.613 | 1.597 |  0.0 |  0.0 |
+| 4 | 1.613-1.690 | 1.687 | 38.5 | 57.7 |
+| 5 | 1.690-1.764 | 1.731 | 50.0 | **76.9** |
+
+Per-target table for Products (sorted low-norm first; columns: token, norm, marginal baseline logit, hit% under fa_best, N):
+
+```
+ ' Steve'    1.487   15.20   84.6%   13   <-- outlier: very strong founder feature
+ ' Matt'     1.513   13.00    0.0%   13
+ ' Larry'    1.521   13.54    0.0%   13
+ ' Pierre'   1.531   12.20    0.0%   11
+ ' Michael'  1.535   16.14    0.0%   13
+ ' Henry'    1.573   10.78    0.0%   11
+ ' Phil'     1.576   12.09    0.0%   11
+ ' James'    1.587   15.55    0.0%   13
+ ' Jack'     1.613   14.90    0.0%   11   <-- twitter
+ ' Jack'     1.613   14.51    0.0%   13   <-- alibaba
+ ' Bill'     1.684   14.96   61.5%   13
+ ' Mark'     1.690   15.88   53.8%   13
+ ' Palmer'   1.698    8.78   53.8%   13
+ ' Elon'     1.764   13.06  100.0%   13
+```
+
+USA per-target table excerpt (all 50 capitals, sorted low-norm first; only first/last 6 shown for space):
+
+```
+ ' Boston'      1.472  18.12  71.4%   <-- low norm + warm token: hits
+ ' Atlanta'     1.491  19.57  83.7%
+ ' Oklahoma'    1.508  20.11  24.5%
+ ' Denver'      1.528  20.50  89.8%
+ ' Pierre'      1.531  17.73  42.9%
+ ' Saint'       1.537  19.61  93.9%
+ ...
+ ' Topeka'      1.922  18.97  18.4%
+ ' Bismarck'    1.947  15.68  46.9%
+ ' Frankfort'   2.079  18.78  91.8%   <-- high norm but easy
+ ' Juneau'      2.171  17.28  14.3%   <-- highest norm, hard
+```
+
+#### (2) Direct mechanism check: does unembed norm bound the achievable steered margin?
+
+Per-pair Spearman of `unembed_norm` against the achieved best logit margin (`vs_max`) and the max target logit over the trajectory:
+
+| Domain | Sp(norm, vs_max) | Pearson(norm, vs_max) | Sp(norm, max_target_logit) | Sp(baseline_logit, vs_max) [ref] |
+|---|---:|---:|---:|---:|
+| usa       | -0.277 | -0.236 | -0.200 | +0.200 |
+| books     | -0.149 | -0.156 | -0.165 | +0.201 |
+| **products**  | **+0.541** | **+0.640** | +0.184 | +0.134 |
+| paintings | +0.119 | -0.043 | +0.125 | +0.148 |
+
+Per-target OLS `hit_rate ~ b1 * unembed_norm + b2 * baseline_logit`:
+
+| Domain | beta_unembed | beta_baseline | R^2 | N targets |
+|---|---:|---:|---:|---:|
+| usa       | +0.008 | +0.124 | 0.185 | 50 |
+| books     | -0.370 | -0.020 | 0.018 | 15 |
+| **products**  | **+1.661** | **-0.008** | **0.245** | 14 |
+| paintings | +0.024 | +0.032 | 0.062 | 12 |
+
+In Products the unembedding norm completely dominates the marginal baseline logit (beta_unembed = +1.66, beta_baseline ~ 0); in USA the situation reverses (baseline logit dominates, unembed norm has zero independent effect).
+
+#### (Earlier proxies, kept for cross-reference)
+
+PB(`baseline_logits.target.logit`, `hit`) per pair, Spearman per target -- positive in 7/8 cells with a clean USA gradient (Q1 fa_best 47%, Q5 79%); see [unembed_report.json](target_logit_specificity/unembed_report.json) for the side-by-side. First-token collision: ` Jack` is the only within-domain shared first token in any of the four datasets, and all 24 Jack-target pairs hit 0 / 24 in both labeled and fa_best (z_unique-shared = +3.19 in fa_best Products).
+
+### Interpretation
+
+The user's refined hypothesis -- "low `||W_U[:, target]||` => hard to steer because the geometric ceiling on the achievable target-logit increment is small" -- is **strongly supported in Products and rejected in USA**. The two domains tell complementary stories:
+
+1. **Products: the geometric channel dominates** (confidence High). PB(unembed_norm, hit) = +0.46 / +0.63 (fa_best / labeled); Spearman_per_target +0.44 / +0.64. The OLS `hit_rate ~ unembed_norm + baseline_logit` puts essentially all the signal on `beta_unembed = +1.66` and zero on `beta_baseline ~ 0`. Per-pair Spearman(`unembed_norm`, `vs_max`) = **+0.54** (Pearson +0.64): the achieved logit margin is monotone in the unembedding norm, exactly as the geometric mechanism predicts. The Products quintiles are clean: every target with norm < 1.61 hits 0 % (Matt, Larry, Pierre, Michael, Henry, Phil, James, Jack-twitter, Jack-alibaba) while every target with norm > 1.68 hits 54-100 % (Bill, Mark, Palmer, Elon). The single low-norm outlier is ` Steve` (norm 1.487, hit 84.6 %), explainable by the unusually strong Apple/Steve-Jobs feature signal that lets a small W_U row support a still-large dot-product.
+
+2. **USA: the feature channel dominates** (confidence High). PB(unembed_norm, hit) = -0.08 / -0.16; Spearman_per_target -0.16 / -0.19; per-pair Spearman(unembed_norm, vs_max) = **-0.28**. Direction is INVERTED from the user's hypothesis. The reason is visible in the per-target table: the lowest-norm capitals are also the most frequent everyday English words (` Boston` 1.472, ` Atlanta` 1.491, ` Denver` 1.528, ` Austin` 1.547, ` Sacramento` 1.549, ` Phoenix` 1.564) and the model has rich features for all of them, so the residual aligns strongly with W_U[t] even though ||W_U[t]|| is small. The high-norm capitals are rare-word small-state capitals (` Concord` 1.803, ` Frankfort` 2.079, ` Juneau` 2.171) where the model has weaker features regardless of geometry, so the larger ||W_U[t]|| cannot be exploited. This is not a refutation of the geometric mechanism: it is feature-channel variance overwhelming the geometric channel because the two are anti-correlated in this domain (high-frequency tokens have small embeddings AND rich features).
+
+3. **Books / Paintings: small N, signal washes out** (confidence Medium). Books labeled has the user-predicted direction (+0.17 / +0.28) but flips negative under fa_best (-0.14 / -0.25); paintings is null in both. Per-target N (15 / 12) is too small to resolve.
+
+The Products result is the cleanest possible test of the user's hypothesis because all 14 founder targets are first-name tokens of comparable feature richness (well-known tech founders), so the feature channel is approximately controlled. In that controlled setting, the unembedding-norm channel is dominant (R^2 = 0.245 with norm alone; baseline logit adds nothing).
+
+The earlier within-dataset collision finding (` Jack` shared by twitter + alibaba, both 0 % hit) is now a sub-effect of (1): both Jack pairs sit at norm 1.613, on the wrong side of the Products inflection point at ~1.65. Whether the collision *adds* to the geometric penalty cannot be settled here -- they are confounded -- but the Jack failure no longer requires invoking collision as a separate cause.
+
+T2 implications:
+- L1 / L2: nothing in T2 changes. The geometric ceiling is a property of the model, not of the feature labels, so this finding does not weaken any of the T2 verdicts.
+- It does explain *part* of the residual Products miss-rate (`fa_best Hit% = 41.7` from T2 under the lenient rule, ~26-31 % under the per-pair best-of slice we use here): roughly half of Products targets sit on the low-norm side and a labeled feature bag can hit them only when the residual aligns very precisely with `W_U[target]`.
+- It does NOT offer a clean, model-only, universally predictive diagnostic. See the decomposition follow-up entry below.
+
+#### Decomposition follow-up (corrects the over-claim)
+
+`baseline_logit_t = ||W_U[t]|| * alignment_proxy`, where
+`alignment_proxy = baseline_logit_t / ||W_U[t]|| ~ ||LN(residual_default)|| * cos(LN(r), W_U[t])`.
+
+Per-target OLS `hit_rate ~ ceiling + alignment` (standardised betas, R^2):
+
+| Domain | std_beta_ceiling | std_beta_alignment | dominant | R^2 | N_targets |
+|---|---:|---:|---|---:|---:|
+| usa       | +0.569 | **+0.812** | alignment | 0.174 | 50 |
+| books     | -0.181 | -0.113 | (neither) | 0.014 | 15 |
+| products  | **+0.481** | -0.026 | **ceiling** | 0.243 | 14 |
+| paintings | +0.105 | +0.314 | alignment | 0.059 | 12 |
+
+Univariate Spearman per target:
+
+| Domain | Sp(ceiling, hit) | Sp(alignment, hit) | Sp(baseline_logit, hit) |
+|---|---:|---:|---:|
+| usa       | -0.103 | +0.276 | +0.414 |
+| books     | -0.219 | -0.009 | -0.029 |
+| products  | +0.454 | -0.141 | +0.059 |
+| paintings | +0.042 | +0.116 | +0.200 |
+
+Two cleanly separable conclusions:
+
+1. **`||W_U[:, t]||` is a true geometric ceiling on `vs_max` for any token, in any domain** (Cauchy-Schwarz on `LN(r) . W_U[t]`). That is a model-only property and is correct as stated.
+2. **The ceiling binds only when steering can produce high `cos(r, W_U[t])`, and `cos` is feature-driven.** Whether the ceiling actually predicts hits varies by domain: ceiling dominates Products (where founder-feature richness is roughly uniform across the 14 targets) and is shadowed by alignment in USA (where ` Boston`/` Atlanta`/etc have an order of magnitude richer features than ` Concord`/` Juneau`). Best-case explained variance (Products) is R^2 = 0.243 with both factors -- the rest lives in feature-bag quality, intervention size, error-node coverage.
+
+Practical reading: there is no *model-only*, *prompt-free* number we can compute up front and use to predict steer success in an arbitrary domain. We have a model-only **upper bound** (ceiling) and a model-plus-source-prompt **alignment proxy** (baseline_logit / norm), and together they explain 5-25 % of per-target hit-rate variance. Useful to flag structurally-doomed targets (Products' low-norm cluster) and useful conceptually, but it is not a substitute for running the swap.
+
+The cleanest single experiment that would close the question:
+- For each pair, log `||LN(steered_residual)||` at the trajectory position where `vs_max` is reached, recompute `cos = vs_max / (||LN(r)|| * ||W_U[t]||)` and check whether `cos` saturates at 1 (ceiling binds) or stays small (feature alignment is the real bottleneck) per domain.
+
+Outputs of this follow-up: [`output/research/target_logit_specificity/decomposition.json`](target_logit_specificity/decomposition.json); script: [`scripts/research/decompose_unembed_logit.py`](../../scripts/research/decompose_unembed_logit.py).
+
+### Threats to validity
+
+- "Unembedding norm" is a one-number summary of W_U geometry. The full mechanism is `||W_U[t]|| * ||residual_push|| * cos(W_U[t], residual_push)`. We never measured the cos term per pair; the residual_push direction is a function of the labeled feature bag, so the user's hypothesis only constrains an upper bound, not the actual achievable margin. The Products result therefore plausibly *under*-states the true geometric effect because cos is also varying.
+- Per-target N (12-15) in Products / Books / Paintings is small. The Products beta_unembed = 1.66 has a wide implicit CI; we did not bootstrap.
+- USA's anti-correlation between unembedding norm and feature richness is itself an empirical claim that we did not measure directly (would need a per-token feature-count proxy from the CLT graph).
+- Gemma-2 applies final-RMSNorm with shared gamma and a logit soft-cap. Both are monotone transforms that do not affect rank correlations but do compress absolute logit magnitudes; the Pearson coefficients in section (2) are slight under-estimates as a result.
+- The fa_best slice has positive selection bias on hit; the per-pair PB is dampened toward the easier (high-norm or high-feature) end of each domain. Labeled-condition stats agree on the direction in Products, so this does not flip the conclusion.
+- We did not re-run a hard control: pairing two USA capitals that share a first token (` Salt` for Salt Lake City vs. some other Salt-prefixed entry would falsify the collision sub-claim cleanly) -- the dataset does not contain such a collision.
+
+### Follow-up
+
+- Per-pair cos(W_U[target], residual_push) measurement: cache the post-RMSNorm residual at position 0 for each steered run and dot it with W_U[target]. This isolates the geometric channel from the feature channel and resolves the Products vs USA divergence cleanly.
+- Cross-domain feature-richness proxy: count target-supporting features in each entity's CLT graph (number of features whose top-activating context includes the target token). Test whether (norm * feature_count) is a better single predictor than either alone.
+- Replicate Products finding on a synthetic "low-norm vs high-norm matched founder names" subset to remove the collision confound from the ` Jack` rows.
+- Add a "structural ceiling" column to the per-pair appendix table (`appx:perpair`): `||W_U[target]|| * achievable_residual_norm` could be reported alongside `vs_max` to show which misses are diagnostic of label quality vs. structural model geometry.
+
+### Artifacts
+
+- Scripts: `scripts/research/analyze_target_logit_specificity.py`, `scripts/research/analyze_target_token_collision.py`, `scripts/research/analyze_unembedding_norm.py`, `scripts/research/analyze_unembed_vs_logit_margin.py`
+- JSON outputs: `output/research/target_logit_specificity/{report,collision_report,unembed_report,unembed_vs_logit_margin}.json`
+- Text summary: `output/research/target_logit_specificity/report.txt`
+
+---
+
 ## 2026-05-08 -- Fair Dallas top-K saturation re-run (single bag, no field-additivity)
 
 **Status**: Done (top-10 + top-21 + top-100 + top-200, all 49 source states)

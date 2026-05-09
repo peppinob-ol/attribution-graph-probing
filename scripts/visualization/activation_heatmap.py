@@ -629,24 +629,94 @@ class ActivationHeatmapVisualizer:
         return fig
 
 
+def _build_seed_row_from_dump(
+    seed_dump_path: Path,
+    feature_id: str,
+    override_prompt: Optional[str] = None,
+) -> Optional[dict]:
+    """
+    Build a seed-prompt row from a per-seed activations dump that contains
+    *unpruned* per-token activations for the seed prompt (same schema as
+    ``activations_dump.json``: ``{"results": [{"tokens": [...],
+    "activations": [{"source", "index", "values": [...]}, ...]}, ...]}``).
+
+    The first result is treated as the seed prompt. We pick the activation
+    entry whose (source, index) matches ``feature_id`` and return its full
+    per-token ``values`` list -- so the seed row reflects the actual feature
+    behaviour on the seed, not the influence-pruned graph view.
+
+    Returns ``None`` if the file is missing/unreadable, has no results, or does
+    not contain the requested feature.
+    """
+    if not seed_dump_path.exists():
+        return None
+
+    try:
+        with open(seed_dump_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"Could not read seed activations dump at {seed_dump_path}: {e}")
+        return None
+
+    results = data.get('results') or []
+    if not results:
+        return None
+
+    res = results[0]
+    tokens = res.get('tokens') or []
+    if not tokens:
+        return None
+
+    if ':' in feature_id:
+        target_source, idx_str = feature_id.split(':', 1)
+        target_index = int(idx_str)
+    else:
+        target_source = None
+        target_index = int(feature_id)
+
+    values: Optional[List[float]] = None
+    for act in res.get('activations', []) or []:
+        try:
+            idx = int(act.get('index'))
+        except (TypeError, ValueError):
+            continue
+        if idx != target_index:
+            continue
+        if target_source is not None and act.get('source') != target_source:
+            continue
+        values = [float(v) for v in (act.get('values') or [])]
+        break
+
+    if values is None or len(values) != len(tokens):
+        return None
+
+    seed_prompt_text = override_prompt or res.get('prompt', '')
+    print(
+        f"Seed row from dump: prompt={seed_prompt_text!r}, "
+        f"max_activation={max(values) if values else 0.0:.4f}"
+    )
+    return {
+        'tokens': list(tokens),
+        'values': values,
+        'prompt': seed_prompt_text,
+    }
+
+
 def _build_seed_row_from_graph(
     graph_json_path: Path,
     feature_id: str,
     override_prompt: Optional[str] = None,
 ) -> Optional[dict]:
     """
-    Construct a seed-prompt row (tokens + per-token activations for ``feature_id``)
-    from the attribution graph at ``graph_json_path``.
+    Fallback: construct a seed-prompt row from the attribution graph at
+    ``graph_json_path``. The graph is generated on the seed prompt, but its
+    node set is **influence-pruned** (typical settings keep nodes that
+    cumulatively account for ~80% of influence on the target logit). Diffuse
+    features therefore appear sparser here than they really are -- prefer
+    ``_build_seed_row_from_dump`` whenever a per-seed activations dump exists.
 
-    The attribution graph is generated *on* the seed prompt and stores, for each
-    feature node, the (layer, local_feature_index, ctx_idx, activation) tuple.
-    We rebuild a dense per-token activation array of length ``len(prompt_tokens)``
-    by summing activations from every node whose (layer, local_feature_index)
-    matches the requested feature.
-
-    Returns a dict ``{'tokens', 'values', 'prompt'}`` ready for
-    ``visualize_stacked_prompts_for_feature``, or ``None`` if the graph file is
-    missing / unreadable / does not contain matching nodes.
+    Returns ``{'tokens', 'values', 'prompt'}`` or ``None`` if the file is
+    missing/unreadable or contains no matching nodes.
     """
     if not graph_json_path.exists():
         return None
@@ -663,11 +733,10 @@ def _build_seed_row_from_graph(
     if not prompt_tokens:
         return None
 
-    # Parse the requested feature id: "<layer>-<set>:<index>" or just "<index>".
+    # Parse "<layer>-<set>:<index>" or just "<index>".
     if ':' in feature_id:
         target_source, idx_str = feature_id.split(':', 1)
         target_index = int(idx_str)
-        # Layer is the leading numeric portion of the source (e.g. "20-clt-hp" -> 20).
         layer_str = target_source.split('-', 1)[0]
         try:
             target_layer = int(layer_str)
@@ -681,7 +750,7 @@ def _build_seed_row_from_graph(
     values = [0.0] * len(prompt_tokens)
     found_any = False
     for node in graph.get('nodes', []) or []:
-        # node_id format: "<layer>_<local_feature_index>_<ctx_idx>"
+        # node_id: "<layer>_<local_feature_index>_<ctx_idx>"
         node_id = node.get('node_id', '')
         parts = node_id.split('_')
         if len(parts) < 3:
@@ -701,14 +770,13 @@ def _build_seed_row_from_graph(
             found_any = True
 
     if not found_any:
-        # No graph node for this feature on the seed prompt; show an all-zero row
-        # only if the user explicitly asked via override_prompt, else skip.
         if override_prompt is None:
             return None
 
     seed_prompt_text = override_prompt or metadata.get('prompt', '')
     print(
-        f"Seed row from graph: prompt={seed_prompt_text!r}, "
+        f"Seed row from graph (PRUNED -- early-token activations may be missing): "
+        f"prompt={seed_prompt_text!r}, "
         f"max_activation={max(values) if values else 0.0:.4f}"
     )
     return {
@@ -780,6 +848,16 @@ def main():
              'to auto-discover it from "<dump_dir>/../00 Graph Generation/graph.json".'
     )
     parser.add_argument(
+        '--seed-activations',
+        type=str,
+        default=None,
+        help='Path to a per-seed activations dump (same schema as activations_dump.json) '
+             'whose first result is the seed prompt. When provided -- or when a sibling '
+             '"seed_activations_dump.json" exists next to the input dump -- the seed row '
+             'is built from these unpruned activations instead of the (pruned) attribution '
+             'graph. Falls back to the graph if no dump is found.'
+    )
+    parser.add_argument(
         '--no-clamp-colon',
         action='store_true',
         help='Disable clamping of probe rows to start after the first ":" token.'
@@ -807,13 +885,34 @@ def main():
         output_dir = Path(args.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Try to build a seed row (tokens + per-token activations for this feature)
-        # from the attribution graph generated on the seed prompt.
-        seed_row = _build_seed_row_from_graph(
-            graph_json_path=input_path.parent.parent / "00 Graph Generation" / "graph.json",
-            feature_id=args.feature_id,
-            override_prompt=args.seed_prompt,
-        )
+        # Resolve the seed row in priority order:
+        #   1. explicit --seed-activations dump (unpruned, recommended)
+        #   2. sibling seed_activations_dump.json next to the input dump (auto)
+        #   3. influence-pruned attribution graph (last-ditch fallback)
+        # Option (3) systematically under-shows diffuse features: the graph
+        # only retains nodes whose influence on the target logit clears the
+        # pruning threshold, so high-activation but low-influence positions
+        # vanish from the seed row.
+        seed_row = None
+        candidate_dumps: List[Path] = []
+        if args.seed_activations:
+            candidate_dumps.append(Path(args.seed_activations))
+        candidate_dumps.append(input_path.parent / "seed_activations_dump.json")
+        for cand in candidate_dumps:
+            seed_row = _build_seed_row_from_dump(
+                seed_dump_path=cand,
+                feature_id=args.feature_id,
+                override_prompt=args.seed_prompt,
+            )
+            if seed_row is not None:
+                break
+
+        if seed_row is None:
+            seed_row = _build_seed_row_from_graph(
+                graph_json_path=input_path.parent.parent / "00 Graph Generation" / "graph.json",
+                feature_id=args.feature_id,
+                override_prompt=args.seed_prompt,
+            )
 
         # Initialize visualizer
         visualizer = ActivationHeatmapVisualizer(

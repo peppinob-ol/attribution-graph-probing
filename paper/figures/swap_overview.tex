@@ -6,18 +6,18 @@
   \centering
   \includegraphics[width=\linewidth]{figures/swap_matrix.pdf}
   \caption{Source $\to$ target swap matrix on the 50-state USA panel
-    ($n{=}2{,}450$ pairs, hit-rate $69.8$\%). By default we steer on all
+    ($n{=}2{,}450$ pairs, hit-rate $72.8$\%). By default we steer on all
     three concept fields (state + capital + city); each cell additionally
     considers every smaller field subset and reports the winning
-    configuration. The winner is the variant that hits the target capital
-    (steered top-1 = target capital first-token); when several variants
-    hit, we prefer the one that maximises the steered margin of the target
-    logit over the next-best capital in the dataset, breaking remaining
-    ties by intermediate hit flags and target rank in the baseline logits.
-    Cells are coloured by the winning field subset; the 3-field default
-    wins only $13$\% of cells, the rest succeed with a strict subset
-    (\S\ref{sec:results:diagnostic:fields}). Grey cells: miss; black on
-    the diagonal: pair not run.}
+    configuration. A cell is a hit when the target answer is detected
+    in the steered output (see \S\ref{appx:specificity} for the exact
+    detection rule); when several variants hit, we prefer the one that
+    maximises the steered margin of the target logit over the next-best
+    capital in the dataset, breaking remaining ties by target rank in the
+    baseline logits. Cells are coloured by the winning field subset; the
+    3-field default wins only $15$\% of hit cells, the rest succeed with
+    a strict subset (\S\ref{sec:results:diagnostic:fields}). Grey cells:
+    miss; black on the diagonal: pair not run.}
   \label{fig:swap-matrix}
 \end{figure}
 

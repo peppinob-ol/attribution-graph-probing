@@ -1,0 +1,169 @@
+{
+  "swap_id": "oracle_db__to__windows",
+  "source": {
+    "slug": "oracle_db",
+    "product": "Oracle Database",
+    "company": "Oracle",
+    "founder": "Larry Ellison",
+    "prompt": "<bos>The company that makes Oracle Database was founded by",
+    "concept": ""
+  },
+  "target": {
+    "slug": "windows",
+    "product": "Windows",
+    "company": "Microsoft",
+    "founder": "Bill Gates",
+    "concept": ""
+  },
+  "interventions": {
+    "ablate_count": 0,
+    "amplify_count": 271,
+    "total_count": 271
+  },
+  "evaluation": {
+    "ground_truth": {
+      "product": "Oracle Database",
+      "company": "Oracle",
+      "founder": "Larry Ellison",
+      "prompt": "<bos>The company that makes Oracle Database was founded by",
+      "concept": "oracle database"
+    },
+    "ground_truth_to": {
+      "product": "Windows",
+      "company": "Microsoft",
+      "founder": "Bill Gates",
+      "concept": "windows"
+    },
+    "answer_field": "founder",
+    "from_answer": "Larry Ellison",
+    "to_answer": "Bill Gates",
+    "exact_match": {
+      "default_has_from_answer": true,
+      "steered_has_to_answer": true,
+      "steered_has_to_answer_fuzzy": true,
+      "steered_has_from_answer": false,
+      "from_suppressed": true,
+      "first_token_matches_target": true,
+      "default_has_from_capital": true,
+      "steered_has_to_capital": true,
+      "steered_has_from_capital": false
+    },
+    "first_token": {
+      "default": " Larry",
+      "default_prob": 0.474609375,
+      "steered": " Bill",
+      "steered_prob": 0.08740234375
+    },
+    "target_in_topk": {
+      "to_answer_in_default_topk": null,
+      "to_answer_in_steered_topk": null,
+      "from_answer_in_default_topk": null,
+      "from_answer_in_steered_topk": null,
+      "to_capital_in_default_topk": null,
+      "to_capital_in_steered_topk": null,
+      "from_capital_in_default_topk": null,
+      "from_capital_in_steered_topk": null
+    },
+    "raw": {
+      "default_output": "<bos><bos>The company that makes Oracle Database was founded by Larry Ellison in 1977. It",
+      "steered_output": "<bos><bos>The company that makes Oracle Database was founded by Bill Gates and Robert Miner in 1977",
+      "default_topk": [
+        {
+          "token": " Larry",
+          "prob": 0.474609375
+        },
+        {
+          "token": " a",
+          "prob": 0.08251953125
+        },
+        {
+          "token": " Bob",
+          "prob": 0.06396484375
+        },
+        {
+          "token": " Ed",
+          "prob": 0.050048828125
+        },
+        {
+          "token": " the",
+          "prob": 0.034423828125
+        }
+      ],
+      "steered_topk": [
+        {
+          "token": " Bill",
+          "prob": 0.08740234375
+        },
+        {
+          "token": " ",
+          "prob": 0.06005859375
+        },
+        {
+          "token": " most",
+          "prob": 0.06005859375
+        },
+        {
+          "token": " Douglas",
+          "prob": 0.041259765625
+        },
+        {
+          "token": " Elon",
+          "prob": 0.036376953125
+        }
+      ]
+    },
+    "position_0_distribution_metrics": {
+      "baseline_entropy": 2.6622,
+      "steered_entropy": 5.0597,
+      "entropy_delta": 2.3975,
+      "kl_baseline_to_steered": 3.0655
+    }
+  },
+  "config": {
+    "M_ablate": -2,
+    "M_amplify": 6.931448431551464,
+    "temperature": 0.3,
+    "seed": 42,
+    "freeze_attention": false
+  },
+  "metadata": {
+    "timestamp": "2026-05-08T17:20:40.458724",
+    "duration_ms": 0,
+    "is_identity": false
+  },
+  "m_search": {
+    "m_original": 20,
+    "m_tuned": 6.931448,
+    "phase": 1,
+    "total_steps": 5,
+    "phase1_probes": [
+      {
+        "m": 0.1,
+        "hit": false,
+        "kl": 20.3638
+      },
+      {
+        "m": 0.28854,
+        "hit": false,
+        "kl": 20.3639
+      },
+      {
+        "m": 0.832553,
+        "hit": false,
+        "kl": 20.0042
+      },
+      {
+        "m": 2.402249,
+        "hit": false,
+        "kl": 6.1369
+      },
+      {
+        "m": 6.931448,
+        "hit": true,
+        "kl": 3.0655
+      }
+    ],
+    "phase2_steps": [],
+    "kl_transition": null
+  }
+}

@@ -6,7 +6,7 @@
 We set  four domains spanning two-hop factual recall in different relational structures and answer geometries. Each domain has a fixed seed-prompt template with three semantic fields (input, intermediate, answer): 
 \begin{itemize}\itemsep0pt
 \item USA: ``capital of state containing $X$''; 50 entities, 2{,}450 non-identity swap pairs.
-\item Books: ``character $X$ appears in a book by''; 16 entities, 240 non-identity swap pairs.
+\item Books: ``character $X$ appears in a book by''; 10 entities, 90 non-identity swap pairs.
 \item Products: ``founder of the company that makes $X$''; 12 entities, 132 non-identity swap pairs.
 \item Paintings: ``first name of the painter of $X$''; 10 entities, 90 non-identity swap pairs.
 \end{itemize}
@@ -17,7 +17,7 @@ We use Gemma-2-2B-it with the public CLT-HP dictionary ($\sim$2.5M features over
 
 \subsection{Probe prompt generation}
 \label{sec:method:probes}
-Given a prompt used to generate the attribution graph $p$ (e.g., ``the capital of the state containing Dallas is''), we use an LLM to generate a small set of concept-targeted probes. First, we extract the $K$ most salient concepts from $p$ (and, when available, from the model's output), each tagged with a short description. The second pass turns the extracted concepts into probe prompts that share the seed's surface structure (same prepositions, same answer position, comparable length) while varying the content entities. A typical seed yields 4--5 probes. The full system prompt and the concept-to-probe template are reproduced in \cref{appx:pipeline}.
+Given a prompt used to generate the attribution graph $p$ (e.g., ``the capital of the state containing Dallas is''), we use an LLM to generate a small set of concept-targeted probes. First, we extract the $K$ most salient concepts from $p$ (and, when available, from the model's output), each tagged with a short description. The second pass turns the extracted concepts into probe prompts that share the seed's surface structure (same prepositions, same answer position, comparable length) while varying the content entities. A typical seed yields 5 probes. The full system prompt and the concept-to-probe template are reproduced in \cref{appx:pipeline}.
 
 \subsection{Cross-Prompt Activation Signatures (CPAS)}
 \label{sec:method:cpas}
@@ -61,7 +61,7 @@ Same-role same-name features form a supernode. Naming is role-specific.
 
 \subsection{Pipeline output}
 \label{sec:method:compression}
-The pipeline output is a property of the method. Concept-aligned subgraphs (\cref{fig:circuit-texas}) compress 600$+$ raw features into 30--50 named supernodes per circuit while preserving Neuronpedia \emph{Completeness} (fraction of incoming edges to all nodes that originate from grouped features, weighted by influence on output; mean $0.89$ over 88 entities across 4 datasets)  \emph{Replacement} (fraction of end-to-end influence from input tokens to output logits that flows through grouped features; mean $0.69$).  The unit of analysis in \cref{sec:results} is the supernode.
+The pipeline output is a property of the method. Concept-aligned subgraphs (\cref{fig:circuit-texas}) compress 600$+$ raw features into 30--50 named supernodes per circuit while preserving Neuronpedia \emph{Completeness} (fraction of incoming edges to all nodes that originate from grouped features, weighted by influence on output; mean $0.89$ over 82 entities across 4 datasets)  \emph{Replacement} (fraction of end-to-end influence from input tokens to output logits that flows through grouped features; mean $0.69$).  The unit of analysis in \cref{sec:results} is the supernode.
 
 \begin{figure}[b]
   \centering
