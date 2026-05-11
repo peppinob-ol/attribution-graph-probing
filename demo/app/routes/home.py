@@ -394,8 +394,8 @@ def _field_legend_items(dc: dict):
     for combo, color, _label in FIELD_ROLE_PALETTE:
         readable = " + ".join(name_for[r] for r in ("input", "intermediate", "answer") if r in combo)
         items.append(_legend_item("", readable, color))
-    items.append(_legend_item("", "other / not field-additivity", "#888888"))
-    items.append(_legend_item("", "no data / miss", "#475569"))
+    items.append(_legend_item("", "hit, no field tag", "#888888"))
+    items.append(_legend_item("", "miss / no data", "#475569"))
     return items
 
 

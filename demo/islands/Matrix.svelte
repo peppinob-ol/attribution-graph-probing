@@ -172,7 +172,12 @@
 
   function getFieldStyle(fromSlug, toSlug) {
     const tierVal = matrix[fromSlug]?.[toSlug];
-    if (tierVal === undefined || tierVal === null) return fieldMissColor;
+    // Only T5 (PERFECT) counts as a hit in the paper's swap_matrix.pdf;
+    // misses (T1/T2/T3/T4) and no-data are grey, matching CELL_FAIL in
+    // tools/render_swap_matrix.py.
+    if (tierVal === undefined || tierVal === null || tierVal < 5) {
+      return fieldMissColor;
+    }
     const fields = cellFieldsUsed(fromSlug, toSlug);
     const key = fieldsToRoleKey(fields);
     if (!key) return fieldOtherColor;
@@ -180,6 +185,10 @@
   }
 
   function getFieldLabel(fromSlug, toSlug) {
+    const tierVal = matrix[fromSlug]?.[toSlug];
+    if (tierVal === undefined || tierVal === null || tierVal < 5) {
+      return tierVal == null ? 'no data' : `miss (T${tierVal})`;
+    }
     const fields = cellFieldsUsed(fromSlug, toSlug);
     const key = fieldsToRoleKey(fields);
     if (!key) return 'other';
