@@ -8,8 +8,17 @@ import StateCard from './StateCard.svelte';
 function mount() {
   const matrixContainer = document.getElementById('matrix-container');
   if (matrixContainer) {
+    const ds = matrixContainer.dataset || {};
+    const props = {
+      defaultBestMode: ds.defaultBestMode === 'true',
+      domainFields: {
+        input: ds.domainInput || '',
+        intermediate: ds.domainIntermediate || '',
+        answer: ds.domainAnswer || '',
+      },
+    };
     matrixContainer.innerHTML = '';
-    new Matrix({ target: matrixContainer });
+    new Matrix({ target: matrixContainer, props });
   }
 
   const detailContainer = document.getElementById('detail-panel');

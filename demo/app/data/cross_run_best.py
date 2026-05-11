@@ -26,51 +26,22 @@ if TYPE_CHECKING:
     from .loader import DemoRegistry
 
 
-def _get_tier(swap_data: Dict) -> float:
-    """Extract tier without needing a DataLoader instance.
-
-    Mirrors the fast paths of ``DataLoader._get_tier_from_swap`` --
-    ``classification.tier`` (set on all completed runs) and the
-    exact-match / first-token heuristics.  Skips the word-blacklist
-    check (which needs ``get_domain_config``), acceptable here because
-    the cross-run aggregator only ranks completed results.
-    """
-    if "classification" in swap_data:
-        t = swap_data["classification"].get("tier")
-        if t is not None:
-            return float(t)
-
-    evaluation = swap_data.get("evaluation", {})
-    exact = evaluation.get("exact_match", {})
-    hit = exact.get("steered_has_to_capital") or exact.get("steered_has_to_answer")
-
-    if not hit:
-        to_answer = evaluation.get("to_answer", "")
-        steered_out = evaluation.get("raw", {}).get("steered_output", "")
-        if to_answer and steered_out:
-            to_norm = to_answer.replace(".", "").replace("-", " ").lower()
-            if to_norm and to_norm in steered_out.replace(".", "").replace("-", " ").lower():
-                hit = True
-        if not hit:
-            steered_first = (evaluation.get("first_token", {}).get("steered", "") or "").strip()
-            if len(steered_first) >= 2 and to_answer:
-                if steered_first.lower() in to_answer.replace(".", "").lower():
-                    hit = True
-
-    if hit:
-        return 5.0
-    if not exact.get("from_suppressed"):
-        return 1.0
-    return 2.0
-
-
 def _get_vsmax(swap_data: Dict) -> Optional[float]:
     """Same as ``DataLoader._get_vsmax_from_swap`` (static method)."""
     return DataLoader._get_vsmax_from_swap(swap_data)
 
 
-def _score_from_swap(swap_data: Dict, run_id: str) -> Tuple:
+def _score_from_swap(
+    swap_data: Dict, run_id: str, loader: "DataLoader"
+) -> Tuple:
     """Build lexicographic comparison tuple from a swap JSON.
+
+    Tier extraction is delegated to ``loader._get_tier_from_swap`` so the
+    cross-run aggregator agrees bit-for-bit with the per-run "Best per
+    cell" view -- including the word-level fallback that needs the
+    domain word blacklist. Without this, runs that don't ship
+    ``classification.tier`` (e.g. field-additivity) silently regress
+    when bestMode is enabled.
 
     Components (all oriented so *higher* tuple = better):
       1. tier (float)
@@ -80,7 +51,9 @@ def _score_from_swap(swap_data: Dict, run_id: str) -> Tuple:
       5. vsmax (best_target_minus_max, higher is better)
       6. run_id (stable tie-break)
     """
-    tier = _get_tier(swap_data)
+    tier = loader._get_tier_from_swap(swap_data)
+    if tier is None:
+        tier = float("-inf")
     exact = swap_data.get("evaluation", {}).get("exact_match", {})
     has_to_answer = bool(exact.get("steered_has_to_answer"))
     has_to_capital = bool(exact.get("steered_has_to_capital"))
@@ -230,7 +203,7 @@ class CrossRunBestAggregator:
             for to_slug, records in targets.items():
                 if allowed is not None and to_slug not in allowed:
                     continue
-                hit = self._score_cell(records, run_id, label)
+                hit = self._score_cell(records, run_id, label, loader)
                 if hit is None:
                     continue
                 score, variant, meta = hit
@@ -256,7 +229,7 @@ class CrossRunBestAggregator:
             data = self._try_load(swap_file)
             if data is None:
                 continue
-            score = _score_from_swap(data, run_id)
+            score = _score_from_swap(data, run_id, loader)
             meta = _extract_winner_meta(data, score, run_id, label, "")
             if key not in best or score > best[key][0]:
                 best[key] = (score, run_id, "", meta)
@@ -266,38 +239,31 @@ class CrossRunBestAggregator:
         records: List[Dict],
         run_id: str,
         run_label: str,
+        loader: "DataLoader",
     ) -> Optional[Tuple[Tuple, str, Dict]]:
         """Score one (from, to) cell within a run.
 
-        Uses matrix rules: canonical first, else best variant by score.
+        Considers the canonical record AND every variant on equal footing
+        and returns the lexicographic max. Required so that the cross-run
+        best is always >= the per-run "Best per cell" view (otherwise a
+        run whose canonical happens to be a 3-field swap would mask its
+        own field-additivity wins).
+
         Returns ``(score_tuple, variant_suffix, meta_dict)`` or None.
         """
-        canonical = [r for r in records if r["is_canonical"]]
-        variants = [r for r in records if not r["is_canonical"]]
-
-        if canonical:
-            data = self._try_load(canonical[0]["path"])
-            if data is not None:
-                score = _score_from_swap(data, run_id)
-                meta = _extract_winner_meta(data, score, run_id, run_label, "")
-                return score, "", meta
-
-        if variants:
-            best = None
-            for rec in variants:
-                data = self._try_load(rec["path"])
-                if data is None:
-                    continue
-                score = _score_from_swap(data, run_id)
-                suffix = rec.get("variant_suffix", "")
-                if best is None or score > best[0]:
-                    meta = _extract_winner_meta(
-                        data, score, run_id, run_label, suffix
-                    )
-                    best = (score, suffix, meta)
-            return best
-
-        return None
+        best: Optional[Tuple[Tuple, str, Dict]] = None
+        for rec in records:
+            data = self._try_load(rec["path"])
+            if data is None:
+                continue
+            score = _score_from_swap(data, run_id, loader)
+            suffix = "" if rec["is_canonical"] else rec.get("variant_suffix", "")
+            if best is None or score > best[0]:
+                meta = _extract_winner_meta(
+                    data, score, run_id, run_label, suffix
+                )
+                best = (score, suffix, meta)
+        return best
 
     @staticmethod
     def _try_load(path) -> Optional[Dict]:

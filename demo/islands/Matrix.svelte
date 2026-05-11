@@ -2,6 +2,10 @@
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   
   const dispatch = createEventDispatcher();
+
+  // Props injected from the FastHTML route via init.js
+  export let defaultBestMode = false;
+  export let domainFields = { input: '', intermediate: '', answer: '' };
   
   // State
   let matrix = {};
@@ -17,7 +21,7 @@
   let sortBy = 'alpha';
   let hideOverlap = false;
   let hideConceptNotTopLogit = false;
-  let colorMode = 'tier';
+  let colorMode = defaultBestMode ? 'field' : 'tier';
 
   // Global variant selector
   let availableVariants = [];
@@ -76,6 +80,20 @@
     null:         { bg: '#1e293b', hover: '#334155' },
   };
 
+  // Role-keyed Okabe-Ito palette, mirrors tools/render_swap_matrix.py
+  // FIELD_PALETTE and figures/swap_matrix.pdf in the paper.
+  const fieldRoleColors = {
+    'answer,input,intermediate': { bg: '#D55E00', hover: '#E0743A', label: 'all three' },
+    'input,intermediate':        { bg: '#E69F00', hover: '#F2B842', label: 'input + intermediate' },
+    'answer,input':              { bg: '#CC79A7', hover: '#D894B7', label: 'input + answer' },
+    'answer,intermediate':       { bg: '#009E73', hover: '#3EB48B', label: 'intermediate + answer' },
+    'input':                     { bg: '#56B4E9', hover: '#7AC4EE', label: 'input only' },
+    'intermediate':              { bg: '#0072B2', hover: '#3691C5', label: 'intermediate only' },
+    'answer':                    { bg: '#F0E442', hover: '#F4EC74', label: 'answer only' },
+  };
+  const fieldOtherColor = { bg: '#888888', hover: '#A0A0A0', label: 'other / no field tag' };
+  const fieldMissColor  = { bg: '#475569', hover: '#64748b', label: 'no data / miss' };
+
   function getRegimeStyle(regime) {
     if (regime === undefined || regime === null) return regimeColors[null];
     return regimeColors[regime] || regimeColors[null];
@@ -118,6 +136,56 @@
     return tierColors[tier] || tierColors[null];
   }
 
+  // Map raw field names (from concept_subsets_used) to roles using domainFields.
+  function fieldsToRoleKey(fields) {
+    if (!fields || !fields.length) return null;
+    const map = {};
+    if (domainFields.input)        map[domainFields.input] = 'input';
+    if (domainFields.intermediate) map[domainFields.intermediate] = 'intermediate';
+    if (domainFields.answer)       map[domainFields.answer] = 'answer';
+    const roles = new Set();
+    for (const f of fields) {
+      const role = map[f];
+      if (role) roles.add(role);
+    }
+    if (!roles.size) return null;
+    return [...roles].sort().join(',');
+  }
+
+  // Field set inferred either from the cross-run winner metadata (bestMode)
+  // or, when a single variant is selected, parsed out of the variant suffix.
+  function variantFields(suffix) {
+    if (!suffix) return null;
+    const stripped = suffix.replace(/__m_tuned$/, '');
+    if (!stripped.startsWith('add_')) return null;
+    return stripped.slice(4).split('_');
+  }
+
+  function cellFieldsUsed(fromSlug, toSlug) {
+    if (bestMode) {
+      const w = winnersMap[fromSlug]?.[toSlug];
+      if (w?.fields_used && w.fields_used.length) return w.fields_used;
+      return null;
+    }
+    return variantFields(selectedVariant);
+  }
+
+  function getFieldStyle(fromSlug, toSlug) {
+    const tierVal = matrix[fromSlug]?.[toSlug];
+    if (tierVal === undefined || tierVal === null) return fieldMissColor;
+    const fields = cellFieldsUsed(fromSlug, toSlug);
+    const key = fieldsToRoleKey(fields);
+    if (!key) return fieldOtherColor;
+    return fieldRoleColors[key] || fieldOtherColor;
+  }
+
+  function getFieldLabel(fromSlug, toSlug) {
+    const fields = cellFieldsUsed(fromSlug, toSlug);
+    const key = fieldsToRoleKey(fields);
+    if (!key) return 'other';
+    return fieldRoleColors[key]?.label || 'other';
+  }
+
   function getCellStyle(fromSlug, toSlug) {
     if (colorMode === 'flip') {
       const flipPos = flipMatrix[fromSlug]?.[toSlug];
@@ -137,6 +205,9 @@
       if (tierVal === undefined || tierVal === null) return vsmaxColors[null];
       const val = vsmaxMatrix[fromSlug]?.[toSlug];
       return getVsmaxStyle(val);
+    }
+    if (colorMode === 'field') {
+      return getFieldStyle(fromSlug, toSlug);
     }
     return getTierStyle(getTier(fromSlug, toSlug));
   }
@@ -425,6 +496,14 @@
         vsmaxMatrix = await vsmaxRes.json();
       }
       loading = false;
+
+      // Auto-enable Best per cell across runs on the USA homepage so the
+      // field-additivity matrix (the paper's main result) is the first
+      // thing the reviewer sees. The route flips colorMode to 'field'
+      // independently via the dropdown's initial selection.
+      if (defaultBestMode && !bestMode) {
+        await toggleBestMode();
+      }
     } catch (e) {
       error = e.message;
       loading = false;
@@ -448,12 +527,6 @@
   function isDimmed(fromSlug, toSlug) {
     if (!hoveredCell) return false;
     return hoveredCell.from !== fromSlug && hoveredCell.to !== toSlug;
-  }
-
-  function isDiffRunWinner(fromSlug, toSlug) {
-    if (!bestMode || !bestCurrentRunId) return false;
-    const w = winnersMap[fromSlug]?.[toSlug];
-    return w && w.run_id !== bestCurrentRunId;
   }
 
   function countWinsForRun(runId) {
@@ -548,9 +621,6 @@
       >
         {consideredRuns.length} run{consideredRuns.length === 1 ? '' : 's'} considered
       </button>
-      <span class="text-xs text-slate-500">
-        <span class="text-amber-500">Amber border</span> = cell won by a run other than the current selection.
-      </span>
     {/if}
   </div>
 
@@ -650,17 +720,15 @@
             {@const flipPos = flipMatrix[rowState.slug]?.[colState.slug]}
             {@const regime = regimeMatrix[rowState.slug]?.[colState.slug]}
             {@const vmVal = vsmaxMatrix[rowState.slug]?.[colState.slug]}
-            {@const diffWin = !isIdentity && isDiffRunWinner(rowState.slug, colState.slug)}
             <button
               class="matrix-cell rounded-sm transition-all duration-100"
               class:opacity-30={isDimmed(rowState.slug, colState.slug)}
-              class:diff-run-winner={diffWin}
               style="--cell-bg: {cs.bg}; --cell-hover: {cs.hover};{sel ? ' transform: scale(1.5); z-index: 20; background-color: var(--cell-hover); box-shadow: 0 0 0 2px #22d3ee;' : ''}"
               disabled={isIdentity || tier === null}
               on:click={() => selectCell(rowState.slug, colState.slug)}
               on:mouseenter={() => hoveredCell = { from: rowState.slug, to: colState.slug }}
               on:mouseleave={() => hoveredCell = null}
-              title={isIdentity ? 'Identity' : tier !== null ? `${rowState.abbr} -> ${colState.abbr}: ${colorMode === 'flip' ? getFlipLabel(flipPos) : colorMode === 'regime' ? 'Regime ' + getRegimeLabel(regime) : colorMode === 'vsmax' ? 'VsMax ' + getVsmaxLabel(vmVal) : 'Tier ' + tier}` : 'No data'}
+              title={isIdentity ? 'Identity' : tier !== null ? `${rowState.abbr} -> ${colState.abbr}: ${colorMode === 'flip' ? getFlipLabel(flipPos) : colorMode === 'regime' ? 'Regime ' + getRegimeLabel(regime) : colorMode === 'vsmax' ? 'VsMax ' + getVsmaxLabel(vmVal) : colorMode === 'field' ? 'Fields: ' + getFieldLabel(rowState.slug, colState.slug) : 'Tier ' + tier}` : 'No data'}
             ></button>
           {/each}
         {/each}
@@ -773,10 +841,6 @@
     transform: scale(1.5);
     z-index: 20;
     background-color: var(--cell-hover);
-  }
-
-  .matrix-cell.diff-run-winner {
-    box-shadow: inset 0 0 0 2px #f59e0b;
   }
 </style>
 

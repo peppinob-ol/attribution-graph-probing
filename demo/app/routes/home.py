@@ -21,6 +21,11 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
         dc = data_loader.get_domain_config()
         page_title = dc.get('display_name', 'Concept Swap Explorer')
         is_usa = dc.get('is_usa_states', True)
+        # Field-additivity runs hold the canonical 3-field schema; legacy
+        # 2-field runs lack the intermediate role and would mis-label the
+        # field palette. Prefer the additivity run for the colour mapping
+        # whenever the dataset has one.
+        field_dc = _additivity_domain_config(registry, data_loader) or dc
         
         aggregate = stats.get('aggregate', {})
         perfect_rate = aggregate.get('perfect_rate', 0) * 100
@@ -104,7 +109,7 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                                 Div(
                                     id="matrix-container",
                                     cls="relative",
-                                    **{"data-api-url": "/api/matrix"}
+                                    **_matrix_container_attrs(field_dc, is_usa),
                                 )(
                                     Div(cls="text-center py-20 text-slate-500")(
                                         P("Loading matrix..."),
@@ -126,10 +131,11 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                                         id="color-mode-select",
                                         cls="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300 hover:border-slate-500 focus:border-cyan-500 focus:outline-none cursor-pointer",
                                     )(
-                                        Option(value="tier", selected=True)("Tier"),
+                                        Option(value="tier", selected=(not is_usa))("Tier"),
                                         Option(value="flip")("Flip"),
                                         Option(value="regime")("Regime"),
                                         Option(value="vsmax")("VsMax"),
+                                        Option(value="field", selected=is_usa)("Field"),
                                     ),
                                 ),
                                 # Tier legend (shown by default)
@@ -168,6 +174,10 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                                     _legend_item("-2..0", "Weak negative", "#fb923c"),
                                     _legend_item("<-2", "Strong negative", "#ef4444"),
                                     _legend_item("--", "No data", "#1e293b"),
+                                ),
+                                # Field legend (Okabe-Ito palette, mirrors paper figures/swap_matrix.pdf)
+                                Div(id="field-legend", cls="space-y-2", style=("" if is_usa else "display: none;"))(
+                                    *_field_legend_items(field_dc),
                                 ),
                             ),
                             
@@ -233,13 +243,15 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                             tier:   document.getElementById('tier-legend'),
                             flip:   document.getElementById('flip-legend'),
                             regime: document.getElementById('regime-legend'),
-                            vsmax:  document.getElementById('vsmax-legend')
+                            vsmax:  document.getElementById('vsmax-legend'),
+                            field:  document.getElementById('field-legend')
                         };
                         var titles = {
                             tier:   'TIER LEGEND',
                             flip:   'FLIP POSITION',
                             regime: 'REGIME',
-                            vsmax:  'VsMax'
+                            vsmax:  'VsMax',
+                            field:  'FIELD SUBSET'
                         };
                         if (!sel) return;
                         function apply(mode) {
@@ -252,6 +264,8 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                             }));
                         }
                         sel.addEventListener('change', function() { apply(sel.value); });
+                        // Apply the initial selection (e.g. 'field' on USA homepage)
+                        if (sel.value) apply(sel.value);
                     })();
                 """),
                 # About modal script (open/close only -- all data is static)
@@ -336,6 +350,105 @@ def _legend_item(tier: str, label: str, color: str):
         Div(cls="w-4 h-4 rounded", style=f"background-color: {color};"),
         Span(cls="text-xs text-slate-300")(f"{tier}: {label}"),
     )
+
+
+# Role-keyed Okabe-Ito palette (mirrors tools/render_swap_matrix.py FIELD_PALETTE).
+# Keys are sorted role tuples so the demo stays domain-agnostic.
+FIELD_ROLE_PALETTE = [
+    (("answer", "input", "intermediate"), "#D55E00", "input + intermediate + answer"),
+    (("input", "intermediate"),           "#E69F00", "input + intermediate"),
+    (("answer", "input"),                 "#CC79A7", "input + answer"),
+    (("answer", "intermediate"),          "#009E73", "intermediate + answer"),
+    (("input",),                          "#56B4E9", "input only"),
+    (("intermediate",),                   "#0072B2", "intermediate only"),
+    (("answer",),                         "#F0E442", "answer only"),
+]
+
+
+def _domain_field_roles(dc: dict) -> dict:
+    """Map concept-field names to roles {input, intermediate, answer}.
+
+    Convention used across the four batch domains: ``concept_fields`` is
+    ordered ``[input, intermediate, answer]``.  When fewer than three
+    fields are configured we degrade gracefully (intermediate=input).
+    """
+    fields = dc.get("concept_fields") or []
+    if not fields:
+        return {"input": "", "intermediate": "", "answer": ""}
+    return {
+        "input": fields[0],
+        "intermediate": fields[1] if len(fields) >= 3 else fields[0],
+        "answer": fields[-1],
+    }
+
+
+def _field_legend_items(dc: dict):
+    """Render the Field legend, named with the domain's actual field labels."""
+    roles = _domain_field_roles(dc)
+    name_for = {
+        "input": roles["input"] or "input",
+        "intermediate": roles["intermediate"] or "intermediate",
+        "answer": roles["answer"] or "answer",
+    }
+    items = []
+    for combo, color, _label in FIELD_ROLE_PALETTE:
+        readable = " + ".join(name_for[r] for r in ("input", "intermediate", "answer") if r in combo)
+        items.append(_legend_item("", readable, color))
+    items.append(_legend_item("", "other / not field-additivity", "#888888"))
+    items.append(_legend_item("", "no data / miss", "#475569"))
+    return items
+
+
+def _additivity_domain_config(registry, data_loader) -> dict | None:
+    """Return the domain-config of the dataset's field-additivity run, if any.
+
+    The legacy 2-field swap runs (e.g. ``full_50states_v1``) lack the
+    intermediate concept and would render the Field palette with only
+    "input" + "answer" labels.  When the active dataset bundles a
+    ``control_mode == 'additivity'`` run, we use *its* schema for the
+    palette so reviewers get the full 3-role colouring without having
+    to switch the dropdown first.
+    """
+    if registry is None:
+        return None
+    ds_id = registry.active_dataset_id
+    if not ds_id:
+        return None
+    ds = registry._datasets.get(ds_id)
+    if not ds:
+        return None
+    add_run = next(
+        (r for r in ds["runs"] if r.get("control_mode") == "additivity"),
+        None,
+    )
+    if not add_run:
+        return None
+    try:
+        from app.data.loader import DataLoader
+        loader = DataLoader(ds["dir"], run_id=add_run["id"])
+        return loader.get_domain_config()
+    except Exception:
+        return None
+
+
+def _matrix_container_attrs(dc: dict, is_usa: bool) -> dict:
+    """Data attributes consumed by Matrix.svelte (via init.js).
+
+    - ``data-default-best-mode``: auto-toggle Best per cell across runs
+      on the USA homepage so the colored field-additivity matrix is the
+      first thing the reviewer sees.
+    - ``data-domain-input/intermediate/answer``: field-name -> role map
+      so the Svelte palette can colour cells without hard-coding USA
+      field names.
+    """
+    roles = _domain_field_roles(dc)
+    return {
+        "data-api-url": "/api/matrix",
+        "data-default-best-mode": "true" if is_usa else "false",
+        "data-domain-input": roles["input"],
+        "data-domain-intermediate": roles["intermediate"],
+        "data-domain-answer": roles["answer"],
+    }
 
 
 def _tier_bar(tier_name: str, count: int, total: int):
