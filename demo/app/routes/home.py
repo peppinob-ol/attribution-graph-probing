@@ -266,6 +266,15 @@ def home_routes(app, rt, data_loader, annotate_mode: bool = False, registry=None
                         sel.addEventListener('change', function() { apply(sel.value); });
                         // Apply the initial selection (e.g. 'field' on USA homepage)
                         if (sel.value) apply(sel.value);
+                        // Allow Svelte islands (e.g. the Matrix bestMode toggle)
+                        // to request a colour-mode switch -- keeps the dropdown
+                        // and legend in sync with internal state changes.
+                        document.addEventListener('request-color-mode', function(e) {
+                            var mode = e && e.detail && e.detail.mode;
+                            if (!mode || !legends[mode]) return;
+                            sel.value = mode;
+                            apply(mode);
+                        });
                     })();
                 """),
                 # About modal script (open/close only -- all data is static)

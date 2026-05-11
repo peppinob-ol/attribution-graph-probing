@@ -424,6 +424,16 @@
       bestCurrentRunId = null;
       consideredRuns = [];
       bestInfoOpen = false;
+      // Field colouring is only meaningful with cross-run winner metadata
+      // (or a single variant selected); when bestMode goes off without a
+      // pinned variant we revert to the default Tier legend so the matrix
+      // doesn't sit in a half-grey "field" mode.
+      if (colorMode === 'field' && !selectedVariant) {
+        document.dispatchEvent(new CustomEvent('request-color-mode', {
+          detail: { mode: 'tier' },
+          bubbles: true,
+        }));
+      }
       bestLoading = true;
       try {
         const qs = selectedVariant ? `?variant=${encodeURIComponent(selectedVariant)}` : '';
