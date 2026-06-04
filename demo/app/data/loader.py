@@ -227,6 +227,24 @@ class DemoRegistry:
     # for other datasets that don't ship this exact run id.
     DEFAULT_RUN_ID = "fullscale_usa_field_add"
 
+    # Datasets present in the output root but hidden from the public demo.
+    # The data still exists on disk (kept for research / local use); it is
+    # just not surfaced in the dataset dropdown. Overrides:
+    #   DEMO_SHOW_HIDDEN=1            -> show everything (local research)
+    #   DEMO_HIDDEN_DATASETS=a,b,c    -> replace this default list
+    HIDDEN_DATASET_IDS = frozenset({"sounds_colors_batch"})
+
+    @classmethod
+    def _resolve_hidden_ids(cls) -> Set[str]:
+        if (os.environ.get("DEMO_SHOW_HIDDEN") or "").strip().lower() in (
+            "1", "true", "yes",
+        ):
+            return set()
+        env = (os.environ.get("DEMO_HIDDEN_DATASETS") or "").strip()
+        if env:
+            return {s.strip() for s in env.split(",") if s.strip()}
+        return set(cls.HIDDEN_DATASET_IDS)
+
     def __init__(self, output_root: Path, initial_data_dir: Optional[Path] = None):
         self.output_root = Path(output_root)
         # {dataset_id: {"dir": Path, "label": str, "runs": [run_dict, ...]}}
@@ -333,8 +351,11 @@ class DemoRegistry:
             })
 
         # Build ordered dict: datasets sorted by label, runs already reverse-sorted
+        hidden = self._resolve_hidden_ids()
         for dataset_dir, ds in sorted(datasets.items(), key=lambda x: x[1]["label"]):
             ds_id = dataset_dir.name
+            if ds_id in hidden:
+                continue
             self._datasets[ds_id] = ds
 
     @staticmethod
