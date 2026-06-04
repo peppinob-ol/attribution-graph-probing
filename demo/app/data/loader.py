@@ -221,7 +221,11 @@ class DemoRegistry:
     """
 
     DEFAULT_DATASET_ID = "usa_states_batch"
-    DEFAULT_RUN_ID = "full_50states_v1"
+    # Default run for the homepage: the field-additivity sweep on USA
+    # states (paper's main result, drives the 73% T5 / 83% T3+ headline
+    # numbers). Falls through to ``_pick_default_run``'s fallback chain
+    # for other datasets that don't ship this exact run id.
+    DEFAULT_RUN_ID = "fullscale_usa_field_add"
 
     def __init__(self, output_root: Path, initial_data_dir: Optional[Path] = None):
         self.output_root = Path(output_root)

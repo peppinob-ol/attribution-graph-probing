@@ -1,8 +1,8 @@
 """
 About modal -- detailed methodology and cross-domain validation results.
 
-Static content derived from METHODOLOGY_REPORT.md (33,387 steering runs,
-5 domains, 3 experimental conditions).  KPIs are hardcoded: they reflect
+Static content derived from the paper (41,784 swap runs, 4 evaluation
+domains, four experimental conditions).  KPIs are hardcoded: they reflect
 the full-scale experiment, not the currently selected run.
 """
 from fasthtml.common import (
@@ -53,7 +53,7 @@ def _modal_header():
         Div(cls="flex items-center gap-3")(
             H2(cls="text-xl font-semibold text-white")("Methodology & Results"),
             Span(cls="text-[10px] px-2 py-0.5 rounded-full bg-cyan-900/40 text-cyan-400 font-mono")(
-                "33,387 runs"
+                "41,784 runs"
             ),
         ),
         Button(
@@ -127,12 +127,12 @@ def _section_intro():
         Div(cls="bg-slate-800/30 rounded-lg p-3 border border-slate-700/50 space-y-2")(
             P(cls="text-slate-300 text-sm leading-relaxed")(
                 Span(cls="text-slate-200 font-medium")("This demo "),
-                "visualizes pairwise steering experiments across 33,387 runs "
-                "and 5 knowledge domains. Each matrix cell represents an attempt "
-                "to redirect the model from a source entity (row) to a target "
-                "entity (column), using labeled feature swaps. Cells are colored "
-                "on a tiered scale from T5 (target answer produced) to "
-                "T1 (source persists).",
+                "visualizes pairwise steering experiments across 41,784 runs "
+                "spanning the four evaluation domains. "
+                "Each matrix cell represents an attempt to redirect the model "
+                "from a source entity (row) to a target entity (column), using "
+                "labeled feature swaps. Cells are colored on a tiered scale "
+                "from T5 (target answer produced) to T1 (source persists).",
             ),
             P(cls="text-slate-400 text-xs leading-relaxed")(
                 "The central question: do probe-prompted labels have ",
@@ -188,7 +188,9 @@ def _section_pipeline(dc: dict):
             _param_row("Source features", f"ablate {dc.get('m_ablate', -2)}x", "text-red-400"),
             _param_row("Target features", f"amplify +{dc.get('m_amplify', 20)}x", "text-emerald-400"),
             _param_row("Generation",
-                       f"{dc.get('n_tokens', 10)} tokens, temp {dc.get('temperature', 0.3)}, seed 42"),
+                       f"{dc.get('n_tokens', 10)} tokens, temp {dc.get('temperature', 0.3)}, "
+                       f"freq penalty 2.0, seed 42"),
+            _param_row("M-search", "adaptive rescue; winning M bimodal at ~2.4 and ~6.9"),
         ),
     )
 
@@ -259,8 +261,10 @@ def _section_experimental_design():
             "Experimental Design"
         ),
         P(cls="text-slate-400 text-sm leading-relaxed")(
-            "Five domains spanning different associative complexity, "
-            "each tested under three conditions:"
+            "Four evaluation domains spanning two-hop factual recall in different "
+            "relational structures and answer geometries. Each domain has a fixed "
+            "seed-prompt template with three semantic fields (input, intermediate, "
+            "answer):"
         ),
         # Domain table
         NotStr(
@@ -268,7 +272,7 @@ def _section_experimental_design():
             '<thead><tr class="border-b border-slate-700">'
             '<th class="text-left py-1.5 px-2 text-slate-500">Domain</th>'
             '<th class="text-left py-1.5 px-2 text-slate-500">Seed Prompt</th>'
-            '<th class="text-right py-1.5 px-2 text-slate-500">Seeds</th>'
+            '<th class="text-right py-1.5 px-2 text-slate-500">Entities</th>'
             '<th class="text-right py-1.5 px-2 text-slate-500">Pairs</th>'
             '</tr></thead><tbody>'
             '<tr class="border-b border-slate-800">'
@@ -280,8 +284,8 @@ def _section_experimental_design():
             '<tr class="border-b border-slate-800">'
             '  <td class="py-1.5 px-2 text-slate-300 font-medium">Books</td>'
             '  <td class="py-1.5 px-2 text-slate-400">"The book featuring {character} was written by"</td>'
-            '  <td class="py-1.5 px-2 text-right text-slate-400">16</td>'
-            '  <td class="py-1.5 px-2 text-right text-slate-300">240</td>'
+            '  <td class="py-1.5 px-2 text-right text-slate-400">10</td>'
+            '  <td class="py-1.5 px-2 text-right text-slate-300">90</td>'
             '</tr>'
             '<tr class="border-b border-slate-800">'
             '  <td class="py-1.5 px-2 text-slate-300 font-medium">Products</td>'
@@ -289,28 +293,25 @@ def _section_experimental_design():
             '  <td class="py-1.5 px-2 text-right text-slate-400">12</td>'
             '  <td class="py-1.5 px-2 text-right text-slate-300">132</td>'
             '</tr>'
-            '<tr class="border-b border-slate-800">'
+            '<tr>'
             '  <td class="py-1.5 px-2 text-slate-300 font-medium">Paintings</td>'
             '  <td class="py-1.5 px-2 text-slate-400">"The first name of the painter of {painting} is"</td>'
             '  <td class="py-1.5 px-2 text-right text-slate-400">10</td>'
             '  <td class="py-1.5 px-2 text-right text-slate-300">90</td>'
             '</tr>'
-            '<tr>'
-            '  <td class="py-1.5 px-2 text-slate-300 font-medium">Sounds</td>'
-            '  <td class="py-1.5 px-2 text-slate-400">"The most common color of the animal that goes \'{sound}\' is"</td>'
-            '  <td class="py-1.5 px-2 text-right text-slate-400">6</td>'
-            '  <td class="py-1.5 px-2 text-right text-slate-300">30</td>'
-            '</tr>'
             '</tbody></table>'
         ),
         P(cls="text-slate-500 text-xs mt-2 leading-relaxed")(
-            "Three conditions per pair: ",
+            "Each pair runs under four conditions: ",
             Span(cls="text-cyan-400")("labeled"),
-            " (concept supernodes), ",
-            Span(cls="text-purple-400")("random"),
-            " (feature-matched controls, 3 replicates), and ",
-            Span(cls="text-slate-300")("field-add"),
-            " variants (subsets of concept fields).",
+            " 3-field baseline at M=20, ",
+            Span(cls="text-purple-400")("matched-random"),
+            " controls (3 replicates per pair, same feature count and per-layer "
+            "histogram, sampled outside concept-aligned supernodes), ",
+            Span(cls="text-slate-300")("field-additivity"),
+            " variants (7 subsets of the three concept fields), and ",
+            Span(cls="text-emerald-400")("adaptive M-search"),
+            " (rescue passes for missed pairs). Total: 41,784 swap runs.",
         ),
     )
 
@@ -318,43 +319,51 @@ def _section_experimental_design():
 # -- cross-domain results (static) ------------------------------------------
 
 _RESULTS = [
-    # domain, n_best, hit_best, hit_rand, vsmax_best, vsmax_rand, rkgrp_best, rkgrp_rand, medrk_best, medrk_rand
-    ("USA States",  "2,450", "38.8%",  "0.1%",  "+4.00", "-2.31", "1.47", "9.00",  "3",  "566"),
-    ("Books",       "240",   "37.1%",  "0.3%",  "+7.76", "-0.15", "1.02", "2.43",  "2",  "283"),
-    ("Products",    "132",   "24.2%",  "0.3%",  "+3.06", "+0.23", "1.27", "2.25",  "18", "354"),
-    ("Paintings",   "90",    "6.7%",   "0.0%",  "+1.46", "-0.03", "1.41", "1.96",  "90", "196"),
-    ("Sounds",      "30",    "20.0%",  "12.2%", "+4.69", "+3.14", "1.07", "1.08",  "5",  "24"),
+    # domain, N, hit_ours, vsmax_ours, hit_rand, vsmax_rand, hit_topk, vsmax_topk
+    ("USA States", "2,450", "72.8%", "+6.15",  "0.7%", "-1.23",  "4.2%", "-1.92"),
+    ("Books",      "90",    "77.8%", "+10.38", "0.0%", "+0.19",  "4.4%", "+1.57"),
+    ("Products",   "132",   "41.7%", "+5.42",  "7.6%", "+1.17",  "1.1%", "+0.63"),
+    ("Paintings",  "90",    "18.9%", "+3.45",  "1.1%", "+1.27",  "7.1%", "+0.16"),
 ]
 
 
 def _section_cross_domain_results():
     rows_html = ""
-    for d, n, hb, hr, vb, vr, rb, rr, mb, mr in _RESULTS:
+    for d, n, h_ours, v_ours, h_rnd, v_rnd, h_top, v_top in _RESULTS:
         rows_html += (
             f'<tr class="border-b border-slate-800">'
             f'  <td class="py-1.5 px-2 text-slate-300 font-medium">{d}</td>'
             f'  <td class="py-1.5 px-2 text-right text-slate-400">{n}</td>'
-            f'  <td class="py-1.5 px-2 text-right text-cyan-400 font-mono">{hb}</td>'
-            f'  <td class="py-1.5 px-2 text-right text-red-400/60 font-mono">{hr}</td>'
-            f'  <td class="py-1.5 px-2 text-right text-cyan-400 font-mono">{vb}</td>'
-            f'  <td class="py-1.5 px-2 text-right text-red-400/60 font-mono">{vr}</td>'
-            f'  <td class="py-1.5 px-2 text-right text-cyan-400 font-mono">{rb}</td>'
-            f'  <td class="py-1.5 px-2 text-right text-red-400/60 font-mono">{rr}</td>'
-            f'  <td class="py-1.5 px-2 text-right text-cyan-400 font-mono">{mb}</td>'
-            f'  <td class="py-1.5 px-2 text-right text-red-400/60 font-mono">{mr}</td>'
+            f'  <td class="py-1.5 px-2 text-right text-cyan-400 font-mono">{h_ours}</td>'
+            f'  <td class="py-1.5 px-2 text-right text-cyan-400 font-mono">{v_ours}</td>'
+            f'  <td class="py-1.5 px-2 text-right text-red-400/70 font-mono">{h_rnd}</td>'
+            f'  <td class="py-1.5 px-2 text-right text-red-400/70 font-mono">{v_rnd}</td>'
+            f'  <td class="py-1.5 px-2 text-right text-purple-400/80 font-mono">{h_top}</td>'
+            f'  <td class="py-1.5 px-2 text-right text-purple-400/80 font-mono">{v_top}</td>'
             f'</tr>'
         )
 
     return Div(cls="bg-slate-800/50 rounded-lg p-4 border border-slate-700 space-y-3")(
         Div(cls="flex items-center justify-between")(
             H3(cls="text-sm font-semibold text-slate-400 uppercase tracking-wide")(
-                "Cross-Domain Validation Results"
+                "Cross-Domain Headline"
             ),
-            Span(cls="text-[10px] text-slate-500 font-mono")("best field-add variant vs random"),
+            Span(cls="text-[10px] text-slate-500 font-mono")(
+                "harness vs matched-random vs influence-matched top-K"
+            ),
         ),
         P(cls="text-slate-400 text-xs leading-relaxed")(
-            "The best field-add variant (intermediate+answer fields) vs structurally matched random controls. "
-            "Random controls use the same feature count and layer distribution but sampled randomly from the graph."
+            Span(cls="text-cyan-400 font-medium")("Ours"), ": per-pair best "
+            "field-additivity variant with adaptive M-search on labeled features. ",
+            Span(cls="text-red-400/80 font-medium")("Rand."),
+            ": matched-random control under the same per-pair best-of "
+            "(3 replicates x {default, M-tuned}) construction -- same feature "
+            "count and per-layer histogram, sampled outside concept-aligned "
+            "supernodes. ",
+            Span(cls="text-purple-400 font-medium")("Top-K"),
+            ": influence-matched top-K-by-graph-influence baseline with "
+            "adaptive M-search. Books and Paintings use the 10-entity / "
+            "90-pair demo intersection so the Top-K coverage is symmetric.",
         ),
         # Primary metrics table
         Div(cls="overflow-x-auto")(
@@ -363,19 +372,16 @@ def _section_cross_domain_results():
                 '<thead><tr class="border-b border-slate-700">'
                 '<th class="text-left py-1.5 px-2 text-slate-500" rowspan="2">Domain</th>'
                 '<th class="text-right py-1.5 px-2 text-slate-500" rowspan="2">N</th>'
-                '<th class="text-center py-1 px-2 text-slate-500 border-b border-slate-700" colspan="2">Hit%</th>'
-                '<th class="text-center py-1 px-2 text-slate-500 border-b border-slate-700" colspan="2">vsMax</th>'
-                '<th class="text-center py-1 px-2 text-slate-500 border-b border-slate-700" colspan="2">RkGrp</th>'
-                '<th class="text-center py-1 px-2 text-slate-500 border-b border-slate-700" colspan="2">MedRk</th>'
+                '<th class="text-center py-1 px-2 text-slate-500 border-b border-slate-700" colspan="2">Ours (FA+M-srch)</th>'
+                '<th class="text-center py-1 px-2 text-slate-500 border-b border-slate-700" colspan="2">Rand. +M-srch</th>'
+                '<th class="text-center py-1 px-2 text-slate-500 border-b border-slate-700" colspan="2">Top-K</th>'
                 '</tr><tr class="border-b border-slate-700">'
-                '<th class="text-right py-1 px-2 text-cyan-500/60 text-[10px]">Best</th>'
-                '<th class="text-right py-1 px-2 text-red-400/40 text-[10px]">Rnd</th>'
-                '<th class="text-right py-1 px-2 text-cyan-500/60 text-[10px]">Best</th>'
-                '<th class="text-right py-1 px-2 text-red-400/40 text-[10px]">Rnd</th>'
-                '<th class="text-right py-1 px-2 text-cyan-500/60 text-[10px]">Best</th>'
-                '<th class="text-right py-1 px-2 text-red-400/40 text-[10px]">Rnd</th>'
-                '<th class="text-right py-1 px-2 text-cyan-500/60 text-[10px]">Best</th>'
-                '<th class="text-right py-1 px-2 text-red-400/40 text-[10px]">Rnd</th>'
+                '<th class="text-right py-1 px-2 text-cyan-500/70 text-[10px]">Hit%</th>'
+                '<th class="text-right py-1 px-2 text-cyan-500/70 text-[10px]">vsMax</th>'
+                '<th class="text-right py-1 px-2 text-red-400/60 text-[10px]">Hit%</th>'
+                '<th class="text-right py-1 px-2 text-red-400/60 text-[10px]">vsMax</th>'
+                '<th class="text-right py-1 px-2 text-purple-400/70 text-[10px]">Hit%</th>'
+                '<th class="text-right py-1 px-2 text-purple-400/70 text-[10px]">vsMax</th>'
                 '</tr></thead><tbody>'
                 + rows_html +
                 '</tbody></table>'
@@ -384,10 +390,14 @@ def _section_cross_domain_results():
         # Key takeaway
         Div(cls="mt-2 text-xs text-slate-400 leading-relaxed bg-slate-900/50 rounded p-2.5 border-l-2 border-cyan-600")(
             Span(cls="text-cyan-400 font-medium")("Key finding: "),
-            "suppression is generic, targeting is specific. "
-            "Random controls achieve equal or higher source suppression (75-87%), "
-            "but near-zero target hit rates and negative vsMax. "
-            "Only labeled supernodes steer toward the correct target entity.",
+            "labeled supernodes pass the operational test in all four domains. "
+            "The labeled--random Hit% gap is at least 11pp in every domain even "
+            "after applying M-search to the random side, and the labeled--random "
+            "vsMax gap is at least +0.2 in every domain. Influence-matched top-K "
+            "underperforms the labeled bag despite using the same per-pair "
+            "graph-influence budget, so the steering signal is distributed "
+            "across the labeled feature set rather than concentrated in the "
+            "highest-influence nodes.",
         ),
     )
 
@@ -427,11 +437,10 @@ def _metric_row(name, desc):
 # -- field additivity --------------------------------------------------------
 
 _FIELD_ADD = [
-    ("USA States",  "state+capital",   "mid+ans", "38.8%", "24.7%", "+14.1pp"),
-    ("Books",       "book+author",     "mid+ans", "37.1%", "3.8%",  "+33.3pp"),
-    ("Products",    "company+founder", "mid+ans", "24.2%", "15.2%", "+9.0pp"),
-    ("Sounds",      "sound+animal",    "in+mid",  "20.0%", "0.0%",  "+20.0pp"),
-    ("Paintings",   "first_name",      "ans",     "6.7%",  "3.3%",  "+3.4pp"),
+    ("USA States", "state + capital",   "mid+ans", "38.8%", "24.7%", "+14.1pp"),
+    ("Books",      "book + author",     "mid+ans", "37.1%", "3.8%",  "+33.3pp"),
+    ("Products",   "company + founder", "mid+ans", "24.2%", "15.2%", "+9.0pp"),
+    ("Paintings",  "first_name (1-fld)", "ans",    "6.7%",  "3.3%",  "+3.4pp"),
 ]
 
 
@@ -456,8 +465,10 @@ def _section_field_additivity():
         P(cls="text-slate-400 text-xs leading-relaxed")(
             "Each domain's concept fields map to semantic roles: "
             "input (mentioned in prompt), intermediate (bridging concept), "
-            "answer (what the model produces). Including input-field supernodes "
-            "degrades steering -- often dramatically.",
+            "answer (what the model produces). Numbers below are Best-subset "
+            "Hit% vs the all-3-field labeled baseline, both at M=20. "
+            "In 3 of 4 domains, intermediate+answer carry the strongest signal; "
+            "including input-field features dilutes the redirection signal.",
         ),
         Div(cls="overflow-x-auto")(
             NotStr(
@@ -493,7 +504,8 @@ def _section_regime_taxonomy():
         ),
         P(cls="text-slate-400 text-xs leading-relaxed")(
             "Each swap is classified by what happens to target and source logits "
-            "at position 0. The best variant shifts cases from weak regimes to strong ones:"
+            "at position 0 relative to their unsteered baselines. Four regimes "
+            "matter for interpretation:"
         ),
         Div(cls="overflow-x-auto")(
             NotStr(
@@ -504,7 +516,6 @@ def _section_regime_taxonomy():
                 '<th class="text-left py-1.5 px-2 text-slate-500">Source</th>'
                 '<th class="text-left py-1.5 px-2 text-slate-500">Flip?</th>'
                 '<th class="text-left py-1.5 px-2 text-slate-500">Intuition</th>'
-                '<th class="text-center py-1.5 px-2 text-slate-500" colspan="3">Regime A% (best / labeled / rnd)</th>'
                 '</tr></thead><tbody>'
                 '<tr class="border-b border-slate-800">'
                 '  <td class="py-1.5 px-2 font-bold text-emerald-400">A</td>'
@@ -512,9 +523,6 @@ def _section_regime_taxonomy():
                 '  <td class="py-1.5 px-2 text-red-400">DOWN</td>'
                 '  <td class="py-1.5 px-2 text-emerald-400">yes</td>'
                 '  <td class="py-1.5 px-2 text-slate-300">Clean redirection</td>'
-                '  <td class="py-1.5 px-2 text-right font-mono text-cyan-400">35%</td>'
-                '  <td class="py-1.5 px-2 text-right font-mono text-purple-400">9%</td>'
-                '  <td class="py-1.5 px-2 text-right font-mono text-red-400/60">19%</td>'
                 '</tr>'
                 '<tr class="border-b border-slate-800">'
                 '  <td class="py-1.5 px-2 font-bold text-yellow-400">C</td>'
@@ -522,7 +530,6 @@ def _section_regime_taxonomy():
                 '  <td class="py-1.5 px-2 text-red-400">DOWN</td>'
                 '  <td class="py-1.5 px-2 text-emerald-400">yes</td>'
                 '  <td class="py-1.5 px-2 text-slate-300">Differential disruption</td>'
-                '  <td class="py-1.5 px-2" colspan="3"></td>'
                 '</tr>'
                 '<tr class="border-b border-slate-800">'
                 '  <td class="py-1.5 px-2 font-bold text-red-400">D</td>'
@@ -530,7 +537,6 @@ def _section_regime_taxonomy():
                 '  <td class="py-1.5 px-2 text-red-400">DOWN</td>'
                 '  <td class="py-1.5 px-2 text-red-400">no</td>'
                 '  <td class="py-1.5 px-2 text-slate-300">Generic disruption</td>'
-                '  <td class="py-1.5 px-2" colspan="3"></td>'
                 '</tr>'
                 '<tr>'
                 '  <td class="py-1.5 px-2 font-bold text-slate-400">E</td>'
@@ -538,60 +544,85 @@ def _section_regime_taxonomy():
                 '  <td class="py-1.5 px-2 text-red-400">DOWN</td>'
                 '  <td class="py-1.5 px-2 text-emerald-400">yes</td>'
                 '  <td class="py-1.5 px-2 text-slate-300">Pure suppression</td>'
-                '  <td class="py-1.5 px-2" colspan="3"></td>'
                 '</tr>'
                 '</tbody></table>'
             ),
         ),
-        # Regime A prevalence mini-table
+        # Regime A / D prevalence per domain (paper appx:regime, tab:regime-prev)
         P(cls="text-xs text-slate-500 mt-2")(
-            "Regime A prevalence (cleanest evidence) for best variant vs full labeled vs random:"
+            "Regime A (clean redirection) and Regime D (generic disruption) "
+            "prevalence under three conditions: best field-additivity variant, "
+            "full labeled (M=20, all three fields), and the symmetric matched-"
+            "random control under per-pair best-of (3 replicates x adaptive M):"
         ),
         Div(cls="overflow-x-auto mt-1")(
             NotStr(
                 '<table class="w-full text-xs">'
                 '<thead><tr class="border-b border-slate-700">'
-                '<th class="text-left py-1 px-2 text-slate-500">Domain</th>'
-                '<th class="text-right py-1 px-2 text-cyan-500/60">Best</th>'
-                '<th class="text-right py-1 px-2 text-purple-400/60">Labeled</th>'
-                '<th class="text-right py-1 px-2 text-red-400/40">Random</th>'
-                '<th class="text-right py-1 px-2 text-slate-500">Regime D (rnd)</th>'
+                '<th class="text-left py-1 px-2 text-slate-500" rowspan="2">Domain</th>'
+                '<th class="text-center py-1 px-2 text-slate-500 border-b border-slate-700" colspan="3">Regime A %</th>'
+                '<th class="text-center py-1 px-2 text-slate-500 border-b border-slate-700" colspan="3">Regime D %</th>'
+                '</tr><tr class="border-b border-slate-700">'
+                '<th class="text-right py-1 px-2 text-cyan-500/70 text-[10px]">Best</th>'
+                '<th class="text-right py-1 px-2 text-purple-400/70 text-[10px]">Labeled</th>'
+                '<th class="text-right py-1 px-2 text-red-400/60 text-[10px]">Rand+M</th>'
+                '<th class="text-right py-1 px-2 text-cyan-500/70 text-[10px]">Best</th>'
+                '<th class="text-right py-1 px-2 text-purple-400/70 text-[10px]">Labeled</th>'
+                '<th class="text-right py-1 px-2 text-red-400/60 text-[10px]">Rand+M</th>'
                 '</tr></thead><tbody>'
                 '<tr class="border-b border-slate-800">'
                 '  <td class="py-1 px-2 text-slate-300">USA</td>'
-                '  <td class="py-1 px-2 text-right font-mono text-cyan-400">34.9%</td>'
-                '  <td class="py-1 px-2 text-right font-mono text-purple-400">8.9%</td>'
-                '  <td class="py-1 px-2 text-right font-mono text-red-400/60">19.4%</td>'
-                '  <td class="py-1 px-2 text-right font-mono text-red-400/40">45.3%</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-cyan-400">34.9</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-purple-400">8.9</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-red-400/70">15.3</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-cyan-400">9.1</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-purple-400">19.4</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-red-400/70">38.7</td>'
                 '</tr>'
                 '<tr class="border-b border-slate-800">'
                 '  <td class="py-1 px-2 text-slate-300">Books</td>'
-                '  <td class="py-1 px-2 text-right font-mono text-cyan-400">62.1%</td>'
-                '  <td class="py-1 px-2 text-right font-mono text-purple-400">38.8%</td>'
-                '  <td class="py-1 px-2 text-right font-mono text-red-400/60">40.8%</td>'
-                '  <td class="py-1 px-2 text-right font-mono text-red-400/40">34.6%</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-cyan-400">62.1</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-purple-400">38.8</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-red-400/70">26.7</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-cyan-400">3.3</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-purple-400">3.3</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-red-400/70">34.4</td>'
                 '</tr>'
                 '<tr class="border-b border-slate-800">'
                 '  <td class="py-1 px-2 text-slate-300">Products</td>'
-                '  <td class="py-1 px-2 text-right font-mono text-cyan-400">62.1%</td>'
-                '  <td class="py-1 px-2 text-right font-mono text-purple-400">56.8%</td>'
-                '  <td class="py-1 px-2 text-right font-mono text-red-400/60">51.5%</td>'
-                '  <td class="py-1 px-2 text-right font-mono text-red-400/40">22.0%</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-cyan-400">62.1</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-purple-400">56.8</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-red-400/70">28.8</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-cyan-400">2.3</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-purple-400">2.3</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-red-400/70">18.9</td>'
                 '</tr>'
                 '<tr>'
                 '  <td class="py-1 px-2 text-slate-300">Paintings</td>'
-                '  <td class="py-1 px-2 text-right font-mono text-cyan-400">47.8%</td>'
-                '  <td class="py-1 px-2 text-right font-mono text-purple-400">17.8%</td>'
-                '  <td class="py-1 px-2 text-right font-mono text-red-400/60">23.3%</td>'
-                '  <td class="py-1 px-2 text-right font-mono text-red-400/40">42.2%</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-cyan-400">47.8</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-purple-400">17.8</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-red-400/70">16.7</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-cyan-400">2.2</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-purple-400">6.7</td>'
+                '  <td class="py-1 px-2 text-right font-mono text-red-400/70">36.7</td>'
                 '</tr>'
                 '</tbody></table>'
             ),
         ),
         Div(cls="mt-2 text-xs text-slate-400 leading-relaxed bg-slate-900/50 rounded p-2.5 border-l-2 border-yellow-600")(
-            "Random controls concentrate in regime D (42-45% generic disruption), "
-            "while the best variant concentrates in regime A (clean redirection). "
-            "Within regime C, labeled interventions produce target recovery 92% of the time (USA) vs 29% for random.",
+            "The best variant pushes many more cases into regime A (clean "
+            "redirection) than full labeled does (USA: 8.9 -> 34.9%; Books: "
+            "38.8 -> 62.1%); removing input-field features eliminates the "
+            "generic disruption that was pushing cases into regime C/D. "
+            "The symmetric matched-random + M-search control concentrates in "
+            "regime D (35-39% in USA, Books, Paintings) -- this is why vsMax "
+            "separates labeled from random even when both produce high "
+            "suppression rates. Within USA regime C, labeled features show a "
+            "92% vs 29% target-recovery gap over random; this signal does ",
+            Span(cls="text-slate-300 italic")("not"),
+            " generalize -- in Books regime C the same gap collapses to "
+            "92% vs 89%, so target-recovery is treated as a supporting "
+            "within-regime signal rather than a primary metric.",
         ),
     )
 
@@ -604,8 +635,11 @@ def _section_domain_gradient():
             "Domain Gradient & Operating Envelope"
         ),
         P(cls="text-slate-400 text-xs leading-relaxed")(
-            "Specificity tracks associative complexity and CLT reconstruction quality, "
-            "not graph size:"
+            "Labeled--random vsMax gap (logit margin over the strongest "
+            "competing dataset answer) at the default operating point "
+            "(all-3-fields, M=20, per-replicate matched-random control). "
+            "Specificity tracks associative complexity and answer-field "
+            "coarseness, not graph size:"
         ),
         Div(cls="overflow-x-auto")(
             NotStr(
@@ -620,39 +654,35 @@ def _section_domain_gradient():
                 '  <td class="py-1.5 px-2 text-slate-300">Books</td>'
                 '  <td class="py-1.5 px-2 text-right font-mono text-cyan-400">+6.13</td>'
                 '  <td class="py-1.5 px-2 text-emerald-400">Strong</td>'
-                '  <td class="py-1.5 px-2 text-slate-400">single-hop, specific answer field</td>'
+                '  <td class="py-1.5 px-2 text-slate-400">small answer space, distinctive author signatures</td>'
                 '</tr>'
                 '<tr class="border-b border-slate-800">'
                 '  <td class="py-1.5 px-2 text-slate-300">USA States</td>'
                 '  <td class="py-1.5 px-2 text-right font-mono text-cyan-400">+5.17</td>'
                 '  <td class="py-1.5 px-2 text-emerald-400">Strong</td>'
-                '  <td class="py-1.5 px-2 text-slate-400">low CLT error (~10%)</td>'
+                '  <td class="py-1.5 px-2 text-slate-400">large N, high scaffold compatibility</td>'
                 '</tr>'
                 '<tr class="border-b border-slate-800">'
                 '  <td class="py-1.5 px-2 text-slate-300">Products</td>'
                 '  <td class="py-1.5 px-2 text-right font-mono text-cyan-400">+3.23</td>'
                 '  <td class="py-1.5 px-2 text-yellow-400">Moderate</td>'
-                '  <td class="py-1.5 px-2 text-slate-400">moderate error, mid complexity</td>'
+                '  <td class="py-1.5 px-2 text-slate-400">moderate scaffold, mid relational complexity</td>'
                 '</tr>'
-                '<tr class="border-b border-slate-800">'
+                '<tr>'
                 '  <td class="py-1.5 px-2 text-slate-300">Paintings</td>'
                 '  <td class="py-1.5 px-2 text-right font-mono text-slate-400">+1.58</td>'
                 '  <td class="py-1.5 px-2 text-orange-400">Weak</td>'
-                '  <td class="py-1.5 px-2 text-slate-400">multi-step, coarse answer field</td>'
-                '</tr>'
-                '<tr>'
-                '  <td class="py-1.5 px-2 text-slate-300">Sounds</td>'
-                '  <td class="py-1.5 px-2 text-right font-mono text-slate-500">+0.14</td>'
-                '  <td class="py-1.5 px-2 text-red-400">Negligible</td>'
-                '  <td class="py-1.5 px-2 text-slate-400">6 entities, 40% shared answers</td>'
+                '  <td class="py-1.5 px-2 text-slate-400">multi-step inference, coarse first-name answer</td>'
                 '</tr>'
                 '</tbody></table>'
             ),
         ),
         P(cls="text-xs text-slate-500 mt-2 leading-relaxed italic")(
-            "The method demonstrates entity-specific causal leverage primarily in "
-            "single-hop factual domains with low CLT reconstruction error, "
-            "with degradation tracking both associative complexity and answer-field coarseness.",
+            "Under the symmetric matched-random + M-search harness the same "
+            "ordering holds (Books +6.5, USA +4.1, Products +2.3, Paintings "
+            "+0.2). The cross-domain ordering matches the operational-"
+            "usefulness verdict, which is why vsMax serves as a primary "
+            "metric rather than a diagnostic.",
         ),
     )
 
@@ -677,11 +707,15 @@ def _section_epistemic_status():
                 "Level 2 -- Causal Effects",
                 "ESTABLISHED",
                 "text-cyan-400",
-                "Three lines of evidence: (1) labeled vs random specificity "
-                "in 4/5 domains, (2) field-level decomposition showing the "
-                "signal resides in semantically appropriate features, "
-                "(3) target recovery rate 92% labeled vs 29% random within "
-                "disruption regimes.",
+                "Three lines of evidence across 4/4 evaluation domains: "
+                "(1) labeled--random Hit% gap >= 11pp and labeled--random "
+                "vsMax gap >= +0.2 in every domain, even after symmetric "
+                "M-search on the random side; (2) field-level decomposition "
+                "shows the signal concentrates in intermediate+answer features "
+                "(9-33pp Hit% gain over all-3-fields); (3) the best variant "
+                "concentrates in regime A (clean redirection, 35-62% per "
+                "domain) while matched-random concentrates in regime D "
+                "(generic disruption, 35-39% in 3/4 domains).",
             ),
             _epistemic_level(
                 "Level 3 -- Mechanistic Explanation",

@@ -25,7 +25,9 @@
   let featuresExpanded = false;
   let contrastGroupExpanded = false;
   let topkExpanded = false;
-  let trajectoryExpanded = false;
+  // Default the gap-trajectory panel open: it carries the headline
+  // logit-flip-vs-time evidence reviewers usually want to see first.
+  let trajectoryExpanded = true;
 
   // Global variant from the matrix selector (persists across cell selections)
   let globalVariant = null;
@@ -113,7 +115,7 @@
     featuresExpanded = false;
     contrastGroupExpanded = false;
     topkExpanded = false;
-    trajectoryExpanded = false;
+    trajectoryExpanded = true;
     sourceSubgraphUrl = null;
     targetSubgraphUrl = null;
     
@@ -156,7 +158,7 @@
     error = null;
     features = null;
     featuresExpanded = false;
-    trajectoryExpanded = false;
+    trajectoryExpanded = true;
     try {
       const qs = variantSuffix ? `?variant=${encodeURIComponent(variantSuffix)}` : '';
       const res = await fetch(`/api/swap/${fromSlug}/${toSlug}${qs}`);
@@ -209,7 +211,7 @@
     features = null;
     featuresExpanded = false;
     topkExpanded = false;
-    trajectoryExpanded = false;
+    trajectoryExpanded = true;
     fromSlug = null;
     toSlug = null;
     selectedVariant = null;
