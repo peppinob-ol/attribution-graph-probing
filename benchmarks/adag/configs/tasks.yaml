@@ -1,0 +1,19 @@
+# Shared tasks. capitals is the natural common ground (ADAG capitals.py == our usa_states).
+tasks:
+  capitals_multihop:
+    template: "What is the capital of the state containing {city}?"
+    seed_response: "Answer:"
+    label: " {capital}"
+    source: capitals            # city -> state -> capital triples
+  capitals_singlehop:
+    template: "What is the capital of {state}?"
+    seed_response: "Answer:"
+    label: " {capital}"
+
+# Steering metrics need the model to actually exhibit the behavior. Filter to prompts
+# the (base) model gets right, otherwise Hit% is not interpretable.
+filter:
+  model_correct_only: true
+  top_k_check: 1
+
+seeds: [42]

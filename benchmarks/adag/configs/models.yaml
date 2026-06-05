@@ -1,0 +1,26 @@
+# Bridge models. Run BOTH; each method on its native substrate, same model controlled.
+models:
+  llama-3.2-1b:
+    hf_model_id: meta-llama/Llama-3.2-1B
+    family: llama                 # SwiGLU -> ADAG native, no grad-rule port
+    n_layers: 16
+    d_model: 2048
+    clt:
+      repo: mntss/clt-llama-3.2-1b-524k
+      revision: main             # TODO: pin to a commit sha for reproducibility
+      model_kind: cross_layer_transcoder
+      n_features: 524288
+    adag_ready: true             # tracing smoke PASS (non-chat, base model)
+    notes: >
+      Small; base model weak on multi-hop capitals (predicts "Dallas" over "Austin").
+      Needs use_chat_format=False + seed append in the fork.
+
+  gemma-2-2b:
+    hf_model_id: google/gemma-2-2b
+    family: gemma                 # GeGLU + 4 norms/layer + logit softcapping
+    clt:
+      repo: mntss/clt-gemma-2-2b-2.5M
+      revision: main             # TODO: pin
+      model_kind: cross_layer_transcoder
+    adag_ready: false            # needs ADAG GeGLU grad-rule port in the fork
+    notes: our native substrate; stronger model; preferred for the final headline.

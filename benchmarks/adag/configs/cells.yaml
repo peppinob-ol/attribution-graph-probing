@@ -1,0 +1,24 @@
+# The 2x2 ablation: substrate x grouping. Each cell emits a GroupedCircuit which is
+# then scored by BOTH metric suites (symmetric comparison).
+cells:
+  A_clt_probe:
+    substrate: clt
+    grouping: probe_prompting
+    desc: our full system
+  B_clt_adag:
+    substrate: clt
+    grouping: adag_clustering
+    desc: ADAG clustering algorithm on our CLT substrate (isolates substrate effect)
+  C_neuron_probe:
+    substrate: neuron
+    grouping: probe_prompting
+    desc: our probe-prompting on ADAG's neuron substrate (isolates algorithm effect)
+  D_neuron_adag:
+    substrate: neuron
+    grouping: adag_clustering
+    desc: their full system
+
+# Both suites run on every cell.
+metric_suites:
+  ours: [tier_T1_T5, hit_rate, vsmax, regime, matched_random_control, topk_control]
+  adag: [silhouette, cluster_size_cov, opposing_sign_pairs, desc_simulator_corr, ablation_0x_2x]
