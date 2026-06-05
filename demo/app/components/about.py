@@ -71,12 +71,14 @@ def _section_footer():
               target="_blank", cls="text-slate-400 hover:text-white")(
                 "Giuseppe Birardi"
             ),
-            " | Orma Lab Srl",
+            " | Orma Lab Srl and Gonçalo Paulo | ",
+            A(href="https://www.eleuther.ai/", target="_blank",
+              cls="text-slate-400 hover:text-white")("EleutherAI"),
         ),
         P(cls="text-xs text-slate-500")(
             "Thanks to ",
-            A(href="https://www.eleuther.ai/", target="_blank",
-              cls="text-slate-400 hover:text-white")("eleuther.ai"),
+            A(href="https://www.coreweave.com/", target="_blank",
+              cls="text-slate-400 hover:text-white")("CoreWeave"),
             " for infrastructure",
         ),
     )
