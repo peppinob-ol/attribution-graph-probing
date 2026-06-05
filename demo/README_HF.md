@@ -10,7 +10,7 @@ license: gpl-3.0
 
 # Concept Swap Explorer -- Cross-Domain Circuit Steering
 
-Interactive visualization of circuit steering experiments across 5 knowledge domains. Explore how feature-level interventions on attribution-graph circuits redirect model outputs from one concept to another.
+Interactive visualization of circuit steering experiments across 4 knowledge domains. Explore how feature-level interventions on attribution-graph circuits redirect model outputs from one concept to another.
 
 ---
 
@@ -77,7 +77,7 @@ Each domain includes multiple run types:
 
 ## Data
 
-This Space visualizes 33,387 steering runs across 5 domains and 3 experimental conditions (labeled, random-control, field-add-control), all performed on **Gemma-2-2B** with Cross-Layer Transcoders.
+This Space visualizes 41,784 swap runs across 4 domains and 4 experimental conditions (labeled, matched-random, field-additivity, adaptive M-search), all performed on **Gemma-2-2B** with Cross-Layer Transcoders.
 
 ---
 
